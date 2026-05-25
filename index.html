@@ -1492,7 +1492,7 @@ function triggerEvent(){
 // AUTH (localStorage-based)
 // ================================================================
 function getUsers(){try{return JSON.parse(localStorage.getItem('if_users')||'{}')}catch{return{}}}
-function saveUsers(u){localStorage.setItem('if_users',JSON.stringify(u))}
+function saveUsers(u){try{localStorage.setItem('if_users',JSON.stringify(u));return true;}catch{return false;}}
 function getCurrentUser(){try{return localStorage.getItem('if_session')||null}catch{return null}}
 function setSession(u){try{localStorage.setItem('if_session',u)}catch{}}
 function clearSession(){try{localStorage.removeItem('if_session')}catch{}}
@@ -1531,7 +1531,7 @@ function doSignup(){
   const users=getUsers();
   if(users[user]){err.textContent='Username already taken.';return;}
   users[user]={password:btoa(pass),created:Date.now()};
-  saveUsers(users);
+  if(!saveUsers(users)){err.textContent='Storage blocked — open the file via a local server or enable localStorage in your browser.';return;}
   setSession(user);
   err.textContent='';
   showScreen('splash');
