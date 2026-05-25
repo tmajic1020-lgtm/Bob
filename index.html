@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nation Builder: Global Strategy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0f1c;--panel:#111827;--border:#1e3a5f;--accent:#00d4ff;
+  --gold:#f5a623;--green:#22c55e;--red:#ef4444;--purple:#8b5cf6;
+  --text:#e2e8f0;--muted:#64748b;--navy:#1e3a5f;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;overflow:hidden}
+.screen{display:none;width:100%;height:100vh}
+.screen.active{display:flex}
+
+/* ===== SPLASH ===== */
+#splash{flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0d1a3a 0%,#0a0f1c 70%)}
+#splash h1{font-size:4rem;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:4px;margin-bottom:8px}
+#splash p{color:var(--muted);font-size:1.1rem;letter-spacing:2px;margin-bottom:48px}
+.btn-primary{background:linear-gradient(135deg,#0077aa,#00d4ff);color:#fff;border:none;padding:16px 48px;font-size:1.1rem;font-weight:700;letter-spacing:2px;cursor:pointer;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s}
+.btn-primary:hover{filter:brightness(1.2);transform:scale(1.03)}
+.globe-bg{position:absolute;width:600px;height:600px;border-radius:50%;border:1px solid #1e3a5f33;box-shadow:0 0 80px #00d4ff11;pointer-events:none}
+
+/* ===== COUNTRY SELECT ===== */
+#select{flex-direction:column;background:var(--bg);overflow:hidden}
+#select header{padding:24px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+#select header h2{font-size:1.5rem;color:var(--accent);letter-spacing:2px}
+#select header span{color:var(--muted);font-size:.9rem}
+.country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:24px;overflow-y:auto;flex:1}
+.country-card{background:var(--panel);border:1px solid var(--border);padding:16px 12px;cursor:pointer;transition:all .2s;text-align:center;position:relative;clip-path:polygon(6px 0%,100% 0%,calc(100%-6px) 100%,0% 100%)}
+.country-card:hover{border-color:var(--accent);background:#1a2744;transform:translateY(-2px);box-shadow:0 4px 20px #00d4ff22}
+.country-card .flag{font-size:2rem;display:block;margin-bottom:6px}
+.country-card .cname{font-size:.8rem;font-weight:700;color:var(--text)}
+.country-card .ccontinent{font-size:.65rem;color:var(--muted);margin-top:2px}
+.country-card .cstats{font-size:.6rem;color:var(--accent);margin-top:6px;opacity:.7}
+
+/* ===== GAME MAIN ===== */
+#game{flex-direction:column;height:100vh;overflow:hidden}
+
+/* HUD */
+#hud{display:flex;align-items:center;background:#0d1520;border-bottom:1px solid var(--border);padding:8px 16px;gap:24px;flex-shrink:0;z-index:10}
+#hud .country-id{display:flex;align-items:center;gap:8px;padding-right:24px;border-right:1px solid var(--border)}
+#hud .country-id .flag{font-size:1.4rem}
+#hud .country-id .name{font-size:.9rem;font-weight:700;color:var(--accent)}
+.res-item{display:flex;align-items:center;gap:4px;font-size:.78rem}
+.res-item .icon{font-size:.9rem}
+.res-item .val{font-weight:700;color:var(--text)}
+.res-item .inc{font-size:.6rem;color:var(--green);margin-left:2px}
+.res-item .inc.neg{color:var(--red)}
+#hud .turn-info{margin-left:auto;text-align:right}
+#hud .turn-info .year{font-size:1.1rem;font-weight:900;color:var(--gold)}
+#hud .turn-info .turn{font-size:.65rem;color:var(--muted)}
+.btn-turn{background:linear-gradient(135deg,#1a4020,#22c55e);color:#fff;border:none;padding:8px 20px;font-size:.8rem;font-weight:700;letter-spacing:1px;cursor:pointer;clip-path:polygon(6px 0%,100% 0%,calc(100%-6px) 100%,0% 100%);transition:all .2s;margin-left:16px}
+.btn-turn:hover{filter:brightness(1.2)}
+
+/* Main layout */
+#main-layout{display:flex;flex:1;overflow:hidden}
+
+/* MAP */
+#map-area{flex:1;position:relative;background:#061018;overflow:hidden}
+#world-map{width:100%;height:100%;cursor:crosshair}
+.country-path{stroke:#1a2f4a;stroke-width:0.5;transition:all .2s;cursor:pointer}
+.country-path:hover{stroke:var(--accent);stroke-width:1.5;filter:brightness(1.3)}
+.country-path.player{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 6px var(--accent))}
+.country-path.enemy{stroke:#3a1a1a}
+.country-path.allied{stroke:#1a3a2a}
+.country-path.war{stroke:var(--red);stroke-width:1.5;animation:warPulse 1s ease-in-out infinite}
+@keyframes warPulse{0%,100%{stroke-opacity:1}50%{stroke-opacity:.4}}
+.map-tooltip{position:absolute;background:#111827ee;border:1px solid var(--accent);padding:8px 12px;font-size:.75rem;pointer-events:none;opacity:0;transition:opacity .15s;z-index:100;max-width:200px}
+.map-tooltip.show{opacity:1}
+.map-legend{position:absolute;bottom:12px;left:12px;background:#111827cc;border:1px solid var(--border);padding:8px 12px;font-size:.65rem;color:var(--muted)}
+.map-legend div{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.legend-box{width:12px;height:8px;border-radius:1px}
+
+/* PANEL */
+#side-panel{width:340px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.panel-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab-btn{flex:1;padding:10px 4px;font-size:.65rem;font-weight:700;letter-spacing:.5px;cursor:pointer;background:none;border:none;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn:hover{color:var(--text)}
+.tab-content{display:none;flex:1;overflow-y:auto;padding:16px}
+.tab-content.active{display:block}
+.tab-content::-webkit-scrollbar{width:4px}
+.tab-content::-webkit-scrollbar-track{background:#0a0f1c}
+.tab-content::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* Overview tab */
+.overview-section{margin-bottom:16px}
+.section-title{font-size:.65rem;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:.75rem;border-bottom:1px solid #1e3a5f22}
+.stat-row .label{color:var(--muted)}
+.stat-row .value{font-weight:700;color:var(--text)}
+.log-entry{font-size:.7rem;padding:5px 8px;border-left:2px solid var(--border);margin-bottom:4px;color:var(--muted);background:#0a0f1c44}
+.log-entry.event{border-color:var(--gold);color:var(--text)}
+.log-entry.war{border-color:var(--red);color:var(--red)}
+.log-entry.good{border-color:var(--green);color:var(--green)}
+
+/* Buildings tab */
+.building-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.building-card{background:#0a0f1c;border:1px solid var(--border);padding:10px;cursor:pointer;transition:all .2s;text-align:center}
+.building-card:hover{border-color:var(--accent);background:#111827}
+.building-card.cant-afford{opacity:.4;cursor:not-allowed}
+.building-card .b-icon{font-size:1.4rem;display:block;margin-bottom:4px}
+.building-card .b-name{font-size:.65rem;font-weight:700;color:var(--text)}
+.building-card .b-cost{font-size:.6rem;color:var(--gold);margin-top:3px}
+.building-card .b-effect{font-size:.58rem;color:var(--muted);margin-top:2px}
+.building-card .b-count{font-size:.65rem;color:var(--accent);font-weight:700;margin-top:4px}
+.owned-buildings{margin-top:12px}
+.owned-building-row{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#0a0f1c;border:1px solid var(--border);margin-bottom:4px;font-size:.72rem}
+
+/* Military tab */
+.mil-subtabs{display:flex;gap:4px;margin-bottom:12px}
+.mil-tab{flex:1;padding:6px;font-size:.65rem;font-weight:700;letter-spacing:.5px;cursor:pointer;background:#0a0f1c;border:1px solid var(--border);color:var(--muted);transition:all .2s;text-align:center}
+.mil-tab.active{background:var(--navy);border-color:var(--accent);color:var(--accent)}
+.mil-subtab-content{display:none}
+.mil-subtab-content.active{display:block}
+.unit-card{display:flex;align-items:center;gap:10px;padding:8px;background:#0a0f1c;border:1px solid var(--border);margin-bottom:6px;cursor:pointer;transition:all .2s}
+.unit-card:hover{border-color:var(--accent)}
+.unit-card.locked{opacity:.35;cursor:not-allowed}
+.unit-card .u-icon{font-size:1.2rem;width:28px;text-align:center}
+.unit-card .u-info{flex:1}
+.unit-card .u-name{font-size:.72rem;font-weight:700}
+.unit-card .u-stats{font-size:.6rem;color:var(--muted);margin-top:1px}
+.unit-card .u-cost{font-size:.6rem;color:var(--gold)}
+.unit-card .u-count{font-size:.8rem;font-weight:900;color:var(--accent);min-width:28px;text-align:right}
+.unit-card .u-lock{font-size:.6rem;color:var(--red)}
+.mil-power-bar{background:#0a0f1c;border:1px solid var(--border);padding:12px;margin-bottom:12px;text-align:center}
+.mil-power-bar .power-num{font-size:2rem;font-weight:900;color:var(--accent)}
+.mil-power-bar .power-label{font-size:.65rem;color:var(--muted);letter-spacing:2px}
+
+/* Tech tab */
+.tech-branch{margin-bottom:20px}
+.tech-branch-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tech-branch-header .branch-icon{font-size:1.1rem}
+.tech-branch-header .branch-name{font-size:.75rem;font-weight:700;letter-spacing:1px}
+.tech-nodes{display:flex;gap:6px;align-items:center}
+.tech-node{flex:1;padding:8px 6px;background:#0a0f1c;border:1px solid var(--border);cursor:pointer;transition:all .2s;text-align:center;position:relative}
+.tech-node:hover{border-color:var(--accent)}
+.tech-node.done{background:#0d2a1a;border-color:var(--green)}
+.tech-node.done .tn-name{color:var(--green)}
+.tech-node.researching{border-color:var(--gold);animation:techPulse 1.5s ease-in-out infinite}
+.tech-node.locked{opacity:.35;cursor:not-allowed}
+.tech-node .tn-num{font-size:.55rem;color:var(--muted);margin-bottom:2px}
+.tech-node .tn-name{font-size:.6rem;font-weight:700}
+.tech-node .tn-cost{font-size:.55rem;color:var(--gold);margin-top:2px}
+.tech-arrow{color:var(--border);font-size:.8rem;flex-shrink:0}
+@keyframes techPulse{0%,100%{border-color:var(--gold);box-shadow:0 0 4px #f5a62344}50%{border-color:#ffcc44;box-shadow:0 0 12px #f5a62366}}
+
+/* Diplomacy tab */
+.diplo-country{display:flex;align-items:center;gap:10px;padding:10px 8px;background:#0a0f1c;border:1px solid var(--border);margin-bottom:6px}
+.diplo-country .dc-flag{font-size:1.2rem}
+.diplo-country .dc-info{flex:1}
+.diplo-country .dc-name{font-size:.72rem;font-weight:700}
+.diplo-country .dc-rel{font-size:.6rem;margin-top:1px}
+.diplo-country .dc-rel.neutral{color:var(--muted)}
+.diplo-country .dc-rel.friendly{color:var(--green)}
+.diplo-country .dc-rel.hostile{color:var(--gold)}
+.diplo-country .dc-rel.war{color:var(--red)}
+.diplo-country .dc-rel.allied{color:var(--accent)}
+.diplo-actions{display:flex;gap:4px;flex-direction:column}
+.btn-sm{padding:3px 8px;font-size:.58rem;font-weight:700;border:none;cursor:pointer;transition:all .2s}
+.btn-war{background:#3a0a0a;border:1px solid var(--red);color:var(--red)}
+.btn-war:hover{background:var(--red);color:#fff}
+.btn-ally{background:#0a1a0a;border:1px solid var(--green);color:var(--green)}
+.btn-ally:hover{background:var(--green);color:#fff}
+.btn-trade{background:#1a1a0a;border:1px solid var(--gold);color:var(--gold)}
+.btn-trade:hover{background:var(--gold);color:#000}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:#000000aa;z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--accent);padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative}
+.modal h3{font-size:1.1rem;color:var(--accent);margin-bottom:16px;letter-spacing:1px}
+.modal-close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer}
+.modal-close:hover{color:var(--red)}
+.event-text{font-size:.85rem;line-height:1.6;color:var(--text);margin-bottom:16px}
+.event-effects{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.effect-badge{padding:4px 10px;border-radius:2px;font-size:.7rem;font-weight:700}
+.effect-pos{background:#0d2a1a;border:1px solid var(--green);color:var(--green)}
+.effect-neg{background:#2a0d0d;border:1px solid var(--red);color:var(--red)}
+.effect-neu{background:#0d1a2a;border:1px solid var(--accent);color:var(--accent)}
+
+/* Win/battle screen */
+.outcome-modal{text-align:center}
+.outcome-modal .big-flag{font-size:4rem;margin-bottom:8px}
+.outcome-modal h2{font-size:2rem;margin-bottom:8px}
+.outcome-modal.win h2{color:var(--green)}
+.outcome-modal.lose h2{color:var(--red)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#0a0f1c}::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* Misc */
+.badge{display:inline-block;padding:2px 6px;font-size:.6rem;font-weight:700;border-radius:1px}
+.badge-acc{background:#0d1f33;border:1px solid var(--accent);color:var(--accent)}
+.badge-gold{background:#1f1a00;border:1px solid var(--gold);color:var(--gold)}
+.no-naval-notice{font-size:.7rem;color:var(--red);padding:8px;border:1px solid #3a1a1a;background:#1a0a0a;margin-bottom:8px}
+
+/* Progress bar */
+.progress-wrap{background:#0a0f1c;border:1px solid var(--border);height:6px;margin-top:4px}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .4s}
+
+</style>
+</head>
+<body>
+
+<!-- ===== SPLASH ===== -->
+<div id="splash" class="screen active">
+  <div class="globe-bg"></div>
+  <h1>NATION BUILDER</h1>
+  <p>GLOBAL STRATEGY · 50 NATIONS · INFINITE POWER</p>
+  <button class="btn-primary" onclick="showScreen('select')">▶ BEGIN CAMPAIGN</button>
+</div>
+
+<!-- ===== COUNTRY SELECT ===== -->
+<div id="select" class="screen">
+  <header>
+    <h2>⚑ SELECT YOUR NATION</h2>
+    <span id="select-count">Choose from 50 playable countries</span>
+  </header>
+  <div class="country-grid" id="country-grid"></div>
+</div>
+
+<!-- ===== MAIN GAME ===== -->
+<div id="game" class="screen">
+  <!-- HUD -->
+  <div id="hud">
+    <div class="country-id">
+      <span class="flag" id="hud-flag"></span>
+      <span class="name" id="hud-name"></span>
+    </div>
+    <div class="res-item"><span class="icon">💰</span><span class="val" id="r-gold">0</span><span class="inc" id="r-gold-inc">+0</span></div>
+    <div class="res-item"><span class="icon">🌾</span><span class="val" id="r-food">0</span><span class="inc" id="r-food-inc">+0</span></div>
+    <div class="res-item"><span class="icon">⚡</span><span class="val" id="r-oil">0</span><span class="inc" id="r-oil-inc">+0</span></div>
+    <div class="res-item"><span class="icon">👥</span><span class="val" id="r-pop">0</span><span class="inc" id="r-pop-inc">+0</span><span style="font-size:.6rem;color:var(--muted)">M</span></div>
+    <div class="res-item"><span class="icon">🔬</span><span class="val" id="r-research">0</span><span class="inc" id="r-res-inc">+0</span></div>
+    <div class="turn-info">
+      <div class="year" id="hud-year">2024</div>
+      <div class="turn" id="hud-turn">Turn 1</div>
+    </div>
+    <button class="btn-turn" onclick="endTurn()">END TURN ▶</button>
+  </div>
+
+  <!-- Layout -->
+  <div id="main-layout">
+    <!-- MAP -->
+    <div id="map-area">
+      <svg id="world-map" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+        <rect width="1000" height="500" fill="#061828"/>
+        <g id="countries-layer"></g>
+        <g id="labels-layer"></g>
+      </svg>
+      <div class="map-tooltip" id="map-tooltip"></div>
+      <div class="map-legend">
+        <div><div class="legend-box" style="background:#1a3a5c"></div> Your nation</div>
+        <div><div class="legend-box" style="background:#2a3a1a"></div> Allied</div>
+        <div><div class="legend-box" style="background:#3a1a1a"></div> At war</div>
+        <div><div class="legend-box" style="background:#1e2a3a"></div> Neutral</div>
+      </div>
+    </div>
+
+    <!-- SIDE PANEL -->
+    <div id="side-panel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab-btn" onclick="switchTab('buildings')">Build</button>
+        <button class="tab-btn" onclick="switchTab('military')">Military</button>
+        <button class="tab-btn" onclick="switchTab('tech')">Tech</button>
+        <button class="tab-btn" onclick="switchTab('diplo')">Diplo</button>
+      </div>
+
+      <!-- Overview -->
+      <div class="tab-content active" id="tab-overview">
+        <div class="overview-section">
+          <div class="section-title">Nation Status</div>
+          <div class="stat-row"><span class="label">Territory</span><span class="value" id="ov-territory">1 province</span></div>
+          <div class="stat-row"><span class="label">Military Power</span><span class="value" id="ov-mil">0</span></div>
+          <div class="stat-row"><span class="label">Tech Level</span><span class="value" id="ov-tech">0 / 20</span></div>
+          <div class="stat-row"><span class="label">Buildings</span><span class="value" id="ov-buildings">0</span></div>
+          <div class="stat-row"><span class="label">Annexed Nations</span><span class="value" id="ov-annexed">0</span></div>
+        </div>
+        <div class="overview-section">
+          <div class="section-title">Income Per Turn</div>
+          <div class="stat-row"><span class="label">💰 Gold</span><span class="value" id="ov-gold-inc">+0</span></div>
+          <div class="stat-row"><span class="label">🌾 Food</span><span class="value" id="ov-food-inc">+0</span></div>
+          <div class="stat-row"><span class="label">⚡ Energy</span><span class="value" id="ov-oil-inc">+0</span></div>
+          <div class="stat-row"><span class="label">🔬 Research</span><span class="value" id="ov-res-inc">+0</span></div>
+        </div>
+        <div class="overview-section">
+          <div class="section-title">Win Progress</div>
+          <div class="stat-row"><span class="label">🏆 Military Dom.</span><span class="value" id="win-mil">0/10 nations</span></div>
+          <div class="stat-row"><span class="label">💰 Economic</span><span class="value" id="win-eco">0/10000 gold</span></div>
+          <div class="stat-row"><span class="label">🔬 Research</span><span class="value" id="win-res">0/20 techs</span></div>
+        </div>
+        <div class="overview-section">
+          <div class="section-title">Event Log</div>
+          <div id="event-log"></div>
+        </div>
+      </div>
+
+      <!-- Buildings -->
+      <div class="tab-content" id="tab-buildings">
+        <div class="section-title" style="margin-bottom:10px">Available Buildings</div>
+        <div id="no-naval" class="no-naval-notice" style="display:none">⚠ Naval Base &amp; Port require a coastal nation</div>
+        <div class="building-grid" id="building-grid"></div>
+        <div class="owned-buildings">
+          <div class="section-title" style="margin-bottom:8px">Owned Buildings</div>
+          <div id="owned-buildings-list"><span style="font-size:.7rem;color:var(--muted)">None built yet</span></div>
+        </div>
+      </div>
+
+      <!-- Military -->
+      <div class="tab-content" id="tab-military">
+        <div class="mil-power-bar">
+          <div class="power-num" id="mil-power-num">0</div>
+          <div class="power-label">TOTAL MILITARY POWER</div>
+        </div>
+        <div class="mil-subtabs">
+          <div class="mil-tab active" onclick="switchMilTab('army')">⚔ Army</div>
+          <div class="mil-tab" onclick="switchMilTab('navy')">⚓ Navy</div>
+          <div class="mil-tab" onclick="switchMilTab('air')">✈ Air Force</div>
+        </div>
+        <div class="mil-subtab-content active" id="mil-army"></div>
+        <div class="mil-subtab-content" id="mil-navy"></div>
+        <div class="mil-subtab-content" id="mil-air"></div>
+      </div>
+
+      <!-- Tech -->
+      <div class="tab-content" id="tab-tech">
+        <div style="font-size:.7rem;color:var(--muted);margin-bottom:12px">Research techs to unlock powerful units and bonuses. Each level costs Research Points from your reserves.</div>
+        <div id="tech-tree-panel"></div>
+      </div>
+
+      <!-- Diplomacy -->
+      <div class="tab-content" id="tab-diplo">
+        <div style="font-size:.7rem;color:var(--muted);margin-bottom:10px">Manage relations with other nations. Declare war to conquer, or ally to gain bonuses.</div>
+        <div id="diplo-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EVENT MODAL -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('event-modal')">✕</button>
+    <h3 id="modal-event-title">World Event</h3>
+    <div class="event-text" id="modal-event-text"></div>
+    <div class="event-effects" id="modal-event-effects"></div>
+    <button class="btn-primary" onclick="closeModal('event-modal')" style="width:100%;text-align:center">ACKNOWLEDGE</button>
+  </div>
+</div>
+
+<!-- BATTLE MODAL -->
+<div class="modal-overlay" id="battle-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('battle-modal')">✕</button>
+    <h3>⚔ Battle Report</h3>
+    <div id="battle-content"></div>
+    <button class="btn-primary" onclick="closeModal('battle-modal')" style="width:100%;text-align:center;margin-top:12px">CLOSE</button>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="modal-overlay" id="win-modal">
+  <div class="modal outcome-modal win">
+    <div class="big-flag" id="win-flag"></div>
+    <h2>VICTORY!</h2>
+    <p id="win-text" style="color:var(--muted);margin-bottom:20px"></p>
+    <button class="btn-primary" onclick="location.reload()" style="width:100%;text-align:center">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// DATA
+// ================================================================
+
+function ll(lat,lon){return{x:(lon+180)/360*1000,y:(90-lat)/180*500}}
+function path(pts){return pts.map((p,i)=>{const{x,y}=ll(p[0],p[1]);return`${i?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`}).join(' ')+' Z'}
+
+const COUNTRIES = {
+  "United States":{flag:"🇺🇸",continent:"North America",coastal:true,
+    shape:[[49,-125],[49,-95],[49,-67],[44,-67],[41,-70],[35,-75],[30,-81],[25,-80],[29,-89],[29,-94],[26,-97],[29,-104],[31,-107],[32,-114],[32,-117],[37,-122],[42,-124],[48,-122],[49,-125]],
+    gold:1000,food:800,oil:600,pop:330,research:50,
+    income:{gold:150,food:100,oil:80,research:30}},
+
+  "Canada":{flag:"🇨🇦",continent:"North America",coastal:true,
+    shape:[[49,-125],[49,-67],[47,-53],[52,-56],[60,-64],[63,-68],[68,-66],[73,-78],[80,-85],[83,-90],[83,-130],[70,-140],[60,-138],[50,-124],[49,-125]],
+    gold:800,food:700,oil:500,pop:38,research:40,
+    income:{gold:100,food:90,oil:70,research:25}},
+
+  "Mexico":{flag:"🇲🇽",continent:"North America",coastal:true,
+    shape:[[32,-117],[29,-95],[26,-97],[22,-97],[16,-87],[15,-90],[18,-91],[18,-88],[21,-87],[28,-112],[32,-117]],
+    gold:400,food:450,oil:350,pop:130,research:20,
+    income:{gold:60,food:70,oil:50,research:10}},
+
+  "Brazil":{flag:"🇧🇷",continent:"South America",coastal:true,
+    shape:[[5,-60],[4,-51],[5,-35],[-5,-35],[-10,-37],[-15,-39],[-23,-43],[-33,-52],[-33,-58],[-20,-58],[-10,-75],[0,-73],[5,-60]],
+    gold:450,food:600,oil:300,pop:215,research:25,
+    income:{gold:70,food:90,oil:40,research:12}},
+
+  "Argentina":{flag:"🇦🇷",continent:"South America",coastal:true,
+    shape:[[-22,-58],[-22,-65],[-35,-65],[-42,-65],[-55,-68],[-55,-65],[-42,-58],[-35,-56],[-22,-58]],
+    gold:300,food:400,oil:200,pop:45,research:15,
+    income:{gold:50,food:70,oil:30,research:8}},
+
+  "Colombia":{flag:"🇨🇴",continent:"South America",coastal:true,
+    shape:[[12,-72],[12,-67],[8,-60],[2,-60],[-2,-68],[-2,-77],[4,-77],[8,-77],[12,-72]],
+    gold:250,food:350,oil:200,pop:51,research:10,
+    income:{gold:40,food:55,oil:35,research:7}},
+
+  "Chile":{flag:"🇨🇱",continent:"South America",coastal:true,
+    shape:[[-17,-70],[-17,-69],[-22,-68],[-30,-71],[-40,-72],[-55,-70],[-55,-66],[-40,-70],[-30,-69],[-22,-66],[-17,-70]],
+    gold:280,food:300,oil:80,pop:19,research:12,
+    income:{gold:45,food:45,oil:12,research:8}},
+
+  "Peru":{flag:"🇵🇪",continent:"South America",coastal:true,
+    shape:[[-2,-80],[-2,-70],[−18,−70],[-18,-75],[-3,-80],[-2,-80]],
+    gold:200,food:280,oil:120,pop:33,research:8,
+    income:{gold:32,food:42,oil:18,research:5}},
+
+  "Venezuela":{flag:"🇻🇪",continent:"South America",coastal:true,
+    shape:[[12,-73],[12,-60],[5,-60],[2,-60],[2,-67],[8,-72],[12,-73]],
+    gold:180,food:250,oil:500,pop:28,research:6,
+    income:{gold:28,food:38,oil:85,research:4}},
+
+  "Russia":{flag:"🇷🇺",continent:"Europe/Asia",coastal:true,
+    shape:[[55,28],[70,28],[73,60],[75,100],[73,140],[68,180],[55,180],[43,135],[43,60],[41,40],[55,28]],
+    gold:700,food:500,oil:900,pop:145,research:50,
+    income:{gold:100,food:60,oil:150,research:20}},
+
+  "United Kingdom":{flag:"🇬🇧",continent:"Europe",coastal:true,
+    shape:[[50,-6],[59,-6],[59,0],[56,2],[51,2],[50,-6]],
+    gold:700,food:400,oil:300,pop:67,research:55,
+    income:{gold:110,food:50,oil:40,research:25}},
+
+  "France":{flag:"🇫🇷",continent:"Europe",coastal:true,
+    shape:[[43,-2],[51,-2],[51,8],[47,8],[43,7],[43,-2]],
+    gold:650,food:450,oil:200,pop:67,research:50,
+    income:{gold:100,food:60,oil:25,research:22}},
+
+  "Germany":{flag:"🇩🇪",continent:"Europe",coastal:true,
+    shape:[[47,6],[55,6],[55,15],[51,15],[47,13],[47,6]],
+    gold:700,food:400,oil:150,pop:83,research:60,
+    income:{gold:120,food:55,oil:20,research:28}},
+
+  "Spain":{flag:"🇪🇸",continent:"Europe",coastal:true,
+    shape:[[36,-9],[44,-9],[44,3],[40,3],[36,0],[36,-9]],
+    gold:450,food:350,oil:100,pop:47,research:30,
+    income:{gold:70,food:50,oil:15,research:15}},
+
+  "Portugal":{flag:"🇵🇹",continent:"Europe",coastal:true,
+    shape:[[37,-9],[42,-9],[42,-6],[37,-6],[37,-9]],
+    gold:250,food:250,oil:50,pop:10,research:20,
+    income:{gold:40,food:35,oil:8,research:8}},
+
+  "Italy":{flag:"🇮🇹",continent:"Europe",coastal:true,
+    shape:[[44,7],[47,7],[47,14],[44,14],[41,16],[38,15],[37,15],[38,16],[44,7]],
+    gold:500,food:400,oil:100,pop:60,research:40,
+    income:{gold:80,food:55,oil:15,research:18}},
+
+  "Netherlands":{flag:"🇳🇱",continent:"Europe",coastal:true,
+    shape:[[51,3.5],[53.5,3.5],[53.5,7],[51,7],[51,3.5]],
+    gold:400,food:250,oil:100,pop:18,research:45,
+    income:{gold:70,food:35,oil:15,research:18}},
+
+  "Belgium":{flag:"🇧🇪",continent:"Europe",coastal:true,
+    shape:[[49.5,2.5],[51.5,2.5],[51.5,6.5],[49.5,6.5],[49.5,2.5]],
+    gold:350,food:200,oil:50,pop:12,research:38,
+    income:{gold:60,food:30,oil:8,research:15}},
+
+  "Switzerland":{flag:"🇨🇭",continent:"Europe",coastal:false,
+    shape:[[45.8,6],[47.8,6],[47.8,10.5],[45.8,10.5],[45.8,6]],
+    gold:600,food:200,oil:20,pop:9,research:50,
+    income:{gold:90,food:25,oil:5,research:20}},
+
+  "Austria":{flag:"🇦🇹",continent:"Europe",coastal:false,
+    shape:[[46.5,9.5],[49,9.5],[49,17],[46.5,17],[46.5,9.5]],
+    gold:300,food:200,oil:30,pop:9,research:30,
+    income:{gold:50,food:28,oil:5,research:12}},
+
+  "Poland":{flag:"🇵🇱",continent:"Europe",coastal:true,
+    shape:[[49,14],[54.5,14],[54.5,24],[49,24],[49,14]],
+    gold:350,food:350,oil:80,pop:38,research:25,
+    income:{gold:55,food:50,oil:10,research:12}},
+
+  "Ukraine":{flag:"🇺🇦",continent:"Europe",coastal:true,
+    shape:[[44.5,22],[52,22],[52,40],[44.5,40],[44.5,22]],
+    gold:250,food:400,oil:150,pop:44,research:18,
+    income:{gold:40,food:65,oil:20,research:8}},
+
+  "Romania":{flag:"🇷🇴",continent:"Europe",coastal:true,
+    shape:[[43.5,22],[48.5,22],[48.5,30],[43.5,30],[43.5,22]],
+    gold:200,food:300,oil:100,pop:19,research:15,
+    income:{gold:35,food:45,oil:15,research:7}},
+
+  "Czech Republic":{flag:"🇨🇿",continent:"Europe",coastal:false,
+    shape:[[48.5,12],[51,12],[51,18.5],[48.5,18.5],[48.5,12]],
+    gold:280,food:200,oil:30,pop:11,research:28,
+    income:{gold:45,food:30,oil:5,research:12}},
+
+  "Hungary":{flag:"🇭🇺",continent:"Europe",coastal:false,
+    shape:[[45.8,16],[48.5,16],[48.5,22.5],[45.8,22.5],[45.8,16]],
+    gold:200,food:250,oil:50,pop:10,research:20,
+    income:{gold:35,food:38,oil:8,research:8}},
+
+  "Bulgaria":{flag:"🇧🇬",continent:"Europe",coastal:true,
+    shape:[[41.5,22],[44,22],[44,28.5],[41.5,28.5],[41.5,22]],
+    gold:180,food:220,oil:40,pop:7,research:15,
+    income:{gold:30,food:35,oil:6,research:6}},
+
+  "Serbia":{flag:"🇷🇸",continent:"Europe",coastal:false,
+    shape:[[42.5,19],[46,19],[46,23],[42.5,23],[42.5,19]],
+    gold:150,food:200,oil:30,pop:7,research:12,
+    income:{gold:25,food:32,oil:5,research:5}},
+
+  "Croatia":{flag:"🇭🇷",continent:"Europe",coastal:true,
+    shape:[[42,13.5],[46.5,13.5],[46.5,19],[42,19],[42,13.5]],
+    gold:180,food:180,oil:20,pop:4,research:15,
+    income:{gold:30,food:28,oil:4,research:6}},
+
+  "Sweden":{flag:"🇸🇪",continent:"Europe",coastal:true,
+    shape:[[55.5,11],[69,11],[69,24],[55.5,24],[55.5,11]],
+    gold:500,food:300,oil:100,pop:10,research:50,
+    income:{gold:80,food:45,oil:15,research:22}},
+
+  "Norway":{flag:"🇳🇴",continent:"Europe",coastal:true,
+    shape:[[58,5],[71,5],[71,31],[58,31],[58,5]],
+    gold:700,food:250,oil:400,pop:5,research:45,
+    income:{gold:90,food:35,oil:70,research:18}},
+
+  "Finland":{flag:"🇫🇮",continent:"Europe",coastal:true,
+    shape:[[60,20],[70,20],[70,31],[60,31],[60,20]],
+    gold:400,food:250,oil:50,pop:5.5,research:40,
+    income:{gold:65,food:38,oil:8,research:18}},
+
+  "Denmark":{flag:"🇩🇰",continent:"Europe",coastal:true,
+    shape:[[54.5,8],[57.8,8],[57.8,15],[54.5,15],[54.5,8]],
+    gold:380,food:280,oil:80,pop:6,research:40,
+    income:{gold:60,food:42,oil:12,research:16}},
+
+  "Lithuania":{flag:"🇱🇹",continent:"Europe",coastal:true,
+    shape:[[53.8,21],[56.5,21],[56.5,26.8],[53.8,26.8],[53.8,21]],
+    gold:150,food:160,oil:20,pop:3,research:15,
+    income:{gold:25,food:25,oil:4,research:6}},
+
+  "Latvia":{flag:"🇱🇻",continent:"Europe",coastal:true,
+    shape:[[55.7,21],[57.8,21],[57.8,28],[55.7,28],[55.7,21]],
+    gold:140,food:150,oil:15,pop:2,research:14,
+    income:{gold:22,food:23,oil:3,research:5}},
+
+  "Estonia":{flag:"🇪🇪",continent:"Europe",coastal:true,
+    shape:[[57.5,22],[59.7,22],[59.7,28],[57.5,28],[57.5,22]],
+    gold:130,food:130,oil:15,pop:1.3,research:14,
+    income:{gold:20,food:20,oil:3,research:5}},
+
+  "Ireland":{flag:"🇮🇪",continent:"Europe",coastal:true,
+    shape:[[51.5,-10.5],[55.5,-10.5],[55.5,-6],[51.5,-6],[51.5,-10.5]],
+    gold:350,food:200,oil:30,pop:5,research:35,
+    income:{gold:55,food:30,oil:5,research:14}},
+
+  "Greece":{flag:"🇬🇷",continent:"Europe",coastal:true,
+    shape:[[36,20],[42,20],[42,26.5],[36,26.5],[36,20]],
+    gold:250,food:250,oil:50,pop:11,research:22,
+    income:{gold:40,food:38,oil:8,research:9}},
+
+  "Turkey":{flag:"🇹🇷",continent:"Asia",coastal:true,
+    shape:[[36,26],[42,26],[42,45],[36,45],[36,26]],
+    gold:350,food:350,oil:150,pop:85,research:25,
+    income:{gold:55,food:55,oil:20,research:12}},
+
+  "Saudi Arabia":{flag:"🇸🇦",continent:"Asia",coastal:true,
+    shape:[[16,37],[32,37],[32,55],[22,58],[16,55],[16,37]],
+    gold:800,food:200,oil:1200,pop:35,research:30,
+    income:{gold:120,food:30,oil:200,research:15}},
+
+  "Iran":{flag:"🇮🇷",continent:"Asia",coastal:true,
+    shape:[[25,44],[40,44],[40,64],[25,64],[25,44]],
+    gold:300,food:350,oil:800,pop:85,research:20,
+    income:{gold:45,food:52,oil:130,research:10}},
+
+  "Pakistan":{flag:"🇵🇰",continent:"Asia",coastal:true,
+    shape:[[24,61],[37,61],[37,77],[24,77],[24,61]],
+    gold:200,food:350,oil:100,pop:220,research:12,
+    income:{gold:30,food:55,oil:15,research:6}},
+
+  "India":{flag:"🇮🇳",continent:"Asia",coastal:true,
+    shape:[[36,73],[36,80],[28,88],[22,92],[8,80],[8,68],[22,68],[36,73]],
+    gold:500,food:700,oil:300,pop:1400,research:40,
+    income:{gold:75,food:110,oil:45,research:18}},
+
+  "China":{flag:"🇨🇳",continent:"Asia",coastal:true,
+    shape:[[18,74],[42,74],[48,87],[53,120],[48,135],[40,130],[22,114],[20,108],[18,74]],
+    gold:900,food:900,oil:500,pop:1400,research:70,
+    income:{gold:140,food:140,oil:75,research:35}},
+
+  "Japan":{flag:"🇯🇵",continent:"Asia",coastal:true,
+    shape:[[31,130],[35,130],[40,140],[45,142],[45,146],[31,146],[31,130]],
+    gold:800,food:400,oil:100,pop:125,research:65,
+    income:{gold:120,food:60,oil:15,research:30}},
+
+  "South Korea":{flag:"🇰🇷",continent:"Asia",coastal:true,
+    shape:[[34,126],[38.5,126],[38.5,130],[34,130],[34,126]],
+    gold:500,food:300,oil:50,pop:52,research:50,
+    income:{gold:75,food:45,oil:8,research:22}},
+
+  "Vietnam":{flag:"🇻🇳",continent:"Asia",coastal:true,
+    shape:[[8,102],[23,102],[23,108],[10,108],[8,105],[8,102]],
+    gold:200,food:350,oil:150,pop:98,research:18,
+    income:{gold:32,food:55,oil:22,research:7}},
+
+  "Thailand":{flag:"🇹🇭",continent:"Asia",coastal:true,
+    shape:[[6,98],[21,98],[21,103],[15,105],[6,102],[6,98]],
+    gold:250,food:350,oil:80,pop:72,research:20,
+    income:{gold:40,food:55,oil:12,research:8}},
+
+  "Indonesia":{flag:"🇮🇩",continent:"Asia",coastal:true,
+    shape:[[-8,95],[2,95],[2,118],[-8,118],[-8,95]],
+    shape2:[[-2,118],[2,118],[2,141],[-2,141],[-2,118]],
+    gold:350,food:500,oil:300,pop:275,research:18,
+    income:{gold:55,food:78,oil:45,research:9}},
+
+  "Egypt":{flag:"🇪🇬",continent:"Africa",coastal:true,
+    shape:[[22,25],[32,25],[32,37],[22,37],[22,25]],
+    gold:250,food:300,oil:200,pop:104,research:15,
+    income:{gold:40,food:45,oil:30,research:8}},
+
+  "Nigeria":{flag:"🇳🇬",continent:"Africa",coastal:true,
+    shape:[[4,3],[14,3],[14,15],[4,15],[4,3]],
+    gold:200,food:350,oil:400,pop:215,research:10,
+    income:{gold:30,food:55,oil:65,research:5}},
+
+  "South Africa":{flag:"🇿🇦",continent:"Africa",coastal:true,
+    shape:[[-35,17],[-22,17],[-22,33],[-35,33],[-35,17]],
+    gold:280,food:280,oil:80,pop:60,research:20,
+    income:{gold:45,food:42,oil:12,research:9}},
+
+  "Ethiopia":{flag:"🇪🇹",continent:"Africa",coastal:false,
+    shape:[[3,34],[15,34],[15,48],[3,48],[3,34]],
+    gold:120,food:280,oil:30,pop:120,research:5,
+    income:{gold:18,food:45,oil:5,research:3}},
+
+  "Kenya":{flag:"🇰🇪",continent:"Africa",coastal:true,
+    shape:[[-5,34],[5,34],[5,42],[-5,42],[-5,34]],
+    gold:150,food:250,oil:50,pop:55,research:8,
+    income:{gold:22,food:38,oil:8,research:4}},
+
+  "Australia":{flag:"🇦🇺",continent:"Oceania",coastal:true,
+    shape:[[-38,114],[-12,114],[-12,154],[-38,154],[-38,114]],
+    gold:600,food:500,oil:250,pop:26,research:45,
+    income:{gold:90,food:78,oil:38,research:20}},
+
+  "New Zealand":{flag:"🇳🇿",continent:"Oceania",coastal:true,
+    shape:[[-46,166],[-34,166],[-34,178],[-46,178],[-46,166]],
+    gold:280,food:280,oil:40,pop:5,research:30,
+    income:{gold:45,food:45,oil:6,research:12}}
+};
+
+// Continent colors
+const CONT_COLORS = {
+  "North America":"#1a2a3a","South America":"#1a2a1a","Europe":"#1a1a2a",
+  "Europe/Asia":"#221a2a","Asia":"#2a1a0f","Africa":"#1a2200","Oceania":"#001a2a"
+};
+
+const TECH_TREE = {
+  military:{name:"Military",icon:"⚔",color:"#ef4444",
+    levels:["Basic Arms","Mechanized","Precision Strike","Advanced Warfare"],
+    costs:[100,250,500,1000],effects:["Inf +20%","Unlock Tanks","Unlock Missiles","All mil +50%"]},
+  naval:{name:"Naval",icon:"⚓",color:"#3b82f6",
+    levels:["Seamanship","Modern Fleet","Blue Water","Nuclear Fleet"],
+    costs:[150,300,600,1200],effects:["Patrol Boats","Destroyers+Subs","Carriers","Nuke Sub"]},
+  aviation:{name:"Aviation",icon:"✈",color:"#8b5cf6",
+    levels:["Basic Flight","Jet Age","Advanced Air","Space Age"],
+    costs:[200,400,700,1400],effects:["Fighters","Jets+Bombers","Stealth+Drones","Hypersonic"]},
+  economic:{name:"Economy",icon:"💹",color:"#f59e0b",
+    levels:["Industrialization","Trade Networks","Digital Economy","Global Finance"],
+    costs:[100,200,400,800],effects:["Gold +25%","Gold +50%","Gold +75%","Gold +100%"]},
+  medical:{name:"Medical",icon:"🏥",color:"#22c55e",
+    levels:["Basic Healthcare","Modern Medicine","Biotech","Future Medicine"],
+    costs:[80,160,320,640],effects:["Pop +10%","Pop +25%","Pop +40%","Pop +60%"]}
+};
+
+const BUILDINGS_DEF = [
+  {id:"barracks",icon:"🏛",name:"Barracks",cost:{gold:200,oil:50},coastal:false,
+   effect:"Train Army units",perTurn:{},cat:"military"},
+  {id:"naval",icon:"⚓",name:"Naval Base",cost:{gold:350,oil:100},coastal:true,
+   effect:"Train Navy units",perTurn:{},cat:"military"},
+  {id:"airbase",icon:"✈",name:"Airbase",cost:{gold:300,oil:80},coastal:false,
+   effect:"Train Air Force",perTurn:{},cat:"military"},
+  {id:"hospital",icon:"🏥",name:"Hospital",cost:{gold:150},coastal:false,
+   effect:"+5% pop growth",perTurn:{pop:0.05},cat:"infra"},
+  {id:"factory",icon:"🏭",name:"Factory",cost:{gold:200,oil:30},coastal:false,
+   effect:"+25 gold/turn",perTurn:{gold:25},cat:"eco"},
+  {id:"lab",icon:"🔬",name:"Research Lab",cost:{gold:250},coastal:false,
+   effect:"+20 research/turn",perTurn:{research:20},cat:"eco"},
+  {id:"farm",icon:"🌾",name:"Farm",cost:{gold:100},coastal:false,
+   effect:"+30 food/turn",perTurn:{food:30},cat:"eco"},
+  {id:"refinery",icon:"🛢",name:"Oil Refinery",cost:{gold:200,oil:20},coastal:false,
+   effect:"+40 energy/turn",perTurn:{oil:40},cat:"eco"},
+  {id:"bank",icon:"🏦",name:"Bank",cost:{gold:300},coastal:false,
+   effect:"+40 gold/turn",perTurn:{gold:40},cat:"eco"},
+  {id:"port",icon:"🚢",name:"Port",cost:{gold:200},coastal:true,
+   effect:"+20 gold, enables trade",perTurn:{gold:20},cat:"eco"}
+];
+
+const UNITS_DEF = {
+  army:[
+    {id:"infantry",icon:"👥",name:"Infantry Regiment",type:"army",
+     cost:{gold:50,food:20},maint:{gold:5,food:3},atk:10,def:8,hp:100,
+     req:{building:"barracks",tech:null}},
+    {id:"tank",icon:"🚛",name:"Tank Division",type:"army",
+     cost:{gold:200,oil:50},maint:{gold:20,oil:10},atk:35,def:25,hp:200,
+     req:{building:"barracks",tech:{branch:"military",level:2}}},
+    {id:"artillery",icon:"💥",name:"Artillery Battery",type:"army",
+     cost:{gold:150,oil:30},maint:{gold:15,oil:8},atk:40,def:10,hp:80,
+     req:{building:"barracks",tech:{branch:"military",level:3}}},
+    {id:"missile",icon:"🚀",name:"Missile Battery",type:"army",
+     cost:{gold:300,oil:80},maint:{gold:30,oil:20},atk:60,def:15,hp:60,
+     req:{building:"barracks",tech:{branch:"military",level:3}}}
+  ],
+  navy:[
+    {id:"patrol",icon:"🛥",name:"Patrol Boat",type:"navy",
+     cost:{gold:100,oil:20},maint:{gold:10,oil:5},atk:15,def:12,hp:80,
+     req:{building:"naval",tech:{branch:"naval",level:1}}},
+    {id:"destroyer",icon:"🛳",name:"Destroyer",type:"navy",
+     cost:{gold:300,oil:70},maint:{gold:30,oil:15},atk:35,def:30,hp:200,
+     req:{building:"naval",tech:{branch:"naval",level:2}}},
+    {id:"sub",icon:"🤿",name:"Submarine",type:"navy",
+     cost:{gold:400,oil:100},maint:{gold:40,oil:20},atk:50,def:20,hp:150,
+     req:{building:"naval",tech:{branch:"naval",level:2}}},
+    {id:"carrier",icon:"⛴",name:"Aircraft Carrier",type:"navy",
+     cost:{gold:800,oil:200},maint:{gold:80,oil:40},atk:80,def:60,hp:500,
+     req:{building:"naval",tech:{branch:"naval",level:3}}},
+    {id:"nukesub",icon:"☢",name:"Nuclear Submarine",type:"navy",
+     cost:{gold:1200,oil:300},maint:{gold:120,oil:60},atk:90,def:40,hp:250,
+     req:{building:"naval",tech:{branch:"naval",level:4}}}
+  ],
+  air:[
+    {id:"fighter",icon:"✈",name:"Fighter Squadron",type:"air",
+     cost:{gold:150,oil:40},maint:{gold:15,oil:10},atk:25,def:20,hp:100,
+     req:{building:"airbase",tech:{branch:"aviation",level:1}}},
+    {id:"jet",icon:"🛩",name:"Jet Fighter",type:"air",
+     cost:{gold:300,oil:80},maint:{gold:30,oil:20},atk:45,def:35,hp:120,
+     req:{building:"airbase",tech:{branch:"aviation",level:2}}},
+    {id:"bomber",icon:"💣",name:"Strategic Bomber",type:"air",
+     cost:{gold:400,oil:100},maint:{gold:40,oil:25},atk:70,def:15,hp:100,
+     req:{building:"airbase",tech:{branch:"aviation",level:2}}},
+    {id:"stealth",icon:"🔵",name:"Stealth Fighter",type:"air",
+     cost:{gold:600,oil:150},maint:{gold:60,oil:35},atk:70,def:55,hp:140,
+     req:{building:"airbase",tech:{branch:"aviation",level:3}}},
+    {id:"drone",icon:"🔷",name:"Drone Squadron",type:"air",
+     cost:{gold:200,oil:40},maint:{gold:15,oil:8},atk:35,def:25,hp:80,
+     req:{building:"airbase",tech:{branch:"aviation",level:3}}}
+  ]
+};
+
+const WORLD_EVENTS = [
+  {title:"Oil Discovery",text:"Geologists report a massive oil reserve found within your borders! Energy production surges.",effects:{oil:200},type:"good"},
+  {title:"Famine Crisis",text:"Crop failures devastate your agricultural sector. Food reserves are depleted.",effects:{food:-150},type:"bad"},
+  {title:"Economic Boom",text:"A period of rapid economic growth fills the treasury. Markets are thriving!",effects:{gold:300},type:"good"},
+  {title:"Scientific Breakthrough",text:"Your researchers make a major discovery, accelerating all research programs.",effects:{research:100},type:"good"},
+  {title:"Natural Disaster",text:"A severe natural disaster strikes, damaging infrastructure and costing resources.",effects:{gold:-200,food:-100},type:"bad"},
+  {title:"Trade Agreement",text:"A lucrative trade deal with an unnamed partner boosts your gold income for this turn.",effects:{gold:150},type:"good"},
+  {title:"Military Revolt",text:"A faction within the army demands reform. Stability costs gold to maintain.",effects:{gold:-100},type:"bad"},
+  {title:"Population Boom",text:"An increase in birth rate and immigration boosts your population significantly.",effects:{pop:2},type:"good"},
+  {title:"Cyber Attack",text:"Foreign hackers infiltrate your research networks, deleting key research data.",effects:{research:-80},type:"bad"},
+  {title:"Diplomatic Summit",text:"A global summit improves your international standing. Diplomatic relations improve.",effects:{gold:50,research:50},type:"good"},
+  {title:"Energy Crisis",text:"Global oil prices spike. Military operations cost more energy this turn.",effects:{oil:-150},type:"bad"},
+  {title:"Military Innovation",text:"Your engineers develop improved tactics and equipment, boosting military effectiveness.",effects:{research:60},type:"good"}
+];
+
+// ================================================================
+// GAME STATE
+// ================================================================
+let state = {
+  playerCountry:null,
+  turn:1, year:2024,
+  gold:0, food:0, oil:0, pop:0, research:0,
+  income:{gold:0,food:0,oil:0,research:0,pop:0},
+  buildings:{},   // id -> count
+  units:{army:{},navy:{},air:{}},  // unitId -> count
+  tech:{military:0,naval:0,aviation:0,economic:0,medical:0},
+  techProgress:{},  // branch -> rp spent on current level
+  relations:{},    // countryName -> {status,victories,defeats}
+  annexedCountries:[],
+  log:[],
+  ai:{}  // country -> {tech, buildings}
+};
+
+// ================================================================
+// UTILITY
+// ================================================================
+function addLog(msg, type=''){
+  state.log.unshift({msg,type,turn:state.turn});
+  if(state.log.length>50) state.log.pop();
+}
+function fmt(n){return Math.floor(n).toLocaleString()}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+function openModal(id){document.getElementById(id).classList.add('show')}
+
+// ================================================================
+// COUNTRY SELECT UI
+// ================================================================
+function buildCountryGrid(){
+  const grid = document.getElementById('country-grid');
+  const sorted = Object.entries(COUNTRIES).sort((a,b)=>a[1].continent.localeCompare(b[1].continent)||a[0].localeCompare(b[0]));
+  grid.innerHTML = sorted.map(([name,c])=>`
+    <div class="country-card" onclick="startGame('${name.replace(/'/g,"\\'")}')">
+      <span class="flag">${c.flag}</span>
+      <div class="cname">${name}</div>
+      <div class="ccontinent">${c.continent}</div>
+      <div class="cstats">💰${fmt(c.gold)} 🌾${fmt(c.food)} ⚡${fmt(c.oil)}</div>
+    </div>
+  `).join('');
+}
+
+// ================================================================
+// GAME INIT
+// ================================================================
+function startGame(countryName){
+  const c = COUNTRIES[countryName];
+  state.playerCountry = countryName;
+  state.gold = c.gold;
+  state.food = c.food;
+  state.oil = c.oil;
+  state.pop = c.pop;
+  state.research = c.research || 50;
+  state.income = {...c.income, pop:0};
+
+  // Init relations
+  Object.keys(COUNTRIES).forEach(name=>{
+    if(name !== countryName){
+      state.relations[name] = {status:'neutral', victories:0, defeats:0};
+    }
+  });
+
+  // Init AI
+  Object.keys(COUNTRIES).forEach(name=>{
+    if(name !== countryName){
+      state.ai[name] = {
+        tech:{military:0,naval:0,aviation:0,economic:0,medical:0},
+        buildings:{}
+      };
+    }
+  });
+
+  // Show HUD
+  document.getElementById('hud-flag').textContent = c.flag;
+  document.getElementById('hud-name').textContent = countryName;
+
+  buildMap();
+  showScreen('game');
+  updateUI();
+  addLog(`Campaign started. Lead ${countryName} to glory!`,'event');
+  renderLog();
+}
+
+// ================================================================
+// MAP
+// ================================================================
+function buildMap(){
+  const layer = document.getElementById('countries-layer');
+  const labelLayer = document.getElementById('labels-layer');
+  layer.innerHTML = '';
+  labelLayer.innerHTML = '';
+
+  Object.entries(COUNTRIES).forEach(([name,c])=>{
+    const isPlayer = name === state.playerCountry;
+    const baseColor = isPlayer ? '#1a3a5c' : (CONT_COLORS[c.continent] || '#1a2030');
+
+    // Main shape
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', path(c.shape));
+    p.setAttribute('fill', baseColor);
+    p.setAttribute('class','country-path'+(isPlayer?' player':''));
+    p.setAttribute('data-country', name);
+    p.addEventListener('mouseenter', e=>showTooltip(e,name));
+    p.addEventListener('mouseleave', hideTooltip);
+    p.addEventListener('click', ()=>onCountryClick(name));
+    layer.appendChild(p);
+
+    // Indonesia second island
+    if(c.shape2){
+      const p2 = document.createElementNS('http://www.w3.org/2000/svg','path');
+      p2.setAttribute('d', path(c.shape2));
+      p2.setAttribute('fill', baseColor);
+      p2.setAttribute('class','country-path'+(isPlayer?' player':''));
+      p2.setAttribute('data-country', name);
+      p2.addEventListener('mouseenter', e=>showTooltip(e,name));
+      p2.addEventListener('mouseleave', hideTooltip);
+      p2.addEventListener('click', ()=>onCountryClick(name));
+      layer.appendChild(p2);
+    }
+
+    // Label for larger countries
+    const pts = c.shape;
+    const cx = pts.reduce((s,p)=>s+ll(p[0],p[1]).x,0)/pts.length;
+    const cy = pts.reduce((s,p)=>s+ll(p[0],p[1]).y,0)/pts.length;
+    const area = Math.abs((ll(pts[0][0],pts[0][1]).x - ll(pts[pts.length/2|0][0],pts[pts.length/2|0][1]).x)) *
+                 Math.abs((ll(pts[0][0],pts[0][1]).y - ll(pts[pts.length/2|0][0],pts[pts.length/2|0][1]).y));
+    if(area > 1000 || isPlayer){
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', cx); t.setAttribute('y', cy);
+      t.setAttribute('text-anchor','middle'); t.setAttribute('dominant-baseline','middle');
+      t.setAttribute('font-size', isPlayer?'8':'6');
+      t.setAttribute('fill', isPlayer?'#00d4ff':'#4a6080');
+      t.setAttribute('pointer-events','none');
+      t.textContent = c.flag;
+      labelLayer.appendChild(t);
+    }
+  });
+}
+
+function updateMapColors(){
+  document.querySelectorAll('.country-path').forEach(el=>{
+    const name = el.getAttribute('data-country');
+    if(!name || name === state.playerCountry) return;
+    const rel = state.relations[name];
+    if(!rel) return;
+    let color = CONT_COLORS[COUNTRIES[name].continent] || '#1a2030';
+    if(rel.status==='war') color='#3a0a0a';
+    else if(rel.status==='allied') color='#0a2a1a';
+    else if(rel.status==='hostile') color='#2a1a0a';
+    else if(state.annexedCountries.includes(name)) color='#0d2040';
+    el.setAttribute('fill', color);
+  });
+}
+
+let tooltip = document.getElementById('map-tooltip');
+function showTooltip(e, name){
+  const c = COUNTRIES[name];
+  const rel = name===state.playerCountry ? null : state.relations[name];
+  const relStr = name===state.playerCountry ? '<span style="color:#00d4ff">YOUR NATION</span>' :
+    rel ? `<span class="dc-rel ${rel.status}">${rel.status.toUpperCase()}</span>` : '';
+  const annexed = state.annexedCountries.includes(name) ? '<span style="color:#00d4ff"> [ANNEXED]</span>' : '';
+  tooltip.innerHTML = `<b>${c.flag} ${name}</b>${relStr}${annexed}<br>
+    <span style="color:#64748b">${c.continent}</span><br>
+    💰${fmt(c.gold)} 🌾${fmt(c.food)} ⚡${fmt(c.oil)} 👥${c.pop}M`;
+  tooltip.classList.add('show');
+}
+function hideTooltip(){tooltip.classList.remove('show')}
+document.getElementById('map-area').addEventListener('mousemove',e=>{
+  tooltip.style.left=(e.offsetX+12)+'px';
+  tooltip.style.top=(e.offsetY+12)+'px';
+});
+
+function onCountryClick(name){
+  if(name===state.playerCountry) return;
+  // Switch to diplo tab and highlight
+  switchTab('diplo');
+  document.getElementById('tab-diplo').scrollTo(0,0);
+  // Highlight in diplo list
+  setTimeout(()=>{
+    const el = document.querySelector(`.diplo-country[data-name="${CSS.escape(name)}"]`);
+    if(el){el.style.borderColor='var(--accent)';setTimeout(()=>el.style.borderColor='',1500)}
+  },100);
+}
+
+// ================================================================
+// INCOME CALCULATION
+// ================================================================
+function calcIncome(){
+  const c = COUNTRIES[state.playerCountry];
+  let gold = c.income.gold;
+  let food = c.income.food;
+  let oil = c.income.oil;
+  let research = c.income.research;
+  let pop = 0;
+
+  // Annexed countries bonus
+  state.annexedCountries.forEach(name=>{
+    const ac = COUNTRIES[name];
+    gold += Math.floor(ac.income.gold * 0.5);
+    food += Math.floor(ac.income.food * 0.5);
+    oil += Math.floor(ac.income.oil * 0.5);
+  });
+
+  // Buildings
+  const bd = state.buildings;
+  BUILDINGS_DEF.forEach(b=>{
+    const cnt = bd[b.id]||0;
+    if(cnt>0){
+      if(b.perTurn.gold) gold += b.perTurn.gold*cnt;
+      if(b.perTurn.food) food += b.perTurn.food*cnt;
+      if(b.perTurn.oil) oil += b.perTurn.oil*cnt;
+      if(b.perTurn.research) research += b.perTurn.research*cnt;
+      if(b.perTurn.pop) pop += b.perTurn.pop*cnt;
+    }
+  });
+
+  // Economic tech bonus
+  const ect = state.tech.economic;
+  const ecoBonus = [0,0.25,0.50,0.75,1.00][ect];
+  gold = Math.floor(gold * (1+ecoBonus));
+
+  // Unit maintenance
+  Object.entries(state.units).forEach(([type,units])=>{
+    const defs = UNITS_DEF[type];
+    Object.entries(units).forEach(([id,qty])=>{
+      if(!qty) return;
+      const def = defs.find(u=>u.id===id);
+      if(!def) return;
+      gold -= (def.maint.gold||0)*qty;
+      food -= (def.maint.food||0)*qty;
+      oil  -= (def.maint.oil||0)*qty;
+    });
+  });
+
+  // Pop growth from hospitals
+  const hospitals = bd.hospital||0;
+  pop += hospitals * 0.05 * state.pop;
+
+  state.income = {gold,food,oil,research,pop};
+}
+
+function calcMilPower(){
+  let power = 0;
+  Object.entries(state.units).forEach(([type,units])=>{
+    const defs = UNITS_DEF[type];
+    Object.entries(units).forEach(([id,qty])=>{
+      const def = defs.find(u=>u.id===id);
+      if(def) power += (def.atk+def.def)*qty;
+    });
+  });
+  // Mil tech bonus
+  const mt = state.tech.military;
+  power = Math.floor(power * (1 + mt*0.1));
+  return power;
+}
+
+// ================================================================
+// UPDATE UI
+// ================================================================
+function updateUI(){
+  calcIncome();
+  // HUD
+  document.getElementById('r-gold').textContent = fmt(state.gold);
+  document.getElementById('r-food').textContent = fmt(state.food);
+  document.getElementById('r-oil').textContent = fmt(state.oil);
+  document.getElementById('r-pop').textContent = state.pop.toFixed(1);
+  document.getElementById('r-research').textContent = fmt(state.research);
+  document.getElementById('hud-year').textContent = state.year;
+  document.getElementById('hud-turn').textContent = `Turn ${state.turn}`;
+
+  const incClass = n=>n>=0?'inc':'inc neg';
+  document.getElementById('r-gold-inc').className=incClass(state.income.gold);
+  document.getElementById('r-gold-inc').textContent=(state.income.gold>=0?'+':'')+fmt(state.income.gold);
+  document.getElementById('r-food-inc').className=incClass(state.income.food);
+  document.getElementById('r-food-inc').textContent=(state.income.food>=0?'+':'')+fmt(state.income.food);
+  document.getElementById('r-oil-inc').className=incClass(state.income.oil);
+  document.getElementById('r-oil-inc').textContent=(state.income.oil>=0?'+':'')+fmt(state.income.oil);
+  document.getElementById('r-res-inc').className=incClass(state.income.research);
+  document.getElementById('r-res-inc').textContent=(state.income.research>=0?'+':'')+fmt(state.income.research);
+  document.getElementById('r-pop-inc').className=incClass(state.income.pop);
+  document.getElementById('r-pop-inc').textContent=(state.income.pop>=0?'+':'')+state.income.pop.toFixed(2);
+
+  renderOverview();
+  renderBuildings();
+  renderMilitary();
+  renderTech();
+  renderDiplo();
+  renderLog();
+  updateMapColors();
+}
+
+function renderOverview(){
+  const mil = calcMilPower();
+  const techTotal = Object.values(state.tech).reduce((s,v)=>s+v,0);
+  document.getElementById('ov-territory').textContent = `${1+state.annexedCountries.length} provinces`;
+  document.getElementById('ov-mil').textContent = mil.toLocaleString();
+  document.getElementById('ov-tech').textContent = `${techTotal} / 20`;
+  document.getElementById('ov-buildings').textContent = Object.values(state.buildings).reduce((s,v)=>s+v,0);
+  document.getElementById('ov-annexed').textContent = state.annexedCountries.length;
+  document.getElementById('ov-gold-inc').textContent = (state.income.gold>=0?'+':'')+fmt(state.income.gold);
+  document.getElementById('ov-food-inc').textContent = (state.income.food>=0?'+':'')+fmt(state.income.food);
+  document.getElementById('ov-oil-inc').textContent = (state.income.oil>=0?'+':'')+fmt(state.income.oil);
+  document.getElementById('ov-res-inc').textContent = '+'+fmt(state.income.research);
+  // Win conditions
+  document.getElementById('win-mil').textContent = `${state.annexedCountries.length}/10 nations`;
+  document.getElementById('win-eco').textContent = `${fmt(state.gold)}/10000 gold`;
+  const techT = Object.values(state.tech).reduce((s,v)=>s+v,0);
+  document.getElementById('win-res').textContent = `${techT}/20 techs`;
+}
+
+function renderBuildings(){
+  const c = COUNTRIES[state.playerCountry];
+  const noNaval = document.getElementById('no-naval');
+  noNaval.style.display = c.coastal ? 'none' : 'block';
+
+  const grid = document.getElementById('building-grid');
+  grid.innerHTML = BUILDINGS_DEF.map(b=>{
+    if(b.coastal && !c.coastal) return '';
+    const canAfford = Object.entries(b.cost).every(([res,amt])=>state[res]>=amt);
+    const costStr = Object.entries(b.cost).map(([r,a])=>`${r==='gold'?'💰':r==='oil'?'⚡':'🌾'}${a}`).join(' ');
+    const cnt = state.buildings[b.id]||0;
+    return `<div class="building-card ${canAfford?'':'cant-afford'}" onclick="buyBuilding('${b.id}')">
+      <span class="b-icon">${b.icon}</span>
+      <div class="b-name">${b.name}</div>
+      <div class="b-cost">${costStr}</div>
+      <div class="b-effect">${b.effect}</div>
+      ${cnt>0?`<div class="b-count">Owned: ${cnt}</div>`:''}
+    </div>`;
+  }).join('');
+
+  const owned = document.getElementById('owned-buildings-list');
+  const ownedList = BUILDINGS_DEF.filter(b=>(state.buildings[b.id]||0)>0);
+  if(!ownedList.length){owned.innerHTML='<span style="font-size:.7rem;color:var(--muted)">None built yet</span>';return;}
+  owned.innerHTML = ownedList.map(b=>{
+    const cnt = state.buildings[b.id];
+    const maint = b.cat==='military'?'': Object.entries(b.cost).map(([r,a])=>`-${Math.floor(a*0.1*cnt)}`).join('');
+    return `<div class="owned-building-row">
+      <span>${b.icon} ${b.name}</span>
+      <span style="color:var(--accent);font-weight:700">x${cnt}</span>
+    </div>`;
+  }).join('');
+}
+
+function buyBuilding(id){
+  const b = BUILDINGS_DEF.find(x=>x.id===id);
+  if(!b) return;
+  if(b.coastal && !COUNTRIES[state.playerCountry].coastal){alert('Requires coastal nation!');return;}
+  if(!Object.entries(b.cost).every(([r,a])=>state[r]>=a)){alert('Not enough resources!');return;}
+  Object.entries(b.cost).forEach(([r,a])=>state[r]-=a);
+  state.buildings[id]=(state.buildings[id]||0)+1;
+  addLog(`Built ${b.name}.`,'');
+  updateUI();
+}
+
+function renderMilitary(){
+  const power = calcMilPower();
+  document.getElementById('mil-power-num').textContent = power.toLocaleString();
+
+  ['army','navy','air'].forEach(type=>{
+    const el = document.getElementById('mil-'+type);
+    const defs = UNITS_DEF[type];
+    el.innerHTML = defs.map(u=>{
+      const qty = state.units[type][u.id]||0;
+      const locked = isUnitLocked(u);
+      const canAfford = !locked && Object.entries(u.cost).every(([r,a])=>state[r]>=a);
+      const costStr = Object.entries(u.cost).map(([r,a])=>`${r==='gold'?'💰':r==='oil'?'⚡':'🌾'}${a}`).join(' ');
+      const lockReason = locked ? getLockReason(u) : '';
+      return `<div class="unit-card ${locked?'locked':''}" onclick="${locked?'':'buyUnit(\''+type+'\',\''+u.id+'\')'}">
+        <div class="u-icon">${u.icon}</div>
+        <div class="u-info">
+          <div class="u-name">${u.name}</div>
+          <div class="u-stats">⚔${u.atk} 🛡${u.def} ❤${u.hp}</div>
+          <div class="u-cost">${locked?`<span class="u-lock">${lockReason}</span>`:costStr}</div>
+        </div>
+        <div class="u-count">${qty>0?qty:''}</div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function isUnitLocked(u){
+  if(u.req.building && !(state.buildings[u.req.building]>0)) return true;
+  if(u.req.tech){
+    const {branch,level}=u.req.tech;
+    if(state.tech[branch]<level) return true;
+  }
+  return false;
+}
+function getLockReason(u){
+  if(u.req.building && !state.buildings[u.req.building]) return `Needs ${BUILDINGS_DEF.find(b=>b.id===u.req.building)?.name}`;
+  if(u.req.tech){const {branch,level}=u.req.tech;if(state.tech[branch]<level) return `Needs ${TECH_TREE[branch].name} Lv${level}`;}
+  return 'Locked';
+}
+
+function buyUnit(type,id){
+  const def = UNITS_DEF[type].find(u=>u.id===id);
+  if(!def||isUnitLocked(def)) return;
+  if(!Object.entries(def.cost).every(([r,a])=>state[r]>=a)){alert('Not enough resources!');return;}
+  Object.entries(def.cost).forEach(([r,a])=>state[r]-=a);
+  state.units[type][id]=(state.units[type][id]||0)+1;
+  addLog(`Recruited 1 ${def.name}.`,'');
+  updateUI();
+}
+
+function switchMilTab(tab){
+  document.querySelectorAll('.mil-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.mil-subtab-content').forEach(c=>c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('mil-'+tab).classList.add('active');
+}
+
+function renderTech(){
+  const panel = document.getElementById('tech-tree-panel');
+  panel.innerHTML = Object.entries(TECH_TREE).map(([branch,data])=>{
+    const currentLevel = state.tech[branch];
+    const nodes = data.levels.map((lvl,i)=>{
+      const levelNum = i+1;
+      const done = currentLevel >= levelNum;
+      const researching = state.techProgress[branch] && currentLevel === i && (state.techProgress[branch]||0)>0;
+      const locked = !done && currentLevel < i;
+      const cost = data.costs[i];
+      const cls = done?'done':researching?'researching':locked?'locked':'';
+      const progress = done?'✓':researching?`${state.techProgress[branch]||0}/${cost}`:cost+'rp';
+      return `${i>0?'<span class="tech-arrow">→</span>':''}
+      <div class="tech-node ${cls}" onclick="researchTech('${branch}',${i})" title="${data.effects[i]}">
+        <div class="tn-num">Lv${levelNum}</div>
+        <div class="tn-name">${lvl}</div>
+        <div class="tn-cost">${done?'✓ Done':progress}</div>
+      </div>`;
+    }).join('');
+    return `<div class="tech-branch">
+      <div class="tech-branch-header">
+        <span class="branch-icon">${data.icon}</span>
+        <span class="branch-name" style="color:${data.color}">${data.name}</span>
+        <span style="margin-left:auto;font-size:.65rem;color:var(--muted)">Level ${currentLevel}/4</span>
+      </div>
+      <div class="tech-nodes">${nodes}</div>
+    </div>`;
+  }).join('');
+}
+
+function researchTech(branch, levelIndex){
+  const currentLevel = state.tech[branch];
+  if(currentLevel !== levelIndex) return; // Must research in order
+  const cost = TECH_TREE[branch].costs[levelIndex];
+  if(state.research < cost){alert(`Need ${cost} research points. You have ${fmt(state.research)}.`);return;}
+  state.research -= cost;
+  state.tech[branch]++;
+  const lvlName = TECH_TREE[branch].levels[levelIndex];
+  addLog(`Research complete: ${TECH_TREE[branch].name} - ${lvlName}! ${TECH_TREE[branch].effects[levelIndex]}`,'good');
+  updateUI();
+  checkWin();
+}
+
+function renderDiplo(){
+  const list = document.getElementById('diplo-list');
+  const others = Object.entries(COUNTRIES).filter(([n])=>n!==state.playerCountry);
+  // Sort by relation then name
+  others.sort(([an,ac],[bn,bc])=>{
+    const ra=state.relations[an]?.status||'neutral';
+    const rb=state.relations[bn]?.status||'neutral';
+    const order={war:0,hostile:1,neutral:2,friendly:3,allied:4};
+    return (order[ra]||2)-(order[rb]||2);
+  });
+  list.innerHTML = others.slice(0,30).map(([name,c])=>{
+    const rel = state.relations[name]||{status:'neutral',victories:0,defeats:0};
+    const isAnnexed = state.annexedCountries.includes(name);
+    const relColor = {neutral:'neutral',friendly:'friendly',hostile:'hostile',war:'war',allied:'allied'}[rel.status]||'neutral';
+    const relLabel = isAnnexed ? 'ANNEXED' : rel.status.toUpperCase();
+    const relCls = isAnnexed?'allied':relColor;
+    return `<div class="diplo-country" data-name="${name}">
+      <div class="dc-flag">${c.flag}</div>
+      <div class="dc-info">
+        <div class="dc-name">${name}</div>
+        <div class="dc-rel ${relCls}">${relLabel}${rel.victories>0?` · Won ${rel.victories}v`:''}</div>
+      </div>
+      ${!isAnnexed?`<div class="diplo-actions">
+        ${rel.status!=='war'?`<button class="btn-sm btn-war" onclick="declareWar('${name.replace(/'/g,"\\'")}')">⚔ War</button>`:`<button class="btn-sm btn-war" onclick="launchAttack('${name.replace(/'/g,"\\'")}')">Attack!</button>`}
+        ${rel.status!=='allied'&&rel.status!=='war'?`<button class="btn-sm btn-ally" onclick="proposeAlliance('${name.replace(/'/g,"\\'")}')">🤝 Ally</button>`:''}
+      </div>`:'<span style="color:var(--accent);font-size:.65rem">✓ Colony</span>'}
+    </div>`;
+  }).join('');
+}
+
+function declareWar(name){
+  if(!confirm(`Declare war on ${COUNTRIES[name].flag} ${name}?`)) return;
+  state.relations[name].status='war';
+  addLog(`War declared on ${name}!`,'war');
+  updateUI();
+}
+
+function proposeAlliance(name){
+  const c = COUNTRIES[name];
+  // 50% chance AI accepts
+  if(Math.random()>0.4){
+    state.relations[name].status='allied';
+    addLog(`${c.flag} ${name} accepted your alliance proposal!`,'good');
+  } else {
+    addLog(`${c.flag} ${name} rejected the alliance proposal.`,'');
+  }
+  updateUI();
+}
+
+function launchAttack(targetName){
+  const target = COUNTRIES[targetName];
+  const rel = state.relations[targetName];
+  if(rel.status!=='war'){alert('Declare war first!');return;}
+
+  const playerPower = calcMilPower();
+  if(playerPower === 0){alert('You have no military units! Train some first.');return;}
+
+  // AI power (rough estimate)
+  const ai = state.ai[targetName];
+  let aiPower = 50 + state.turn*5;
+  if(ai){
+    aiPower += (ai.tech.military||0)*40 + (ai.tech.naval||0)*30 + (ai.tech.aviation||0)*35;
+  }
+
+  // Random factor
+  const myRoll = playerPower * (0.8 + Math.random()*0.4);
+  const aiRoll = aiPower * (0.8 + Math.random()*0.4);
+
+  const won = myRoll > aiRoll;
+  rel.victories = (rel.victories||0) + (won?1:0);
+  rel.defeats = (rel.defeats||0) + (won?0:1);
+
+  // Casualties
+  const casualtyRate = won ? 0.05+Math.random()*0.1 : 0.15+Math.random()*0.2;
+  Object.entries(state.units).forEach(([type,units])=>{
+    Object.entries(units).forEach(([id,qty])=>{
+      if(qty>0){
+        const lost = Math.max(0, Math.floor(qty*casualtyRate));
+        state.units[type][id] = qty-lost;
+      }
+    });
+  });
+
+  let battleHtml = `<div style="text-align:center;margin-bottom:16px">
+    <span style="font-size:3rem">${won?'🏆':'💀'}</span>
+    <h2 style="color:${won?'var(--green)':'var(--red)'}">${won?'VICTORY!':'DEFEAT!'}</h2>
+    <p style="color:var(--muted)">${COUNTRIES[state.playerCountry].flag} vs ${target.flag} ${targetName}</p>
+  </div>
+  <div style="display:flex;gap:16px;margin-bottom:12px;justify-content:center">
+    <div style="text-align:center"><div style="font-size:1.5rem;font-weight:900;color:var(--accent)">${fmt(myRoll)}</div><div style="font-size:.65rem;color:var(--muted)">YOUR POWER</div></div>
+    <div style="font-size:1.5rem;color:var(--muted);align-self:center">vs</div>
+    <div style="text-align:center"><div style="font-size:1.5rem;font-weight:900;color:var(--red)">${fmt(aiRoll)}</div><div style="font-size:.65rem;color:var(--muted)">${targetName.toUpperCase()}</div></div>
+  </div>`;
+
+  if(won){
+    addLog(`Victory against ${targetName}! (${rel.victories} wins)`,'good');
+    // Annex after 3 victories
+    if(rel.victories>=3 && !state.annexedCountries.includes(targetName)){
+      state.annexedCountries.push(targetName);
+      rel.status='allied';
+      battleHtml += `<div style="color:var(--green);font-weight:700;text-align:center;padding:8px;background:#0d2a1a;border:1px solid var(--green)">
+        ⭐ ANNEXED! ${targetName} is now part of your empire!<br><span style="font-weight:400;font-size:.75rem">You gain 50% of their income each turn.</span>
+      </div>`;
+      addLog(`${targetName} has been ANNEXED! +50% of their income.`,'good');
+      checkWin();
+    } else if(rel.victories<3){
+      battleHtml += `<p style="color:var(--muted);text-align:center;font-size:.75rem">Win ${3-rel.victories} more battle(s) to annex ${targetName}.</p>`;
+    }
+  } else {
+    addLog(`Defeat against ${targetName}. Regroup and try again.`,'war');
+  }
+
+  document.getElementById('battle-content').innerHTML = battleHtml;
+  openModal('battle-modal');
+  updateUI();
+}
+
+function renderLog(){
+  const el = document.getElementById('event-log');
+  el.innerHTML = state.log.slice(0,10).map(e=>
+    `<div class="log-entry ${e.type}">Turn ${e.turn}: ${e.msg}</div>`
+  ).join('');
+}
+
+// ================================================================
+// TURN SYSTEM
+// ================================================================
+function endTurn(){
+  // Apply income
+  state.gold += state.income.gold;
+  state.food += state.income.food;
+  state.oil  += state.income.oil;
+  state.research += state.income.research;
+  state.pop = Math.max(0.1, state.pop + state.income.pop);
+
+  // Clamp
+  state.gold = Math.max(0, state.gold);
+  state.food = Math.max(0, state.food);
+  state.oil  = Math.max(0, state.oil);
+
+  // AI development
+  runAI();
+
+  // Random event (25% chance)
+  if(Math.random()<0.25) triggerEvent();
+
+  state.turn++;
+  state.year++;
+  updateUI();
+  checkWin();
+}
+
+function runAI(){
+  Object.keys(state.ai).forEach(name=>{
+    const ai = state.ai[name];
+    // AI slowly builds tech and buildings
+    if(Math.random()<0.3){
+      const branches = Object.keys(TECH_TREE);
+      const branch = branches[Math.floor(Math.random()*branches.length)];
+      if((ai.tech[branch]||0)<4) ai.tech[branch]=(ai.tech[branch]||0)+0.2;
+    }
+    // AI declares war on player sometimes (very low chance)
+    const rel = state.relations[name];
+    if(rel && rel.status==='neutral' && Math.random()<0.005){
+      rel.status='hostile';
+      addLog(`${COUNTRIES[name].flag} ${name} is becoming hostile.`,'war');
+    }
+  });
+}
+
+function triggerEvent(){
+  const ev = WORLD_EVENTS[Math.floor(Math.random()*WORLD_EVENTS.length)];
+  Object.entries(ev.effects).forEach(([res,val])=>{
+    if(res==='pop') state.pop = Math.max(0.1, state.pop+val);
+    else if(state[res]!==undefined) state[res] = Math.max(0, state[res]+val);
+  });
+
+  document.getElementById('modal-event-title').textContent = ev.title;
+  document.getElementById('modal-event-text').textContent = ev.text;
+  document.getElementById('modal-event-effects').innerHTML = Object.entries(ev.effects).map(([r,v])=>{
+    const icon = r==='gold'?'💰':r==='food'?'🌾':r==='oil'?'⚡':r==='research'?'🔬':'👥';
+    const cls = v>0?'effect-pos':'effect-neg';
+    return `<span class="effect-badge ${cls}">${icon} ${v>0?'+':''}${v}</span>`;
+  }).join('');
+
+  openModal('event-modal');
+  addLog(`Event: ${ev.title}`, ev.type==='good'?'good':ev.type==='bad'?'war':'event');
+}
+
+// ================================================================
+// WIN CONDITIONS
+// ================================================================
+function checkWin(){
+  let winType = null;
+  const techTotal = Object.values(state.tech).reduce((s,v)=>s+v,0);
+
+  if(state.annexedCountries.length >= 10) winType='Military Domination';
+  else if(state.gold >= 10000) winType='Economic Victory';
+  else if(techTotal >= 20) winType='Research Victory';
+
+  if(winType){
+    const c = COUNTRIES[state.playerCountry];
+    document.getElementById('win-flag').textContent = c.flag;
+    document.getElementById('win-text').textContent = `${c.flag} ${state.playerCountry} achieved ${winType} in ${state.year}! Turn ${state.turn}.`;
+    openModal('win-modal');
+  }
+}
+
+// ================================================================
+// TABS
+// ================================================================
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ================================================================
+// INIT
+// ================================================================
+buildCountryGrid();
+showScreen('splash');
+</script>
+</body>
+</html>
