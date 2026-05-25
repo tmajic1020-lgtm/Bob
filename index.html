@@ -6,20 +6,40 @@
 <title>Iron Front</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0d1117;--panel:#161b22;--border:#21262d;--accent:#58a6ff;--gold:#e3b341;--green:#3fb950;--red:#f85149;--purple:#bc8cff;--text:#c9d1d9;--muted:#8b949e;--dark:#010409}
+:root{--bg:#1a0f0a;--panel:#241508;--border:#3d2510;--accent:#c8a04a;--gold:#f0c040;--green:#3fb950;--red:#f85149;--purple:#bc8cff;--text:#e8d5b0;--muted:#8a7060;--dark:#0d0704}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;overflow:hidden;font-size:13px}
 .screen{display:none;width:100%;height:100vh;flex-direction:column}
 .screen.active{display:flex}
 
 /* SPLASH */
-#splash{align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#0d1f3c,#0d1117)}
-#splash h1{font-size:3.5rem;font-weight:900;letter-spacing:6px;color:#fff;text-shadow:0 0 40px #58a6ff66;margin-bottom:6px}
-#splash p{color:var(--muted);letter-spacing:3px;margin-bottom:48px;font-size:.9rem}
-.btn-start{background:linear-gradient(135deg,#1f4068,#58a6ff);color:#fff;border:2px solid #58a6ff66;padding:14px 44px;font-size:.95rem;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;outline:none;border-radius:2px}
-.btn-start:hover{filter:brightness(1.15);transform:translateY(-1px)}
+#splash{align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 35%,#2e1505,#1a0f0a 70%);position:relative;overflow:hidden}
+#splash::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 40px,#ffffff04 40px,#ffffff04 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,#ffffff04 40px,#ffffff04 41px);pointer-events:none}
+#splash h1{font-size:5.5rem;font-weight:900;letter-spacing:10px;color:#f0c040;text-shadow:0 0 30px #f0c04088,0 4px 0 #7a5000,0 8px 20px #000000aa;margin-bottom:10px;text-align:center;line-height:1}
+#splash p{color:#8a7060;letter-spacing:4px;margin-bottom:56px;font-size:.85rem;text-transform:uppercase}
+.btn-start{background:linear-gradient(180deg,#8a5a10,#5a3500);color:#f0c040;border:2px solid #f0c04088;padding:14px 48px;font-size:1rem;font-weight:900;letter-spacing:3px;cursor:pointer;transition:all .2s;outline:none;text-transform:uppercase;box-shadow:0 4px 20px #00000088}
+.btn-start:hover{background:linear-gradient(180deg,#aa7020,#7a4800);border-color:var(--gold);box-shadow:0 4px 30px #f0c04044;transform:translateY(-2px)}
+
+/* AUTH SCREEN */
+#auth{align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 35%,#2e1505,#1a0f0a 70%);position:relative}
+#auth::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 40px,#ffffff04 40px,#ffffff04 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,#ffffff04 40px,#ffffff04 41px);pointer-events:none}
+.auth-box{background:#1e1005;border:1px solid #3d2510;padding:40px 48px;width:400px;position:relative;z-index:1;box-shadow:0 8px 40px #00000099}
+.auth-box h2{font-size:1.6rem;font-weight:900;color:var(--gold);letter-spacing:4px;text-align:center;margin-bottom:4px;text-shadow:0 0 20px #f0c04055}
+.auth-box .auth-sub{text-align:center;color:var(--muted);font-size:.75rem;letter-spacing:2px;margin-bottom:28px}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px}
+.auth-tab{flex:1;padding:10px;font-size:.8rem;font-weight:700;letter-spacing:1px;cursor:pointer;background:none;border:none;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase}
+.auth-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.auth-field{margin-bottom:16px}
+.auth-field label{display:block;font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase}
+.auth-field input{width:100%;background:#0d0704;border:1px solid var(--border);color:var(--text);padding:10px 14px;font-size:.9rem;outline:none;transition:border-color .2s;font-family:inherit}
+.auth-field input:focus{border-color:var(--gold)}
+.auth-err{color:var(--red);font-size:.72rem;margin-bottom:12px;min-height:16px;text-align:center}
+.auth-btn{width:100%;background:linear-gradient(180deg,#8a5a10,#5a3500);color:var(--gold);border:1px solid #f0c04066;padding:12px;font-size:.85rem;font-weight:900;letter-spacing:2px;cursor:pointer;transition:all .2s;text-transform:uppercase;margin-top:4px}
+.auth-btn:hover{background:linear-gradient(180deg,#aa7020,#7a4800);border-color:var(--gold)}
+.auth-welcome{text-align:center;color:var(--muted);font-size:.72rem;margin-top:16px}
+.auth-welcome span{color:var(--gold)}
 
 /* SELECT */
-#select{background:var(--bg)}
+#select{background:var(--bg);overflow:hidden}
 #select header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-shrink:0}
 #select header h2{font-size:1.2rem;color:var(--accent);letter-spacing:2px}
 #select header span{color:var(--muted);font-size:.8rem;margin-left:auto}
@@ -205,10 +225,39 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 </head>
 <body>
 
+<!-- AUTH -->
+<div id="auth" class="screen active">
+  <div class="auth-box">
+    <h2>IRON FRONT</h2>
+    <div class="auth-sub">Grand Strategy · Puppets · Revolts · War</div>
+    <div class="auth-tabs">
+      <button class="auth-tab on" onclick="switchAuthTab('login',this)">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup',this)">Sign Up</button>
+    </div>
+    <!-- LOGIN -->
+    <div id="auth-login">
+      <div class="auth-field"><label>Username</label><input id="login-user" type="text" placeholder="Enter username" autocomplete="username"></div>
+      <div class="auth-field"><label>Password</label><input id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password"></div>
+      <div class="auth-err" id="login-err"></div>
+      <button class="auth-btn" onclick="doLogin()">▶ SIGN IN</button>
+      <div class="auth-welcome">New commander? <a href="#" onclick="switchAuthTab('signup',document.querySelectorAll('.auth-tab')[1]);return false" style="color:var(--gold);text-decoration:none">Create an account</a></div>
+    </div>
+    <!-- SIGNUP -->
+    <div id="auth-signup" style="display:none">
+      <div class="auth-field"><label>Username</label><input id="signup-user" type="text" placeholder="Choose a username" autocomplete="username"></div>
+      <div class="auth-field"><label>Password</label><input id="signup-pass" type="password" placeholder="Choose a password" autocomplete="new-password"></div>
+      <div class="auth-field"><label>Confirm Password</label><input id="signup-pass2" type="password" placeholder="Repeat password" autocomplete="new-password"></div>
+      <div class="auth-err" id="signup-err"></div>
+      <button class="auth-btn" onclick="doSignup()">⚑ CREATE ACCOUNT</button>
+      <div class="auth-welcome">Already have an account? <a href="#" onclick="switchAuthTab('login',document.querySelectorAll('.auth-tab')[0]);return false" style="color:var(--gold);text-decoration:none">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
 <!-- SPLASH -->
-<div id="splash" class="screen active">
+<div id="splash" class="screen">
   <h1>IRON FRONT</h1>
-  <p>GRAND STRATEGY · PUPPETS · REVOLTS · WAR</p>
+  <p>Grand Strategy · Puppets · Revolts · War</p>
   <button class="btn-start" onclick="showScreen('select')">▶ NEW CAMPAIGN</button>
 </div>
 
@@ -1442,10 +1491,60 @@ function triggerEvent(){
 }
 
 // ================================================================
+// AUTH (localStorage-based)
+// ================================================================
+function getUsers(){try{return JSON.parse(localStorage.getItem('if_users')||'{}')}catch{return{}}}
+function saveUsers(u){localStorage.setItem('if_users',JSON.stringify(u))}
+function getCurrentUser(){return localStorage.getItem('if_session')||null}
+function setSession(u){localStorage.setItem('if_session',u)}
+function clearSession(){localStorage.removeItem('if_session')}
+
+function switchAuthTab(tab,btn){
+  document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('auth-login').style.display=tab==='login'?'block':'none';
+  document.getElementById('auth-signup').style.display=tab==='signup'?'block':'none';
+  document.getElementById('login-err').textContent='';
+  document.getElementById('signup-err').textContent='';
+}
+
+function doLogin(){
+  const user=document.getElementById('login-user').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-err');
+  if(!user||!pass){err.textContent='Please fill in all fields.';return;}
+  const users=getUsers();
+  if(!users[user]){err.textContent='Username not found.';return;}
+  if(users[user].password!==btoa(pass)){err.textContent='Incorrect password.';return;}
+  setSession(user);
+  err.textContent='';
+  showScreen('splash');
+}
+
+function doSignup(){
+  const user=document.getElementById('signup-user').value.trim();
+  const pass=document.getElementById('signup-pass').value;
+  const pass2=document.getElementById('signup-pass2').value;
+  const err=document.getElementById('signup-err');
+  if(!user||!pass||!pass2){err.textContent='Please fill in all fields.';return;}
+  if(user.length<3){err.textContent='Username must be at least 3 characters.';return;}
+  if(pass.length<4){err.textContent='Password must be at least 4 characters.';return;}
+  if(pass!==pass2){err.textContent='Passwords do not match.';return;}
+  const users=getUsers();
+  if(users[user]){err.textContent='Username already taken.';return;}
+  users[user]={password:btoa(pass),created:Date.now()};
+  saveUsers(users);
+  setSession(user);
+  err.textContent='';
+  showScreen('splash');
+}
+
+// ================================================================
 // INIT
 // ================================================================
 buildGrid();
-showScreen('splash');
+// Check if already logged in
+if(getCurrentUser()){showScreen('splash');}else{showScreen('auth');}
 document.getElementById('ov-justify').addEventListener('click',e=>{if(e.target===e.currentTarget)closeOv('ov-justify')});
 document.querySelectorAll('.overlay').forEach(ov=>ov.addEventListener('click',e=>{if(e.target===ov)closeOv(ov.id)}));
 // Populate justify dropdown when modal opens
