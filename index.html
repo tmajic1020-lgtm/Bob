@@ -229,16 +229,16 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
     <h2>IRON FRONT</h2>
     <div class="auth-sub">Grand Strategy · Puppets · Revolts · War</div>
     <div class="auth-tabs">
-      <button class="auth-tab on" onclick="switchAuthTab('login',this)">Sign In</button>
-      <button class="auth-tab" onclick="switchAuthTab('signup',this)">Sign Up</button>
+      <button class="auth-tab on" id="tab-login">Sign In</button>
+      <button class="auth-tab" id="tab-signup">Sign Up</button>
     </div>
     <!-- LOGIN -->
     <div id="auth-login">
       <div class="auth-field"><label>Username</label><input id="login-user" type="text" placeholder="Enter username" autocomplete="username"></div>
       <div class="auth-field"><label>Password</label><input id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password"></div>
       <div class="auth-err" id="login-err"></div>
-      <button class="auth-btn" onclick="doLogin()">▶ SIGN IN</button>
-      <div class="auth-welcome">New commander? <a href="#" onclick="switchAuthTab('signup',document.querySelectorAll('.auth-tab')[1]);return false" style="color:var(--gold);text-decoration:none">Create an account</a></div>
+      <button class="auth-btn" id="btn-login">▶ SIGN IN</button>
+      <div class="auth-welcome">New commander? <a href="#" id="link-to-signup" style="color:var(--gold);text-decoration:none">Create an account</a></div>
     </div>
     <!-- SIGNUP -->
     <div id="auth-signup" style="display:none">
@@ -246,8 +246,11 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
       <div class="auth-field"><label>Password</label><input id="signup-pass" type="password" placeholder="Choose a password" autocomplete="new-password"></div>
       <div class="auth-field"><label>Confirm Password</label><input id="signup-pass2" type="password" placeholder="Repeat password" autocomplete="new-password"></div>
       <div class="auth-err" id="signup-err"></div>
-      <button class="auth-btn" onclick="doSignup()">⚑ CREATE ACCOUNT</button>
-      <div class="auth-welcome">Already have an account? <a href="#" onclick="switchAuthTab('login',document.querySelectorAll('.auth-tab')[0]);return false" style="color:var(--gold);text-decoration:none">Sign in</a></div>
+      <button class="auth-btn" id="btn-signup">⚑ CREATE ACCOUNT</button>
+      <div class="auth-welcome">Already have an account? <a href="#" id="link-to-login" style="color:var(--gold);text-decoration:none">Sign in</a></div>
+    </div>
+    <div style="text-align:center;margin-top:18px;padding-top:14px;border-top:1px solid #3d2510">
+      <button class="auth-btn" id="btn-guest" style="background:none;border:1px solid #5a3a1a;font-size:.75rem;padding:8px;letter-spacing:1px">▷ PLAY AS GUEST</button>
     </div>
   </div>
 </div>
@@ -1511,9 +1514,9 @@ function getCurrentUser(){
 function setSession(u){_mem.session=u;_lsSet('if_session',u);}
 function clearSession(){_mem.session=null;_lsDel('if_session');}
 
-function switchAuthTab(tab,btn){
+function switchAuthTab(tab){
   document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('on'));
-  btn.classList.add('on');
+  document.getElementById(tab==='login'?'tab-login':'tab-signup').classList.add('on');
   document.getElementById('auth-login').style.display=tab==='login'?'block':'none';
   document.getElementById('auth-signup').style.display=tab==='signup'?'block':'none';
   document.getElementById('login-err').textContent='';
@@ -1555,6 +1558,20 @@ function doSignup(){
 // INIT
 // ================================================================
 buildGrid();
+
+// Wire auth buttons via addEventListener (more reliable than inline onclick)
+document.getElementById('tab-login').addEventListener('click',function(){switchAuthTab('login');});
+document.getElementById('tab-signup').addEventListener('click',function(){switchAuthTab('signup');});
+document.getElementById('btn-login').addEventListener('click',function(){doLogin();});
+document.getElementById('btn-signup').addEventListener('click',function(){doSignup();});
+document.getElementById('btn-guest').addEventListener('click',function(){setSession('Guest');showScreen('splash');});
+document.getElementById('link-to-signup').addEventListener('click',function(e){e.preventDefault();switchAuthTab('signup');});
+document.getElementById('link-to-login').addEventListener('click',function(e){e.preventDefault();switchAuthTab('login');});
+
+// Allow Enter key on password fields
+document.getElementById('login-pass').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+document.getElementById('signup-pass2').addEventListener('keydown',function(e){if(e.key==='Enter')doSignup();});
+
 // Check if already logged in
 if(getCurrentUser()){showScreen('splash');}else{showScreen('auth');}
 document.getElementById('ov-justify').addEventListener('click',e=>{if(e.target===e.currentTarget)closeOv('ov-justify')});
