@@ -224,7 +224,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <body>
 
 <!-- AUTH -->
-<div id="auth" class="screen active">
+<div id="auth" class="screen">
   <div class="auth-box">
     <h2>IRON FRONT</h2>
     <div class="auth-sub">Grand Strategy · Puppets · Revolts · War</div>
@@ -256,10 +256,10 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 </div>
 
 <!-- SPLASH -->
-<div id="splash" class="screen">
+<div id="splash" class="screen active">
   <h1>IRON FRONT</h1>
   <p>Grand Strategy · Puppets · Revolts · War</p>
-  <button class="btn-start" onclick="showScreen('select')">▶ NEW CAMPAIGN</button>
+  <button class="btn-start" id="btn-new-campaign">▶ NEW CAMPAIGN</button>
 </div>
 
 <!-- SELECT -->
@@ -1560,6 +1560,7 @@ function doSignup(){
 buildGrid();
 
 // Wire auth buttons via addEventListener (more reliable than inline onclick)
+document.getElementById('btn-new-campaign').addEventListener('click',function(){showScreen('select');});
 document.getElementById('tab-login').addEventListener('click',function(){switchAuthTab('login');});
 document.getElementById('tab-signup').addEventListener('click',function(){switchAuthTab('signup');});
 document.getElementById('btn-login').addEventListener('click',function(){doLogin();});
@@ -1572,8 +1573,8 @@ document.getElementById('link-to-login').addEventListener('click',function(e){e.
 document.getElementById('login-pass').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 document.getElementById('signup-pass2').addEventListener('keydown',function(e){if(e.key==='Enter')doSignup();});
 
-// Check if already logged in
-if(getCurrentUser()){showScreen('splash');}else{showScreen('auth');}
+// Start directly on splash — no login required
+showScreen('splash');
 document.getElementById('ov-justify').addEventListener('click',e=>{if(e.target===e.currentTarget)closeOv('ov-justify')});
 document.querySelectorAll('.overlay').forEach(ov=>ov.addEventListener('click',e=>{if(e.target===ov)closeOv(ov.id)}));
 // Populate justify dropdown when modal opens
