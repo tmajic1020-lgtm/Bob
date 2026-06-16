@@ -365,6 +365,25 @@ PER:{n:"Persia",f:"🏴",c:"#cab03f",cap:"teh",play:0},
 SEA:{n:"Siam",f:"🏴",c:"#e23f9a",cap:"bkk",play:0},
 SCA:{n:"Scandinavia",f:"🏴",c:"#3fb0c8",cap:"sto",play:0}
 };
+/* ============================== IDEOLOGY ============================== */
+const IDEONAME={dem:"Democratic",fas:"Fascist",com:"Communist",aut:"Monarchist",neu:"Non-Aligned"};
+const IDEOICON={dem:"🗳",fas:"⚡",com:"☭",aut:"👑",neu:"⚪"};
+const IDEO={
+ USA:"dem",UK:"dem",FRA:"dem",CAN:"dem",AUS:"dem",IND:"dem",BRA:"dem",ARG:"dem",MEX:"dem",SAF:"dem",SCA:"dem",POL:"dem",EGY:"dem",TUR:"dem",
+ GER:"fas",ITA:"fas",JAP:"fas",HUN:"fas",SPA:"fas",
+ SOV:"com",CHN:"com",
+ RUS:"aut",AUH:"aut",OTT:"aut",
+ PER:"neu",SEA:"neu",ALG:"neu",WAF:"neu",CON:"neu",EAF:"neu"
+};
+function ideoOf(k){return IDEO[k]||"neu";}
+/* alliance affinity (+) / friction (-) between two ideologies */
+function ideoAffinity(a,b){
+  const x=ideoOf(a),y=ideoOf(b);
+  if(x===y&&x!=="neu")return 0.3;
+  const foes={dem:["fas","com"],fas:["dem","com"],com:["dem","fas"]};
+  if((foes[x]||[]).includes(y))return -0.3;
+  return 0;
+}
 
 /* Adjacency: land links + sea links (sea:1 requires crossing water) */
 const LINKS=[
@@ -638,7 +657,8 @@ function declareWar(a,b){
   if(atWar(a,b)||allied(a,b))return;
   warPair(a,b);
   if(b===G.player){toast("⚔ "+NATIONS[a].n.toUpperCase()+" HAS DECLARED WAR ON YOU!");sfx("war");}
-  G.tension=Math.min(100,G.tension+8);
+  // attacking across ideological lines is expected; same-bloc aggression shocks the world more
+  G.tension=Math.min(100,G.tension+(ideoAffinity(a,b)<0?6:ideoAffinity(a,b)>0?12:8));
   logMsg(`${NATIONS[a].f} ${NATIONS[a].n} declares WAR on ${NATIONS[b].f} ${NATIONS[b].n}!`,"war");
   // alliances drag everyone in
   for(const x of[...G.nations[b].allies])if(G.nations[x]&&G.nations[x].alive){warPair(x,a);for(const y of[...G.nations[a].allies])warPair(x,y);}
@@ -660,7 +680,7 @@ function proposeAlliance(a,b){
   const A=G.nations[a],B=G.nations[b];
   if(!B.alive||atWar(a,b)||allied(a,b))return false;
   const sharedFoe=[...A.atWar].some(x=>B.atWar.has(x));
-  const ok=sharedFoe||Math.random()<(natProvs(b).length<=natProvs(a).length?0.55:0.3);
+  const ok=sharedFoe||Math.random()<(natProvs(b).length<=natProvs(a).length?0.55:0.3)+ideoAffinity(a,b);
   if(ok){
     A.allies.add(b);B.allies.add(a);
     logMsg(`🤝 ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} are now ALLIES.`,"good");
@@ -2257,6 +2277,7 @@ function renderPanel(){
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
+    <div class="row"><span>Government</span><span>${IDEOICON[ideoOf(p.owner)]} ${IDEONAME[ideoOf(p.owner)]}</span></div>
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     <div class="row"><span>Terrain</span><span>${terrAt(p).n} ${terrAt(p).def>1.05?`· 🛡 ×${terrAt(p).def.toFixed(2)} def`:""}</span></div>
     <div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
@@ -2663,7 +2684,11 @@ function refreshHUD(){
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.5 — CAMPAIGN RECORDS (current)",[
+ ["v4.6 — IDEOLOGICAL BLOCS (current)",[
+  "🗳 Governments: every nation is Democratic, Fascist, Communist, Monarchist or Non-Aligned (shown on nation select and the province panel).",
+  "🤝 Ideology shapes diplomacy — like-minded powers ally far more readily; sworn ideological foes rarely do.",
+  "⚔ Attacking across ideological lines draws less condemnation; turning on your own bloc shocks the world (more tension)."]],
+ ["v4.5 — CAMPAIGN RECORDS",[
   "📊 Campaign stats tracked all game: peak territory, provinces taken, divisions built & lost, days at war, warheads used.",
   "Shown live in the WARS panel and on the victory/defeat screen; saved with your campaign."]],
  ["v4.4 — THEATER COMMAND",[
@@ -3041,7 +3066,7 @@ function renderStart(){
     if(!NATIONS[k].play||!natInEra(k))continue;
     const d=document.createElement("button");d.className="nat";
     const s=powerOf(k,Math.max(0,ERAS[ERA].years.indexOf(YEAR)));
-    d.innerHTML=`<span class="f">${NATIONS[k].f}</span><b>${NATIONS[k].n}</b><small>${NATIONS[k].desc} · ${YEAR} strength ${s}/10</small>`;
+    d.innerHTML=`<span class="f">${NATIONS[k].f}</span><b>${NATIONS[k].n}</b><small>${IDEOICON[ideoOf(k)]} ${NATIONS[k].desc} · ${YEAR} strength ${s}/10</small>`;
     d.onclick=()=>startGame(k);
     natEl.appendChild(d);
   }
