@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNIPER: TIMELINE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',monospace;color:#cfe8c0}
+#wrap{position:relative;width:100vw;height:100vh}
+canvas{display:block;width:100%;height:100%;cursor:none}
+
+/* HUD */
+#hud{position:absolute;inset:0;pointer-events:none;font-size:14px;letter-spacing:1px;text-shadow:0 0 4px #000,0 0 8px #000}
+.hud-tl{position:absolute;top:14px;left:18px;line-height:1.7}
+.hud-tr{position:absolute;top:14px;right:18px;text-align:right;line-height:1.7}
+.hud-bl{position:absolute;bottom:14px;left:18px;line-height:1.6}
+.hud-br{position:absolute;bottom:14px;right:18px;text-align:right;line-height:1.6}
+.lbl{color:#7a9468;font-size:11px}
+.big{font-size:22px;font-weight:bold;color:#e8f0c0}
+.gold{color:#f0c040}
+.red{color:#f8604a}
+.green{color:#5fd860}
+.cyan{color:#5fd0e8}
+.ammo-dots{letter-spacing:3px;font-size:18px}
+#wind-bar{display:inline-block;width:120px;height:8px;border:1px solid #5a6a4a;position:relative;vertical-align:middle;margin-left:6px;background:#0a120a}
+#wind-ind{position:absolute;top:-2px;width:3px;height:12px;background:#f0c040;left:50%}
+#breath-bar{display:inline-block;width:120px;height:8px;border:1px solid #5a6a4a;vertical-align:middle;margin-left:6px;background:#0a120a}
+#breath-fill{height:100%;background:linear-gradient(90deg,#5fd060,#f0c040);width:100%}
+
+/* MESSAGES */
+#bigmsg{position:absolute;top:34%;left:0;right:0;text-align:center;font-size:46px;font-weight:bold;letter-spacing:4px;opacity:0;transition:opacity .25s;pointer-events:none;text-shadow:0 0 18px #000}
+#hitfeed{position:absolute;left:0;right:0;bottom:120px;text-align:center;pointer-events:none}
+.feed-pop{display:inline-block;font-size:26px;font-weight:bold;animation:pop 1.1s ease-out forwards;text-shadow:0 0 12px #000}
+@keyframes pop{0%{transform:translateY(0) scale(.6);opacity:0}15%{transform:translateY(-10px) scale(1.1);opacity:1}100%{transform:translateY(-60px) scale(1);opacity:0}}
+
+/* OVERLAY SCREENS */
+.overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at 50% 40%,rgba(20,30,14,.85),rgba(0,0,0,.96));z-index:10}
+.overlay.show{display:flex}
+.overlay h1{font-size:64px;letter-spacing:10px;color:#cfe8c0;text-shadow:0 0 30px #2a4020,0 4px 0 #1a2410;font-weight:900}
+.overlay .sub{color:#7a9468;letter-spacing:5px;margin-top:8px;font-size:15px}
+.overlay .panel{margin-top:34px;max-width:560px;line-height:1.85;font-size:14px;color:#a8c098}
+.overlay .panel b{color:#f0c040}
+.btn{margin-top:32px;background:linear-gradient(180deg,#3a5a28,#223818);color:#dff0c0;border:2px solid #6f9a4a;padding:14px 46px;font-size:18px;font-weight:bold;letter-spacing:4px;cursor:pointer;font-family:inherit;transition:all .15s;text-transform:uppercase}
+.btn:hover{background:linear-gradient(180deg,#4f7a38,#2e4c20);border-color:#a0d060;transform:translateY(-2px);box-shadow:0 6px 26px #00000099}
+.btn.sm{padding:9px 26px;font-size:13px;letter-spacing:2px;margin-top:14px}
+.scoreline{font-size:20px;margin:6px 0}
+.scoreline .v{color:#f0c040;font-weight:bold}
+.eras{display:flex;gap:6px;margin-top:24px;flex-wrap:wrap;justify-content:center;max-width:640px}
+.era-chip{border:1px solid #4a5a3a;padding:5px 12px;font-size:12px;color:#7a9468;letter-spacing:1px}
+.era-chip.on{border-color:#f0c040;color:#f0c040;background:#2a2410}
+.hint{margin-top:18px;color:#6a8458;font-size:12px;letter-spacing:1px;line-height:1.9}
+.hint kbd{background:#1a2412;border:1px solid #4a5a3a;padding:1px 7px;border-radius:3px;color:#cfe8c0}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-tl">
+      <div><span class="lbl">YEAR</span> <span class="big gold" id="h-year">1940</span></div>
+      <div><span class="lbl">ERA</span> <span id="h-era" class="cyan">THE GREAT WAR-WEARY</span></div>
+      <div><span class="lbl">WEATHER</span> <span id="h-weather">CLEAR</span></div>
+    </div>
+    <div class="hud-tr">
+      <div><span class="lbl">SCORE</span> <span class="big" id="h-score">0</span></div>
+      <div><span class="lbl">COMBO</span> <span id="h-combo" class="gold">x1</span></div>
+      <div><span class="lbl">BOUNTIES</span> <span id="h-kills" class="green">0</span></div>
+    </div>
+    <div class="hud-bl">
+      <div><span class="lbl">TIME</span> <span class="big" id="h-time">60</span></div>
+      <div><span class="lbl">BREATH</span><span id="breath-bar"><span id="breath-fill"></span></span></div>
+    </div>
+    <div class="hud-br">
+      <div><span class="lbl">WIND</span><span id="wind-bar"><span id="wind-ind"></span></span> <span id="h-wind">0</span></div>
+      <div><span class="lbl">AMMO</span> <span class="ammo-dots gold" id="h-ammo">●●●●●</span></div>
+      <div id="h-reload" class="red" style="height:18px"></div>
+    </div>
+  </div>
+
+  <div id="bigmsg"></div>
+  <div id="hitfeed"></div>
+
+  <!-- START -->
+  <div class="overlay show" id="ov-start">
+    <h1>SNIPER</h1>
+    <div class="sub">// TIMELINE · 1940 — 2026 //</div>
+    <div class="panel">
+      You are a phantom marksman moving through the decades. Each era, a rotating cast of
+      <b>fictional rogue commanders</b> — warlords, junta chiefs, and doomsday cult leaders —
+      shows themselves for a heartbeat. Put them down before time runs out.
+      <br><br>
+      Mind the <b>wind</b>, hold your <b>breath</b> to steady the scope, and watch the sky —
+      it can open up and <b>rain</b> at any moment, blurring your view and shoving your rounds off course.
+    </div>
+    <div class="eras" id="era-preview"></div>
+    <button class="btn" id="btn-start">▶ BEGIN OPERATION</button>
+    <div class="hint">
+      <kbd>MOVE MOUSE</kbd> aim &nbsp; <kbd>CLICK</kbd> fire &nbsp; <kbd>HOLD RIGHT-CLICK</kbd> / <kbd>SHIFT</kbd> hold breath (zoom &amp; steady) &nbsp; <kbd>R</kbd> reload<br>
+      Targets that escape cost you. Headshots score double. Chain kills for a combo multiplier.
+    </div>
+  </div>
+
+  <!-- ROUND END -->
+  <div class="overlay" id="ov-round">
+    <h1 id="round-title">ERA CLEARED</h1>
+    <div class="sub" id="round-sub"></div>
+    <div class="panel" id="round-stats"></div>
+    <button class="btn" id="btn-next">▶ ADVANCE THE CLOCK</button>
+  </div>
+
+  <!-- GAME OVER -->
+  <div class="overlay" id="ov-over">
+    <h1 class="gold">OPERATION COMPLETE</h1>
+    <div class="sub" id="over-sub">1940 — 2026</div>
+    <div class="panel" id="over-stats"></div>
+    <button class="btn" id="btn-restart">▶ RUN IT BACK</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+const $=id=>document.getElementById(id);
+const rand=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rand(a,b+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* ---------------- ERAS (1940 -> 2026) ---------------- */
+const ERAS = [
+  {year:1940, name:"THE WAR-WEARY '40s",  sky:["#3a4a52","#7a8a78"], ground:"#2b3324", accent:"#c9b06a", rainChance:.5},
+  {year:1958, name:"COLD FRONT '50s",      sky:["#4a4032","#b09a6a"], ground:"#3a3322", accent:"#d8b878", rainChance:.3},
+  {year:1972, name:"THE LONG '70s",        sky:["#5a3a28","#d08a4a"], ground:"#3a2a1a", accent:"#e8a050", rainChance:.45},
+  {year:1989, name:"NEON DUSK '80s",       sky:["#2a1a40","#c04a8a"], ground:"#1a1228", accent:"#ff5fb0", rainChance:.4},
+  {year:2001, name:"DIGITAL DAWN",         sky:["#243a4a","#7ab0c8"], ground:"#1c2a30", accent:"#5fd0e8", rainChance:.5},
+  {year:2014, name:"DRONE AGE",            sky:["#2a2e34","#9aa6ae"], ground:"#22262a", accent:"#aeb8c0", rainChance:.6},
+  {year:2026, name:"THE LAST FRONT",       sky:["#1a1020","#5a2a4a"], ground:"#140e1a", accent:"#ff6f6f", rainChance:.7},
+];
+
+/* Fictional rogue-leader roster (clearly invented villains) */
+const NAMES = [
+  ["Gen. Vorgan Krell","WARLORD OF THE ASH STEPPE"],
+  ["Chancellor Dredd","THE IRON DEMAGOGUE"],
+  ["Marshal Káine","BUTCHER OF THE RED BASIN"],
+  ["Premier Volkov","THE GREY TYRANT"],
+  ["Archon Solis","DOOMSDAY PROPHET"],
+  ["Comm. Halberd","THE PUPPET KING"],
+  ["Director Mora","SHADOW JUNTA CHIEF"],
+  ["Overseer Bane","WARDEN OF THE WALL"],
+  ["Sultan Vex","THE SANDSTORM EMIR"],
+  ["Cmdr. Lysse","THE CRIMSON ADMIRAL"],
+  ["Prophet Auger","CULT OF THE LAST DAWN"],
+  ["Tyrant Osk","THE GLASS DICTATOR"],
+];
+
+/* ---------------- GAME STATE ---------------- */
+const G = {
+  screen:"start",
+  eraIdx:0,
+  score:0, kills:0, escaped:0, shots:0, hits:0,
+  combo:1, comboTimer:0,
+  ammo:5, maxAmmo:5, reloading:false, reloadT:0,
+  time:60, roundActive:false,
+  targets:[], particles:[], casings:[],
+  raindrops:[], raining:false, rainLevel:0, rainTarget:0,
+  wind:0, windTarget:0,
+  breath:1, holding:false,
+  mx:0, my:0, recoil:0, flash:0,
+  spawnTimer:0, lastT:0,
+  shake:0,
+};
+
+/* ---------------- INPUT ---------------- */
+window.addEventListener('mousemove', e=>{ G.mx=e.clientX; G.my=e.clientY; });
+window.addEventListener('mousedown', e=>{
+  if(e.button===2){ G.holding=true; e.preventDefault(); return; }
+  if(e.button===0) fire();
+});
+window.addEventListener('mouseup', e=>{ if(e.button===2) G.holding=false; });
+window.addEventListener('contextmenu', e=>e.preventDefault());
+window.addEventListener('keydown', e=>{
+  if(e.key==='Shift') G.holding=true;
+  if(e.key==='r'||e.key==='R') reload();
+});
+window.addEventListener('keyup', e=>{ if(e.key==='Shift') G.holding=false; });
+
+/* ---------------- ROUND FLOW ---------------- */
+function startGame(){
+  G.eraIdx=0; G.score=0; G.kills=0; G.escaped=0; G.shots=0; G.hits=0;
+  hide('ov-start'); hide('ov-over');
+  startRound();
+}
+function startRound(){
+  const era = ERAS[G.eraIdx];
+  G.targets=[]; G.particles=[]; G.casings=[];
+  G.combo=1; G.comboTimer=0;
+  G.ammo=G.maxAmmo; G.reloading=false; G.reloadT=0;
+  G.time=60; G.roundActive=true;
+  G.spawnTimer=0.8;
+  G.wind=rand(-1,1); G.windTarget=rand(-1,1);
+  // weather: roll for rain this era
+  G.raining = Math.random() < era.rainChance;
+  G.rainTarget = G.raining ? rand(.55,1) : 0;
+  G.rainLevel = G.raining ? .3 : 0;
+  buildRain();
+  $('#h-era').textContent = era.name;
+  $('#h-year').textContent = era.year;
+  G.screen="play";
+  bigMsg(era.year+"  —  "+era.name, era.accent, 1.6);
+}
+function endRound(){
+  G.roundActive=false;
+  const era=ERAS[G.eraIdx];
+  const acc = G.shots? Math.round(G.hits/G.shots*100):0;
+  if(G.eraIdx>=ERAS.length-1){
+    // finished timeline
+    G.screen="over";
+    $('#over-stats').innerHTML =
+      `<div class="scoreline">FINAL SCORE <span class="v">${G.score.toLocaleString()}</span></div>`+
+      `<div class="scoreline">BOUNTIES CLAIMED <span class="v">${G.kills}</span></div>`+
+      `<div class="scoreline">TARGETS ESCAPED <span class="v">${G.escaped}</span></div>`+
+      `<div class="scoreline">LIFETIME ACCURACY <span class="v">${acc}%</span></div>`+
+      `<div class="hint">You ran the clock from 1940 to 2026. The rogues' gallery is empty… for now.</div>`;
+    show('ov-over');
+  } else {
+    G.screen="round";
+    $('#round-title').textContent = era.year+" SECURED";
+    $('#round-sub').textContent = era.name;
+    $('#round-stats').innerHTML =
+      `<div class="scoreline">ROUND SCORE <span class="v">${G.score.toLocaleString()}</span></div>`+
+      `<div class="scoreline">BOUNTIES <span class="v">${G.kills}</span> &nbsp; ESCAPED <span class="v">${G.escaped}</span></div>`+
+      `<div class="scoreline">ACCURACY <span class="v">${acc}%</span></div>`+
+      `<div class="hint">Next: <b>${ERAS[G.eraIdx+1].year} · ${ERAS[G.eraIdx+1].name}</b></div>`;
+    show('ov-round');
+  }
+}
+function nextRound(){ hide('ov-round'); G.eraIdx++; startRound(); }
+
+/* ---------------- TARGETS ---------------- */
+function spawnTarget(){
+  const era=ERAS[G.eraIdx];
+  const difficulty = G.eraIdx; // 0..6
+  // distance affects size (perspective)
+  const dist = rand(.35,1);                // 1=close,.35=far
+  const baseH = 60 + dist*150;
+  const x = rand(W*0.12, W*0.88);
+  const groundY = H*0.62 + dist*H*0.22;    // farther = higher on screen
+  const nm = pick(NAMES);
+  const lifespan = clamp(3.2 - difficulty*0.28, 1.1, 3.2) * rand(.8,1.15);
+  G.targets.push({
+    x, y:groundY, h:baseH, w:baseH*0.42, dist,
+    name:nm[0], title:nm[1],
+    state:"rising", t:0, life:lifespan, alive:true,
+    pop:0, // 0..1 emergence
+    bob: rand(0,Math.PI*2),
+    moveDir: Math.random()<.5?-1:1,
+    speed: (10+difficulty*8)*(Math.random()<.6?1:0),
+    hp:1,
+    color: pick(["#6a5a4a","#5a6a5a","#6a5060","#506a6a","#6a6050"]),
+  });
+}
+function targetHeadBox(t){
+  // head circle center & radius in screen space
+  const cy = t.y - t.h*t.pop;
+  const headR = t.w*0.34;
+  const headCY = cy - t.h*0.5 + headR*0.6;
+  return {x:t.x, y:headCY, r:headR};
+}
+function targetBodyBox(t){
+  const cy = t.y - t.h*t.pop;
+  return {x:t.x - t.w/2, y:cy - t.h*0.5 + t.w*0.34, w:t.w, h:t.h*0.62*t.pop+1};
+}
+
+/* ---------------- FIRING ---------------- */
+function fire(){
+  if(G.screen!=="play"||!G.roundActive) return;
+  if(G.reloading) return;
+  if(G.ammo<=0){ reload(); return; }
+  G.ammo--; G.shots++;
+  G.recoil=1; G.flash=1; G.shake=Math.max(G.shake,6);
+  ejectCasing();
+  // aim point with wind + breath sway offset
+  const aim = aimPoint();
+  // check hit
+  let best=null,bestKind=null;
+  for(const t of G.targets){
+    if(!t.alive||t.pop<0.25) continue;
+    const hb=targetHeadBox(t);
+    const dh=Math.hypot(aim.x-hb.x, aim.y-hb.y);
+    if(dh<=hb.r*1.05){ best=t; bestKind="head"; break; }
+    const bb=targetBodyBox(t);
+    if(aim.x>=bb.x&&aim.x<=bb.x+bb.w&&aim.y>=bb.y&&aim.y<=bb.y+bb.h){ best=t; bestKind="body"; }
+  }
+  if(best){
+    hitTarget(best,bestKind,aim);
+  } else {
+    // miss splash on ground/air
+    for(let i=0;i<6;i++) spark(aim.x,aim.y,"#6a6a5a",rand(1,3));
+    G.combo=1; G.comboTimer=0;
+  }
+  if(G.ammo<=0) reload();
+}
+function hitTarget(t,kind,aim){
+  G.hits++; t.alive=false; t.state="dead"; t.t=0;
+  G.kills++;
+  const era=ERAS[G.eraIdx];
+  G.comboTimer=2.4;
+  let base = Math.round((kind==="head"?200:100) * (1+(1-t.dist)*0.0) * (1+(1.2-t.dist))); // farther = more
+  base = Math.round(base * (kind==="head"?2:1));
+  const pts = base * G.combo;
+  G.score += pts;
+  G.combo = clamp(G.combo+1, 1, 9);
+  // feedback
+  const col = kind==="head" ? "#f8604a":"#f0c040";
+  feed((kind==="head"?"HEADSHOT ":"DOWN ")+"+"+pts.toLocaleString(), col);
+  bigMsg(kind==="head"?"☠ ELIMINATED":"✔ NEUTRALIZED", col, .7);
+  // blood/impact particles
+  const hb=targetHeadBox(t);
+  const px = kind==="head"?hb.x:t.x, py=kind==="head"?hb.y:t.y-t.h*0.5;
+  for(let i=0;i<(kind==="head"?22:14);i++) spark(px,py,"#a0202a",rand(2,5));
+  G.shake=Math.max(G.shake,kind==="head"?12:8);
+}
+function reload(){
+  if(G.reloading||G.ammo===G.maxAmmo) return;
+  G.reloading=true; G.reloadT=1.3;
+}
+function ejectCasing(){
+  G.casings.push({x:W*0.5+rand(-20,20),y:H*0.5,vx:rand(2,5),vy:rand(-6,-3),r:rand(2,4),life:1,rot:rand(0,6)});
+}
+
+/* aim point: where the bullet actually lands (cursor + wind + sway, dampened when holding breath) */
+function aimPoint(){
+  const steady = G.holding ? G.breath : 0.35;
+  const swayAmp = (1-steady)*14;
+  const sway = Math.sin(performance.now()/300)*swayAmp;
+  const sway2 = Math.cos(performance.now()/170)*swayAmp*0.6;
+  const windPush = G.wind * 26 * (G.raining? (1+G.rainLevel*0.8):1);
+  const rainJitter = G.raining ? rand(-1,1)*G.rainLevel*10 : 0;
+  return { x: G.mx + windPush + sway + rainJitter, y: G.my + sway2 + (G.raining?rand(-1,1)*G.rainLevel*6:0) };
+}
+
+/* ---------------- PARTICLES ---------------- */
+function spark(x,y,color,r){
+  const a=rand(0,Math.PI*2), s=rand(40,260);
+  G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,r,color,life:rand(.4,.9),g:420});
+}
+function buildRain(){
+  G.raindrops=[];
+  const n = Math.floor(W*0.45);
+  for(let i=0;i<n;i++){
+    G.raindrops.push({x:rand(0,W),y:rand(0,H),len:rand(8,20),sp:rand(700,1200)});
+  }
+}
+
+/* ---------------- UPDATE ---------------- */
+function update(dt){
+  if(G.screen!=="play") return;
+  // timers
+  if(G.roundActive){
+    G.time -= dt;
+    if(G.time<=0){ G.time=0; endRound(); return; }
+  }
+  // recoil & flash decay
+  G.recoil = Math.max(0, G.recoil - dt*4);
+  G.flash = Math.max(0, G.flash - dt*8);
+  G.shake = Math.max(0, G.shake - dt*30);
+  // breath
+  if(G.holding) G.breath = Math.max(0, G.breath - dt*0.45);
+  else G.breath = Math.min(1, G.breath + dt*0.6);
+  if(G.breath<=0) G.holding=false; // out of breath -> released sway
+  // combo decay
+  if(G.comboTimer>0){ G.comboTimer-=dt; if(G.comboTimer<=0) G.combo=1; }
+  // reload
+  if(G.reloading){
+    G.reloadT-=dt;
+    if(G.reloadT<=0){ G.reloading=false; G.ammo=G.maxAmmo; }
+  }
+  // wind drift
+  G.wind += (G.windTarget-G.wind)*dt*0.6;
+  if(Math.random()<dt*0.25) G.windTarget=rand(-1,1);
+  // weather dynamic: rain can start/stop mid-round
+  if(Math.random()<dt*0.08){
+    G.raining = Math.random() < ERAS[G.eraIdx].rainChance;
+    G.rainTarget = G.raining? rand(.5,1):0;
+    if(G.raining && G.raindrops.length===0) buildRain();
+  }
+  G.rainLevel += (G.rainTarget-G.rainLevel)*dt*0.8;
+  if(G.rainLevel<0.02 && G.rainTarget===0){ G.rainLevel=0; }
+  // rain motion
+  if(G.rainLevel>0.01){
+    const sk = 1+G.wind*0.4;
+    for(const d of G.raindrops){
+      d.y += d.sp*dt*(0.4+G.rainLevel);
+      d.x += G.wind*120*dt;
+      if(d.y>H){ d.y=-d.len; d.x=rand(0,W); }
+      if(d.x<-20)d.x=W; if(d.x>W+20)d.x=0;
+    }
+  }
+  // spawn targets
+  G.spawnTimer-=dt;
+  if(G.spawnTimer<=0 && G.targets.filter(t=>t.alive).length < 2+Math.min(3,G.eraIdx)){
+    spawnTarget();
+    G.spawnTimer = clamp(1.8 - G.eraIdx*0.12, 0.6, 1.8)*rand(.7,1.2);
+  }
+  // targets life cycle
+  for(const t of G.targets){
+    t.t+=dt; t.bob+=dt*2;
+    if(t.state==="rising"){
+      t.pop = Math.min(1, t.pop + dt*3.2);
+      if(t.pop>=1){ t.state="up"; t.t=0; }
+    } else if(t.state==="up"){
+      if(t.t>=t.life){ t.state="sinking"; t.t=0; }
+      if(t.speed){ t.x += t.moveDir*t.speed*dt;
+        if(t.x<W*0.1||t.x>W*0.9) t.moveDir*=-1; }
+    } else if(t.state==="sinking"){
+      t.pop = Math.max(0, t.pop - dt*2.6);
+      if(t.pop<=0){ t.alive=false; if(!t.counted){ t.counted=true; G.escaped++; G.combo=1; flashEscape(); } }
+    } else if(t.state==="dead"){
+      t.pop = Math.max(0, t.pop - dt*5);
+    }
+  }
+  G.targets = G.targets.filter(t=> t.alive || t.pop>0 );
+  // particles
+  for(const p of G.particles){ p.life-=dt; p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; }
+  G.particles = G.particles.filter(p=>p.life>0);
+  for(const c of G.casings){ c.life-=dt*0.7; c.vy+=20*dt; c.x+=c.vx; c.y+=c.vy; c.rot+=0.3; }
+  G.casings = G.casings.filter(c=>c.life>0);
+}
+let escapeFlash=0;
+function flashEscape(){ escapeFlash=1; bigMsg("✘ TARGET ESCAPED","#f8604a",.6); }
+
+/* ---------------- RENDER ---------------- */
+function render(){
+  const era=ERAS[G.eraIdx];
+  ctx.save();
+  // screen shake
+  if(G.shake>0){ ctx.translate(rand(-G.shake,G.shake),rand(-G.shake,G.shake)); }
+
+  // sky gradient
+  const sky=ctx.createLinearGradient(0,0,0,H*0.7);
+  sky.addColorStop(0,era.sky[0]); sky.addColorStop(1,era.sky[1]);
+  ctx.fillStyle=sky; ctx.fillRect(-20,-20,W+40,H*0.72);
+  // rain darkening
+  if(G.rainLevel>0.01){ ctx.fillStyle=`rgba(10,16,22,${G.rainLevel*0.45})`; ctx.fillRect(-20,-20,W+40,H+40); }
+
+  // distant skyline silhouette (changes subtly per era)
+  drawSkyline(era);
+
+  // ground
+  ctx.fillStyle=era.ground; ctx.fillRect(-20,H*0.68,W+40,H*0.4);
+  const gg=ctx.createLinearGradient(0,H*0.68,0,H);
+  gg.addColorStop(0,"rgba(0,0,0,0)"); gg.addColorStop(1,"rgba(0,0,0,0.55)");
+  ctx.fillStyle=gg; ctx.fillRect(-20,H*0.68,W+40,H*0.4);
+
+  // cover crates / sandbags for targets to pop from
+  drawCover();
+
+  // targets
+  for(const t of G.targets) drawTarget(t,era);
+
+  // particles (blood/impact)
+  for(const p of G.particles){
+    ctx.globalAlpha=clamp(p.life*1.6,0,1);
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-p.r/2,p.y-p.r/2,p.r,p.r);
+  }
+  ctx.globalAlpha=1;
+
+  // casings
+  for(const c of G.casings){
+    ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.rot);
+    ctx.fillStyle="#d8b048"; ctx.fillRect(-c.r,-c.r*1.8,c.r*2,c.r*3.6); ctx.restore();
+  }
+
+  // rain streaks
+  if(G.rainLevel>0.01){
+    ctx.strokeStyle=`rgba(180,200,220,${0.25+G.rainLevel*0.4})`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    for(const d of G.raindrops){
+      ctx.moveTo(d.x,d.y);
+      ctx.lineTo(d.x - G.wind*8, d.y+d.len*(0.6+G.rainLevel));
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // SCOPE OVERLAY
+  drawScope();
+
+  // muzzle flash full-screen tint
+  if(G.flash>0){ ctx.fillStyle=`rgba(255,220,140,${G.flash*0.18})`; ctx.fillRect(0,0,W,H); }
+  if(escapeFlash>0){ ctx.fillStyle=`rgba(180,30,20,${escapeFlash*0.16})`; ctx.fillRect(0,0,W,H); escapeFlash=Math.max(0,escapeFlash-0.04); }
+}
+
+function drawSkyline(era){
+  ctx.fillStyle="rgba(0,0,0,0.28)";
+  const baseY=H*0.68;
+  // deterministic-ish skyline per era
+  let seed=era.year;
+  const rnd=()=>{ seed=(seed*9301+49297)%233280; return seed/233280; };
+  let x=-30;
+  while(x<W+30){
+    const bw=30+rnd()*70; const bh=40+rnd()*180*(0.5+ (era.year>1989?0.6:0.2));
+    ctx.fillRect(x, baseY-bh, bw, bh);
+    x+=bw+rnd()*14;
+  }
+}
+function drawCover(){
+  ctx.fillStyle="rgba(0,0,0,0.25)";
+  // a low wall band where torsos clip
+  ctx.fillRect(-20,H*0.66,W+40,8);
+}
+
+function drawTarget(t,era){
+  if(t.pop<=0) return;
+  const cy = t.y - t.h*t.pop;
+  const topY = cy - t.h*0.5;
+  const sway = Math.sin(t.bob)*2*t.pop;
+  ctx.save();
+  ctx.translate(t.x+sway, 0);
+  // clip below the cover wall so they look like they pop up
+  ctx.beginPath(); ctx.rect(-t.w, topY-40, t.w*2, (H*0.66)-(topY-40)); ctx.clip();
+
+  const headR=t.w*0.34;
+  const headCY=topY+headR*0.6;
+  // body (coat)
+  ctx.fillStyle=t.color;
+  roundRect(-t.w/2, headCY+headR*0.5, t.w, t.h*0.7, 4); ctx.fill();
+  // shoulders/epaulettes (military leader look)
+  ctx.fillStyle=era.accent;
+  ctx.fillRect(-t.w/2, headCY+headR*0.5, t.w, t.h*0.06);
+  // medals
+  ctx.fillStyle="#d8b048";
+  for(let i=0;i<3;i++){ ctx.fillRect(-t.w*0.18+i*t.w*0.14, headCY+headR*1.1, t.w*0.06, t.h*0.05); }
+  // neck
+  ctx.fillStyle="#9a8068";
+  ctx.fillRect(-headR*0.4, headCY+headR*0.4, headR*0.8, headR*0.7);
+  // head
+  ctx.fillStyle="#c2a888";
+  ctx.beginPath(); ctx.arc(0,headCY,headR,0,Math.PI*2); ctx.fill();
+  // cap
+  ctx.fillStyle="#22251a";
+  ctx.beginPath(); ctx.arc(0,headCY-headR*0.15,headR*1.02,Math.PI*1.05,Math.PI*1.95); ctx.fill();
+  ctx.fillRect(-headR,headCY-headR*0.25,headR*2,headR*0.32);
+  ctx.fillStyle=era.accent;
+  ctx.fillRect(-headR*0.35,headCY-headR*0.2,headR*0.7,headR*0.18); // cap badge
+  // tiny face marks
+  ctx.fillStyle="#5a4030";
+  ctx.fillRect(-headR*0.4,headCY-headR*0.05,headR*0.25,headR*0.12);
+  ctx.fillRect(headR*0.15,headCY-headR*0.05,headR*0.25,headR*0.12);
+
+  ctx.restore();
+
+  // name tag (only when fully up & close enough)
+  if(t.state==="up" && t.pop>0.9 && t.dist>0.55){
+    ctx.save();
+    ctx.font="bold 12px 'Courier New',monospace";
+    ctx.textAlign="center";
+    const ty=topY-14;
+    const tw=ctx.measureText(t.name).width+18;
+    ctx.fillStyle="rgba(0,0,0,0.55)";
+    ctx.fillRect(t.x-tw/2, ty-12, tw, 16);
+    ctx.fillStyle="#f8604a"; ctx.fillText(t.name, t.x, ty);
+    ctx.restore();
+  }
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawScope(){
+  if(G.screen!=="play") return;
+  const zoom = G.holding? 0.8:1; // when holding breath, tighter vignette (visual)
+  const aim = {x:G.mx,y:G.my};
+  const R = Math.min(W,H)*(G.holding?0.30:0.34);
+  // dark vignette outside scope
+  ctx.save();
+  ctx.fillStyle="rgba(2,6,3,0.92)";
+  ctx.beginPath();
+  ctx.rect(0,0,W,H);
+  ctx.arc(aim.x,aim.y,R,0,Math.PI*2,true);
+  ctx.fill("evenodd");
+  // scope ring
+  ctx.beginPath(); ctx.arc(aim.x,aim.y,R,0,Math.PI*2);
+  ctx.lineWidth=R*0.10; ctx.strokeStyle="#05080a"; ctx.stroke();
+  ctx.lineWidth=2; ctx.strokeStyle="#2a3a26"; ctx.stroke();
+
+  // rain blur inside scope (subtle desaturate streaks)
+  if(G.rainLevel>0.01){
+    ctx.save();
+    ctx.beginPath(); ctx.arc(aim.x,aim.y,R,0,Math.PI*2); ctx.clip();
+    ctx.fillStyle=`rgba(120,150,170,${G.rainLevel*0.10})`;
+    ctx.fillRect(aim.x-R,aim.y-R,R*2,R*2);
+    ctx.restore();
+  }
+
+  // reticle (mil-dot) with breathing sway + wind hold offset shown
+  const aimReal = aimPoint();
+  // crosshair drawn at *true* impact point so player learns wind/sway
+  ctx.strokeStyle="#aef0a0"; ctx.lineWidth=1.2;
+  ctx.beginPath();
+  ctx.moveTo(aim.x-R,aim.y); ctx.lineTo(aim.x+R,aim.y);
+  ctx.moveTo(aim.x,aim.y-R); ctx.lineTo(aim.x,aim.y+R);
+  ctx.stroke();
+  // mil dots
+  ctx.fillStyle="#aef0a0";
+  for(let i=1;i<=4;i++){
+    const d=R*i/5;
+    ctx.fillRect(aim.x+d-1,aim.y-1,2,2);
+    ctx.fillRect(aim.x-d-1,aim.y-1,2,2);
+    ctx.fillRect(aim.x-1,aim.y+d-1,2,2);
+    ctx.fillRect(aim.x-1,aim.y-d-1,2,2);
+  }
+  // center gap + true impact marker
+  ctx.fillStyle="rgba(0,0,0,0)";
+  ctx.strokeStyle="#ff7a4a"; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.arc(aimReal.x,aimReal.y,5,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(aim.x,aim.y,2.2,0,Math.PI*2); ctx.fillStyle="#aef0a0"; ctx.fill();
+
+  // recoil kick: ring jumps up briefly
+  if(G.recoil>0){
+    ctx.globalAlpha=G.recoil*0.5;
+    ctx.strokeStyle="#ffcf80"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(aim.x,aim.y,R*(1-G.recoil*0.05),0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+/* ---------------- HUD UPDATE ---------------- */
+function syncHUD(){
+  $('#h-year').textContent=ERAS[G.eraIdx].year;
+  $('#h-score').textContent=G.score.toLocaleString();
+  $('#h-combo').textContent="x"+G.combo;
+  $('#h-kills').textContent=G.kills;
+  $('#h-time').textContent=Math.ceil(G.time);
+  $('#h-time').className="big "+(G.time<10?"red":"");
+  // weather
+  const wt=$('#h-weather');
+  if(G.rainLevel>0.55){ wt.textContent="HEAVY RAIN"; wt.className="red"; }
+  else if(G.rainLevel>0.1){ wt.textContent="DRIZZLE"; wt.className="cyan"; }
+  else { wt.textContent="CLEAR"; wt.className="green"; }
+  // ammo
+  let dots=""; for(let i=0;i<G.maxAmmo;i++) dots += i<G.ammo? "●":"○";
+  $('#h-ammo').textContent=dots;
+  $('#h-reload').textContent = G.reloading? "RELOADING…" : (G.ammo===0?"PRESS R":"");
+  // wind
+  $('#wind-ind').style.left = (50 + G.wind*45)+"%";
+  $('#h-wind').textContent = (G.wind>0?"→ ":"← ")+Math.abs(Math.round(G.wind*10));
+  // breath
+  $('#breath-fill').style.width = (G.breath*100)+"%";
+}
+
+/* ---------------- MESSAGES ---------------- */
+let msgTimer=0;
+function bigMsg(txt,color,dur){
+  const el=$('#bigmsg'); el.textContent=txt; el.style.color=color||"#cfe8c0";
+  el.style.opacity=1; msgTimer=dur||1;
+}
+function feed(txt,color){
+  const f=$('#hitfeed'); const s=document.createElement('span');
+  s.className="feed-pop"; s.style.color=color; s.textContent=txt;
+  f.appendChild(s); setTimeout(()=>s.remove(),1100);
+}
+
+/* ---------------- LOOP ---------------- */
+function loop(now){
+  const dt=Math.min(0.05,(now-(G.lastT||now))/1000); G.lastT=now;
+  update(dt);
+  // fade big message
+  if(msgTimer>0){ msgTimer-=dt; if(msgTimer<=0) $('#bigmsg').style.opacity=0; }
+  ctx.clearRect(0,0,W,H);
+  render();
+  if(G.screen==="play") syncHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------------- UI WIRING ---------------- */
+function show(id){ $('#'+id).classList.add('show'); }
+function hide(id){ $('#'+id).classList.remove('show'); }
+$('#btn-start').onclick=startGame;
+$('#btn-next').onclick=nextRound;
+$('#btn-restart').onclick=()=>{ hide('ov-over'); startGame(); };
+
+// era preview chips
+(function(){
+  const wrap=$('#era-preview');
+  ERAS.forEach((e,i)=>{ const c=document.createElement('div'); c.className="era-chip"+(i===0?" on":""); c.textContent=e.year; wrap.appendChild(c); });
+})();
+</script>
+</body>
+</html>
