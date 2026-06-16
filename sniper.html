@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SNIPER: TIMELINE</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',monospace;color:#cfe8c0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',monospace;color:#cfe8c0;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #wrap{position:relative;width:100vw;height:100vh}
-canvas{display:block;width:100%;height:100%;cursor:none}
+canvas{display:block;width:100%;height:100%;cursor:none;touch-action:none}
 
 /* HUD */
 #hud{position:absolute;inset:0;pointer-events:none;font-size:14px;letter-spacing:1px;text-shadow:0 0 4px #000,0 0 8px #000}
@@ -51,6 +51,38 @@ canvas{display:block;width:100%;height:100%;cursor:none}
 .era-chip.on{border-color:#f0c040;color:#f0c040;background:#2a2410}
 .hint{margin-top:18px;color:#6a8458;font-size:12px;letter-spacing:1px;line-height:1.9}
 .hint kbd{background:#1a2412;border:1px solid #4a5a3a;padding:1px 7px;border-radius:3px;color:#cfe8c0}
+
+/* TOUCH CONTROLS (shown only on touch devices) */
+#touch-ctl{position:absolute;inset:0;pointer-events:none;display:none;z-index:6}
+body.touch #touch-ctl{display:block}
+.tbtn{position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;border:2px solid #6f9a4a;background:radial-gradient(circle at 40% 35%,rgba(70,110,50,.85),rgba(20,34,16,.85));
+  color:#dff0c0;font-family:inherit;font-weight:bold;letter-spacing:1px;text-shadow:0 0 4px #000;
+  user-select:none;-webkit-user-select:none;box-shadow:0 4px 16px #000a;transition:transform .05s}
+.tbtn:active,.tbtn.on{transform:scale(.92);background:radial-gradient(circle at 40% 35%,rgba(110,160,70,.95),rgba(40,60,26,.95))}
+#tb-fire{right:24px;bottom:30px;width:104px;height:104px;font-size:18px;border-color:#c86a4a;
+  background:radial-gradient(circle at 40% 35%,rgba(180,70,50,.9),rgba(70,20,14,.9))}
+#tb-fire:active{background:radial-gradient(circle at 40% 35%,rgba(230,90,60,1),rgba(110,30,20,1))}
+#tb-breath{left:24px;bottom:40px;width:84px;height:84px;font-size:13px;line-height:1.1;text-align:center}
+#tb-reload{left:120px;bottom:30px;width:66px;height:66px;font-size:13px}
+
+/* push bottom HUD up on touch so buttons don't cover it */
+body.touch .hud-bl{bottom:140px}
+body.touch .hud-br{bottom:148px}
+
+/* small-screen / phone sizing */
+@media (max-width:760px),(max-height:520px){
+  #hud{font-size:12px}
+  .big{font-size:18px}
+  .overlay h1{font-size:42px;letter-spacing:6px}
+  .overlay .sub{font-size:12px;letter-spacing:3px}
+  .overlay .panel{font-size:12px;line-height:1.7;padding:0 18px;margin-top:20px}
+  .btn{padding:12px 30px;font-size:15px;letter-spacing:2px}
+  .hint{font-size:10px;padding:0 14px}
+  .eras{gap:4px}
+  .era-chip{padding:4px 8px;font-size:10px}
+  #bigmsg{font-size:30px}
+}
 </style>
 </head>
 <body>
@@ -83,6 +115,13 @@ canvas{display:block;width:100%;height:100%;cursor:none}
   <div id="bigmsg"></div>
   <div id="hitfeed"></div>
 
+  <!-- TOUCH CONTROLS -->
+  <div id="touch-ctl">
+    <div class="tbtn" id="tb-breath">HOLD<br>BREATH</div>
+    <div class="tbtn" id="tb-reload">⟳<br>LOAD</div>
+    <div class="tbtn" id="tb-fire">FIRE</div>
+  </div>
+
   <!-- START -->
   <div class="overlay show" id="ov-start">
     <h1>SNIPER</h1>
@@ -97,7 +136,7 @@ canvas{display:block;width:100%;height:100%;cursor:none}
     </div>
     <div class="eras" id="era-preview"></div>
     <button class="btn" id="btn-start">▶ BEGIN OPERATION</button>
-    <div class="hint">
+    <div class="hint" id="hint-controls">
       <kbd>MOVE MOUSE</kbd> aim &nbsp; <kbd>CLICK</kbd> fire &nbsp; <kbd>HOLD RIGHT-CLICK</kbd> / <kbd>SHIFT</kbd> hold breath (zoom &amp; steady) &nbsp; <kbd>R</kbd> reload<br>
       Targets that escape cost you. Headshots score double. Chain kills for a combo multiplier.
     </div>
@@ -254,6 +293,9 @@ const HS = {
 HS.load();
 
 /* ---------------- INPUT ---------------- */
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+
+/* --- Mouse / keyboard (desktop) --- */
 window.addEventListener('mousemove', e=>{ G.mx=e.clientX; G.my=e.clientY; });
 window.addEventListener('mousedown', e=>{
   if(e.button===2){ G.holding=true; e.preventDefault(); return; }
@@ -266,6 +308,38 @@ window.addEventListener('keydown', e=>{
   if(e.key==='r'||e.key==='R') reload();
 });
 window.addEventListener('keyup', e=>{ if(e.key==='Shift') G.holding=false; });
+
+/* --- Touch (mobile) --- */
+// Aim rides above the finger so the target isn't hidden under it.
+const AIM_OFFSET = 86;
+function setAimFromTouch(t){
+  G.mx = t.clientX;
+  G.my = Math.max(40, t.clientY - AIM_OFFSET);
+}
+if(IS_TOUCH){
+  document.body.classList.add('touch');
+  // Drag on the canvas to aim
+  cv.addEventListener('touchstart', e=>{ if(e.target===cv){ setAimFromTouch(e.touches[0]); e.preventDefault(); } }, {passive:false});
+  cv.addEventListener('touchmove',  e=>{ if(e.touches[0]){ setAimFromTouch(e.touches[0]); e.preventDefault(); } }, {passive:false});
+  // Stop the page from scrolling/zooming on stray touches
+  document.addEventListener('touchmove', e=>{ if(G.screen==='play') e.preventDefault(); }, {passive:false});
+
+  const bindHold = (el,on,off)=>{
+    el.addEventListener('touchstart', e=>{ e.preventDefault(); Snd.resume(); on(); el.classList.add('on'); }, {passive:false});
+    const release = e=>{ if(e) e.preventDefault(); off(); el.classList.remove('on'); };
+    el.addEventListener('touchend', release); el.addEventListener('touchcancel', release);
+  };
+  const bindTap = (el,fn)=>{
+    el.addEventListener('touchstart', e=>{ e.preventDefault(); Snd.resume(); fn(); }, {passive:false});
+  };
+  bindTap($('#tb-fire'), fire);
+  bindTap($('#tb-reload'), reload);
+  bindHold($('#tb-breath'), ()=>{G.holding=true;}, ()=>{G.holding=false;});
+
+  const hc=$('#hint-controls');
+  if(hc) hc.innerHTML = '<kbd>DRAG</kbd> on screen to aim (scope sits above your finger) &nbsp; <kbd>FIRE</kbd> shoot &nbsp; <kbd>HOLD BREATH</kbd> steady &amp; zoom &nbsp; <kbd>LOAD</kbd> reload<br>'+
+    'Targets that escape cost you. Headshots score double. Chain kills for a combo multiplier.';
+}
 
 /* ---------------- ROUND FLOW ---------------- */
 function startGame(){
@@ -282,6 +356,7 @@ function startRound(){
   G.ammo=G.maxAmmo; G.reloading=false; G.reloadT=0;
   G.time=60; G.roundActive=true;
   G.spawnTimer=0.8;
+  G.mx=W/2; G.my=H/2;
   G.wind=rand(-1,1); G.windTarget=rand(-1,1);
   // weather: roll for rain this era
   G.raining = Math.random() < era.rainChance;
