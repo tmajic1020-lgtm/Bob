@@ -814,6 +814,7 @@ function tick(){
       let v=p.val;
       if(p.home!==k&&G.nations[p.home]&&G.nations[p.home].alive)v*=0.6; // occupied land resists
       if(p.coastal&&G.fleets.some(f=>!f.to&&atWar(f.nat,k)&&(f.at===p.id||p.adj.includes(f.at)||p.seaAdj.includes(f.at))))v*=(n.res.nav>=2?0.7:0.5); // blockaded — Convoy Doctrine softens it
+      if(p.bombed)v*=(1-Math.min(0.5,p.bombed*0.1)); // strategic bombing chokes output
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
@@ -1138,6 +1139,11 @@ function airOps(){
       const foes=G.units.filter(u=>u.at===w.target&&atWar(w.nat,u.nat));
       dmg(foes,w.str*0.2*techMul(w.nat,"air"));
       for(const u of foes)if(u.hp<=0)killUnit(u);
+      // strategic bombing: choke the province's industry; Strategic Bombing doctrine (Air III) hits harder
+      const bombMul=w.nat&&G.nations[w.nat].res.air>=3?1.7:1;
+      p.bombed=Math.min(5,(p.bombed||0)+w.str*0.04*techMul(w.nat,"air")*bombMul);
+      if(p.fac>0&&Math.random()<0.01*w.str*bombMul){p.fac--;p.val=Math.max(1,p.val-1);
+        if(p.owner===G.player)logMsg(`🏭 A factory in ${p.name} was bombed out!`,"war");}
       // attrition / interception
       const enemyAir=G.wings.filter(x=>atWar(w.nat,x.nat)&&x.target===w.target);
       if(enemyAir.length)w.hp-=0.4*enemyAir.length;
@@ -1165,6 +1171,7 @@ function garrisonRegen(){
   for(const p of Object.values(G.prov)){
     const hostile=G.units.some(u=>u.at===p.id&&atWar(u.nat,p.owner));
     if(!hostile&&p.garrison<p.val*2+(p.fort||0)*2)p.garrison+=0.02+(p.fort||0)*0.01;
+    if(p.bombed)p.bombed=Math.max(0,p.bombed-0.03); // industry slowly rebuilt
   }
 }
 /* AUTO CAPTURE: directs idle player armies to nearest enemy province */
@@ -1966,6 +1973,7 @@ function draw(){
       ctx.fillText(p.name,p.x,p.y-r-fs*0.45);
       if(p.garrison>0.5){ctx.fillStyle=terr?"#e8c050":T.gar;ctx.fillText("🛡"+Math.round(p.garrison),p.x,p.y+r+9/z*1.6);}
       if(p.nuked){ctx.fillText("☢",p.x+r+5/z*1.6,p.y);}
+      if(p.bombed>0.5){ctx.fillText("💥",p.x-r-5/z*1.6,p.y);}
     }
     if(G.battleSites&&G.battleSites.has(p.id)&&(G.day%2===0||G.paused)){
       ctx.font=`${13/Math.sqrt(z)*1.5}px sans-serif`;ctx.textAlign="center";
@@ -2311,7 +2319,7 @@ function renderPanel(){
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     <div class="row"><span>Government</span><span>${IDEOICON[ideoOf(p.owner)]} ${IDEONAME[ideoOf(p.owner)]}</span></div>
-    <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
+    <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""} ${p.bombed>0.3?"· 💥 BOMBED −"+Math.round(Math.min(0.5,p.bombed*0.1)*100)+"%":""}</span></div>
     <div class="row"><span>Terrain</span><span>${terrAt(p).n} ${terrAt(p).def>1.05?`· 🛡 ×${terrAt(p).def.toFixed(2)} def`:""}</span></div>
     <div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
@@ -2732,7 +2740,11 @@ function jumpCapital(){const c=G.prov[NATIONS[G.player].cap];if(c){centerOn(c);G
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.8 — COMMAND & CONTROL (current)",[
+ ["v4.9 — STRATEGIC BOMBING (current)",[
+  "💥 Air wings now choke enemy industry: sustained bombing cuts a province's output (up to −50%) and can knock out factories.",
+  "🏭 Strategic Bombing doctrine (Aviation III) bombs far harder; bombed industry slowly rebuilds when the raids stop.",
+  "Bombed provinces are marked on the map and in the province panel."]],
+ ["v4.8 — COMMAND & CONTROL",[
   "💤 Idle-division counter in the top bar — click it (or press Q) to jump to and select your next unused division.",
   "⌨ More hotkeys: H centres on your capital, V cycles map views, B/R/F/W open Recruit/Research/Focus/Wars."]],
  ["v4.7 — WAR DIRECTIVES",[
@@ -2976,7 +2988,7 @@ const MP={role:null,code:null,ref:null,
   send(o){if(this.ref)this.ref.child("orders").push(o);}
 };
 function mpSerialize(){
-  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil];}
+  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,+(p.bombed||0).toFixed(2)];}
   const nat={};
   for(const k in G.nations){const n=G.nations[k];
     nat[k]=[+n.pp.toFixed(1),+n.rp.toFixed(1),+n.oil.toFixed(1),n.nukes,+n.stab.toFixed(1),
@@ -2991,8 +3003,8 @@ function mpApplyState(S){
   if(!S)return;
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
   if(S.stats)G.stats=S.stats;
-  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol]=S.prov[id];
-    if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;}
+  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,bm]=S.prov[id];
+    if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;p.bombed=bm||0;}
   for(const k in S.nat){const a=S.nat[k],n=G.nations[k];if(!n)continue;
     n.pp=a[0];n.rp=a[1];n.oil=a[2];n.nukes=a[3];n.stab=a[4];n.researching=a[5]||null;n.resProg=a[6];
     n.alive=!!a[7];n.atWar=new Set(a[8]||[]);n.allies=new Set(a[9]||[]);
