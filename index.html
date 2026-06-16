@@ -573,6 +573,7 @@ const VETN=["Green","Regular","Veteran","Elite"];
 function vetMul(u){return 1+0.12*(u.vet||0);}
 function gainXP(u,amt){
   if(!u||u.type==="med")return;
+  if((G.nations[u.nat].res.land||0)>=5)amt*=1.5; // Grand Battleplan: veterans harden faster
   u.xp=(u.xp||0)+amt;
   const lv=u.xp>=70?3:u.xp>=30?2:u.xp>=10?1:0;
   if(lv>(u.vet||0)){
@@ -785,7 +786,7 @@ function tick(){
     for(const p of ps){
       let v=p.val;
       if(p.home!==k&&G.nations[p.home]&&G.nations[p.home].alive)v*=0.6; // occupied land resists
-      if(p.coastal&&G.fleets.some(f=>!f.to&&atWar(f.nat,k)&&(f.at===p.id||p.adj.includes(f.at)||p.seaAdj.includes(f.at))))v*=0.5; // blockaded
+      if(p.coastal&&G.fleets.some(f=>!f.to&&atWar(f.nat,k)&&(f.at===p.id||p.adj.includes(f.at)||p.seaAdj.includes(f.at))))v*=(n.res.nav>=2?0.7:0.5); // blockaded — Convoy Doctrine softens it
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
@@ -797,7 +798,7 @@ function tick(){
     n.oil+=oil*0.12;
     // manpower: drafts replenish from owned provinces, faster under heavier conscription and during war
     if(n.man===undefined)n.man=30;
-    n.manCap=Math.round(50+ps.length*10*(1+_law.cons*0.4));
+    n.manCap=Math.round((50+ps.length*10)*(1+_law.cons*0.4)+n.res.ind*15); // Industry deepens the reserves
     if(n.man<n.manCap)n.man=Math.min(n.manCap,n.man+ps.length*0.06*(1+_law.cons*0.45)*(n.atWar.size>0?1.4:1));
     // stability drifts: war grinds nations down, peace heals
     n.stab+=(n.atWar.size>0?-0.05*n.atWar.size:0.04)-_law.cons*0.015-_law.eco*0.015;
@@ -808,9 +809,11 @@ function tick(){
       n.resProg+=ps.length*0.012*techMul(k,"ind")*2;
       const cost=resCost(n,n.researching);
       if(n.resProg>=cost){
-        n.res[n.researching]++;n.resProg=0;
-        if(k===G.player){logMsg(`Research complete: ${RESNAMES[n.researching]} ${roman(n.res[n.researching])}`,"good");sfx("good");}
+        const fin=n.researching;
+        n.res[fin]++;n.resProg=0;
+        if(k===G.player){logMsg(`Research complete: ${techTier(fin,n.res[fin])} (${RESNAMES[fin]} ${roman(n.res[fin])}) — ${techPerk(fin,n.res[fin])}`,"good");sfx("good");}
         n.researching=null;
+        if(n.resAuto)n.researching=fin; // auto-continue the same branch
       }
     }
   }
@@ -1080,7 +1083,7 @@ function killUnit(u){
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
   let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str;
-  return Math.min(s,4);
+  return Math.min(s,4+G.nations[nat].res.air*0.5); // advanced aviation lifts the cap
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
@@ -1439,6 +1442,22 @@ function fireEvent(){
 /* ============================== RESEARCH ============================== */
 const RESNAMES={ind:"Industry",land:"Land Doctrine",nav:"Naval Engineering",air:"Aviation"};
 const RESDESC={ind:"+25% production & research per level",land:"+25% army attack & speed per level",nav:"+25% fleet power & speed per level",air:"+25% air wing effect per level"};
+/* named doctrine tier for each level (index 1 = level I) */
+const TECHTREE={
+ ind:["","Assembly Lines","Mass Production","Atomic Theory","Total Mobilization","Strategic Reserves","Automation"],
+ land:["","Combined Arms","Mechanization","Blitzkrieg Doctrine","Elastic Defense","Grand Battleplan","Modern Warfare"],
+ nav:["","Naval Aviation","Convoy Doctrine","Carrier Operations","Wolfpack Tactics","Fleet-in-Being","Blue-Water Navy"],
+ air:["","Air Patrol","Close Air Support","Strategic Bombing","Radar Network","Jet Engines","Air Supremacy"]
+};
+/* concrete bonus unlocked AT each level (index = level reached) */
+const TECHPERK={
+ ind:["","+25% output, +manpower reserves","More output & reserves","☢ Nuclear weapons unlocked","More output & reserves","More output & reserves","More output & reserves"],
+ land:["","‖ Artillery unlocked, +25% attack & speed","Faster armour, +attack","+attack & breakthrough","Tougher in defence","Veterans harden faster","Elite combined arms"],
+ nav:["","▼ Marines unlocked, +25% fleet power","Convoys blunt blockades","Stronger naval support","+naval attack","+naval attack","Command of the seas"],
+ air:["","+25% air effect","+close air support","Heavier bombing","+air effect","+air effect","Total air supremacy"]
+};
+function techTier(k,lvl){const a=TECHTREE[k];return a&&a[lvl]?a[lvl]:RESNAMES[k];}
+function techPerk(k,lvl){const a=TECHPERK[k];return a&&a[lvl]?a[lvl]:RESDESC[k];}
 function resCost(n,k){return 10+n.res[k]*14;}
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
 
@@ -2273,13 +2292,15 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px;margin-top:8px">👥 Manpower regenerates from your provinces — heavier conscription (POLICY) raises both the pool and the cap. 🛢 Oil flows from oil provinces; with 0 oil your air wings and fleets give no support.</div>`;
   }
   if(curPanel==="research"){
-    let h=`<h2>RESEARCH</h2><div class="row"><span>Points</span><span>🔬 ${me.rp.toFixed(1)} RP</span></div>`;
+    let h=`<h2>RESEARCH</h2><div class="row"><span>Points</span><span>🔬 ${me.rp.toFixed(1)} RP</span></div>
+    <div class="row"><span>Auto-continue branch</span><button class="tbtn ${me.resAuto?"on":""}" onclick="toggleResAuto()">${me.resAuto?"ON":"OFF"}</button></div>
+    <div style="color:var(--dim);font-size:10px">When on, a finished branch automatically starts its next level.</div>`;
     for(const k of["ind","land","nav","air"]){
       const lvl=me.res[k],cost=resCost(me,k),cur=me.researching===k;
-      h+=`<h3>${RESNAMES[k].toUpperCase()} ${roman(lvl)}</h3>
-      <div style="color:var(--dim);font-size:11px">${RESDESC[k]}</div>`;
+      h+=`<h3>${RESNAMES[k].toUpperCase()} ${roman(lvl)} — ${techTier(k,lvl)||"—"}</h3>
+      <div style="color:var(--dim);font-size:11px">${lvl>0?"Current: "+techPerk(k,lvl)+"<br>":""}<span style="color:#bcd">Next (${techTier(k,lvl+1)}): ${techPerk(k,lvl+1)}</span></div>`;
       if(cur)h+=`<div class="row"><div class="bar"><i style="width:${Math.min(100,me.resProg/cost*100)}%"></i></div><span>${Math.round(me.resProg/cost*100)}%</span></div>`;
-      else h+=`<button class="bbtn" ${me.researching?"disabled":""} onclick="startRes('${k}')">${me.researching?"Lab busy":"Research level "+roman(lvl+1)} <small>${cost} RP of progress</small></button>`;
+      else h+=`<button class="bbtn" ${me.researching?"disabled":""} onclick="startRes('${k}')">${me.researching?"Lab busy":"Research "+techTier(k,lvl+1)} <small>${cost} RP${me.researching?"":" · level "+roman(lvl+1)}</small></button>`;
     }
     el.innerHTML=h;
   }
@@ -2561,6 +2582,7 @@ window.spyOp=(op,target)=>{
 window.startRes=k=>{
   if(MP.role==="guest"){MP.send({type:"res",nat:G.player,k});logMsg("Research order sent...");return;}
   const me=G.nations[G.player];if(!me.researching){me.researching=k;me.resProg=0;renderPanel();}};
+window.toggleResAuto=()=>{const me=G.nations[G.player];me.resAuto=!me.resAuto;renderPanel();};
 window.setAir=m=>{G.airMode=m;if(m==="auto")for(const w of G.wings)if(w.nat===G.player)w.target=null;renderPanel();};
 window.renderPanel=renderPanel;
 /* capture originals: window.X overwrites the same binding as `function X(){}`,
@@ -2593,7 +2615,11 @@ function refreshHUD(){
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.2 — DOCTRINE & STEEL (current)",[
+ ["v4.3 — RESEARCH & RESERVES (current)",[
+  "🔬 Tech tree: every research level is now a named doctrine (Assembly Lines, Blitzkrieg Doctrine, Carrier Operations, Strategic Bombing...) with concrete unlocks shown in the RESEARCH panel.",
+  "⚙ New perks: Industry deepens your manpower reserves; Convoy Doctrine (Naval II) blunts blockades; better Aviation lifts the air-support cap; Grand Battleplan (Land V) hardens veterans faster.",
+  "🔁 Auto-continue: a finished research branch can roll straight into its next level."]],
+ ["v4.2 — DOCTRINE & STEEL",[
   "› Veterancy: divisions and fleets earn experience in battle and rank up Green → Regular → Veteran → Elite, gaining up to +36% combat. Preserve your veterans!",
   "▼ Marines: a new amphibious unit (needs Naval Engineering I) that hits ×1.45 storming a coastal province.",
   "🔬 Research now unlocks units — Artillery needs Land Doctrine I, Marines need Naval Engineering I.",
