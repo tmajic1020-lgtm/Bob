@@ -557,16 +557,28 @@ function newGame(playerNation){
   logMsg("The world holds its breath. Command your nation.","good");
 }
 function addUnit(nat,pid,type,str){
-  const u={id:++G.uid,nat,at:pid,to:null,prog:0,type,str,hp:str*10,kind:"army"};
+  const u={id:++G.uid,nat,at:pid,to:null,prog:0,type,str,hp:str*10,kind:"army",xp:0,vet:0};
   G.units.push(u);return u;
 }
 function addFleet(nat,pid,str){
-  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet"};
+  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet",xp:0,vet:0};
   G.fleets.push(f);return f;
 }
 function addWing(nat,str){
   const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing"};
   G.wings.push(w);return w;
+}
+/* ---- veterancy: units harden through combat ---- */
+const VETN=["Green","Regular","Veteran","Elite"];
+function vetMul(u){return 1+0.12*(u.vet||0);}
+function gainXP(u,amt){
+  if(!u||u.type==="med")return;
+  u.xp=(u.xp||0)+amt;
+  const lv=u.xp>=70?3:u.xp>=30?2:u.xp>=10?1:0;
+  if(lv>(u.vet||0)){
+    u.vet=lv;
+    if(u.nat===G.player){logMsg(`›${"›".repeat(lv-1)} A ${u.kind==="fleet"?"task force":"division"} is now ${VETN[lv]}.`,"good");}
+  }
 }
 
 /* ============================== HELPERS ============================== */
@@ -1012,7 +1024,15 @@ function battles(){
       if(!atWar(A,B))continue;
       G.battleSites.add(pid);
       const fa=here.filter(u=>u.nat===A),fb=here.filter(u=>u.nat===B);
-      const tA=terrAt(p),ufac=u=>u.type==="med"?0:u.str*genMul(u)*(u.type==="art"?1.7:u.type==="arm"?tA.arm:1);
+      const tA=terrAt(p);
+      const ufac=u=>{
+        if(u.type==="med")return 0;
+        let f=u.str*genMul(u)*vetMul(u);
+        if(u.type==="art")f*=1.7;
+        else if(u.type==="arm")f*=tA.arm;
+        else if(u.type==="mar"&&p.coastal&&p.owner!==u.nat)f*=1.45; // amphibious assault doctrine
+        return f;
+      };
       let pa=fa.reduce((s,u)=>s+ufac(u),0)*techMul(A,"land");
       let pb=fb.reduce((s,u)=>s+ufac(u),0)*techMul(B,"land");
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
@@ -1020,9 +1040,12 @@ function battles(){
       const fortB=1+(p.fort||0)*0.12;
       // defender enjoys the terrain (mountains, cities, marshes are murder to assault)
       if(p.owner===B)pb*=1.25*fortB*tA.def; if(p.owner===A)pa*=1.25*fortB*tA.def;
-      // commanders learn from battle
-      for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
-        if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
+      // commanders & divisions learn from battle
+      for(const u of[...fa,...fb]){
+        gainXP(u,1);
+        if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
+          if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
+      }
       dmg(fb,pa*0.25);dmg(fa,pb*0.25);
     }
     for(const u of here)if(u.hp<=0)killUnit(u);
@@ -1035,8 +1058,9 @@ function battles(){
     for(let i=0;i<nats.length;i++)for(let j=i+1;j<nats.length;j++){
       if(!atWar(nats[i],nats[j]))continue;
       const fa=here.filter(f=>f.nat===nats[i]),fb=here.filter(f=>f.nat===nats[j]);
-      const pa=fa.reduce((s,f)=>s+f.str,0)*techMul(nats[i],"nav");
-      const pb=fb.reduce((s,f)=>s+f.str,0)*techMul(nats[j],"nav");
+      const pa=fa.reduce((s,f)=>s+f.str*vetMul(f),0)*techMul(nats[i],"nav");
+      const pb=fb.reduce((s,f)=>s+f.str*vetMul(f),0)*techMul(nats[j],"nav");
+      for(const f of[...fa,...fb])gainXP(f,1);
       dmg(fb,pa*0.3);dmg(fa,pb*0.3);
     }
     for(const f of here)if(f.hp<=0){G.fleets=G.fleets.filter(x=>x!==f);if(f.nat===G.player)logMsg("A fleet was sunk!","war");}
@@ -1150,12 +1174,13 @@ function aiTurn(k){
   if(!warActive&&law.cons>0&&n.stab<35){law.cons=0;law.eco=0;}
   // --- balanced force, gated by manpower ---
   const wantUnits=ps.length+(warActive?6:3);
+  const port=ps.find(p=>p.coastal&&p.owner===k);
   if(myCount<wantUnits){
-    if(n.oil>=8&&n.res.land>=1&&Math.random()<0.25&&canBuy(n,UNITSPEC.art,deployP))buyFor(k,"art",deployP.id);
-    else if(n.oil>=8&&Math.random()<0.4&&canBuy(n,UNITSPEC.arm,deployP))buyFor(k,"arm",deployP.id);
+    if(port&&n.res.nav>=1&&Math.random()<0.2&&canBuy(n,UNITSPEC.mar,port))buyFor(k,"mar",port.id);
+    else if(n.res.land>=1&&Math.random()<0.3&&canBuy(n,UNITSPEC.art,deployP))buyFor(k,"art",deployP.id);
+    else if(Math.random()<0.45&&canBuy(n,UNITSPEC.arm,deployP))buyFor(k,"arm",deployP.id);
     else if(canBuy(n,UNITSPEC.inf,deployP))buyFor(k,"inf",deployP.id);
   }
-  const port=ps.find(p=>p.coastal);
   if(port&&G.fleets.filter(f=>f.nat===k).length<Math.ceil(ps.length/4)&&Math.random()<0.3&&canBuy(n,UNITSPEC.ship,port))buyFor(k,"ship",port.id);
   if(capSafe&&G.wings.filter(w=>w.nat===k).length<Math.ceil(ps.length/5)&&Math.random()<0.3&&canBuy(n,UNITSPEC.wing,cap))buyFor(k,"wing",cap.id);
   if(warActive&&ps.length>=6&&!myUnits.some(u=>u.type==="med")&&Math.random()<0.15&&canBuy(n,UNITSPEC.med,deployP))buyFor(k,"med",deployP.id);
@@ -1966,11 +1991,13 @@ function drawPiece(u,glyph,color,z,fleet){
     ctx.beginPath();ctx.rect(-s/2,-s/2,s,s*0.72);ctx.fill();ctx.stroke();
     ctx.fillStyle=u.type==="med"?"#ffffff":"#0e120e";
     ctx.font=`bold ${s*0.5}px Courier New`;ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText(u.type==="arm"?"▲":u.type==="med"?"✚":u.type==="art"?"‖":"X",0,-s*0.13);
+    ctx.fillText(u.type==="arm"?"▲":u.type==="med"?"✚":u.type==="art"?"‖":u.type==="mar"?"▼":"X",0,-s*0.13);
     // hp pip
     ctx.fillStyle="#000a";ctx.fillRect(-s/2,s*0.26,s,s*0.14);
     ctx.fillStyle=u.hp/( u.str*10)>0.5?"#8ec07c":"#e07a4a";
     ctx.fillRect(-s/2,s*0.26,s*Math.max(0,u.hp/(u.str*10)),s*0.14);
+    // veterancy chevrons (top edge)
+    if(u.vet>0){ctx.fillStyle="#ffd34a";ctx.font=`bold ${s*0.34}px sans-serif`;ctx.textBaseline="bottom";ctx.fillText("›".repeat(u.vet),0,-s*0.4);ctx.textBaseline="middle";}
     // out-of-supply marker
     if(u.lowSupply){ctx.fillStyle="#ffcf3a";ctx.font=`bold ${s*0.6}px sans-serif`;ctx.fillText("!",s*0.62,-s*0.3);}
   }else{
@@ -2182,8 +2209,9 @@ function renderPanel(){
     }
     if(G.selUnit){
       const su=G.selUnit;
-      h+=`<h3>SELECTED ${su.kind==="fleet"?"FLEET":su.type==="med"?"INFIRMARY":su.type==="art"?"ARTILLERY":"DIVISION"}${su.lowSupply?" ⚠ OUT OF SUPPLY":""}</h3>
-      <div class="row"><span>${su.kind==="fleet"?"⚓ Task force":su.type==="arm"?"▲ Armored":su.type==="med"?"✚ Field Infirmary":su.type==="art"?"‖ Artillery":"■ Infantry"}</span><span>STR ${su.str} · HP ${Math.max(0,su.hp).toFixed(0)}/${su.str*10}</span></div>
+      h+=`<h3>SELECTED ${su.kind==="fleet"?"FLEET":su.type==="med"?"INFIRMARY":su.type==="art"?"ARTILLERY":su.type==="mar"?"MARINES":"DIVISION"}${su.lowSupply?" ⚠ OUT OF SUPPLY":""}</h3>
+      <div class="row"><span>${su.kind==="fleet"?"⚓ Task force":su.type==="arm"?"▲ Armored":su.type==="med"?"✚ Field Infirmary":su.type==="art"?"‖ Artillery":su.type==="mar"?"▼ Marines":"■ Infantry"}</span><span>STR ${su.str} · HP ${Math.max(0,su.hp).toFixed(0)}/${su.str*10}</span></div>
+      ${su.type!=="med"?`<div class="row"><span>Veterancy</span><span style="color:${su.vet?"#ffd34a":"var(--dim)"}">${"›".repeat(su.vet||0)} ${VETN[su.vet||0]}</span></div>`:""}
       <div style="color:var(--dim);font-size:11px">${su.type==="med"?"Move it to a city or front-line province; it heals friendly divisions stationed with it each day.":"Click any province on the map to issue a move order. Routes follow land links; sea lanes need a fleet in service."}</div>`;
       const _maxHp=su.str*10,_rcost=Math.ceil((_maxHp-su.hp)*0.8);
       if(su.hp<_maxHp-0.5){
@@ -2197,11 +2225,12 @@ function renderPanel(){
     if(us.length||fs.length){
       h+=`<h3>FORCES HERE</h3>`;
       for(const u of us){
-        const _lbl=u.type==="arm"?"▲ Armored":u.type==="med"?"✚ Infirmary":u.type==="art"?"‖ Artillery":"■ Infantry";
-        h+=`<button class="bbtn" onclick="selU(${u.id})">${_lbl} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name:""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
+        const _lbl=u.type==="arm"?"▲ Armored":u.type==="med"?"✚ Infirmary":u.type==="art"?"‖ Artillery":u.type==="mar"?"▼ Marine":"■ Infantry";
+        const _v=u.vet?` ${"›".repeat(u.vet)}`:"";
+        h+=`<button class="bbtn" onclick="selU(${u.id})">${_lbl}${_v} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name:""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
         if(u.nat===G.player&&!u.gen&&u.type!=="med")h+=`<button class="bbtn" style="margin-left:14px;width:calc(100% - 14px)" onclick="hireGeneral(${u.id})">★ Hire a general for this division — 40 PP<small>+25% combat, grows with every battle (max 4 generals).</small></button>`;
       }
-      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
+      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet${f.vet?" "+"›".repeat(f.vet):""} ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
     }
     if(p.owner!==G.player&&G.nations[p.owner].alive){
       const o=p.owner;
@@ -2232,7 +2261,8 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <button class="bbtn" ${canBuy(me,UNITSPEC.inf,sel)&&deployable?"":"disabled"} onclick="buy('inf')">■ Infantry Division — 20 PP · 10 👥<small>STR 3. The backbone.</small></button>
     <button class="bbtn" ${canBuy(me,UNITSPEC.arm,sel)&&deployable?"":"disabled"} onclick="buy('arm')">▲ Armored Division — 35 PP · 5 🛢 · 8 👥<small>STR 4. Fast spearhead.</small></button>
-    <button class="bbtn" ${canBuy(me,UNITSPEC.art,sel)&&deployable?"":"disabled"} onclick="buy('art')">‖ Artillery Brigade — 40 PP · 3 🛢 · 8 👥<small>STR 3, but hits ×1.7 in an assault. Stack it with your divisions.</small></button>
+    <button class="bbtn" ${canBuy(me,UNITSPEC.art,sel)&&deployable?"":"disabled"} onclick="buy('art')">‖ Artillery Brigade — 40 PP · 3 🛢 · 8 👥<small>STR 3, hits ×1.7 in an assault.${me.res.land<1?" 🔒 Needs Land Doctrine I.":""}</small></button>
+    <button class="bbtn" ${canBuy(me,UNITSPEC.mar,sel)&&deployable?"":"disabled"} onclick="buy('mar')">▼ Marine Division — 35 PP · 4 🛢 · 9 👥<small>STR 3, hits ×1.45 storming a coastal province. Needs a port.${me.res.nav<1?" 🔒 Needs Naval Engineering I.":""}</small></button>
     <button class="bbtn" ${canBuy(me,UNITSPEC.med,sel)&&deployable?"":"disabled"} onclick="buy('med')">✚ Field Infirmary — 30 PP · 4 👥<small>Non-combat. Heals every division stationed with it and bolsters the garrison.</small></button>
     <button class="bbtn" ${canBuy(me,UNITSPEC.ship,sel)&&deployable?"":"disabled"} onclick="buy('ship')">⚓ Task Force — 30 PP · 8 🛢 · 3 👥<small>STR 2. Needs a port. Escorts invasions, blockades coasts.</small></button>
     <button class="bbtn" ${canBuy(me,UNITSPEC.wing,sel)?"":"disabled"} onclick="buy('wing')">✈ Air Wing — 25 PP · 6 🛢 · 2 👥<small>Based at your capital airbase (${G.prov[NATIONS[G.player].cap].name}). Direct from AIR COMMAND.</small></button>
@@ -2360,7 +2390,7 @@ function renderPanel(){
     if(!wars.length)h+=`<div style="color:var(--dim)">At peace. Click a foreign province to declare war from its panel.</div>`;
     for(const w of wars){
       const n=G.nations[w];if(!n.alive)continue;
-      h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} (${natProvs(w).length})</span>
+      h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} <span style="color:var(--dim)">${natProvs(w).length}🗺 ${G.units.filter(u=>u.nat===w).length}⚔</span></span>
       <button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 PEACE</button></div>`;
     }
     const pupN=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
@@ -2458,7 +2488,8 @@ window.lendLease=(t,res)=>{
 const UNITSPEC={
  inf:{pp:20,oil:0,man:10,kind:"army",make:(nat,id)=>addUnit(nat,id,"inf",3),label:"Infantry division"},
  arm:{pp:35,oil:5,man:8,kind:"army",make:(nat,id)=>addUnit(nat,id,"arm",4),label:"Armored division"},
- art:{pp:40,oil:3,man:8,kind:"army",make:(nat,id)=>addUnit(nat,id,"art",3),label:"Artillery brigade"},
+ art:{pp:40,oil:3,man:8,req:{land:1},kind:"army",make:(nat,id)=>addUnit(nat,id,"art",3),label:"Artillery brigade"},
+ mar:{pp:35,oil:4,man:9,coastal:true,req:{nav:1},kind:"army",make:(nat,id)=>addUnit(nat,id,"mar",3),label:"Marine division"},
  med:{pp:30,oil:0,man:4,kind:"army",make:(nat,id)=>addUnit(nat,id,"med",2),label:"Field infirmary"},
  ship:{pp:30,oil:8,man:3,coastal:true,kind:"fleet",make:(nat,id)=>addFleet(nat,id,2),label:"Task force"},
  wing:{pp:25,oil:6,man:2,capital:true,make:(nat)=>addWing(nat,2),label:"Air wing"},
@@ -2469,6 +2500,7 @@ function canBuy(me,sp,sel){
   if(me.pp<sp.pp||me.oil<sp.oil||(me.man||0)<sp.man)return false;
   if(sp.coastal&&!sel.coastal)return false;
   if(sp.capital&&G.prov[NATIONS[me.id].cap].owner!==me.id)return false;
+  if(sp.req)for(const r in sp.req)if((me.res[r]||0)<sp.req[r])return false;
   if(sp.nuke&&me.res.ind<3&&!me.atomicOk)return false;
   return true;
 }
@@ -2561,7 +2593,12 @@ function refreshHUD(){
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.1 — THEATERS OF WAR (current)",[
+ ["v4.2 — DOCTRINE & STEEL (current)",[
+  "› Veterancy: divisions and fleets earn experience in battle and rank up Green → Regular → Veteran → Elite, gaining up to +36% combat. Preserve your veterans!",
+  "▼ Marines: a new amphibious unit (needs Naval Engineering I) that hits ×1.45 storming a coastal province.",
+  "🔬 Research now unlocks units — Artillery needs Land Doctrine I, Marines need Naval Engineering I.",
+  "🔎 Enemy strength (provinces & divisions) shown in the WARS panel."]],
+ ["v4.1 — THEATERS OF WAR",[
   "🗺 Terrain: every province is plains/forest/hills/mountains/desert/marsh/urban — defenders gain ground in rough terrain, armour suffers there, and marches slow down.",
   "❄ Seasons: the northern winter freezes the front (slower marches) and bleeds unsupplied invaders — then the spring thaw frees the roads.",
   "📦 Lend-lease: ship PP, oil or manpower to your allies and puppets from the WARS panel.",
@@ -2786,8 +2823,8 @@ function mpSerialize(){
       n.researching||"",+(n.resProg||0).toFixed(1),n.alive?1:0,[...n.atWar],[...n.allies],
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",+(n.man||0).toFixed(1)];}
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0]),
-    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1)]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.vet||0,u.xp||0]),
+    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.vet||0,f.xp||0]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""])};
 }
 function mpApplyState(S){
@@ -2803,8 +2840,8 @@ function mpApplyState(S){
     n.autoCap=!!a[18];const pup=a[19]||"";if(n.puppet!==(pup||null))terDirty=true;n.puppet=pup||null;
     if(a[20]!==undefined)n.man=a[20];}
   const selId=G.selUnit&&G.selUnit.id;
-  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,kind:"army"}));
-  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet"}));
+  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,vet:a[9]||0,xp:a[10]||0,kind:"army"}));
+  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],vet:a[7]||0,xp:a[8]||0,kind:"fleet"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
   refreshHUD();
