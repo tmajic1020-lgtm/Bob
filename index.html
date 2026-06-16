@@ -2513,8 +2513,10 @@ function renderPanel(){
     if(!wars.length)h+=`<div style="color:var(--dim)">At peace. Click a foreign province to declare war from its panel.</div>`;
     for(const w of wars){
       const n=G.nations[w];if(!n.alive)continue;
+      const occ=Object.values(G.prov).filter(p=>p.owner===G.player&&p.home===w).length;
       h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} <span style="color:var(--dim)">${natProvs(w).length}🗺 ${G.units.filter(u=>u.nat===w).length}⚔</span></span>
-      <button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 PEACE</button></div>`;
+      <button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="peaceDeal('${w}',0);renderPanel()">🕊 WHITE</button></div>`;
+      if(occ>0)h+=`<button class="bbtn" style="font-size:11px" onclick="peaceDeal('${w}',1);renderPanel()">⚔ Dictated peace — annex ${occ} occupied province${occ>1?"s":""}<small>They must be losing badly to accept.</small></button>`;
     }
     const pupN=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
     const score=natProvs(G.player).length*10+pupN*15+[...me.allies].length*5+me.nukes*8;
@@ -2705,6 +2707,24 @@ window.proposeAlliance=(a,b)=>{if(MP.role==="guest"){MP.send({type:"ally",nat:a,
 window.proposeUnion=(a,b)=>{if(MP.role==="guest"){MP.send({type:"union",nat:a,target:b});logMsg("Union proposal sent...");return false;}return _proposeUnion(a,b);};
 window.launchNuke=(a,p)=>{if(MP.role==="guest"){MP.send({type:"nuke",nat:a,pid:p});logMsg("☢ Launch order sent...");return;}_launchNuke(a,p);};
 window.offerPeace=(a,b)=>{if(MP.role==="guest"){MP.send({type:"peace",nat:a,target:b});logMsg("Peace offer sent...");return;}_offerPeace(a,b);};
+window.peaceDeal=(target,annex)=>{
+  if(MP.role==="guest"){MP.send({type:"peace",nat:G.player,target});logMsg("Peace offer sent...");return;}
+  const me=G.nations[G.player],T=G.nations[target];
+  if(!T||!atWar(G.player,target))return;
+  const occupied=Object.values(G.prov).filter(p=>p.owner===G.player&&p.home===target);
+  const homeCount=Object.values(G.prov).filter(p=>p.home===target).length||1;
+  const losing=natProvs(target).length<homeCount*0.7||T.stab<35;
+  const ok=annex?((losing&&Math.random()<0.6)||T.stab<25):(losing||Math.random()<0.3);
+  if(ok){
+    me.atWar.delete(target);T.atWar.delete(G.player);
+    G.tension=Math.max(0,G.tension-4);sfx("good");
+    if(annex){for(const p of occupied)p.home=G.player;terDirty=true;
+      logMsg(`🕊 Dictated peace: ${NATIONS[target].n} cedes ${occupied.length} province(s) to ${NATIONS[G.player].n}.`,"good");}
+    else logMsg(`🕊 White peace with ${NATIONS[target].f} ${NATIONS[target].n}. Borders stand as they are.`,"good");
+    if(!natProvs(target).length)die(target);
+  }else logMsg(`${NATIONS[target].f} ${NATIONS[target].n} rejects the terms — they fight on.`,"war");
+  renderPanel();refreshHUD();
+};
 window.installPuppet=(a,t)=>{if(MP.role==="guest"){MP.send({type:"puppet",nat:a,target:t});logMsg("Puppet decree sent...");return;}_installPuppet(a,t);};
 window.G=null;
 
@@ -2740,7 +2760,11 @@ function jumpCapital(){const c=G.prov[NATIONS[G.player].cap];if(c){centerOn(c);G
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.9 — STRATEGIC BOMBING (current)",[
+ ["v5.0 — DICTATED PEACE (current)",[
+  "⚔ End wars on your terms: a Dictated Peace annexes the enemy land you currently occupy (they must be losing badly to sign).",
+  "🕊 White Peace still available to simply end the fighting at the current line.",
+  "Both offered per-war in the WARS panel."]],
+ ["v4.9 — STRATEGIC BOMBING",[
   "💥 Air wings now choke enemy industry: sustained bombing cuts a province's output (up to −50%) and can knock out factories.",
   "🏭 Strategic Bombing doctrine (Aviation III) bombs far harder; bombed industry slowly rebuilds when the raids stop.",
   "Bombed provinces are marked on the map and in the province panel."]],
