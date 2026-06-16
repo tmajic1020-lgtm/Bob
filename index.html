@@ -142,7 +142,7 @@ body.light #speedbox{background:#ece7d6d0}
   <div id="diffDesc" style="color:var(--dim);font-size:11px;margin:0 0 14px;text-align:center;min-height:15px"></div>
   <button class="tbtn" id="bContinue" style="display:none;margin-bottom:14px;border-color:var(--amber);color:var(--amber)">▶ CONTINUE SAVED CAMPAIGN</button>
   <div id="nations"></div>
-  <div class="hint">Select a nation. Build armies, fleets and air wings. Research to out-tech your rivals. Click a province to inspect it; select your army and click an adjacent province to march. Enable AUTO CAPTURE and your forces direct themselves. Conquer every province of a rival to annex them.<br><br><b style="color:var(--ink)">KEYS:</b> Space = pause · 1–4 = speed · +/− = zoom · A = auto-capture · Esc = deselect</div>
+  <div class="hint">Select a nation. Build armies, fleets and air wings. Research to out-tech your rivals. Click a province to inspect it; select your army and click an adjacent province to march. Enable AUTO CAPTURE and your forces direct themselves. Conquer every province of a rival to annex them.<br><br><b style="color:var(--ink)">KEYS:</b> Space = pause · 1–4 = speed · +/− = zoom · Q = next idle unit · H = capital · A = auto-capture · V = map view · B/R/F/W = panels · Esc = deselect</div>
 </div>
 
 <div id="topbar" class="hud" style="display:none">
@@ -155,6 +155,7 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🌡 <b id="hTen">0</b>%</span>
   <span>🗺 <b id="hProv">0</b> prov</span>
   <span>⚔ <b id="hDiv">0</b> div</span>
+  <span id="hIdle" style="cursor:pointer" title="Jump to next idle division (Q)"></span>
   <span>📅 <b id="hDate"></b></span>
   <button class="tbtn" id="bAuto">AUTO CAPTURE: OFF</button>
 </div>
@@ -2283,6 +2284,13 @@ addEventListener("keydown",e=>{
     case"1":setSpeed(1);break;case"2":setSpeed(2);break;
     case"3":setSpeed(3);break;case"4":setSpeed(4);break;
     case"a":case"A":$("#bAuto").click();break;
+    case"q":case"Q":cycleIdle();break;
+    case"h":case"H":jumpCapital();break;
+    case"b":case"B":openPanel("build");break;
+    case"r":case"R":openPanel("research");break;
+    case"f":case"F":openPanel("focus");break;
+    case"w":case"W":openPanel("diplo");break;
+    case"v":case"V":$("#bView").click();break;
     case"Escape":if(evtOpen)break;
       if(G.selUnit||G.selGroup||G.sel){G.selUnit=null;G.selGroup=null;G.sel=null;$("#panel").style.display="none";}break;
     default:return;
@@ -2704,13 +2712,30 @@ function refreshHUD(){
   t.style.color=G.tension>70?"#ff8d7a":G.tension>40?"#e8a33d":"";
   $("#hProv").textContent=natProvs(G.player).length;
   $("#hDiv").textContent=G.units.filter(u=>u.nat===G.player).length;
+  const idle=G.units.filter(u=>u.nat===G.player&&!u.to&&!u.hold&&u.type!=="med").length;
+  $("#hIdle").innerHTML=idle?`💤 <b style="color:var(--amber)">${idle}</b> idle`:"";
   $("#hDate").textContent=G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
   if(curPanel&&$("#panel").style.display!=="none")renderPanel();
 }
+$("#hIdle").onclick=()=>cycleIdle();
+function centerOn(p){if(!p)return;G.cam.x=p.x-(W/G.cam.z)/2;G.cam.y=p.y-(H/G.cam.z)/2;clampCam();}
+let _idleIdx=0;
+function cycleIdle(){
+  if(!G)return;
+  const idle=G.units.filter(u=>u.nat===G.player&&!u.to&&!u.hold&&u.type!=="med");
+  if(!idle.length){logMsg("No idle divisions.","");return;}
+  _idleIdx=(_idleIdx+1)%idle.length;
+  const u=idle[_idleIdx%idle.length];
+  G.selUnit=u;G.sel=u.at;centerOn(provOf(u.at));openPanel("prov");
+}
+function jumpCapital(){const c=G.prov[NATIONS[G.player].cap];if(c){centerOn(c);G.sel=c.id;openPanel("prov");}}
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.7 — WAR DIRECTIVES (current)",[
+ ["v4.8 — COMMAND & CONTROL (current)",[
+  "💤 Idle-division counter in the top bar — click it (or press Q) to jump to and select your next unused division.",
+  "⌨ More hotkeys: H centres on your capital, V cycles map views, B/R/F/W open Recruit/Research/Focus/Wars."]],
+ ["v4.7 — WAR DIRECTIVES",[
   "🎖 Rotating war directives: a live objective (expand, mass the army, build a fleet, out-tech a rival) that pays PP/RP/manpower on completion, then refreshes.",
   "Shown in the FOCUS panel with a completion toast."]],
  ["v4.6 — IDEOLOGICAL BLOCS",[
@@ -2811,7 +2836,7 @@ const HELP=[
  ["⚔ ARMIES","RECRUIT divisions, then select one and click a destination to march. Infantry hold; armour is fast but weak in mountains; artillery hits hard on the attack; infirmaries heal the stack. Click a province with many of your divisions to command them all."],
  ["🗺 TERRAIN & SUPPLY","Mountains, cities and marshes favour the defender and slow the advance. Units cut off from friendly land (⚠) wither — keep a connected front. Northern winter freezes invaders."],
  ["🤝 DIPLOMACY","Open a foreign province to declare war, propose an alliance, or run covert ops. Hold an enemy capital to install a PUPPET. Lend-lease resources to allies from the WARS panel."],
- ["⌨ CONTROLS","Space pauses · 1–4 set speed · +/− zoom · A toggles auto-capture · Esc deselects. Drag the map to pan; use the minimap to jump."]
+ ["⌨ CONTROLS","Space pauses · 1–4 set speed · +/− zoom · Q jumps to the next idle division · H centres on your capital · A toggles auto-capture · V cycles map views · B/R/F/W open panels · Esc deselects. Drag the map to pan; use the minimap to jump."]
 ];
 function showHelp(){
   $("#evTitle").textContent="❔ HOW TO PLAY";
