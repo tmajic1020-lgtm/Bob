@@ -1433,6 +1433,14 @@ function buildIn(pid,what){
   renderPanel();refreshHUD();
 }
 window.buildIn=buildIn;
+window.digIn=pid=>{
+  const me=G.nations[G.player],p=provOf(pid);
+  if(!p||p.owner!==G.player)return;
+  if(me.pp<15){logMsg("Digging in costs 15 PP.","war");return;}
+  me.pp-=15;p.garrison+=5;sfx("good");
+  logMsg(`🛡 Troops dig in at ${p.name} (+5 garrison).`,"good");
+  renderPanel();refreshHUD();
+};
 /* ============================== EVENTS ============================== */
 const EVENTS=[
  {t:"Border Incident",d:n=>`Shots were exchanged along the frontier with ${n.bn}. The press demands a response.`,
@@ -2241,8 +2249,9 @@ function hover(e){
   if(!G){return;}
   const p=provAt(e.clientX,e.clientY);
   const tip=$("#tip");
-  if(p){tip.style.display="block";tip.style.left=Math.min(e.clientX+12,innerWidth-180)+"px";tip.style.top=(e.clientY+12)+"px";
-    tip.innerHTML=`<b>${p.name}</b><br>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}<br>Value ${p.val} ${p.coastal?"· Port":""}`;}
+  if(p){tip.style.display="block";tip.style.left=Math.min(e.clientX+12,innerWidth-190)+"px";tip.style.top=(e.clientY+12)+"px";
+    const rel=p.owner===G.player?'<span style="color:#8ec07c">you</span>':allied(G.player,p.owner)?'<span style="color:#8ec07c">ally</span>':atWar(G.player,p.owner)?'<span style="color:#ff8d7a">at war</span>':'<span style="color:var(--dim)">neutral</span>';
+    tip.innerHTML=`<b>${p.name}</b> · ${rel}<br>${NATIONS[p.owner].f} ${NATIONS[p.owner].n} ${IDEOICON[ideoOf(p.owner)]}<br>${terrAt(p).n} · Value ${p.val} ${p.coastal?"· ⚓":""} ${p.oil?"· 🛢":""}<br>🛡 ${p.garrison.toFixed(0)} ${p.fort?"· 🏰"+p.fort:""} ${p.bombed>0.3?"· 💥":""}`;}
   else tip.style.display="none";
 }
 
@@ -2324,7 +2333,8 @@ function renderPanel(){
     <div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
       h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
-      <button class="bbtn" ${me.pp<40||(p.fac||0)>=2?"disabled":""} onclick="buildIn('${p.id}','fac')">🏭 Build factory — 40 PP ${(p.fac||0)>=2?"(max)":""}<small>+1 province value, forever.</small></button>`;
+      <button class="bbtn" ${me.pp<40||(p.fac||0)>=2?"disabled":""} onclick="buildIn('${p.id}','fac')">🏭 Build factory — 40 PP ${(p.fac||0)>=2?"(max)":""}<small>+1 province value, forever.</small></button>
+      <button class="bbtn" ${me.pp<15?"disabled":""} onclick="digIn('${p.id}')">🛡 Dig in — 15 PP<small>Instantly add +5 garrison strength here.</small></button>`;
     }
     if(G.selUnit){
       const su=G.selUnit;
@@ -2377,6 +2387,7 @@ function renderPanel(){
     const deployable=provOf(sel.id).owner===G.player;
     const dmgU=G.units.concat(G.fleets).filter(u=>u.nat===G.player&&u.hp<u.str*10-0.5);
     el.innerHTML=`<h2>RECRUIT</h2>
+    <div class="row"><span>🏭 Income</span><span>+${(me.ppRate||0).toFixed(1)} PP/d</span></div>
     <div class="row"><span>👥 Manpower</span><span>${Math.floor(me.man||0)} / ${me.manCap||"—"}</span></div>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <button class="bbtn" ${canBuy(me,UNITSPEC.inf,sel)&&deployable?"":"disabled"} onclick="buy('inf')">■ Infantry Division — 20 PP · 10 👥<small>STR 3. The backbone.</small></button>
@@ -2760,7 +2771,11 @@ function jumpCapital(){const c=G.prov[NATIONS[G.player].cap];if(c){centerOn(c);G
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.0 — DICTATED PEACE (current)",[
+ ["v5.1 — QUARTERMASTER (current)",[
+  "🛈 Richer hover tooltips: relation, government, terrain, garrison, forts and bombing at a glance.",
+  "🏭 Income readout in the RECRUIT panel so you can plan production.",
+  "🛡 Dig in: spend 15 PP to instantly raise a province's garrison."]],
+ ["v5.0 — DICTATED PEACE",[
   "⚔ End wars on your terms: a Dictated Peace annexes the enemy land you currently occupy (they must be losing badly to sign).",
   "🕊 White Peace still available to simply end the fighting at the current line.",
   "Both offered per-war in the WARS panel."]],
