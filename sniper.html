@@ -12,8 +12,8 @@ canvas{display:block;width:100%;height:100%;cursor:none;touch-action:none}
 
 /* HUD */
 #hud{position:absolute;inset:0;pointer-events:none;font-size:14px;letter-spacing:1px;text-shadow:0 0 4px #000,0 0 8px #000}
-.hud-tl{position:absolute;top:14px;left:18px;line-height:1.7}
-.hud-tr{position:absolute;top:14px;right:18px;text-align:right;line-height:1.7}
+.hud-tl{position:absolute;top:calc(14px + env(safe-area-inset-top));left:calc(18px + env(safe-area-inset-left));line-height:1.7}
+.hud-tr{position:absolute;top:calc(14px + env(safe-area-inset-top));right:calc(18px + env(safe-area-inset-right));text-align:right;line-height:1.7}
 .hud-bl{position:absolute;bottom:14px;left:18px;line-height:1.6}
 .hud-br{position:absolute;bottom:14px;right:18px;text-align:right;line-height:1.6}
 .lbl{color:#7a9468;font-size:11px}
@@ -60,15 +60,15 @@ body.touch #touch-ctl{display:block}
   color:#dff0c0;font-family:inherit;font-weight:bold;letter-spacing:1px;text-shadow:0 0 4px #000;
   user-select:none;-webkit-user-select:none;box-shadow:0 4px 16px #000a;transition:transform .05s}
 .tbtn:active,.tbtn.on{transform:scale(.92);background:radial-gradient(circle at 40% 35%,rgba(110,160,70,.95),rgba(40,60,26,.95))}
-#tb-fire{right:24px;bottom:30px;width:104px;height:104px;font-size:18px;border-color:#c86a4a;
+#tb-fire{right:calc(24px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:104px;height:104px;font-size:18px;border-color:#c86a4a;
   background:radial-gradient(circle at 40% 35%,rgba(180,70,50,.9),rgba(70,20,14,.9))}
 #tb-fire:active{background:radial-gradient(circle at 40% 35%,rgba(230,90,60,1),rgba(110,30,20,1))}
-#tb-breath{left:24px;bottom:40px;width:84px;height:84px;font-size:13px;line-height:1.1;text-align:center}
-#tb-reload{left:120px;bottom:30px;width:66px;height:66px;font-size:13px}
+#tb-breath{left:calc(24px + env(safe-area-inset-left));bottom:calc(40px + env(safe-area-inset-bottom));width:84px;height:84px;font-size:13px;line-height:1.1;text-align:center}
+#tb-reload{left:calc(120px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom));width:66px;height:66px;font-size:13px}
 
 /* push bottom HUD up on touch so buttons don't cover it */
-body.touch .hud-bl{bottom:140px}
-body.touch .hud-br{bottom:148px}
+body.touch .hud-bl{bottom:calc(140px + env(safe-area-inset-bottom))}
+body.touch .hud-br{bottom:calc(148px + env(safe-area-inset-bottom))}
 
 /* small-screen / phone sizing */
 @media (max-width:760px),(max-height:520px){
