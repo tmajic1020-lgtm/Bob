@@ -932,7 +932,7 @@ function tick(){
   }
   runHistory(false);
   if(G.day%5===0&&!G.over)checkVictory();
-  if(G.day%5===0)checkAch();
+  if(G.day%5===0){checkAch();checkObjective();}
   if(G.stats){const me=G.nations[G.player];if(me&&me.alive){if(me.atWar.size>0)G.stats.warDays++;G.stats.peakProv=Math.max(G.stats.peakProv||0,natProvs(G.player).length);}}
   if(G.day%60===0&&MP.role!=="guest")saveGame(true);
   refreshHUD();
@@ -1363,6 +1363,31 @@ function checkAch(){
       G.ach.add(a.id);earned.add(a.id);achSave(earned);
       sfx("good");toast("🏅 ACHIEVEMENT: "+a.n);logMsg(`🏅 Achievement unlocked: ${a.n} — ${a.d}`,"good");
     }
+  }
+}
+/* ---- rotating war directives: a goal + reward, refreshed on completion ---- */
+function rewardText(r){return[r.pp?r.pp+" PP":"",r.rp?r.rp+" RP":"",r.man?r.man+" 👥":""].filter(Boolean).join(" · ");}
+function assignObjective(){
+  const me=G.nations[G.player];if(!me)return;
+  const prov=natProvs(G.player).length,divs=G.units.filter(u=>u.nat===G.player).length;
+  const fl=G.fleets.filter(f=>f.nat===G.player).length,techSum=me.res.ind+me.res.land+me.res.nav+me.res.air;
+  const opts=[
+    {desc:`Expand the nation — hold ${prov+3} provinces`,reward:{pp:70},done:()=>natProvs(G.player).length>=prov+3},
+    {desc:`Mass the army — field ${divs+4} divisions`,reward:{pp:40,man:30},done:()=>G.units.filter(u=>u.nat===G.player).length>=divs+4},
+    {desc:`Build the fleet — commission ${fl+2} task forces`,reward:{pp:55},done:()=>G.fleets.filter(f=>f.nat===G.player).length>=fl+2},
+    {desc:`Out-tech the world — advance any doctrine one level`,reward:{rp:25},done:()=>(me.res.ind+me.res.land+me.res.nav+me.res.air)>techSum}
+  ];
+  G.objective=opts[Math.floor(Math.random()*opts.length)];
+}
+function checkObjective(){
+  const me=G.nations[G.player];if(!me||!me.alive)return;
+  if(!G.objective){assignObjective();return;}
+  if(G.objective.done()){
+    const r=G.objective.reward;
+    if(r.pp)me.pp+=r.pp;if(r.rp)me.rp+=r.rp;if(r.man)me.man=(me.man||0)+r.man;
+    sfx("good");toast("🎖 DIRECTIVE COMPLETE: +"+rewardText(r));
+    logMsg(`🎖 War directive complete — reward: ${rewardText(r)}.`,"good");
+    assignObjective();
   }
 }
 /* generals */
@@ -2387,6 +2412,7 @@ function renderPanel(){
   if(curPanel==="focus"){
     me.focusDone=me.focusDone||{};
     let h=`<h2>NATIONAL FOCUS</h2>`;
+    if(G.objective)h+=`<h3>🎖 WAR DIRECTIVE</h3><div style="font-size:12px;color:var(--ink)">${G.objective.desc}</div><div style="color:var(--dim);font-size:11px">Reward: ${rewardText(G.objective.reward)}</div>`;
     if(me.focus){
       const f=FOCUSES[me.focus.key];
       h+=`<h3>IN PROGRESS: ${f.n.toUpperCase()}</h3>
@@ -2684,7 +2710,10 @@ function refreshHUD(){
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.6 — IDEOLOGICAL BLOCS (current)",[
+ ["v4.7 — WAR DIRECTIVES (current)",[
+  "🎖 Rotating war directives: a live objective (expand, mass the army, build a fleet, out-tech a rival) that pays PP/RP/manpower on completion, then refreshes.",
+  "Shown in the FOCUS panel with a completion toast."]],
+ ["v4.6 — IDEOLOGICAL BLOCS",[
   "🗳 Governments: every nation is Democratic, Fascist, Communist, Monarchist or Non-Aligned (shown on nation select and the province panel).",
   "🤝 Ideology shapes diplomacy — like-minded powers ally far more readily; sworn ideological foes rarely do.",
   "⚔ Attacking across ideological lines draws less condemnation; turning on your own bloc shocks the world (more tension)."]],
