@@ -182,6 +182,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="pausedTag" style="display:none;position:absolute;top:54px;left:50%;transform:translateX(-50%);z-index:30;background:#11160fdd;border:1px solid var(--amber);color:var(--amber);padding:4px 12px;font-size:12px;letter-spacing:3px;pointer-events:none">⏸ PAUSED</div>
 <div id="toast" style="display:none;position:absolute;top:54px;left:50%;transform:translateX(-50%);z-index:45;background:#2a0f0a;border:2px solid var(--red);color:#ffb4a0;padding:10px 18px;font-size:13px;letter-spacing:1px;box-shadow:0 0 30px #000c;text-align:center"></div>
 <div id="speedbox" class="hud" style="display:none">
+  <button class="tbtn" id="bView">🗺 VIEW: POLITICAL</button>
   <button class="tbtn" id="bProv">🏛 PROVINCES</button>
   <button class="tbtn" id="bZoomOut">−</button>
   <button class="tbtn" id="bZoomIn">+</button>
@@ -481,6 +482,10 @@ const THEMES={
 let THEME="dark";
 let MAPSTYLE="terrain"; // "terrain" = grey ocean, yellow land, black borders; "flags" = political flag map
 let SHOWPROV=false; // show major provinces at any zoom
+let OVERLAY="none"; // map view overlay: none|terr|relation|threat
+const OVERLAYS=["none","terr","relation","threat"];
+const OVERLAYLABEL={none:"POLITICAL",terr:"TERRAIN",relation:"RELATIONS",threat:"THREAT"};
+const TERRCOLOR={plains:"#7a8a3a",forest:"#2f5a2f",hills:"#8a7a4a",mountain:"#9a9aa0",desert:"#caa84a",marsh:"#3a6a6a",urban:"#b04a4a"};
 function setMapStyle(m){MAPSTYLE=m;terDirty=true;try{localStorage.setItem("if_mapstyle",m);}catch(e){}}
 try{if(localStorage.getItem("if_mapstyle")==="flags")MAPSTYLE="flags";}catch(e){}
 function setTheme(t){THEME=t;document.body.classList.toggle("light",t==="light");try{localStorage.setItem("if_theme",t);}catch(e){}}
@@ -1142,7 +1147,7 @@ function autoCapture(nat){
   const enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
   if(!enemies.length)return;
   for(const u of G.units){
-    if(u.nat!==nat||u.to||u.type==="med")continue; // infirmaries are directed by hand, never sent to the front
+    if(u.nat!==nat||u.to||u.type==="med"||u.hold)continue; // infirmaries & held units stay put
     let best=null,bd=1e9;
     for(const p of enemies){const d=(p.x-provOf(u.at).x)**2+(p.y-provOf(u.at).y)**2;if(d<bd){bd=d;best=p;}}
     if(best){
@@ -1886,6 +1891,14 @@ function draw(){
     }
     ctx.setLineDash([]);
   }
+  // map overlay heat-discs (terrain / relations / threat)
+  if(OVERLAY!=="none"){
+    for(const p of Object.values(G.prov)){
+      const c=overlayColor(p);if(!c)continue;
+      const rr=(8+p.val*1.6)/Math.sqrt(z);
+      ctx.beginPath();ctx.arc(p.x,p.y,rr,0,7);ctx.fillStyle=c;ctx.fill();
+    }
+  }
   // provinces
   for(const p of Object.values(G.prov)){
     const r=(3+p.val)/Math.sqrt(z)*1.1;
@@ -1971,6 +1984,24 @@ function draw(){
     const disp=showP?"block":"none";if(pt.style.display!==disp)pt.style.display=disp;}
   requestAnimationFrame(draw);
 }
+function overlayColor(p){
+  if(OVERLAY==="terr")return (TERRCOLOR[p.terr]||"#555")+"99";
+  if(OVERLAY==="relation"){
+    const o=p.owner,me=G.player;
+    if(o===me)return "#3fb95099";
+    if(allied(me,o)||(G.nations[o]&&G.nations[o].puppet===me))return "#2a9aa099";
+    if(atWar(me,o))return "#d1331f99";
+    return "#7a808077";
+  }
+  if(OVERLAY==="threat"){
+    let t=0;
+    for(const u of G.units){if(!atWar(G.player,u.nat))continue;
+      if(u.at===p.id)t+=u.str;else if(p.adj.includes(u.at)||p.seaAdj.includes(u.at))t+=u.str*0.5;}
+    if(t<=0)return null;
+    return "rgba(209,51,31,"+Math.min(0.7,0.15+t*0.05).toFixed(2)+")";
+  }
+  return null;
+}
 function drawMinimap(){
   const mm=$("#minimap");if(!mm)return;
   const inGame=$("#topbar").style.display!=="none";
@@ -2019,6 +2050,7 @@ function drawPiece(u,glyph,color,z,fleet){
     if(u.vet>0){ctx.fillStyle="#ffd34a";ctx.font=`bold ${s*0.34}px sans-serif`;ctx.textBaseline="bottom";ctx.fillText("›".repeat(u.vet),0,-s*0.4);ctx.textBaseline="middle";}
     // out-of-supply marker
     if(u.lowSupply){ctx.fillStyle="#ffcf3a";ctx.font=`bold ${s*0.6}px sans-serif`;ctx.fillText("!",s*0.62,-s*0.3);}
+    if(u.hold){ctx.strokeStyle="#7ab2c8";ctx.lineWidth=1.4/Math.sqrt(z);ctx.beginPath();ctx.arc(0,0,s*0.74,0,7);ctx.stroke();}
   }else{
     ctx.fillStyle=u===G.selUnit?"#e8a33d":(u.nat===G.player?"#cfe7f2":"#9fb6c2");
     ctx.font=`${s}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
@@ -2172,6 +2204,8 @@ function setSpeed(s){if(!G)return;s=Math.max(1,Math.min(4,s));G.speed=s;
 $("#bPause").onclick=()=>setPause();
 $("#bProv").onclick=()=>{SHOWPROV=!SHOWPROV;$("#bProv").classList.toggle("on",SHOWPROV);
   if(SHOWPROV){loadStates();if(!statePath)logMsg("Loading state & province borders...");}};
+$("#bView").onclick=()=>{OVERLAY=OVERLAYS[(OVERLAYS.indexOf(OVERLAY)+1)%OVERLAYS.length];
+  $("#bView").textContent="🗺 VIEW: "+OVERLAYLABEL[OVERLAY];$("#bView").classList.toggle("on",OVERLAY!=="none");};
 $("#bZoomIn").onclick=()=>zoomAt(W/2,H/2,G.cam.z*1.4);
 $("#bZoomOut").onclick=()=>zoomAt(W/2,H/2,G.cam.z/1.4);
 document.querySelectorAll(".spd").forEach(b=>b.onclick=()=>setSpeed(+b.dataset.s));
@@ -2237,6 +2271,7 @@ function renderPanel(){
         const _inFriendly=su.kind==="fleet"||provOf(su.at).owner===G.player;
         h+=`<button class="bbtn" ${(me.pp<_rcost||!_inFriendly)?"disabled":""} onclick="reinforce(${su.id})">✚ Reinforce to full — ${_rcost} PP<small>${_inFriendly?"Replenish losses instantly.":"Must be in your own territory to reinforce."}</small></button>`;
       }
+      h+=`<button class="bbtn" onclick="toggleHold(${su.id})">${su.hold?"▶ Release — rejoin offensives":"🛡 Hold position"}<small>${su.hold?"Currently holding: ignored by auto-capture & rally.":"Garrison here; auto-capture and ‘rally to front’ skip it."}</small></button>`;
       h+=`<button class="bbtn" onclick="G.selUnit=null;renderPanel()">Deselect</button>`;
     }
     const mine=us.filter(u=>u.nat===G.player);
@@ -2454,6 +2489,7 @@ window.selAll=pid=>{
   $("#panel").style.display="none";
 };
 window.selU=id=>{const u=[...G.units,...G.fleets].find(x=>x.id===id);if(u&&u.nat===G.player){G.selUnit=u;renderPanel();}};
+window.toggleHold=id=>{const u=[...G.units,...G.fleets].find(x=>x.id===id&&x.nat===G.player);if(!u)return;u.hold=!u.hold;logMsg(u.hold?"🛡 Division holding position.":"Division released to the front.","good");renderPanel();};
 window.reinforce=id=>{
   const me=G.nations[G.player];
   const u=[...G.units,...G.fleets].find(x=>x.id===id&&x.nat===G.player);
@@ -2485,7 +2521,7 @@ window.rallyFront=()=>{
   if(!enemies.length){logMsg("You are at peace — declare war first.","war");return;}
   let n=0;
   for(const u of G.units){
-    if(u.nat!==G.player||u.to||u.type==="med")continue;
+    if(u.nat!==G.player||u.to||u.type==="med"||u.hold)continue;
     let best=null,bd=1e9;
     for(const p of enemies){const d=(p.x-provOf(u.at).x)**2+(p.y-provOf(u.at).y)**2;if(d<bd){bd=d;best=p;}}
     if(best){const path=findPath(u.at,best.id,"army",G.player);if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;n++;}}
@@ -2615,7 +2651,11 @@ function refreshHUD(){
 
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.3 — RESEARCH & RESERVES (current)",[
+ ["v4.4 — THEATER COMMAND (current)",[
+  "🗺 Map views (VIEW button): POLITICAL, TERRAIN, RELATIONS (who's friend/foe) and THREAT (enemy pressure heat-map).",
+  "🛡 Hold position: order a division to garrison — auto-capture and ‘rally to front’ leave it in place. Ringed on the map.",
+  "Held units are remembered in saves & multiplayer."]],
+ ["v4.3 — RESEARCH & RESERVES",[
   "🔬 Tech tree: every research level is now a named doctrine (Assembly Lines, Blitzkrieg Doctrine, Carrier Operations, Strategic Bombing...) with concrete unlocks shown in the RESEARCH panel.",
   "⚙ New perks: Industry deepens your manpower reserves; Convoy Doctrine (Naval II) blunts blockades; better Aviation lifts the air-support cap; Grand Battleplan (Land V) hardens veterans faster.",
   "🔁 Auto-continue: a finished research branch can roll straight into its next level."]],
@@ -2849,7 +2889,7 @@ function mpSerialize(){
       n.researching||"",+(n.resProg||0).toFixed(1),n.alive?1:0,[...n.atWar],[...n.allies],
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",+(n.man||0).toFixed(1)];}
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.vet||0,u.xp||0]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.vet||0,u.xp||0,u.hold?1:0]),
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.vet||0,f.xp||0]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""])};
 }
@@ -2866,7 +2906,7 @@ function mpApplyState(S){
     n.autoCap=!!a[18];const pup=a[19]||"";if(n.puppet!==(pup||null))terDirty=true;n.puppet=pup||null;
     if(a[20]!==undefined)n.man=a[20];}
   const selId=G.selUnit&&G.selUnit.id;
-  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,vet:a[9]||0,xp:a[10]||0,kind:"army"}));
+  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,vet:a[9]||0,xp:a[10]||0,hold:!!a[11],kind:"army"}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],vet:a[7]||0,xp:a[8]||0,kind:"fleet"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
