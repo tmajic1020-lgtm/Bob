@@ -116,7 +116,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.5.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.6.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -133,7 +133,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.5.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.6.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -867,21 +867,36 @@ function newGame(playerNation){
      tension:ERA==="modern"?35:10,collapsed:{},
      sel:null,selUnit:null,auto:false,airMode:"manual",airTarget:null,
      cam:{x:0,y:0,z:1},log:[]};
-  // starting forces scaled to historical strength
+  // starting forces: real orders of battle where history gives us the numbers
+  const yi0=Math.max(0,ERAS[ERA].years.indexOf(YEAR));
   for(const k in nations){
     const caps=Object.values(prov).filter(p=>p.owner===k);
     if(!caps.length){nations[k].alive=false;continue;}
     const cap=prov[NATIONS[k].cap].owner===k?prov[NATIONS[k].cap]:caps[0];
-    const s=powerOf(k,Math.max(0,ERAS[ERA].years.indexOf(YEAR)));
-    const nDiv=Math.max(1,Math.round(s*0.9)),nArm=Math.floor(s/4);
+    const s=powerOf(k,yi0);
+    const st=statAt(k,yi0);
+    let nDiv,nArm,nFleet,nWing;
+    if(st){
+      /* army size from real field divisions (sqrt-compressed for playability, so
+         China's 246 divisions become 18 game units, Poland's 39 become 7, the tiny
+         1939 US Army starts with 3 — instead of everyone getting 2–9 look-alikes) */
+      const fieldDiv=st.div!=null?st.div:(st.men||0)*22; // modern era lists manpower, not divisions
+      nDiv=Math.max(2,Math.min(18,Math.round(Math.sqrt(fieldDiv)*1.15)));
+      nArm=Math.min(Math.floor(nDiv/2),Math.round((st.tank||0)/1600)); // tank parks → armored divisions
+      nFleet=Math.min(6,Math.round((st.ship||0)/60));                  // major warships → task forces
+      nWing=Math.min(6,Math.round((st.air||0)/1200));                  // aircraft → air wings
+    }else{ // eras without hard numbers (Napoleon, Mongols) keep the strength estimate
+      nDiv=Math.max(1,Math.round(s*0.9));nArm=Math.floor(s/4);
+      nFleet=Math.floor(s/3);nWing=Math.floor(s/4);
+    }
     for(let i=0;i<nDiv;i++){
       const where=i===0?cap:caps[i%caps.length];
       addUnit(k,where.id,i<nArm?"arm":"inf",i<nArm?4:3);
     }
     const ports=caps.filter(p=>p.coastal);
-    const nFleet=ports.length?Math.max(ports.length?1:0,Math.floor(s/3)):0;
+    if(!ports.length)nFleet=0;
+    else if(!st||(st.ship||0)>=15)nFleet=Math.max(1,nFleet); // any real navy floats at least one force
     for(let i=0;i<nFleet;i++)addFleet(k,ports[i%ports.length].id,2);
-    const nWing=Math.floor(s/4);
     for(let i=0;i<nWing;i++)addWing(k,2);
   }
   fitCam();
@@ -2952,7 +2967,13 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.5 \u2014 QUALITY OF LIFE (current)",[
+ ["v4.6 \u2014 REAL ORDERS OF BATTLE (current)",[
+  "\u2694 STARTING ARMIES ARE NOW HISTORICAL \u2014 each nation's opening forces are built from its real field-division count for the chosen year instead of a generic 1\u201310 rating: China fields a mass army, Poland starts with a real 39-division force, and the 1939 US Army is tiny",
+  "\u2693 NAVIES MATCH HISTORY \u2014 task forces now come from real warship counts: Britain and America start with dominant fleets, Germany with a token navy, landlocked & minor powers with none",
+  "\u2708 AIR FORCES MATCH HISTORY \u2014 air wings scale with real aircraft numbers (the 1939 Luftwaffe out-flies everyone in Europe; the late-war Allies darken the sky)",
+  "\ud83d\udee1 ARMOR FROM TANK PARKS \u2014 armored divisions now come from real tank counts, so the Soviet tank mass and late-war Allied armor show up on the map while cavalry-era armies stay infantry",
+  "\ud83c\udfb2 Napoleonic & Mongol scenarios keep their curated strength estimates (no divisional records in 1259)"]],
+ ["v4.5 \u2014 QUALITY OF LIFE",[
   "\u{1F4BE} AUTOSAVE ON EXIT \u2014 the campaign now saves itself whenever the tab is hidden or closed, so you never lose up to 60 days of progress again",
   "\u25b6 CONTINUE fixed \u2014 the saved-campaign button now appears the moment the start screen loads (it used to hide until you clicked a year) and names the nation & era it will restore",
   "\u{1F4BE} Saves are now complete \u2014 national focus progress, completed focuses, the Atomic Pioneers unlock, the empire history graph, capital-occupation countdown and historical-event progress all survive save/load (they silently reset before)",
