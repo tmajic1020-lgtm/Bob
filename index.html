@@ -118,7 +118,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.0.1</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.1.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.0.1</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.1.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -453,7 +453,28 @@ const P=[
 // Australia more
 ["bri","Brisbane",153,-27.5,"AUS",1,2],["ade","Adelaide",138.6,-34.9,"AUS",1,1],
 // Middle East / Persia more
-["isf","Isfahan",51.7,32.7,"PER",0,1],["bas","Basra",47.8,30.5,"PER",1,1],["jed","Hejaz",39.2,21.5,"PER",1,1]
+["isf","Isfahan",51.7,32.7,"PER",0,1],["bas","Basra",47.8,30.5,"PER",1,1],["jed","Hejaz",39.2,21.5,"PER",1,1],
+// ===== v5.1: evening out the map — 26 provinces for under-covered nations =====
+// Europe
+["deb","Debrecen",21.6,47.5,"HUN",0,1],["trn","Transylvania",24.5,46.5,"HUN",0,2],
+["lvo","Lviv",24.05,49.8,"POL",0,2],
+["wal","Wales",-3.9,51.6,"UK",1,1],
+["val","Valencia",-0.4,39.5,"SPA",1,2],["bil","Bilbao",-2.9,43.4,"SPA",1,1],
+["tur","Turin",7.7,45.1,"ITA",0,2],["sic","Sicily",14,37.5,"ITA",1,1],
+["erz","Erzurum",41.3,39.9,"TUR",0,1],
+// Americas
+["gdl","Guadalajara",-103.3,20.7,"MEX",1,2],["chih","Chihuahua",-106.1,28.6,"MEX",0,1],
+["gua","Guatemala",-90.5,14.6,"MEX",1,1],["crc","Caracas",-66.9,10.5,"BRA",1,2],
+// Africa
+["gab","Gabon",11.7,0.4,"CON",1,1],["kat","Katanga",27.5,-11.7,"CON",0,1],
+["drs","Dar es Salaam",39.3,-6.8,"EAF",1,1],["kmp","Kampala",32.6,0.3,"EAF",0,1],
+["tim","Timbuktu",-3,16.8,"WAF",0,1],
+// Asia & Pacific
+["kul","Malaya",101.7,3.1,"SEA",1,2],["jav","Java",107.5,-6.5,"SEA",1,2],
+["man3","Manila",121,14.6,"SEA",1,2],["kyu","Kyushu",130.7,32.8,"JAP",1,2],
+["krs","Krasnoyarsk",92.9,56,"SOV",0,1],["ulb","Mongolia",106.9,47.9,"SOV",0,1],
+// Oceania
+["akl","Auckland",174.8,-36.9,"AUS",1,1],["ali","Alice Springs",133.9,-23.7,"AUS",0,1]
 ];
 
 
@@ -582,7 +603,34 @@ const LINKS=[
 ["per","dar"],["per","mel"],["dar","syd"],["dar","sgn",1],["syd","mel"],["mel","per"],
 ["dar","can",1],["syd","la",1],["per","mad2",1],["per","cpt",1],["mel","pat",1],
 // Pacific / Atlantic strategic sea lanes
-["la","tok",1],["sea","sap",1],["hal","lon",1],["mia","sev",1],["rec","lag",1],["cal","bkk",1],["bom","ria",1],["bom","mog",1]
+["la","tok",1],["sea","sap",1],["hal","lon",1],["mia","sev",1],["rec","lag",1],["cal","bkk",1],["bom","ria",1],["bom","mog",1],
+// v5.1 new-province links
+["deb","bud"],["deb","kra"],["deb","trn"],
+["trn","ode"],["trn","kie"],
+["lvo","kra"],["lvo","kie"],["lvo","war"],["lvo","min"],
+["wal","lon"],["wal","man2"],
+["val","bcn"],["val","mad"],["val","sev"],
+["bil","mad"],["bil","bor"],
+["tur","mil"],["tur","lyo"],["tur","mar"],
+["sic","nap"],["sic","tun",1],["sic","trp",1],
+["erz","ank"],["erz","teh"],["erz","sta"],["erz","bag"],
+["gdl","mex"],["gdl","mty"],["gdl","chih"],
+["chih","phx"],["chih","mty"],["chih","dal"],
+["gua","mex"],["gua","yuc"],["gua","bog",1],
+["crc","bog"],["crc","man"],["crc","yuc",1],
+["gab","kin"],["gab","lag"],
+["kat","kin"],["kat","lua"],["kat","har2"],["kat","nai"],
+["drs","nai"],["drs","kat"],["drs","mog",1],
+["kmp","nai"],["kmp","khartoum"],["kmp","kin"],
+["tim","dak"],["tim","kano"],["tim","alg"],["tim","cas"],
+["kul","bkk"],["kul","sgn",1],["kul","jav",1],
+["jav","dar",1],["jav","per",1],
+["man3","can",1],["man3","tok",1],["man3","dar",1],
+["kyu","osa"],["kyu","sha",1],["kyu","can",1],
+["krs","nov"],["krs","irk"],
+["ulb","irk"],["ulb","bei"],["ulb","xin"],
+["akl","syd",1],["akl","mel",1],
+["ali","dar"],["ali","ade"],["ali","per"],["ali","bri"]
 ];
 
 /* ============================== ERAS & THEMES ============================== */
@@ -594,10 +642,11 @@ const ERAS={
     trp:"ITA",add:"ITA",mog:"ITA",
     lag:"UK",kano:"UK",acc:"UK",
     nai:"UK",khartoum:"UK",har2:"UK",
-    cai:"UK",ale:"UK",asw:"UK"},
+    cai:"UK",ale:"UK",asw:"UK",
+    kul:"UK",drs:"UK",kmp:"UK",man3:"USA",gab:"FRA",tim:"FRA"},
   rename:{UK:["British Empire","🇬🇧"]}},
  modern:{label:"MODERN DAY",sub:"A NEW COLD WAR",start:[0,1],years:[2025],
-  owners:{kie:"UKR",ode:"UKR",min:"BLR",alm:"KAZ",vie:"AUT",pra:"CZE",bel:"SRB",kon:"SOV",
+  owners:{kie:"UKR",ode:"UKR",lvo:"UKR",min:"BLR",alm:"KAZ",vie:"AUT",pra:"CZE",bel:"SRB",kon:"SOV",
     teh:"IRN",isf:"IRN",bag:"IRQ",bas:"IRQ",ria:"SAU",jed:"SAU",lah:"PAK",dac:"BAN"},
   rename:{SOV:["Russia","🇷🇺"],CHN:["China","🇨🇳"],UK:["United Kingdom","🇬🇧"],JAP:["Japan","🇯🇵"]},
   alliances:[["USA","UK","FRA","GER","ITA","SPA","POL","TUR","CAN","UKR","AUT","CZE","SAU","PAK"],["SOV","CHN","BLR","IRN"]]},
@@ -606,7 +655,9 @@ const ERAS={
     ank:"OTT",ist:"OTT",izm:"OTT",bag:"OTT",ria:"OTT",
     mos:"RUS",len:"RUS",sta:"RUS",kie:"RUS",ura:"RUS",nov:"RUS",irk:"RUS",vla:"RUS",
     min:"RUS",ros:"RUS",ode:"RUS",arc:"RUS",oms:"RUS",yak:"RUS",kha:"RUS",alm:"RUS",
-    cai:"UK",ale:"UK",asw:"UK",khartoum:"UK",del:"UK",bom:"UK",cal:"UK",mad2:"UK",lah:"UK",hyd:"UK",dac:"UK",trp:"ITA"},
+    cai:"UK",ale:"UK",asw:"UK",khartoum:"UK",del:"UK",bom:"UK",cal:"UK",mad2:"UK",lah:"UK",hyd:"UK",dac:"UK",trp:"ITA",
+    deb:"AUH",trn:"AUH",lvo:"AUH",erz:"OTT",krs:"RUS",ulb:"RUS",
+    kul:"UK",man3:"USA",drs:"GER",kmp:"UK",gab:"FRA",tim:"FRA"},
   rename:{GER:["German Empire","🦅"],ITA:["Kingdom of Italy","🇮🇹"],UK:["British Empire","🇬🇧"],
     JAP:["Empire of Japan","🇯🇵"],CHN:["Republic of China","🇨🇳"],FRA:["French Republic","🇫🇷"]}},
  napoleon:{label:"NAPOLEONIC WARS",sub:"THE EMPEROR'S EUROPE",start:[4,18],years:[1803,1805,1809,1812,1815],
@@ -626,7 +677,11 @@ const ERAS={
     osl:"SWE",sto:"SWE",rey:"SWE",nuk:"SWE",
     rio:"BRZ",sao:"BRZ",bsb:"BRZ",man:"BRZ",rec:"BRZ",poa:"BRZ",for:"BRZ",cui:"BRZ",
     jhb:"AFR",dur:"AFR",wind:"AFR",har2:"AFR",cas:"AFR",dak:"AFR",lag:"AFR",acc:"AFR",kano:"AFR",abi:"AFR",kin:"AFR",lua:"AFR",nai:"AFR",add:"AFR",mog:"AFR",
-    bkk:"SIA",sgn:"SIA",rgn:"SIA"},
+    bkk:"SIA",sgn:"SIA",rgn:"SIA",
+    deb:"AUE",trn:"AUE",lvo:"AUE",wal:"GBR",val:"SPN",bil:"SPN",tur:"FEM",sic:"GBR",erz:"OTE",
+    gdl:"SPN",chih:"SPN",gua:"SPN",crc:"SPN",
+    gab:"AFR",kat:"AFR",drs:"AFR",kmp:"AFR",tim:"AFR",
+    kul:"SIA",jav:"SIA",man3:"SPN",kyu:"TOK",krs:"RUE",ulb:"QIN",akl:"GBR",ali:"GBR"},
   rename:{},
   alliances:[["GBR","RUE","AUE","PRU","SPN"],["FEM","DOW"]]},
  mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],years:[1206,1227,1241,1259,1294],
@@ -646,14 +701,18 @@ const ERAS={
     tok:"KAM",osa:"KAM",sap:"KAM",
     bkk:"KHM",sgn:"KHM",rgn:"KHM",
     alg:"AFR2",trp:"AFR2",cas:"AFR2",tun:"AFR2",dak:"AFR2",lag:"AFR2",acc:"AFR2",kano:"AFR2",abi:"AFR2",kin:"AFR2",lua:"AFR2",nai:"AFR2",add:"AFR2",mog:"AFR2",cpt:"AFR2",jhb:"AFR2",dur:"AFR2",wind:"AFR2",har2:"AFR2",
-    syd:"OCE",mel:"OCE",per:"OCE",dar:"OCE",bri:"OCE",ade:"OCE"},
+    syd:"OCE",mel:"OCE",per:"OCE",dar:"OCE",bri:"OCE",ade:"OCE",
+    deb:"EEU",trn:"EEU",lvo:"EEU",wal:"ENG",val:"IBR",bil:"IBR",tur:"ITK",sic:"ITK",erz:"MNG",
+    gdl:"AMR",chih:"AMR",gua:"AMR",crc:"AMR",
+    gab:"AFR2",kat:"AFR2",drs:"AFR2",kmp:"AFR2",tim:"AFR2",
+    kul:"KHM",jav:"KHM",man3:"KHM",kyu:"KAM",krs:"MNG",ulb:"MNG",akl:"OCE",ali:"OCE"},
   rename:{},
   alliances:[["MNG"],["SNG","DEL","MAM","HRE","FRK"]]}
 };
 let ERA="ww2";
 let YEAR=1939;
 /* Oil-rich provinces */
-const OILP=new Set(["dal","ria","bag","teh","sta","ura","nov","trp","alg","vla","man","mty"]);
+const OILP=new Set(["dal","ria","bag","teh","sta","ura","nov","trp","alg","vla","man","mty","crc","jav"]);
 /* Starting nuclear stockpiles */
 const NUKES_START={
  modern:{USA:8,SOV:8,CHN:4,UK:2,FRA:2,IND:1,PAK:1},
@@ -889,7 +948,9 @@ const TERR_OVR={
  len:"for",arc:"for",oms:"for",nov:"for",irk:"for",yak:"for",kha:"for",min:"for",
  man:"for",cui:"for",kin:"for",lua:"for",mtl:"for",msp:"for",bsb:"for",
  // marsh / river delta (defensive, slow)
- kie:"mar",ode:"mar",dac:"mar",rgn:"mar"
+ kie:"mar",ode:"mar",dac:"mar",rgn:"mar",
+ // v5.1 provinces
+ trn:"mtn",erz:"mtn",chih:"des",tim:"des",ali:"des",krs:"for",gab:"for",jav:"mar"
 };
 const TERR={
  plains:{n:"Plains",e:"🌾",spd:1.0,def:1.0},
@@ -3410,7 +3471,13 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.0.1 \u2014 THE SIEGE ENDS (current)",[
+ ["v5.1 \u2014 AN EVEN WORLD (current)",[
+  "\ud83d\uddfa 26 NEW PROVINCES even out the map \u2014 no more one-province nations next to seventeen-province giants: Hungary grows to 3 (Debrecen, Transylvania), Mexico to 6 (Guadalajara, Chihuahua, Guatemala), Congo & East Africa doubled (Gabon, Katanga, Dar es Salaam, Kampala), Spain, Italy, Poland (Lviv), Turkey (Erzurum), Wales, Sicily, Turin, Valencia and more",
+  "\ud83c\udf0f The empty spaces fill in: Malaya, Java, Manila, Kyushu, Krasnoyarsk, Mongolia, Caracas, Timbuktu, Auckland and Alice Springs \u2014 Indonesia, the Philippines, Siberia, Venezuela, the Sahara, New Zealand and the Outback are finally on the board",
+  "\ud83d\udee2 Venezuelan and East-Indies OIL \u2014 the two great petroleum prizes of the age are now capturable resources (Java was Japan's real strategic target)",
+  "\ud83d\udcdc Every new province is era-accurate in all five scenarios: British Malaya and American Manila in WW2, GERMAN East Africa in WW1, Austro-Hungarian Lviv & Transylvania, Spanish Manila in the Napoleonic age, and the Horde's Siberia",
+  "\u26f0 New terrain to match: Transylvanian & Anatolian mountains, Saharan/Outback desert, Siberian forest, Javan marsh"]],
+ ["v5.0.1 \u2014 THE SIEGE ENDS",[
   "\u2694 FIXED: CAPTURES NOW ACTUALLY HAPPEN \u2014 provinces used to change hands only at the exact moment a division ARRIVED, so an army that marched in, fought, and ground the garrison to zero could stand on a beaten province forever without taking it. Now the strongest surviving attacker seizes the province the moment its garrison and defenders are gone \u2014 for you and for every AI nation alike",
   "\ud83c\udfc1 Wars resolve properly: a single division can besiege and take an undefended garrisoned province in days; a test German campaign annexes Poland in 36 days (history: 35)"]],
  ["v5.0 \u2014 THE ART OF WAR",[
