@@ -118,7 +118,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.8.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.9.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.8.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.9.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -831,6 +831,49 @@ function setTheme(t){THEME=t;document.body.classList.toggle("light",t==="light")
 try{if(localStorage.getItem("if_theme")==="light")setTheme("light");}catch(e){}
 
 
+/* ============================== REALISM ============================== */
+/* Heads of state per era — shown on the nation cards and GOVERNMENT panel */
+const LEADERS={
+ ww2:{GER:"Adolf Hitler",SOV:"Joseph Stalin",USA:"Franklin D. Roosevelt",UK:"Winston Churchill",
+  FRA:"Édouard Daladier",ITA:"Benito Mussolini",JAP:"Emperor Hirohito",CHN:"Chiang Kai-shek",
+  POL:"Ignacy Mościcki",SPA:"Francisco Franco",TUR:"İsmet İnönü",BRA:"Getúlio Vargas",
+  ARG:"Roberto Ortiz",AUS:"Robert Menzies",CAN:"Mackenzie King",EGY:"King Farouk",
+  MEX:"Lázaro Cárdenas",SAF:"Jan Smuts",HUN:"Miklós Horthy",IND:"Lord Linlithgow",SCA:"Per Albin Hansson"},
+ ww1:{GER:"Kaiser Wilhelm II",AUH:"Franz Joseph I",OTT:"Mehmed V",RUS:"Tsar Nicholas II",
+  UK:"King George V",FRA:"Raymond Poincaré",ITA:"Vittorio Emanuele III",USA:"Woodrow Wilson",
+  JAP:"Emperor Taishō",CHN:"Yuan Shikai",SPA:"Alfonso XIII",BRA:"Venceslau Brás",
+  CAN:"Robert Borden",AUS:"Andrew Fisher"},
+ modern:{USA:"Donald Trump",SOV:"Vladimir Putin",CHN:"Xi Jinping",UK:"Keir Starmer",
+  FRA:"Emmanuel Macron",GER:"Friedrich Merz",JAP:"Shigeru Ishiba",IND:"Narendra Modi",
+  TUR:"Recep Tayyip Erdoğan",UKR:"Volodymyr Zelensky",PAK:"Shehbaz Sharif",IRN:"Ali Khamenei",
+  SAU:"Mohammed bin Salman",POL:"Donald Tusk",BRA:"Lula da Silva",CAN:"Mark Carney",
+  AUS:"Anthony Albanese",MEX:"Claudia Sheinbaum",EGY:"Abdel Fattah el-Sisi",ITA:"Giorgia Meloni",
+  SPA:"Pedro Sánchez",ARG:"Javier Milei",SAF:"Cyril Ramaphosa",IRQ:"Mohammed Shia al-Sudani",
+  BAN:"Muhammad Yunus",KAZ:"Kassym-Jomart Tokayev",BLR:"Alexander Lukashenko",SRB:"Aleksandar Vučić"},
+ napoleon:{FEM:"Napoleon Bonaparte",GBR:"King George III",RUE:"Tsar Alexander I",PRU:"Frederick William III",
+  AUE:"Emperor Francis I",SPN:"Charles IV",USE:"James Madison",OTE:"Mahmud II",QIN:"Jiaqing Emperor",
+  TOK:"Tokugawa Ienari",QAJ:"Fath-Ali Shah",SWE:"Charles XIII",BRZ:"João VI",DOW:"Frederick Augustus I"},
+ mongol:{MNG:"Genghis Khan",SNG:"Emperor Lizong",DEL:"Sultan Iltutmish",MAM:"Sultan Baibars",
+  HRE:"Frederick II",FRK:"Louis IX",ENG:"Henry III",IBR:"Ferdinand III",ITK:"Pope Innocent IV",
+  BYZ:"Michael VIII",KAM:"Hōjō Tokimune",EEU:"Béla IV"}};
+function leaderOf(k){return (LEADERS[ERA]&&LEADERS[ERA][k])||null;}
+/* GENERAL WINTER: Nov–Mar above the 50th parallel (May–Sep below −40°),
+   armies on foreign soil bleed and fight at −20% */
+function isWinterHere(p){
+  const m=G.date.getMonth();
+  const lat=90-(p.y/MH)*180;
+  if(lat>=50)return m>=10||m<=2;
+  if(lat<=-40)return m>=4&&m<=8;
+  return false;
+}
+/* manpower: mobilization scales with real population — China can field far
+   more reserves than Australia */
+function popMul(k){
+  const st=statAt(k,Math.max(0,ERAS[ERA].years.indexOf(YEAR)));
+  const pop=st&&st.pop;
+  if(!pop)return 1;
+  return Math.max(0.6,Math.min(2.2,Math.sqrt(pop)/9));
+}
 let G=null;
 function newGame(playerNation){
   applyEra(ERA); // canonical names/flags/colors — clears any collapse livery from a prior game
@@ -1209,7 +1252,7 @@ function tick(){
     if(n.mobTimer===undefined)n.mobTimer=40+Math.random()*40;
     const law=n.law||{cons:0,eco:0};
     n.mobTimer-=(n.atWar.size>0?3:1)*(1+law.cons*0.5);
-    const cap=Math.ceil(ps.length*1.5*(1+law.cons*0.35)*(n.doctrine==="ma"?1.2:1))+2;
+    const cap=Math.ceil(ps.length*1.5*(1+law.cons*0.35)*(n.doctrine==="ma"?1.2:1)*popMul(k))+2;
     const have=G.units.filter(u=>u.nat===k).length;
     if(n.mobTimer<=0){
       n.mobTimer=90;
@@ -1220,9 +1263,20 @@ function tick(){
       }
     }
   }
-  // idle units recover in friendly territory
-  for(const u of G.units){
-    if(!u.to&&provOf(u.at).owner===u.nat&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
+  // winter announcement, once a year when it bites
+  {const m=G.date.getMonth();
+   if(m===10&&G._winterYr!==G.date.getFullYear()){
+     G._winterYr=G.date.getFullYear();
+     logMsg("❄ GENERAL WINTER — above the 50th parallel, armies on foreign soil now bleed and fight at −20% until March.","war");
+   }}
+  // idle units recover in friendly territory; winter grinds invaders down
+  for(const u of[...G.units]){
+    const pr=provOf(u.at);
+    if(isWinterHere(pr)&&pr.owner!==u.nat){
+      u.hp-=0.06;
+      if(u.hp<=0){killUnit(u);continue;}
+    }
+    if(!u.to&&pr.owner===u.nat&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
   }
   G.tension=Math.max(0,G.tension-0.04);
   // national focus progress
@@ -1358,8 +1412,22 @@ function endScreen(win,reason){
 function moveUnits(arr,kind){
   for(const u of arr){
     if(!u.to)continue;
+    const a=provOf(u.at),b=provOf(u.to);
+    // realism: crossings take time proportional to real distance — Moscow→Urals
+    // is a long march, Paris→Lyon a short one
+    const dist=Math.hypot(b.x-a.x,b.y-a.y);
+    const dmul=Math.max(0.45,Math.min(1.8,45/Math.max(8,dist)));
+    // convoy raiding: armies on a sea lane take losses if enemy fleets patrol either end
+    if(kind==="army"&&a.seaAdj.includes(u.to)){
+      const raider=G.fleets.some(f=>!f.to&&atWar(f.nat,u.nat)&&(f.at===u.at||f.at===u.to));
+      if(raider){
+        u.hp-=1.0;
+        if(u.nat===G.player&&Math.random()<0.08)logMsg("⚓ Our troop convoy is under attack — escort it with a fleet or turn back!","war");
+        if(u.hp<=0){killUnit(u);if(u.nat===G.player)logMsg("⚓ A division was lost at sea to enemy raiders.","war");continue;}
+      }
+    }
     const spd=kind==="fleet"?0.10*techMul(u.nat,"nav"):0.07*techMul(u.nat,"land");
-    u.prog+=spd;
+    u.prog+=spd*dmul;
     if(u.prog>=1){
       u.prog=0;u.at=u.to;
       u.to=null;
@@ -1414,6 +1482,7 @@ function battles(){
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       const fortB=1+(p.fort||0)*0.12;
       if(p.owner===B)pb*=1.25*fortB*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*natDefMul(A);
+      if(isWinterHere(p)){if(p.owner!==A)pa*=0.8;if(p.owner!==B)pb*=0.8;} // General Winter punishes the invader
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
         if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
@@ -1447,6 +1516,7 @@ function dmg(arr,amt){
 }
 function killUnit(u){
   {const kn=G.nations[u.nat];if(kn)kn.warSup=Math.max(0,(kn.warSup??50)-0.6);}
+  G.losses=G.losses||{};G.losses[u.nat]=(G.losses[u.nat]||0)+1;
   G.units=G.units.filter(x=>x!==u);
   if(u===G.selUnit)G.selUnit=null;
   if(u.nat===G.player)logMsg(`A ${u.type==="inf"?"infantry":"armored"} division was destroyed`,"war");
@@ -1580,7 +1650,7 @@ function aiTurn(k){
   const deployAt=()=>(front.length?front[Math.floor(Math.random()*front.length)]:ps[Math.floor(Math.random()*ps.length)]);
   const eco=DIFF.aiEco; // difficulty multiplier on AI output
   if(n.atWar.size>0)n.pp+=n.ppRate/10*(eco-1); // bonus production for AI at war on harder levels
-  const cap=Math.floor((ps.length+4)*DIFF.aiArmy);
+  const cap=Math.floor((ps.length+4)*DIFF.aiArmy*popMul(k));
   if(n.pp>=20&&myUnits<cap){
     const where=deployAt();
     if(n.pp>=35&&n.oil>=5&&Math.random()<0.35){n.pp-=35;n.oil-=5;addUnit(k,where.id,"arm",4);}
@@ -2424,6 +2494,15 @@ function draw(){
   }
   // real country borders
   if(realMap&&borderPath){ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"#00000055":"#00000040");ctx.lineWidth=(terr?1.1:0.8)/Math.sqrt(z);ctx.stroke(borderPath);}
+  // seasonal snow: a pale band over the winter hemisphere
+  {const m=G.date.getMonth();
+   if(m>=10||m<=2){
+     ctx.fillStyle="rgba(215,232,250,0.10)";ctx.fillRect(0,0,MW,PX(0,62)[1]);
+     ctx.fillStyle="rgba(215,232,250,0.07)";ctx.fillRect(0,0,MW,PX(0,50)[1]);
+   }else if(m>=4&&m<=8){
+     const y0=PX(0,-40)[1];
+     ctx.fillStyle="rgba(215,232,250,0.07)";ctx.fillRect(0,y0,MW,MH-y0);
+   }}
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
   ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#cfd4cc":"#f4f2ea");ctx.fill(icePath,FR);
@@ -2866,6 +2945,7 @@ function renderPanel(){
   if(curPanel==="govt"){
     const I=ideoOf(me);
     let h=`<h2>GOVERNMENT</h2>
+    ${leaderOf(G.player)?`<div class="row"><span>Head of state</span><span>👤 ${leaderOf(G.player)}</span></div>`:""}
     <div class="row"><span>Ideology</span><span>${I.f} ${I.n}</span></div>
     <div style="color:var(--dim);font-size:11px">${I.d}</div>
     <div class="row"><span>War support</span><div class="bar"><i style="width:${Math.round(me.warSup??50)}%"></i></div><span>${Math.round(me.warSup??50)}%</span></div>
@@ -2953,6 +3033,7 @@ function renderPanel(){
     let h=`<h2>WARS & DIPLOMACY</h2>
     <div class="row"><span>🌡 World tension</span><span style="color:${G.tension>70?"#ff8d7a":"var(--ink)"}">${Math.round(G.tension)}% ${G.tension>70?"— NUCLEAR DANGER":""}</span></div>
     <div class="row"><span>Your stability</span><span style="color:${me.stab<25?"#ff8d7a":"var(--ink)"}">${Math.max(0,me.stab).toFixed(0)}%</span></div>
+    <div class="row"><span>⚰ Divisions destroyed</span><span>${(G.losses&&G.losses[G.player])||0} yours · ${Object.values(G.losses||{}).reduce((s,v)=>s+v,0)} worldwide</span></div>
     <div style="color:var(--dim);font-size:11px">Stability falls in long wars and when provinces fall. At 0% your government COLLAPSES and a new nation takes its place.</div>`;
     const als=[...me.allies].filter(x=>G.nations[x].alive);
     h+=`<h3>ALLIES</h3>`;
@@ -3146,14 +3227,22 @@ function refreshHUD(){
   t.style.color=G.tension>70?"#ff8d7a":G.tension>40?"#e8a33d":"";
   $("#hProv").textContent=natProvs(G.player).length;
   $("#hDiv").textContent=G.units.filter(u=>u.nat===G.player).length;
-  $("#hDate").textContent=G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+  {const m=G.date.getMonth();
+   $("#hDate").textContent=G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})+((m>=10||m<=2)?" ❄":"");}
   if(curPanel&&$("#panel").style.display!=="none")renderPanel();
 }
 
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.8 \u2014 EVERY COUNTRY IN COLOR (current)",[
+ ["v4.9 \u2014 GENERAL WINTER (current)",[
+  "\u2744 GENERAL WINTER \u2014 from November to March, armies on foreign soil above the 50th parallel bleed attrition and fight at \u221220% (May\u2013September below \u221240\u00b0 south). Invade Russia in December and pay for it, as history demands. Snow shades the winter hemisphere on the map and \u2744 marks the date",
+  "\ud83d\uddfa REAL DISTANCES \u2014 marching Moscow\u2192Urals now takes far longer than Paris\u2192Lyon: movement time scales with true geographic distance, so Russia's vastness finally defends her",
+  "\u2693 CONVOY RAIDING \u2014 armies crossing sea lanes take losses while enemy fleets patrol either end; escort your invasions or lose divisions at sea",
+  "\ud83d\udc65 MANPOWER FROM POPULATION \u2014 mobilization and army ceilings now scale with real populations: China's 500 million raise far more reserves than Australia's 7",
+  "\ud83d\udc64 HEADS OF STATE \u2014 Hitler, Stalin, Churchill, Roosevelt, Napoleon, Genghis Khan\u2026 every major nation in every era shows its real leader on the nation card and GOVERNMENT panel",
+  "\u26b0 CASUALTY LEDGER \u2014 divisions destroyed (yours and worldwide) tracked in the WARS panel and preserved in saves"]],
+ ["v4.8 \u2014 EVERY COUNTRY IN COLOR",[
   "\ud83c\udfa8 EVERY COUNTRY ON EARTH now paints in its own distinct color across all continents \u2014 North & South America, Europe, Africa, Asia and Oceania: Nigeria, Ghana, Chile, Peru, Laos, Kazakhstan and ~170 more each visibly their own state instead of dissolving into one faction-colored blob",
   "\ud83d\uddfa Countries shade around their controller's color, so you can still read at a glance who rules them \u2014 conquer a nation and all its countries shift to your hue, each keeping its own tint",
   "\ud83d\udd0e HOVER ANY LAND to see the real country name \u2014 the tooltip now names the country under the cursor (plus its controller), even in open terrain between province markers, and province tooltips show which country they sit in"]],
@@ -3626,7 +3715,7 @@ function saveGame(auto){
   try{
     localStorage.setItem("if_save",JSON.stringify({era:ERA,year:YEAR,player:G.player,state:mpSerialize(),
       ext:{capLost:G.capLost||0,hist:G.hist||[],histIdx:G.histIdx||0,nextEvent:G.nextEvent||0,
-        dipCd:G.dipCd||{},over:G.over?1:0,airMode:G.airMode,airTarget:G.airTarget||null}}));
+        dipCd:G.dipCd||{},over:G.over?1:0,airMode:G.airMode,airTarget:G.airTarget||null,losses:G.losses||{}}}));
     if(!auto)logMsg("Game saved.","good");
   }catch(e){if(!auto)logMsg("Save failed (storage full?).","war");}
 }
@@ -3642,6 +3731,7 @@ function loadGame(){
       if(sv.ext.nextEvent)G.nextEvent=sv.ext.nextEvent;
       G.dipCd=sv.ext.dipCd||{};G.over=!!sv.ext.over;
       G.airMode=sv.ext.airMode||G.airMode;G.airTarget=sv.ext.airTarget||null;
+      G.losses=sv.ext.losses||{};
     }
     { // restore HUD toggles that live outside the state blob
       const me=G.nations[G.player];
@@ -4009,7 +4099,8 @@ function renderStart(){
     const d=document.createElement("button");d.className="nat";
     const s=powerOf(k,Math.max(0,ERAS[ERA].years.indexOf(YEAR)));
     const sl=statLine(k,Math.max(0,ERAS[ERA].years.indexOf(YEAR)));
-    d.innerHTML=`<span class="f">${NATIONS[k].f}</span><b>${NATIONS[k].n}</b><small>${NATIONS[k].desc} · ${YEAR} · strength ${s}/10${sl?"<br>"+sl:""}</small>`;
+    const ld=leaderOf(k);
+    d.innerHTML=`<span class="f">${NATIONS[k].f}</span><b>${NATIONS[k].n}</b><small>${NATIONS[k].desc} · ${YEAR} · strength ${s}/10${ld?"<br>👤 "+ld:""}${sl?"<br>"+sl:""}</small>`;
     d.onclick=()=>startGame(k);
     natEl.appendChild(d);
   }
