@@ -54,6 +54,8 @@ canvas{display:block;position:absolute;top:0;left:0;touch-action:none;cursor:gra
 #chatbox.open #chatrow{display:flex}
 #chatin{flex:1;background:transparent;border:0;color:var(--ink);padding:6px 8px;font-family:inherit;font-size:11px;outline:none}
 @media(max-width:700px){#chatbox{bottom:48px;right:4px;width:190px}}
+#mini{position:absolute;top:auto;left:8px;bottom:136px;width:200px;height:100px;border:1px solid var(--line);background:#000;z-index:9;cursor:crosshair;display:none}
+@media(max-width:700px){#mini{bottom:134px;width:140px;height:70px}}
 #tip{position:absolute;pointer-events:none;background:#0e130fcc;border:1px solid var(--line);padding:5px 8px;font-size:11px;display:none;z-index:20;max-width:220px}
 #speedbox{position:absolute;bottom:8px;right:8px;display:flex;gap:5px;align-items:center;background:#11160fd0;border:1px solid var(--line);padding:5px 8px}
 #auth{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%);z-index:60;display:flex;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -118,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.2.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.3.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -135,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.2.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.3.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -185,6 +187,7 @@ body.light #speedbox{background:#ece7d6d0}
 </div>
 
 <div id="panel" class="hud"></div>
+<canvas id="mini" class="hud" width="200" height="100"></canvas>
 <div id="log" class="hud"></div>
 <div id="chatbox" class="hud open">
   <div id="chathdr" onclick="toggleChat()"><b>💬 ROOM CHAT</b><span id="chatToggleIcon">▾</span></div>
@@ -1638,6 +1641,7 @@ function tryCapture(u){
       G.tension=Math.min(100,G.tension+0.4);
       G.nations[old].stab-=p.id===NATIONS[old].cap?8:1.5;
       if(u.nat===G.player||old===G.player){logMsg(`${NATIONS[u.nat].f} captured ${p.name}`,u.nat===G.player?"good":"war");sfx(u.nat===G.player?"good":"war");}
+      if(old===G.player&&(G._lossToastT??-1)<G.day){G._lossToastT=G.day+8;toast("⚠ "+p.name.toUpperCase()+" HAS FALLEN TO "+NATIONS[u.nat].n.toUpperCase()+"!");}
       if(!natProvs(old).length)die(old);
     }
   }
@@ -2806,7 +2810,51 @@ function draw(){
     ctx.fillText("✈",px,py);
   }
   ctx.restore();
+  drawMini(performance.now());
   requestAnimationFrame(draw);
+}
+/* ============================== MINIMAP ============================== */
+let SHOWMINI=true;try{SHOWMINI=localStorage.getItem("if_mini")!=="off";}catch(e){}
+window.setMini=v=>{SHOWMINI=v;try{localStorage.setItem("if_mini",v?"on":"off");}catch(e){}
+  const m=$("#mini");if(m)m.style.display=v&&window.G?"block":"none";};
+const _mini=$("#mini"),_miniCtx=_mini&&_mini.getContext("2d");
+let _miniT=0;
+function drawMini(now){
+  if(!_mini||!G||!SHOWMINI||_mini.style.display==="none")return;
+  if(now-_miniT<400)return;_miniT=now;
+  const w=_mini.width,h=_mini.height;
+  _miniCtx.fillStyle="#06090c";_miniCtx.fillRect(0,0,w,h);
+  _miniCtx.imageSmoothingEnabled=true;
+  _miniCtx.drawImage(terCv,0,0,w,h);
+  // battles flash red
+  if(G.battleSites)for(const pid of G.battleSites){
+    const p=G.prov[pid];if(!p)continue;
+    _miniCtx.fillStyle=(G.day%2===0)?"#ff4a2a":"#ffb02a";
+    _miniCtx.fillRect(p.x/MW*w-2,p.y/MH*h-2,4,4);
+  }
+  // your capital
+  const cap=G.prov[NATIONS[G.player].cap];
+  _miniCtx.strokeStyle="#e8a33d";_miniCtx.lineWidth=1;
+  _miniCtx.strokeRect(cap.x/MW*w-2.5,cap.y/MH*h-2.5,5,5);
+  // current viewport
+  const vx=G.cam.x/MW*w,vy=G.cam.y/MH*h,vw=(W/G.cam.z)/MW*w,vh=(H/G.cam.z)/MH*h;
+  _miniCtx.strokeStyle="#ffffffcc";_miniCtx.lineWidth=1;
+  _miniCtx.strokeRect(vx,vy,Math.min(vw,w),Math.min(vh,h));
+}
+if(_mini){
+  const jump=e=>{
+    if(!G)return;
+    const r=_mini.getBoundingClientRect();
+    const wx=(e.clientX-r.left)/r.width*MW,wy=(e.clientY-r.top)/r.height*MH;
+    G.cam.x=wx-W/G.cam.z/2;G.cam.y=wy-H/G.cam.z/2;clampCam();
+    _miniT=0; // instant refresh
+  };
+  _mini.addEventListener("pointerdown",e=>{
+    e.preventDefault();jump(e);
+    try{_mini.setPointerCapture(e.pointerId);}catch(_){}
+    _mini.onpointermove=ev=>{if(ev.pressure!==0||ev.buttons)jump(ev);};
+    _mini.onpointerup=()=>{_mini.onpointermove=null;};
+  });
 }
 function drawPiece(u,glyph,color,z,fleet){
   let x,y;
@@ -3279,6 +3327,10 @@ function renderPanel(){
     <h3>SOUND</h3>
     <div class="row"><button class="tbtn ${SND?"on":""}" onclick="setSnd(true);renderPanel()">🔊 ON</button>
     <button class="tbtn ${!SND?"on":""}" onclick="setSnd(false);renderPanel()">🔇 OFF</button></div>
+    <h3>MINIMAP</h3>
+    <div class="row"><button class="tbtn ${SHOWMINI?"on":""}" onclick="setMini(true);renderPanel()">🗺 ON</button>
+    <button class="tbtn ${!SHOWMINI?"on":""}" onclick="setMini(false);renderPanel()">✕ OFF</button></div>
+    <div style="color:var(--dim);font-size:11px">World overview in the corner: battles flash red, your capital is boxed in gold, the white frame is your view — click or drag it to jump anywhere.</div>
     <h3>KEYBOARD</h3>
     <div style="color:var(--dim);font-size:11px">SPACE pause · 1–5 game speed · + / − zoom · ESC deselect &amp; close panels · A auto-capture</div>
     <h3>THEME</h3>
@@ -3533,7 +3585,10 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.2 \u2014 THE LIVING WORLD (current)",[
+ ["v5.3 \u2014 THE WAR ROOM (current)",[
+  "\ud83d\uddfa MINIMAP \u2014 a live world overview in the corner: every border change as it happens, battles flashing red, your capital boxed in gold, and a white frame showing where you're looking. Click or drag on it to fly anywhere on Earth instantly (toggle in SETTINGS)",
+  "\u26a0 FRONT ALERTS \u2014 when one of YOUR provinces falls, a banner names it and the conqueror, so you're never blindsided while managing the other side of the world"]],
+ ["v5.2 \u2014 THE LIVING WORLD",[
   "\ud83e\ude79 REINFORCE & MERGE \u2014 select a worn division: restore it to full strength with PP on friendly supplied ground, or merge the weakest division on the spot into it (HP transfers, best veterancy kept, the general stays with his men, +4 \ud83d\udc65 back to the pool)",
   "\ud83d\udd4a BOT WARS NOW END \u2014 AI nations settle their own wars: a crushing victor dictates reparations & tribute, two exhausted stalemates sign white peace. The world no longer grinds itself to dust in eternal wars",
   "\u2753 HOW TO PLAY \u2014 a full in-game guide to every system (supply, terrain, winter, manpower, oil, treaties, politics) from the start screen and SETTINGS",
@@ -4473,6 +4528,7 @@ function startGame(k){
   newGame(k);window.G=G;terDirty=true;
   $("#start").style.display="none";
   $("#topbar").style.display="flex";$("#sidebtns").style.display="flex";$("#speedbox").style.display="flex";
+  if(SHOWMINI)$("#mini").style.display="block";
   $("#hFlag").textContent=NATIONS[k].f;$("#hName").textContent=NATIONS[k].n;
   refreshHUD();
   runHistory(true); // later-year starts inherit the wars already raging
