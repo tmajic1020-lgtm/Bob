@@ -118,7 +118,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.0.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.0.1</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.0.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.0.1</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -1579,7 +1579,15 @@ function battles(){
         if(p.garrison<=0)p.garrison=0;
       }
     }
-    if(sidesPresent.length<2){for(const u of here)if(u.hp<=0)killUnit(u);continue;}
+    if(sidesPresent.length<2){
+      for(const u of here)if(u.hp<=0)killUnit(u);
+      // lone besieger: once the garrison is broken, the province falls
+      for(const u of here){
+        if(u.hp<=0||u.to)continue;
+        if(p.owner!==u.nat&&atWar(u.nat,p.owner)){tryCapture(u);if(p.owner===u.nat)break;}
+      }
+      continue;
+    }
     for(let i=0;i<sidesPresent.length;i++)for(let j=i+1;j<sidesPresent.length;j++){
       const A=sidesPresent[i],B=sidesPresent[j];
       if(!atWar(A,B))continue;
@@ -1606,6 +1614,17 @@ function battles(){
       }
     }
     for(const u of here)if(u.hp<=0)killUnit(u);
+    // the assault succeeds: once the garrison and defenders are gone, the
+    // strongest surviving attacker on the ground takes the province.
+    // (captures used to fire only on ARRIVAL, so a division that ground the
+    // garrison down while standing here could never actually take it)
+    for(const u of here){
+      if(u.hp<=0||u.to)continue;
+      if(p.owner!==u.nat&&atWar(u.nat,p.owner)){
+        tryCapture(u);
+        if(p.owner===u.nat)break;
+      }
+    }
   }
   // naval battles
   const seas={};
@@ -3391,7 +3410,10 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.0 \u2014 THE ART OF WAR (current)",[
+ ["v5.0.1 \u2014 THE SIEGE ENDS (current)",[
+  "\u2694 FIXED: CAPTURES NOW ACTUALLY HAPPEN \u2014 provinces used to change hands only at the exact moment a division ARRIVED, so an army that marched in, fought, and ground the garrison to zero could stand on a beaten province forever without taking it. Now the strongest surviving attacker seizes the province the moment its garrison and defenders are gone \u2014 for you and for every AI nation alike",
+  "\ud83c\udfc1 Wars resolve properly: a single division can besiege and take an undefended garrisoned province in days; a test German campaign annexes Poland in 36 days (history: 35)"]],
+ ["v5.0 \u2014 THE ART OF WAR",[
   "\ud83e\udded SUPPLY LINES & ENCIRCLEMENT \u2014 every division must trace a corridor of friendly land back to your homeland. Cut off, it fights at \u221234%, crawls, and starves to death; cut the neck of an enemy salient and the whole pocket withers. Cut-off units show \u26a0 on the map and in their panel",
   "\u26f0 TERRAIN \u2014 every province is plains, mountains, forest, desert, marsh or urban: mountains and great cities strongly favor the defender (+45%/+35%) and slow the attack; marshes bog armies down; terrain shows in tooltips and the province panel",
   "\ud83d\udc65 MANPOWER POOL \u2014 divisions now cost men from a finite, population-based reserve (topbar \ud83d\udc65). A bled-white nation cannot raise new armies until its reserves recover \u2014 attrition wars have real demographic consequences",
