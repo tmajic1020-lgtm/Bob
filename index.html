@@ -1262,6 +1262,7 @@ function checkVictory(){
   }else G.capLost=0;
 }
 function endScreen(win,reason){
+  if(win)G.over=true; // the last-foe-standing win path never set it, so the popup could re-fire
   const me=G.nations[G.player];
   const pup=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
   const score=natProvs(G.player).length*10+pup*15+[...me.allies].length*5+(me.nukes||0)*8;
@@ -2457,6 +2458,7 @@ addEventListener("keydown",e=>{
   if(!window.G||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
   const t=e.target;
   if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
+  if($("#eventBox").style.display!=="none")return; // dialogs (events, victory) demand a real choice
   if(e.key===" "){e.preventDefault();$("#bPause").click();}
   else if(e.key>="1"&&e.key<="4"){
     G.speed=+e.key;
@@ -2465,7 +2467,6 @@ addEventListener("keydown",e=>{
   else if(e.key==="+"||e.key==="=")zoomAt(W/2,H/2,G.cam.z*1.4);
   else if(e.key==="-"||e.key==="_")zoomAt(W/2,H/2,G.cam.z/1.4);
   else if(e.key==="Escape"){
-    if($("#eventBox").style.display!=="none")return; // events need a real choice
     G.selUnit=null;G.selGroup=null;G.sel=null;G.pickAir=false;
     $("#panel").style.display="none";
   }
