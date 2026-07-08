@@ -118,7 +118,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.1.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.2.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.1.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.2.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -149,6 +149,7 @@ body.light #speedbox{background:#ece7d6d0}
     <button class="tbtn" id="bTheme0">☀ LIGHT MODE</button>
     <button class="tbtn" onclick="mpMenu()">🌐 MULTIPLAYER</button>
     <button class="tbtn" onclick="showChangelog()">📜 UPDATE LOG</button>
+    <button class="tbtn" onclick="showHelp()">❓ HOW TO PLAY</button>
   </div>
   <div id="years" style="display:flex;gap:6px;margin:-8px 0 12px;flex-wrap:wrap;justify-content:center"></div>
   <button class="tbtn" id="bContinue" style="display:none;margin-bottom:14px;border-color:var(--amber);color:var(--amber)">▶ CONTINUE SAVED CAMPAIGN</button>
@@ -253,6 +254,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn spd on" data-s="2">2x</button>
   <button class="tbtn spd" data-s="3">3x</button>
   <button class="tbtn spd" data-s="4">4x</button>
+  <button class="tbtn spd" data-s="5">5x</button>
 </div>
 
 <script>
@@ -1412,6 +1414,22 @@ function tick(){
       }
     }
     if((n.manpower||0)>15)n._mpWarned=false;
+  }
+  // bot wars wind down: every week, warring AI pairs consider ending it —
+  // a crushing victor dictates terms, two bled-dry stalemates sign white peace
+  if(G.day%7===0){
+    for(const k in G.nations){
+      const n=G.nations[k];
+      if(!n.alive||!n.ai||n.puppet)continue;
+      for(const f of[...n.atWar]){
+        const m=G.nations[f];
+        if(f===G.player||!m||!m.alive||!m.ai||m.puppet)continue;
+        if(Math.random()>=0.2)continue;
+        const sc=warScore(k,f);
+        if(sc>=60){resolveTreaty(k,f,{repar:30,tribute:1,demil:0,puppet:0});break;}
+        if(sc<=45&&(n.warSup??50)<40&&(m.warSup??50)<40){offerPeace(k,f);break;}
+      }
+    }
   }
   // supply: recompute every 3 days (encirclement, overextension)
   if(G.day%3===0)computeSupply();
@@ -2887,7 +2905,7 @@ addEventListener("keydown",e=>{
   if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
   if($("#eventBox").style.display!=="none")return; // dialogs (events, victory) demand a real choice
   if(e.key===" "){e.preventDefault();$("#bPause").click();}
-  else if(e.key>="1"&&e.key<="4"){
+  else if(e.key>="1"&&e.key<="5"){
     G.speed=+e.key;
     document.querySelectorAll(".spd").forEach(x=>x.classList.toggle("on",x.dataset.s===e.key));
   }
@@ -3032,6 +3050,20 @@ function renderPanel(){
       <div class="row"><span>${su.kind==="fleet"?"⚓ Task force":su.type==="arm"?"▲ Armored":"■ Infantry"}${su.kind==="fleet"?"":vetStars(su)}</span><span>STR ${su.str} · HP ${Math.max(0,su.hp).toFixed(0)}</span></div>
       ${su.kind!=="fleet"&&su.supplied===false?`<div class="row"><span style="color:#ff8d7a">⚠ OUT OF SUPPLY</span><span style="color:#ff8d7a">bleeding · −34% combat</span></div>
       <div style="color:var(--dim);font-size:11px">No path of friendly land connects this division to your homeland. Retake the corridor or pull it back before it starves.</div>`:""}
+      ${(()=>{ // reinforce & merge for worn divisions
+        if(su.kind==="fleet"||su.nat!==G.player)return"";
+        let x="";
+        const missing=su.str*10-su.hp;
+        if(missing>=3){
+          const cost=Math.max(3,Math.ceil(missing*0.8));
+          const okHere=provOf(su.at).owner===G.player&&su.supplied!==false;
+          x+=`<button class="bbtn" ${me.pp<cost||!okHere?"disabled":""} onclick="reinforceU(${su.id})">🩹 Reinforce to full strength — ${cost} PP${okHere?"":" (needs friendly, supplied ground)"}<small>Fresh men and equipment restore the division's ${missing.toFixed(0)} lost HP.</small></button>`;
+        }
+        const donor=G.units.find(v=>v!==su&&v.nat===G.player&&v.at===su.at&&!v.to&&v.kind==="army");
+        if(donor&&missing>=1)
+          x+=`<button class="bbtn" onclick="mergeU(${su.id})">🔗 Merge weakest division here into this one<small>Its men fill your ranks (HP transfers, best XP kept, +4 👥 returns to the pool).</small></button>`;
+        return x;
+      })()}
       <div style="color:var(--dim);font-size:11px">Click any province on the map to issue a move order. Routes follow land links; sea lanes need a fleet in service.</div>
       <button class="bbtn" onclick="G.selUnit=null;renderPanel()">Deselect</button>`;
     }
@@ -3248,13 +3280,14 @@ function renderPanel(){
     <div class="row"><button class="tbtn ${SND?"on":""}" onclick="setSnd(true);renderPanel()">🔊 ON</button>
     <button class="tbtn ${!SND?"on":""}" onclick="setSnd(false);renderPanel()">🔇 OFF</button></div>
     <h3>KEYBOARD</h3>
-    <div style="color:var(--dim);font-size:11px">SPACE pause · 1–4 game speed · + / − zoom · ESC deselect &amp; close panels · A auto-capture</div>
+    <div style="color:var(--dim);font-size:11px">SPACE pause · 1–5 game speed · + / − zoom · ESC deselect &amp; close panels · A auto-capture</div>
     <h3>THEME</h3>
     <div class="row"><button class="tbtn ${THEME==="dark"?"on":""}" onclick="setTheme('dark');renderPanel()">🌑 DARK</button>
     <button class="tbtn ${THEME==="light"?"on":""}" onclick="setTheme('light');renderPanel()">☀ LIGHT</button></div>
     <h3>SCENARIO</h3>
     <div class="row"><span>Current scenario</span><span>${ERAS[ERA].label} · ${YEAR}</span></div>
     <div style="color:var(--dim);font-size:11px">Switching era starts a new campaign.</div>
+    <button class="bbtn" onclick="showHelp()">❓ How to play — full guide</button>
     <button class="bbtn" onclick="showChangelog()">📜 View update log</button>
     <h3>SAVE</h3>
     <button class="bbtn" onclick="saveGame()">💾 Save campaign<small>Also auto-saves every 60 days.</small></button>
@@ -3375,6 +3408,35 @@ window.selAll=pid=>{
   $("#panel").style.display="none";
 };
 window.selU=id=>{const u=[...G.units,...G.fleets].find(x=>x.id===id);if(u&&u.nat===G.player){G.selUnit=u;renderPanel();}};
+function reinforceFor(nat,id){
+  const u=G.units.find(x=>x.id===id&&x.nat===nat);if(!u)return;
+  const n=G.nations[nat];
+  const missing=u.str*10-u.hp;if(missing<1)return;
+  const cost=Math.max(3,Math.ceil(missing*0.8));
+  if(n.pp<cost||provOf(u.at).owner!==nat||u.supplied===false)return;
+  n.pp-=cost;u.hp=u.str*10;
+  if(nat===G.player){sfx("good");logMsg("🩹 Division reinforced to full strength.","good");}
+}
+function mergeFor(nat,id){
+  const u=G.units.find(x=>x.id===id&&x.nat===nat);if(!u)return;
+  const others=G.units.filter(v=>v!==u&&v.nat===nat&&v.at===u.at&&!v.to&&v.kind==="army").sort((a,b)=>a.hp-b.hp);
+  const w=others[0];if(!w)return;
+  u.hp=Math.min(u.str*10,u.hp+w.hp);
+  u.xp=Math.max(u.xp||0,w.xp||0);
+  if(!u.gen&&w.gen)u.gen=w.gen; // the commander transfers with his men
+  G.units=G.units.filter(x=>x!==w);
+  if(G.selUnit===w)G.selUnit=u;
+  const n=G.nations[nat];n.manpower=Math.min(n.manpowerMax||40,(n.manpower||0)+4);
+  if(nat===G.player){sfx("good");logMsg("🔗 Divisions merged — the survivors fill the ranks (+4 👥).","good");}
+}
+window.reinforceU=id=>{
+  if(MP.role==="guest"){MP.send({type:"reinf",nat:G.player,id});logMsg("Reinforcement order sent...");return;}
+  reinforceFor(G.player,id);renderPanel();refreshHUD();
+};
+window.mergeU=id=>{
+  if(MP.role==="guest"){MP.send({type:"merge",nat:G.player,id});logMsg("Merge order sent...");return;}
+  mergeFor(G.player,id);renderPanel();refreshHUD();
+};
 function buyFor(nat,t,pid){
   const me=G.nations[nat];
   const mp=me.manpower||0;
@@ -3471,7 +3533,12 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.1 \u2014 AN EVEN WORLD (current)",[
+ ["v5.2 \u2014 THE LIVING WORLD (current)",[
+  "\ud83e\ude79 REINFORCE & MERGE \u2014 select a worn division: restore it to full strength with PP on friendly supplied ground, or merge the weakest division on the spot into it (HP transfers, best veterancy kept, the general stays with his men, +4 \ud83d\udc65 back to the pool)",
+  "\ud83d\udd4a BOT WARS NOW END \u2014 AI nations settle their own wars: a crushing victor dictates reparations & tribute, two exhausted stalemates sign white peace. The world no longer grinds itself to dust in eternal wars",
+  "\u2753 HOW TO PLAY \u2014 a full in-game guide to every system (supply, terrain, winter, manpower, oil, treaties, politics) from the start screen and SETTINGS",
+  "\u23e9 5\u00d7 SPEED for the patient conqueror (keyboard: 5)"]],
+ ["v5.1 \u2014 AN EVEN WORLD",[
   "\ud83d\uddfa 26 NEW PROVINCES even out the map \u2014 no more one-province nations next to seventeen-province giants: Hungary grows to 3 (Debrecen, Transylvania), Mexico to 6 (Guadalajara, Chihuahua, Guatemala), Congo & East Africa doubled (Gabon, Katanga, Dar es Salaam, Kampala), Spain, Italy, Poland (Lviv), Turkey (Erzurum), Wales, Sicily, Turin, Valencia and more",
   "\ud83c\udf0f The empty spaces fill in: Malaya, Java, Manila, Kyushu, Krasnoyarsk, Mongolia, Caracas, Timbuktu, Auckland and Alice Springs \u2014 Indonesia, the Philippines, Siberia, Venezuela, the Sahara, New Zealand and the Outback are finally on the board",
   "\ud83d\udee2 Venezuelan and East-Indies OIL \u2014 the two great petroleum prizes of the age are now capturable resources (Java was Japan's real strategic target)",
@@ -3641,6 +3708,45 @@ function showChangelog(){
   $("#eventBox").style.display="block";
 }
 window.showChangelog=showChangelog;
+const HELP=[
+ ["🎯 THE BASICS",[
+  "Pick a nation, then click any province to inspect it. Click one of YOUR divisions (■ infantry, ▲ armor), then click a destination — it marches there, capturing enemy provinces whose garrison and defenders have fallen.",
+  "AUTO CAPTURE (top bar) lets your whole army direct itself — defend hot borders, strike weak targets.",
+  "Conquer every province of a nation to annex it. Hold half the world (with your puppets) or break every rival great power to WIN."]],
+ ["🏭 ECONOMY",[
+  "PP (production) flows daily from your provinces — spend it on divisions, fleets, air wings, forts, factories, ministers and treaties.",
+  "🛢 OIL comes from oil provinces (Texas, the Gulf, Caucasus, Java, Venezuela…). Armor, wings and fleets burn it at war — at zero, planes ground, fleets idle, tanks crawl.",
+  "👥 MANPOWER is your population's reserve of men. Every division costs it; it regrows slowly. A bled-white nation cannot raise armies.",
+  "🔬 RESEARCH four techs (Industry, Land, Naval, Air) — each level is +25%."]],
+ ["⚔ WAR",[
+  "🧭 SUPPLY: every division needs a corridor of friendly land back home. Cut off, it fights at −34% and starves (⚠ marker). Encircle enemy salients to destroy them wholesale.",
+  "⛰ TERRAIN: mountains and cities strongly favor the defender; marshes and mountains slow the attack; deserts wear armies down.",
+  "❄ WINTER (Nov–Mar in the north): armies on foreign soil above the 50th parallel bleed and fight at −20%. Time your invasions.",
+  "⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys.",
+  "🩹 Worn divisions can be REINFORCED with PP on friendly ground, or MERGED into one another.",
+  "★ Hire generals (+25%, they level up), pick a doctrine, build forts, and keep war support high — it sharpens or dulls every battle."]],
+ ["🕊 DIPLOMACY",[
+  "Click a foreign province to propose alliances, declare war, or run covert ops.",
+  "📜 DICTATE TERMS to an enemy you're beating: reparations, yearly tribute, forced disarmament, or a puppet government. Your WAR SCORE (occupation, their capital, stability, army ratio) decides if they sign — refused treaties keep the war going.",
+  "Beaten enemies sue for peace on their own. Allies can merge into one nation by UNION. Puppets pay tribute and follow you to war."]],
+ ["🏛 POLITICS",[
+  "Your ideology shapes production, attack and war costs — revolutions are possible but bloody.",
+  "Appoint up to 3 ministers, set conscription & economy laws, run espionage networks, and complete National Focuses.",
+  "Stability at 0% = your government COLLAPSES. Democracies face elections; autocracies risk coups."]]
+];
+function showHelp(){
+  $("#evTitle").textContent="❓ HOW TO PLAY";
+  $("#evDesc").innerHTML="<div style='max-height:50vh;overflow-y:auto'>"+HELP.map(([h,items])=>
+    `<div style="color:var(--amber);margin:10px 0 4px;font-weight:bold">${h}</div>`+
+    items.map(i=>`<div style="margin:0 0 5px 6px">· ${i}</div>`).join("")).join("")+"</div>";
+  const ch=$("#evChoices");ch.innerHTML="";
+  const b=document.createElement("button");b.className="bbtn";b.textContent="Close";
+  b.onclick=()=>{$("#eventBox").style.display="none";if(G)G.paused=G._evPaused||false;};
+  ch.appendChild(b);
+  if(G){G._evPaused=G.paused;G.paused=true;}
+  $("#eventBox").style.display="block";
+}
+window.showHelp=showHelp;
 window.__ifBoot("sound");
 /* ============================== SOUND ============================== */
 let SND=true;try{SND=localStorage.getItem("if_snd")!=="off";}catch(e){}
@@ -3966,6 +4072,8 @@ function mpApplyOrder(o){
   if(o.type==="puppet")installPuppet(nat,o.target);
   if(o.type==="peace")offerPeace(nat,o.target);
   if(o.type==="treaty")resolveTreaty(nat,o.target,o.d||{});
+  if(o.type==="reinf")reinforceFor(nat,o.id);
+  if(o.type==="merge")mergeFor(nat,o.id);
 }
 function saveGame(auto){
   try{
