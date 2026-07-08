@@ -116,7 +116,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.6.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 4.7.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -133,7 +133,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.6.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 4.7.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -796,6 +796,7 @@ function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.do
 function warDeclCost(me){return Math.round(40*ideoOf(me).war*(me.cab&&me.cab.dip?0.7:1));}
 function playerDeclareWar(o){
   const me=G.nations[G.player];const c=warDeclCost(me);
+  if((me.demilUntil||0)>G.day){logMsg(`📜 A peace treaty forbids us from declaring war for another ${Math.ceil(me.demilUntil-G.day)} days.`,"war");return;}
   if(me.pp<c){logMsg(`Declaring war needs ${c} PP (your government's appetite for war sets the price).`,"war");return;}
   me.pp-=c;me.warSup=Math.min(100,(me.warSup??50)+8);
   declareWar(G.player,o);renderPanel();refreshHUD();
@@ -1009,6 +1010,64 @@ function proposeUnion(a,b){
   logMsg(`🤝 ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} have UNITED into one nation!`,"good");
   return true;
 }
+/* ===== DICTATED TREATIES =====
+   War score 0-100: how decisively `a` is beating `b`. Harsher demands need
+   higher scores; a refused treaty keeps the war going. */
+function warScore(a,b){
+  const B=G.nations[b];
+  const home=Object.values(G.prov).filter(p=>p.home===b),total=home.length||1;
+  const lost=home.filter(p=>p.owner!==b).length;
+  const mine=home.filter(p=>p.owner===a).length;
+  let sc=lost/total*45+mine/total*20;
+  if(G.prov[NATIONS[b].cap].owner===a)sc+=15;
+  sc+=Math.max(0,45-B.stab)*0.35;
+  const myHome=Object.values(G.prov).filter(p=>p.home===a);
+  sc-=myHome.filter(p=>p.owner===b).length/(myHome.length||1)*40; // they hold OUR soil: weaker hand
+  const mA=G.units.filter(u=>u.nat===a).reduce((s,u)=>s+u.str,0);
+  const tA=G.units.filter(u=>u.nat===b).reduce((s,u)=>s+u.str,0);
+  if(mA>tA*1.5)sc+=10;else if(mA>tA)sc+=5;
+  if(natProvs(b).length<=1)sc+=10; // on the ropes: one province from annihilation
+  return Math.max(0,Math.min(100,Math.round(sc)));
+}
+function treatyCost(d){
+  d=d||{};let c=0;
+  if(+d.repar===30)c+=8;if(+d.repar===50)c+=16;
+  if(d.tribute)c+=14;if(d.demil)c+=14;if(d.puppet)c+=42;
+  return c; // the full package (86) takes a near-total victory to sign
+}
+function resolveTreaty(a,b,d){
+  const A=G.nations[a],B=G.nations[b];
+  if(!A||!B||!B.alive||!atWar(a,b))return false;
+  const cost=treatyCost(d);
+  if(cost===0)return offerPeace(a,b); // no demands = plain white peace
+  if(dipOnCooldown("t",a,b))return false;
+  const sc=warScore(a,b);
+  if(sc<cost+4+Math.random()*8){
+    dipRefused("t",a,b,30);
+    logMsg(`📜 ${NATIONS[b].f} ${NATIONS[b].n} REFUSES the treaty — the war goes on.`,"war");
+    if(a===G.player)sfx("war");
+    return false;
+  }
+  A.atWar.delete(b);B.atWar.delete(a);
+  G.tension=Math.max(0,G.tension-4);
+  const terms=[];
+  if(+d.repar){const take=Math.max(0,B.pp)*(+d.repar)/100;B.pp-=take;A.pp+=take;terms.push(`${+d.repar}% of the treasury (${Math.round(take)} PP)`);}
+  if(d.tribute){B.repar={to:a,frac:0.25,days:1825};terms.push("25% of production paid to you for 5 years");}
+  if(d.demil){
+    const arr=G.units.filter(u=>u.nat===b),cut=Math.floor(arr.length/2);
+    for(let i=0;i<cut;i++){const idx=G.units.indexOf(arr[i]);if(idx>=0)G.units.splice(idx,1);}
+    if(G.selUnit&&G.selUnit.kind==="army"&&!G.units.includes(G.selUnit))G.selUnit=null;
+    B.demilUntil=G.day+730;
+    terms.push(`${cut} divisions disbanded & no declaring war for 2 years`);
+  }
+  if(d.puppet){
+    B.puppet=a;A.allies.add(b);B.allies.add(a);B.stab=Math.max(B.stab,40);terDirty=true;
+    terms.push("a puppet government flying your livery, paying yearly tribute");
+  }
+  logMsg(`📜 TREATY SIGNED — ${NATIONS[b].f} ${NATIONS[b].n} accepts: ${terms.join(" · ")}.`,"good");
+  if(a===G.player){sfx("good");toast("📜 "+NATIONS[b].n.toUpperCase()+" SIGNS THE TREATY");}
+  return true;
+}
 const SUCC={USA:["New Columbia","🦅","#3a6a9a"],GER:["Rhine Federation","⚙️","#4a5a6a"],
  SOV:["Eurasian Union","🐻","#8a4a3a"],UK:["Albion Republic","🌹","#5a4a7a"],
  FRA:["Gallic Commune","🐓","#3a4a8a"],CHN:["Celestial Republic","🐉","#9a6a2a"],
@@ -1112,6 +1171,14 @@ function tick(){
     const _law=n.law||{cons:0,eco:0};
     n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1);
     let inc=n.ppRate/10;
+    if(n.repar&&n.repar.days>0){ // treaty tribute flows to the victor
+      const W=G.nations[n.repar.to];
+      if(W&&W.alive){const cut=inc*n.repar.frac;inc-=cut;W.pp+=cut;}
+      if(--n.repar.days<=0){
+        if(n.repar.to===G.player||k===G.player)logMsg(`📜 The tribute of ${NATIONS[k].n} is paid in full — the treaty term expires.`,"good");
+        n.repar=null;
+      }
+    }
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
     n.oil+=oil*0.12;
@@ -1570,7 +1637,7 @@ function aiTurn(k){
       logMsg("🤝 "+NATIONS[k].f+" "+NATIONS[k].n+" and "+NATIONS[bud].f+" "+NATIONS[bud].n+" sign a pact of "+((IDEO_FX[n.ideo]||{n:"mutual"}).n.toLowerCase())+" solidarity.");
     }
   }
-  if(!n.puppet&&n.atWar.size===0&&Math.random()<(HISTMODE?0.045:0.18)*DIFF.aiAggro*(({fas:1.6,rev:1.6,aut:1.15,mon:1.1,com:1,dem:0.55})[n.ideo]||1)&&myUnits>=4){
+  if(!n.puppet&&!(n.demilUntil>G.day)&&n.atWar.size===0&&Math.random()<(HISTMODE?0.045:0.18)*DIFF.aiAggro*(({fas:1.6,rev:1.6,aut:1.15,mon:1.1,com:1,dem:0.55})[n.ideo]||1)&&myUnits>=4){
     const borders=new Set();
     for(const p of ps)for(const a of[...p.adj,...p.seaAdj]){const o=provOf(a).owner;if(o!==k&&G.nations[o].alive)borders.add(o);}
     // attack the weakest reachable neighbor, not a random one
@@ -2615,7 +2682,8 @@ function renderPanel(){
           const est=(p.garrison+defs.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u),0)*3)*(1+(p.fort||0)*0.12);
           h+=`<div class="row"><span>Est. defense</span><span style="color:${est>10?"#ff8d7a":est>4?"var(--amber)":"#8ec07c"}">⚔ ${est.toFixed(1)} — ${defs.length} div · 🛡 ${p.garrison.toFixed(1)}${p.fort?" · 🏰 "+p.fort:""}</span></div>`;
         }
-        h+=`<button class="bbtn" onclick="offerPeace('${G.player}','${o}');renderPanel()">🕊 Offer PEACE TREATY to ${NATIONS[o].n}<small>White peace — the war ends and borders stay as they are. They may refuse while they still think they can win.</small></button>`;
+        h+=`<button class="bbtn" onclick="offerPeace('${G.player}','${o}');renderPanel()">🕊 Offer PEACE TREATY to ${NATIONS[o].n}<small>White peace — the war ends and borders stay as they are. They may refuse while they still think they can win.</small></button>
+        <button class="bbtn" style="border-color:var(--amber)" onclick="openTreaty('${o}')">📜 DICTATE TERMS to ${NATIONS[o].n} — war score ${warScore(G.player,o)}<small>Demand reparations, yearly tribute, disarmament, or a puppet government. If they refuse, the war goes on.</small></button>`;
         if(G.prov[NATIONS[o].cap].owner===G.player)
           h+=`<button class="bbtn" onclick="installPuppet('${G.player}','${o}');renderPanel()">⛓ Install PUPPET government in ${NATIONS[o].n}<small>You hold their capital. Ends the war; they keep their land but fly your livery, pay 25% tribute, and follow you to war.</small></button>`;
         else
@@ -2826,6 +2894,14 @@ function renderPanel(){
     const pups=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player);
     if(pups.length){h+=`<h3>PUPPET STATES</h3>`;
       for(const k of pups)h+=`<div class="row"><span>⛓ ${NATIONS[k].f} ${NATIONS[k].n}</span><span>${natProvs(k).length} prov · tribute</span></div>`;}
+    const owed=Object.keys(G.nations).filter(k=>{const n=G.nations[k];return n.alive&&n.repar&&n.repar.to===G.player&&n.repar.days>0;});
+    if(owed.length){h+=`<h3>📜 TREATY TRIBUTE OWED TO YOU</h3>`;
+      for(const k of owed){const r=G.nations[k].repar;
+        h+=`<div class="row"><span>${NATIONS[k].f} ${NATIONS[k].n}</span><span>${Math.round(r.frac*100)}% of output · ${(r.days/365).toFixed(1)} yrs left</span></div>`;}}
+    if(me.repar&&me.repar.days>0&&G.nations[me.repar.to])
+      h+=`<div class="row"><span style="color:#ff8d7a">📜 You pay tribute to ${NATIONS[me.repar.to].n}</span><span>${(me.repar.days/365).toFixed(1)} yrs left</span></div>`;
+    if((me.demilUntil||0)>G.day)
+      h+=`<div class="row"><span style="color:#ff8d7a">⚔ Treaty forbids declaring war</span><span>${Math.ceil(me.demilUntil-G.day)} days left</span></div>`;
     const wars=[...me.atWar];
     if(!wars.length)h+=`<div style="color:var(--dim)">At peace. Click a foreign province to declare war from its panel.</div>`;
     for(const w of wars){
@@ -2870,7 +2946,49 @@ function renderPanel(){
       c.stroke();
     }
   }
+  if(curPanel==="treaty"){
+    const t=G.treatyTgt;
+    if(!t||!G.nations[t]||!G.nations[t].alive||!atWar(G.player,t)){
+      el.innerHTML=`<h2>DICTATE TERMS</h2><div style="color:var(--dim)">No negotiation in progress. Open an enemy province you're at war with and choose “DICTATE TERMS”.</div>
+      <button class="bbtn" onclick="openPanel('prov')">← Back</button>`;return;
+    }
+    G.treatyD=G.treatyD||{repar:0,tribute:0,demil:0,puppet:0};
+    const d=G.treatyD,sc=warScore(G.player,t),cost=treatyCost(d);
+    const cd=(G.dipCd&&G.dipCd["t:"+G.player+":"+t]||0)-G.day;
+    const mood=cd>0?["✗ They refuse to parley for another "+Math.ceil(cd)+" days after your last treaty.","#ff8d7a"]
+      :cost===0?["Select at least one demand — or use the white-peace offer instead.","var(--dim)"]
+      :sc>=cost+12?["✓ They are beaten. They will almost certainly SIGN.","#8ec07c"]
+      :sc>=cost+4?["≈ They may sign — or gamble on fighting on.","var(--amber)"]
+      :["✗ Too harsh for the battlefield situation. They will refuse and the war will go on.","#ff8d7a"];
+    el.innerHTML=`<h2>DICTATE TERMS</h2>
+    <div class="row"><span>Treaty with</span><span>${NATIONS[t].f} ${NATIONS[t].n}</span></div>
+    <div class="row"><span>Your war score</span><div class="bar"><i style="width:${sc}%"></i></div><span><b style="color:var(--amber)">${sc}</b></span></div>
+    <div style="color:var(--dim);font-size:11px">War score rises as you occupy their homeland, hold their capital, crush their stability, and outnumber their army — and falls while they stand on YOUR soil. Harsher demands need higher scores.</div>
+    <h3>YOUR DEMANDS — severity ${cost}</h3>
+    <button class="bbtn" onclick="tglDemand('repar')">${d.repar?"▣":"□"} 💰 War reparations${d.repar?" — seize "+d.repar+"% of their treasury":""}<small>Tap to cycle: none → 30% → 50% of their PP, handed over on signing. (severity +8/+16)</small></button>
+    <button class="bbtn" onclick="tglDemand('tribute')">${d.tribute?"▣":"□"} 📅 Annual tribute<small>They pay you 25% of everything they produce, every year for 5 years. (severity +14)</small></button>
+    <button class="bbtn" onclick="tglDemand('demil')">${d.demil?"▣":"□"} ⚔ War regulations<small>Half their army disbands on the spot and they may not declare war for 2 years. (severity +14)</small></button>
+    <button class="bbtn" onclick="tglDemand('puppet')">${d.puppet?"▣":"□"} ⛓ Puppet government<small>They keep their land but fly your livery, follow you to war, and pay yearly tribute forever. (severity +42)</small></button>
+    <div style="margin:8px 0;color:${mood[1]};font-size:12px;line-height:1.5">${mood[0]}</div>
+    <button class="bbtn" style="border-color:var(--amber)" ${cost===0||cd>0?"disabled":""} onclick="presentTreaty()">📜 PRESENT THE TREATY<small>If they refuse, the war continues — and they won't come to the table again for 30 days.</small></button>
+    <button class="bbtn" onclick="openPanel('prov')">← Back to province</button>`;
+  }
 }
+window.openTreaty=t=>{G.treatyTgt=t;G.treatyD={repar:0,tribute:0,demil:0,puppet:0};openPanel("treaty");};
+window.tglDemand=k=>{
+  const d=G.treatyD;if(!d)return;
+  if(k==="repar")d.repar=d.repar===0?30:d.repar===30?50:0;
+  else d[k]=d[k]?0:1;
+  renderPanel();
+};
+window.presentTreaty=()=>{
+  const t=G.treatyTgt,d=G.treatyD;
+  if(!t||!d)return;
+  if(MP.role==="guest"){MP.send({type:"treaty",nat:G.player,target:t,d});logMsg("Treaty sent to the host for arbitration...");return;}
+  const ok=resolveTreaty(G.player,t,d);
+  if(ok){G.sel=G.sel||null;openPanel("prov");}else renderPanel();
+  refreshHUD();
+};
 window.selAll=pid=>{
   G.selGroup=G.units.filter(u=>u.nat===G.player&&u.at===pid&&!u.to);
   G.selUnit=G.selGroup[0]||null;
@@ -2968,7 +3086,15 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v4.6 \u2014 REAL ORDERS OF BATTLE (current)",[
+ ["v4.7 \u2014 DICTATE TERMS (current)",[
+  "\ud83d\udcdc DICTATED TREATIES \u2014 open any enemy province and DICTATE TERMS: compose a treaty from four demands and present it. If they refuse, the war goes on and they won't parley for 30 days",
+  "\ud83d\udcb0 WAR REPARATIONS \u2014 seize 30% or 50% of their treasury on signing",
+  "\ud83d\udcc5 ANNUAL TRIBUTE \u2014 they pay you 25% of everything they produce for 5 years (shown in the WARS panel with years remaining)",
+  "\u2694 WAR REGULATIONS \u2014 half their army disbands and they cannot declare war for 2 years (binds the AI and players alike)",
+  "\u26d3 PUPPET BY TREATY \u2014 force a vassal government without grinding to their capital: your livery, your wars, yearly tribute forever",
+  "\ud83c\udfaf WAR SCORE \u2014 a visible 0\u2013100 measure of how decisively you're winning (occupation, their capital, stability, army ratio \u2014 minus penalty while they hold YOUR soil); harsher demands need higher scores, and the panel predicts whether they'll sign",
+  "\ud83d\udcbe Treaty terms persist through save/load and sync to multiplayer guests"]],
+ ["v4.6 \u2014 REAL ORDERS OF BATTLE",[
   "\u2694 STARTING ARMIES ARE NOW HISTORICAL \u2014 each nation's opening forces are built from its real field-division count for the chosen year instead of a generic 1\u201310 rating: China fields a mass army, Poland starts with a real 39-division force, and the 1939 US Army is tiny",
   "\u2693 NAVIES MATCH HISTORY \u2014 task forces now come from real warship counts: Britain and America start with dominant fleets, Germany with a token navy, landlocked & minor powers with none",
   "\u2708 AIR FORCES MATCH HISTORY \u2014 air wings scale with real aircraft numbers (the 1939 Luftwaffe out-flies everyone in Europe; the late-war Allies darken the sky)",
@@ -3362,7 +3488,8 @@ function mpSerialize(){
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",
       /* politics (v4.1+) */ n.ideo||"aut",Math.round(n.warSup??50),Object.keys(n.cab||{}).join(","),n.doctrine||"",
       n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,
-      /* focus & misc (v4.5+) */ n.focus?n.focus.key+":"+Math.round(n.focus.prog):"",Object.keys(n.focusDone||{}).join(","),n.atomicOk?1:0,n.spyCd||0];}
+      /* focus & misc (v4.5+) */ n.focus?n.focus.key+":"+Math.round(n.focus.prog):"",Object.keys(n.focusDone||{}).join(","),n.atomicOk?1:0,n.spyCd||0,
+      /* treaties (v4.7+) */ n.repar?n.repar.to+"|"+n.repar.frac+"|"+Math.round(n.repar.days):"",n.demilUntil||0];}
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1)]),
@@ -3391,6 +3518,11 @@ function mpApplyState(S){
         n.focusDone={};for(const c of String(a[31]||"").split(","))if(c)n.focusDone[c]=1;
         n.atomicOk=!!a[32];n.spyCd=a[33]||0;
       }
+      if(a.length>34){ /* v4.7+: treaty terms */
+        const rp=String(a[34]||"").split("|");
+        n.repar=rp.length===3&&rp[0]?{to:rp[0],frac:+rp[1]||0,days:+rp[2]||0}:null;
+        n.demilUntil=a[35]||0;
+      }
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
@@ -3417,6 +3549,7 @@ function mpApplyOrder(o){
   if(o.type==="auto")G.nations[nat].autoCap=!!o.on;
   if(o.type==="puppet")installPuppet(nat,o.target);
   if(o.type==="peace")offerPeace(nat,o.target);
+  if(o.type==="treaty")resolveTreaty(nat,o.target,o.d||{});
 }
 function saveGame(auto){
   try{
