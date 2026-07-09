@@ -120,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.4.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.5.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -137,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.4.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.5.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -1093,9 +1093,26 @@ function addUnit(nat,pid,type,str){
   if(G&&G.nations[nat]&&G.nations[nat].doctrine==="ma")u.hp*=1.15;
   G.units.push(u);return u;
 }
-function addFleet(nat,pid,str){
-  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet"};
+/* Ship classes: battleships slug it out and bombard the shore, carriers project
+   air power over the coast, submarines hunt convoys and choke sea lanes. */
+const SHIPCLS={
+ bb:{n:"Battleship",e:"⚓",bombard:1.0,air:0},
+ cv:{n:"Carrier",e:"🛩",bombard:0.4,air:1},
+ sub:{n:"Submarine",e:"🌊",bombard:0,air:0}
+};
+function addFleet(nat,pid,str,cls){
+  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet",cls:cls||"bb"};
   G.fleets.push(f);return f;
+}
+// how a fleet fights another in a stand-up sea battle (rock-paper-scissors-ish)
+function navalMatch(a,b){
+  if(a==="sub"&&b==="cv")return 1.6;   // subs savage carriers
+  if(a==="bb"&&b==="sub")return 1.5;    // battleships hunt subs
+  if(a==="cv"&&b==="bb")return 1.25;    // carrier air outranges the battleship
+  if(a==="sub"&&b==="bb")return 0.6;
+  if(a==="cv"&&b==="sub")return 0.7;
+  if(a==="bb"&&b==="cv")return 0.85;
+  return 1;
 }
 function addWing(nat,str){
   const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing"};
@@ -1149,7 +1166,9 @@ const ACH={
  warlord:{n:"Warlord",d:"Field 30 divisions at once.",i:"🎖"},
  superpower:{n:"Superpower",d:"Hold 40 provinces.",i:"🏭"},
  domination:{n:"World Domination",d:"Win a domination victory.",i:"🌍"},
- hegemony:{n:"Hegemon",d:"Win a hegemony victory.",i:"👑"}
+ hegemony:{n:"Hegemon",d:"Win a hegemony victory.",i:"👑"},
+ sealord:{n:"Sea Lord",d:"Commission a carrier group.",i:"🛩"},
+ protector:{n:"Protector",d:"Enter a war by honoring a guarantee.",i:"🛡"}
 };
 function achGot(){try{return new Set(JSON.parse(localStorage.getItem("if_ach")||"[]"));}catch(e){return new Set();}}
 function unlockAch(id){
@@ -1196,6 +1215,14 @@ function declareWar(a,b){
   // alliances drag everyone in
   for(const x of[...G.nations[b].allies])if(G.nations[x]&&G.nations[x].alive){warPair(x,a);for(const y of[...G.nations[a].allies])warPair(x,y);}
   for(const y of[...G.nations[a].allies])if(G.nations[y]&&G.nations[y].alive)warPair(y,b);
+  // guarantors honor their word: anyone guaranteeing the victim joins against the aggressor
+  for(const g in G.nations){
+    const G2=G.nations[g];
+    if(g===a||!G2.alive||!G2.guarantees||!G2.guarantees.has(b)||atWar(g,a))continue;
+    warPair(g,a);
+    logMsg(`🛡 ${NATIONS[g].f} ${NATIONS[g].n} HONORS its guarantee of ${NATIONS[b].n} and enters the war against ${NATIONS[a].n}!`,"war");
+    if(g===G.player){toast("🛡 YOUR GUARANTEE OF "+NATIONS[b].n.toUpperCase()+" PULLS YOU INTO WAR!");unlockAch("protector");}
+  }
 }
 /* diplomatic memory: a rejected offer closes the door for a while, so offers
    can't be spammed until the random roll comes up */
@@ -1416,7 +1443,7 @@ function tick(){
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
-    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1);
+    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1)*((n.ppBoost||0)>G.day?1.15:1);
     let inc=n.ppRate/10;
     if(n.repar&&n.repar.days>0){ // treaty tribute flows to the victor
       const W=G.nations[n.repar.to];
@@ -1665,11 +1692,13 @@ function moveUnits(arr,kind){
     // is a long march, Paris→Lyon a short one
     const dist=Math.hypot(b.x-a.x,b.y-a.y);
     const dmul=Math.max(0.45,Math.min(1.8,45/Math.max(8,dist)));
-    // convoy raiding: armies on a sea lane take losses if enemy fleets patrol either end
+    // convoy raiding: armies on a sea lane take losses if enemy fleets patrol either
+    // end — submarines are the deadliest commerce raiders
     if(kind==="army"&&a.seaAdj.includes(u.to)){
-      const raider=G.fleets.some(f=>!f.to&&atWar(f.nat,u.nat)&&(f.at===u.at||f.at===u.to));
-      if(raider){
-        u.hp-=1.0;
+      let raid=0;
+      for(const f of G.fleets)if(!f.to&&atWar(f.nat,u.nat)&&(f.at===u.at||f.at===u.to))raid+=(f.cls==="sub"?2.2:1.0);
+      if(raid>0){
+        u.hp-=raid;
         if(u.nat===G.player&&Math.random()<0.08)logMsg("⚓ Our troop convoy is under attack — escort it with a fleet or turn back!","war");
         if(u.hp<=0){killUnit(u);if(u.nat===G.player)logMsg("⚓ A division was lost at sea to enemy raiders.","war");continue;}
       }
@@ -1786,8 +1815,13 @@ function battles(){
     for(let i=0;i<nats.length;i++)for(let j=i+1;j<nats.length;j++){
       if(!atWar(nats[i],nats[j]))continue;
       const fa=here.filter(f=>f.nat===nats[i]),fb=here.filter(f=>f.nat===nats[j]);
-      const pa=fa.reduce((s,f)=>s+f.str,0)*techMul(nats[i],"nav");
-      const pb=fb.reduce((s,f)=>s+f.str,0)*techMul(nats[j],"nav");
+      // each fleet's punch depends on the classes it faces (RPS: sub>cv>bb>sub)
+      const clsPow=(mine,foes)=>mine.reduce((s,f)=>{
+        let m=0;for(const g of foes)m+=navalMatch(f.cls||"bb",g.cls||"bb");
+        return s+f.str*(foes.length?m/foes.length:1);
+      },0);
+      const pa=clsPow(fa,fb)*techMul(nats[i],"nav");
+      const pb=clsPow(fb,fa)*techMul(nats[j],"nav");
       dmg(fb,pa*0.3);dmg(fa,pb*0.3);
     }
     for(const f of here)if(f.hp<=0){G.fleets=G.fleets.filter(x=>x!==f);if(f.nat===G.player)logMsg("A fleet was sunk!","war");}
@@ -1807,13 +1841,16 @@ function killUnit(u){
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
   let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str;
+  // carriers project air power over an adjacent coast
+  const p=provOf(pid);
+  if(p.coastal)for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.cls==="cv")&&(f.at===pid||p.adj.includes(f.at)||p.seaAdj.includes(f.at)))s+=f.str*0.7;
   return Math.min(s,4);
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
   const p=provOf(pid);if(!p.coastal)return 0;
   let s=0;
-  for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.at===pid||provOf(f.at).adj.includes(pid)||provOf(f.at).seaAdj.includes(pid)))s+=f.str;
+  for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.at===pid||provOf(f.at).adj.includes(pid)||provOf(f.at).seaAdj.includes(pid)))s+=f.str*(SHIPCLS[f.cls||"bb"].bombard); // battleships bombard, subs don't
   return Math.min(s,3);
 }
 function airOps(){
@@ -1939,7 +1976,7 @@ function aiTurn(k){
     if(n.pp>=35&&n.oil>=5&&Math.random()<0.35){n.pp-=35;n.oil-=5;n.manpower-=8;addUnit(k,where.id,"arm",4);}
     else{n.pp-=20;n.manpower-=10;addUnit(k,where.id,"inf",3);}
   }
-  if(n.pp>=30&&n.oil>=8&&Math.random()<0.2){const port=ps.find(p=>p.coastal);if(port){n.pp-=30;n.oil-=8;addFleet(k,port.id,2);}}
+  if(n.pp>=30&&n.oil>=8&&Math.random()<0.2){const port=ps.find(p=>p.coastal);if(port){const r=Math.random();const cls=r<0.5?"bb":r<0.8?"sub":"cv";const cst=cls==="cv"?[45,12]:cls==="sub"?[25,6]:[30,8];if(n.pp>=cst[0]&&n.oil>=cst[1]){n.pp-=cst[0];n.oil-=cst[1];addFleet(k,port.id,2,cls);}}}
   if(n.pp>=25&&n.oil>=6&&Math.random()<0.25&&G.prov[NATIONS[k].cap].owner===k){n.pp-=25;n.oil-=6;addWing(k,2);}
   // forts on threatened border provinces (smart defense)
   if(n.pp>=25&&Math.random()<0.2){
@@ -2195,7 +2232,29 @@ EVENTS.push(
      ["Bury the story (−8 stability, +25 PP)",me=>{me.stab-=8;me.pp+=25;}]]},
  {t:"Royal Jubilee",d:n=>"The crown marks another year. The treasury asks how grand the celebration should be.",ideo:["mon"],
   c:[["A parade for the ages (−20 PP, +8 stability, +6 war support)",me=>{if(me.pp>=20){me.pp-=20;me.stab=Math.min(100,me.stab+8);me.warSup=Math.min(100,(me.warSup??50)+6);}}],
-     ["Modest observances",me=>{me.stab=Math.min(100,me.stab+2);}]]});
+     ["Modest observances",me=>{me.stab=Math.min(100,me.stab+2);}]]},
+ /* ===== v5.5: more history & flavor ===== */
+ {t:"Industrialists' Petition",d:()=>"A cartel of steel and arms magnates offers to retool for war — for a free hand and a subsidy.",
+  c:[["Grant it (−30 PP now, +15% PP for a year)",me=>{if(me.pp>=30){me.pp-=30;me.ppBoost=G.day+365;logMsg("🏭 The factories roar — production surges for a year.","good");}else logMsg("The treasury can't fund it.","war");}],
+     ["Keep the state's hand on the tiller",me=>{me.stab=Math.min(100,me.stab+2);}]]},
+ {t:"General Strike",d:()=>"The unions have called a nationwide strike. The factories fall silent.",needWar:false,
+  c:[["Negotiate (−25 PP, +5 stability)",me=>{if(me.pp>=25){me.pp-=25;me.stab=Math.min(100,me.stab+5);}else me.stab-=5;}],
+     ["Send in the troops (−10 stability, −6 war support)",me=>{me.stab-=10;me.warSup=Math.max(0,(me.warSup??50)-6);G.tension=Math.min(100,G.tension+3);}]]},
+ {t:"Codebreakers' Triumph",d:n=>`Our cryptographers have cracked ${n.bn}'s ciphers.`,needNeighbor:true,
+  c:[["Exploit the intercepts (+8 RP, +4 war support)",me=>{me.rp+=8;me.warSup=Math.min(100,(me.warSup??50)+4);logMsg("🔐 Their signals are an open book.","good");}],
+     ["Feed them false orders (world tension −4)",me=>{G.tension=Math.max(0,G.tension-4);}]]},
+ {t:"Refugee Crisis",d:n=>`Thousands flee across the border from the fighting with ${n.bn}.`,needNeighbor:true,
+  c:[["Open the borders (+6 manpower, −3 stability)",me=>{me.manpower=Math.min(me.manpowerMax||40,(me.manpower||0)+6);me.stab-=3;}],
+     ["Close the frontier (+2 stability)",me=>{me.stab=Math.min(100,me.stab+2);}]]},
+ {t:"Ace of the Skies",d:()=>"A fighter pilot has become a national hero, splashing his fortieth enemy plane.",
+  c:[["Parade him home (+8 war support)",me=>{me.warSup=Math.min(100,(me.warSup??50)+8);sfx("good");}],
+     ["Keep him at the front (+4 RP toward aviation)",me=>{me.rp+=4;}]]},
+ {t:"Gold Discovery",d:()=>"Prospectors have struck a rich seam in the hinterland.",
+  c:[["Nationalize the mines (+45 PP)",me=>{me.pp+=45;sfx("coin");}],
+     ["Licence it to private hands (+20 PP, +3 stability)",me=>{me.pp+=20;me.stab=Math.min(100,me.stab+3);}]]},
+ {t:"Assassination Attempt",d:()=>"A plot against the head of state has been foiled — barely.",
+  c:[["Crack down on the plotters (+6 war support, −4 stability)",me=>{me.warSup=Math.min(100,(me.warSup??50)+6);me.stab-=4;}],
+     ["Show mercy and calm (+6 stability)",me=>{me.stab=Math.min(100,me.stab+6);}]]});
 /* a beaten AI sues for peace instead of fighting to annihilation */
 function aiSuePeace(k,sc){
   const me=G.nations[G.player];if(!me||!me.alive)return;
@@ -2959,7 +3018,7 @@ function drawPiece(u,glyph,color,z,fleet){
   }else{
     ctx.fillStyle=u===G.selUnit?"#e8a33d":(u.nat===G.player?"#cfe7f2":"#9fb6c2");
     ctx.font=`${s}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText("⚓",0,0);
+    ctx.fillText(u.cls==="sub"?"^":u.cls==="cv"?"=":"⚓",0,0); // sub caret, carrier deck, else anchor
     ctx.fillStyle=NATIONS[u.nat].c;
     ctx.fillRect(-s*0.5,s*0.5,s,s*0.16);
   }
@@ -3164,7 +3223,7 @@ function renderPanel(){
     if(G.selUnit){
       const su=G.selUnit;
       h+=`<h3>SELECTED ${su.kind==="fleet"?"FLEET":"DIVISION"}</h3>
-      <div class="row"><span>${su.kind==="fleet"?"⚓ Task force":su.type==="arm"?"▲ Armored":"■ Infantry"}${su.kind==="fleet"?"":vetStars(su)}</span><span>STR ${su.str} · HP ${Math.max(0,su.hp).toFixed(0)}</span></div>
+      <div class="row"><span>${su.kind==="fleet"?(SHIPCLS[su.cls||"bb"].e+" "+SHIPCLS[su.cls||"bb"].n):su.type==="arm"?"▲ Armored":"■ Infantry"}${su.kind==="fleet"?"":vetStars(su)}</span><span>STR ${su.str} · HP ${Math.max(0,su.hp).toFixed(0)}</span></div>
       ${su.kind!=="fleet"&&su.supplied===false?`<div class="row"><span style="color:#ff8d7a">⚠ OUT OF SUPPLY</span><span style="color:#ff8d7a">bleeding · −34% combat</span></div>
       <div style="color:var(--dim);font-size:11px">No path of friendly land connects this division to your homeland. Retake the corridor or pull it back before it starves.</div>`:""}
       ${(()=>{ // reinforce & merge for worn divisions
@@ -3192,7 +3251,7 @@ function renderPanel(){
         h+=`<button class="bbtn" onclick="selU(${u.id})">${u.type==="arm"?"▲ Armored":"■ Infantry"}${vetStars(u)} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name:""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
         if(u.nat===G.player&&!u.gen)h+=`<button class="bbtn" style="margin-left:14px;width:calc(100% - 14px)" onclick="hireGeneral(${u.id})">★ Hire a general for this division — 40 PP<small>+25% combat, grows with every battle (max 4 generals).</small></button>`;
       }
-      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
+      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">${SHIPCLS[f.cls||"bb"].e} ${SHIPCLS[f.cls||"bb"].n} ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
     }
     if(p.owner!==G.player&&G.nations[p.owner].alive){
       const o=p.owner;
@@ -3220,6 +3279,7 @@ function renderPanel(){
         <button class="bbtn" onclick="spyOp('steal','${o}')">🕵 Steal research — 40 PP</button>
         <button class="bbtn" onclick="spyOp('unrest','${o}')">🕵 Incite unrest — 50 PP</button>
         <button class="bbtn" onclick="proposeAlliance('${G.player}','${o}');renderPanel()">🤝 Propose ALLIANCE with ${NATIONS[o].n}</button>
+        <button class="bbtn" onclick="guarantee('${o}');renderPanel()">${(me.guarantees&&me.guarantees.has(o))?"🛡 WITHDRAW guarantee of "+NATIONS[o].n:"🛡 GUARANTEE independence of "+NATIONS[o].n+" — 15 PP"}<small>${(me.guarantees&&me.guarantees.has(o))?"You are pledged to defend them.":"If anyone attacks them, you join the war on their side. A deterrent."}</small></button>
         ${p.home===o&&!allied(G.player,o)?`<button class="bbtn" style="border-color:var(--amber)" onclick="ultimatum('${o}','${p.id}');renderPanel()">📯 ULTIMATUM — demand ${p.name} (${ultimatumChance(o)}% they cave)<small>Threaten war unless they cede this province. If they refuse, world tension spikes — and a strong hand may face war.</small></button>`:""}
         <button class="bbtn" style="border-color:var(--red)" onclick="playerDeclareWar('${o}')">⚔ DECLARE WAR on ${NATIONS[o].n} <small>${warDeclCost(me)} PP — set by your ideology & cabinet</small></button>`;
       }
@@ -3236,7 +3296,9 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <button class="bbtn" ${me.pp<20||mp<10||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + 👥 10<small>STR 3. The backbone.</small></button>
     <button class="bbtn" ${me.pp<35||me.oil<5||mp<8||!deployable?"disabled":""} onclick="buy('arm')">▲ Armored Division — 35 PP + 5 🛢 + 👥 8<small>STR 4. Spearhead.</small></button>
-    <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Task Force — 30 PP + 8 🛢<small>STR 2. Needs a port. Escorts invasions, blockades coasts.</small></button>
+    <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Battleship Fleet — 30 PP + 8 🛢<small>STR 2. Needs a port. Slugs it out at sea and bombards the shore.</small></button>
+    <button class="bbtn" ${me.pp<45||me.oil<12||!deployable||!sel.coastal?"disabled":""} onclick="buy('cv')">🛩 Carrier Group — 45 PP + 12 🛢<small>STR 2. Projects AIR SUPPORT over any coast it patrols, even far from home. Beats battleships, loses to subs.</small></button>
+    <button class="bbtn" ${me.pp<25||me.oil<6||!deployable||!sel.coastal?"disabled":""} onclick="buy('sub')">🌊 Submarine Wolfpack — 25 PP + 6 🛢<small>STR 2. Savages troop convoys and carriers, chokes trade — but weak against battleships.</small></button>
     <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[NATIONS[G.player].cap].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[NATIONS[G.player].cap].name}). Direct from AIR COMMAND.</small></button>
     <button class="bbtn" ${me.pp<100||me.oil<25||(me.res.ind<3&&!me.atomicOk)?"disabled":""} onclick="buy('nuke')">☢ Nuclear Weapon — 100 PP + 25 🛢<small>Requires Industry III (or the Atomic Pioneers focus). You have ${me.nukes}.</small></button>
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
@@ -3431,6 +3493,9 @@ function renderPanel(){
     const pups=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player);
     if(pups.length){h+=`<h3>PUPPET STATES</h3>`;
       for(const k of pups)h+=`<div class="row"><span>⛓ ${NATIONS[k].f} ${NATIONS[k].n}</span><span>${natProvs(k).length} prov · tribute</span></div>`;}
+    const guars=[...(me.guarantees||[])].filter(k=>G.nations[k]&&G.nations[k].alive);
+    if(guars.length){h+=`<h3>🛡 YOU GUARANTEE</h3>`;
+      for(const k of guars)h+=`<div class="row"><span>🛡 ${NATIONS[k].f} ${NATIONS[k].n}</span><span>${natProvs(k).length} prov</span></div>`;}
     const owed=Object.keys(G.nations).filter(k=>{const n=G.nations[k];return n.alive&&n.repar&&n.repar.to===G.player&&n.repar.days>0;});
     if(owed.length){h+=`<h3>📜 TREATY TRIBUTE OWED TO YOU</h3>`;
       for(const k of owed){const r=G.nations[k].repar;
@@ -3646,13 +3711,36 @@ window.ultimatum=(o,pid)=>{
   ultimatumFor(G.player,o,pid);renderPanel();refreshHUD();
 };
 window.ultimatumChance=ultimatumChance;
+/* ===== GUARANTEES ===== promise to defend a nation; if it's attacked, you go
+   to war for it. A deterrent that can also drag you into someone else's fight. */
+function guaranteeFor(nat,o){
+  const me=G.nations[nat],T=G.nations[o];
+  if(!T||!T.alive||nat===o||atWar(nat,o)||allied(nat,o)||T.puppet)return false;
+  me.guarantees=me.guarantees||new Set();
+  if(me.guarantees.has(o)){ // toggle off
+    me.guarantees.delete(o);
+    if(nat===G.player)logMsg(`Guarantee of ${NATIONS[o].n} withdrawn.`,"war");
+    return true;
+  }
+  if(me.pp<15){if(nat===G.player)logMsg("A guarantee of independence costs 15 PP.","war");return false;}
+  me.pp-=15;me.guarantees.add(o);
+  G.tension=Math.min(100,G.tension+2);
+  if(nat===G.player){sfx("good");logMsg(`🛡 You GUARANTEE the independence of ${NATIONS[o].f} ${NATIONS[o].n}. Attack them, and you answer to us.`,"good");}
+  return true;
+}
+window.guarantee=o=>{
+  if(MP.role==="guest"){MP.send({type:"guarantee",nat:G.player,target:o});logMsg("Guarantee sent...");return;}
+  guaranteeFor(G.player,o);renderPanel();refreshHUD();
+};
 function buyFor(nat,t,pid){
   const me=G.nations[nat];
   const mp=me.manpower||0;
   const sel=pid&&provOf(pid).owner===nat?provOf(pid):G.prov[NATIONS[nat].cap];
   if(t==="inf"&&me.pp>=20&&mp>=10){me.pp-=20;me.manpower-=10;addUnit(nat,sel.id,"inf",3);}
   if(t==="arm"&&me.pp>=35&&me.oil>=5&&mp>=8){me.pp-=35;me.oil-=5;me.manpower-=8;addUnit(nat,sel.id,"arm",4);}
-  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(nat,sel.id,2);}
+  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(nat,sel.id,2,"bb");}
+  if(t==="cv"&&me.pp>=45&&me.oil>=12&&sel.coastal){me.pp-=45;me.oil-=12;addFleet(nat,sel.id,2,"cv");}
+  if(t==="sub"&&me.pp>=25&&me.oil>=6&&sel.coastal){me.pp-=25;me.oil-=6;addFleet(nat,sel.id,2,"sub");}
   if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(nat,2);}
   if(t==="nuke"&&me.pp>=100&&me.oil>=25&&me.res.ind>=3){me.pp-=100;me.oil-=25;me.nukes++;}
 }
@@ -3664,7 +3752,9 @@ window.buy=t=>{
   if((t==="inf"&&mp<10)||(t==="arm"&&mp<8)){logMsg("👥 Not enough manpower — reserves regrow slowly from your population.","war");return;}
   if(t==="inf"&&me.pp>=20){me.pp-=20;me.manpower-=10;addUnit(G.player,sel.id,"inf",3);logMsg(`Infantry division raised at ${sel.name}`,"good");}
   if(t==="arm"&&me.pp>=35&&me.oil>=5){me.pp-=35;me.oil-=5;me.manpower-=8;addUnit(G.player,sel.id,"arm",4);logMsg(`Armored division raised at ${sel.name}`,"good");}
-  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(G.player,sel.id,2);logMsg(`Task force launched from ${sel.name}`,"good");}
+  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(G.player,sel.id,2,"bb");logMsg(`Battleship fleet launched from ${sel.name}`,"good");}
+  if(t==="cv"&&me.pp>=45&&me.oil>=12&&sel.coastal){me.pp-=45;me.oil-=12;addFleet(G.player,sel.id,2,"cv");logMsg(`Carrier group commissioned at ${sel.name}`,"good");unlockAch("sealord");}
+  if(t==="sub"&&me.pp>=25&&me.oil>=6&&sel.coastal){me.pp-=25;me.oil-=6;addFleet(G.player,sel.id,2,"sub");logMsg(`Submarine wolfpack sails from ${sel.name}`,"good");}
   if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(G.player,2);logMsg(`Air wing commissioned at the ${G.prov[NATIONS[G.player].cap].name} airbase`,"good");}
   if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");unlockAch("nuclear");}
   renderPanel();refreshHUD();
@@ -3743,7 +3833,12 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.4 \u2014 GLORY & CONQUEST (current)",[
+ ["v5.5 \u2014 DEEP WATERS (current)",[
+  "\u2693 SHIP CLASSES \u2014 fleets are no longer interchangeable. \u2693 BATTLESHIPS win stand-up sea battles and bombard the shore; \ud83d\udee9 CARRIERS project air support over any coast they patrol (even far from home) and beat battleships; \ud83c\udf0a SUBMARINES savage troop convoys and carriers and choke trade, but are hunted by battleships. A real rock-paper-scissors at sea.",
+  "\ud83d\udee1 GUARANTEES \u2014 pledge to defend any nation\u2019s independence; if it\u2019s attacked, you\u2019re pulled into the war on its side. A deterrent against bullies \u2014 or a tripwire that drags you into someone else\u2019s fight. The AI\u2019s wars can now drag you in through your own promises.",
+  "\ud83d\udcdc SEVEN NEW EVENTS \u2014 industrialists\u2019 petitions, general strikes, codebreaking triumphs, refugee crises, flying aces, gold strikes and foiled assassinations add color to every campaign.",
+  "\ud83c\udfc5 Two more achievements: Sea Lord (commission a carrier) and Protector (honor a guarantee)."]],
+ ["v5.4 \u2014 GLORY & CONQUEST",[
   "\ud83e\ude82 PARATROOPERS \u2014 AIRBORNE ASSAULT drops a division deep into enemy territory within air range of your soil (needs Aviation research). It bypasses the front and can seize a lightly-held rear province \u2014 but often lands cut off from supply, so time it with a breakthrough. The AI can drop on YOU too.",
   "\ud83d\udcef ULTIMATUMS \u2014 demand a border province from a neutral neighbor without firing a shot. The weaker and more isolated they are (and the higher world tension), the likelier they cave \u2014 the panel shows the odds. Refusal spikes tension and a proud nation may answer with war.",
   "\ud83c\udfc5 ACHIEVEMENTS \u2014 16 milestones that persist across every campaign on your device: First Blood, Blitzkrieg, Nuclear Power, Puppet Master, General Winter, World Domination and more. Unlocks pop a gold banner; browse them all from the start screen or SETTINGS.",
@@ -3940,13 +4035,14 @@ const HELP=[
   "🧭 SUPPLY: every division needs a corridor of friendly land back home. Cut off, it fights at −34% and starves (⚠ marker). Encircle enemy salients to destroy them wholesale.",
   "⛰ TERRAIN: mountains and cities strongly favor the defender; marshes and mountains slow the attack; deserts wear armies down.",
   "❄ WINTER (Nov–Mar in the north): armies on foreign soil above the 50th parallel bleed and fight at −20%. Time your invasions.",
-  "⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys.",
+  "⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys. Fleets come in classes: ⚓ battleships bombard the shore, 🛩 carriers project air power over the coast, 🌊 submarines savage convoys and carriers.",
   "🩹 Worn divisions can be REINFORCED with PP on friendly ground, or MERGED into one another.",
   "🪂 AIRBORNE ASSAULT drops a division into the enemy rear within air range (needs Aviation) — it bypasses the front but often lands cut off.",
   "★ Hire generals (+25%, they level up), pick a doctrine, build forts, and keep war support high — it sharpens or dulls every battle."]],
  ["🕊 DIPLOMACY",[
   "Click a foreign province to propose alliances, declare war, or run covert ops.",
   "📜 DICTATE TERMS to an enemy you're beating: reparations, yearly tribute, forced disarmament, or a puppet government. Your WAR SCORE (occupation, their capital, stability, army ratio) decides if they sign — refused treaties keep the war going.",
+  "🛡 GUARANTEE a nation's independence — if it's attacked, you're dragged into the war on its side. A deterrent, or a tripwire.",
   "📯 ULTIMATUM a neutral neighbor to hand over a border province without war — the weaker they are, the likelier they cave, but refusal spikes tension and can start the war anyway.",
   "Beaten enemies sue for peace on their own. Allies can merge into one nation by UNION. Puppets pay tribute and follow you to war."]],
  ["🏛 POLITICS",[
@@ -4228,10 +4324,11 @@ function mpSerialize(){
       n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,
       /* focus & misc (v4.5+) */ n.focus?n.focus.key+":"+Math.round(n.focus.prog):"",Object.keys(n.focusDone||{}).join(","),n.atomicOk?1:0,n.spyCd||0,
       /* treaties (v4.7+) */ n.repar?n.repar.to+"|"+n.repar.frac+"|"+Math.round(n.repar.days):"",n.demilUntil||0,
-      /* realism (v5.0+) */ Math.round(n.manpower||0),Math.round(n.manpowerMax||0),n.suedT||0];}
+      /* realism (v5.0+) */ Math.round(n.manpower||0),Math.round(n.manpowerMax||0),n.suedT||0,
+      /* guarantees (v5.5+) */ n.guarantees?[...n.guarantees].join(","):""];}
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
-    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1)]),
+    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"bb"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""])};
 }
 function mpApplyState(S){
@@ -4265,10 +4362,13 @@ function mpApplyState(S){
       if(a.length>36){ /* v5.0+: manpower pool */
         n.manpower=a[36]||0;n.manpowerMax=a[37]||n.manpowerMax||40;n.suedT=a[38]||0;
       }
+      if(a.length>39){ /* v5.5+: guarantees */
+        n.guarantees=new Set(String(a[39]||"").split(",").filter(Boolean));
+      }
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
-  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet"}));
+  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:a[7]||"bb"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
   refreshHUD();
@@ -4296,6 +4396,7 @@ function mpApplyOrder(o){
   if(o.type==="merge")mergeFor(nat,o.id);
   if(o.type==="para")paraDropFor(nat,o.pid);
   if(o.type==="ultimatum")ultimatumFor(nat,o.target,o.pid);
+  if(o.type==="guarantee")guaranteeFor(nat,o.target);
 }
 function saveGame(auto){
   try{
