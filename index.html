@@ -120,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.7.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.8.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -137,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.7.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.8.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -948,6 +948,16 @@ function seasonMud(p){
 function isMudSeason(){ // for the HUD, northern-hemisphere reference
   const m=G.date.getMonth();return m===2||m===3||m===9;
 }
+/* ===== SEA STORMS ===== a roving tempest that batters and slows fleets caught in it */
+function stormAt(p){const s=G.storm;if(!s||!p)return false;return(p.x-s.cx)**2+(p.y-s.cy)**2<s.r*s.r;}
+function spawnStorm(){
+  const coastal=Object.values(G.prov).filter(p=>p.coastal);
+  if(!coastal.length)return;
+  const c=coastal[Math.floor(Math.random()*coastal.length)];
+  G.storm={cx:c.x,cy:c.y,r:120+Math.random()*90,until:G.day+8+Math.floor(Math.random()*10),name:c.name};
+  logMsg("🌊 A powerful storm blows up in the seas near "+c.name+" — fleets caught in it will be battered.","war");
+  if(G.fleets.some(f=>f.nat===G.player&&stormAt(provOf(f.at))))toast("🌊 STORM AT SEA near "+c.name.toUpperCase()+"!");
+}
 /* manpower: mobilization scales with real population — China can field far
    more reserves than Australia */
 function popMul(k){
@@ -1148,6 +1158,13 @@ function logMsg(t,cls){
   G.log.unshift({t,cls});if(G.log.length>6)G.log.pop();
   $("#log").innerHTML=G.log.map(l=>`<div class="l ${l.cls||""}">▸ ${l.t}</div>`).join("");
 }
+/* the campaign chronicle: a lasting timeline of the war's turning points */
+function chronicle(t){
+  G.chron=G.chron||[];
+  const y=G.date.getFullYear(),mo=G.date.toLocaleDateString("en-GB",{month:"short"});
+  G.chron.push({d:mo+" "+y,t});
+  if(G.chron.length>60)G.chron.shift();
+}
 function allied(a,b){return a!==b&&G.nations[a].allies.has(b);}
 function warPair(a,b){
   if(a===b||atWar(a,b)||allied(a,b))return;
@@ -1228,6 +1245,7 @@ function declareWar(a,b){
   if(b===G.player){toast("⚔ "+NATIONS[a].n.toUpperCase()+" HAS DECLARED WAR ON YOU!");sfx("war");}
   G.tension=Math.min(100,G.tension+8);
   logMsg(`${NATIONS[a].f} ${NATIONS[a].n} declares WAR on ${NATIONS[b].f} ${NATIONS[b].n}!`,"war");
+  if(a===G.player||b===G.player)chronicle(`⚔ ${a===G.player?"You declare war on "+NATIONS[b].n:NATIONS[a].n+" declares war on you"}.`);
   // alliances drag everyone in
   for(const x of[...G.nations[b].allies])if(G.nations[x]&&G.nations[x].alive){warPair(x,a);for(const y of[...G.nations[a].allies])warPair(x,y);}
   for(const y of[...G.nations[a].allies])if(G.nations[y]&&G.nations[y].alive)warPair(y,b);
@@ -1408,6 +1426,7 @@ function spawnCivilWar(k){
   terDirty=true;
   try{sfx("revolt");}catch(e){}
   logMsg(`🚩 CIVIL WAR — the ${nm} rises in revolt against ${NATIONS[k].n}, seizing ${take.length} provinces!`,"war");
+  chronicle(`🚩 Civil war splits ${NATIONS[k].n} — the ${nm} rises.`);
   if(k===G.player)toast("🚩 CIVIL WAR ERUPTS — rebels seize half your nation!");
   return true;
 }
@@ -1463,6 +1482,7 @@ function launchNuke(nat,pid){
   sfx("nuke");
   if(p.owner===G.player)toast("☢ "+p.name.toUpperCase()+" HAS BEEN NUKED!");
   logMsg(`☢ ${NATIONS[nat].f} ${NATIONS[nat].n} has NUKED ${p.name}! The world recoils.`,"war");
+  chronicle(`☢ ${NATIONS[nat].n} drops an atomic bomb on ${p.name}.`);
   if(nat===G.player)unlockAch("fallout");
   return true;
 }
@@ -1618,6 +1638,15 @@ function tick(){
      G._mudYr=G.date.getFullYear();
      logMsg("🌧 THE RASPUTITSA — the spring thaw turns temperate roads to mud; offensives crawl through March and April.","war");
    }}
+  // sea storms roam the oceans, battering any fleet caught in them
+  if(G.storm&&G.storm.until<G.day)G.storm=null;
+  else if(!G.storm&&G.day%25===0&&Math.random()<0.5)spawnStorm();
+  if(G.storm)for(const f of[...G.fleets]){
+    if(!f.to&&stormAt(provOf(f.at))){
+      f.hp-=0.12;
+      if(f.hp<=0){G.fleets=G.fleets.filter(x=>x!==f);if(f.nat===G.player)logMsg("🌊 A fleet was lost to the storm!","war");}
+    }
+  }
   // idle units recover in friendly territory; winter grinds invaders down
   for(const u of[...G.units]){
     const pr=provOf(u.at);
@@ -1663,8 +1692,10 @@ function tick(){
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
   if(G.day%10===0){
     G.hist=G.hist||[];
-    G.hist.push([natProvs(G.player).length,Math.round(G.tension)]);
+    G.hist.push([natProvs(G.player).length,Math.round(G.tension),G.units.filter(u=>u.nat===G.player).length]);
     if(G.hist.length>120)G.hist.shift();
+    G.peakProv=Math.max(G.peakProv||0,natProvs(G.player).length);
+    G.peakDiv=Math.max(G.peakDiv||0,G.units.filter(u=>u.nat===G.player).length);
   }
   if(MP.role!=="guest"){
     if(G.nextEvent===undefined)G.nextEvent=G.day+30+Math.random()*50;
@@ -1698,7 +1729,9 @@ function die(k){
   const n=G.nations[k];if(!n.alive)return;n.alive=false;
   G.units=G.units.filter(u=>u.nat!==k);G.fleets=G.fleets.filter(f=>f.nat!==k);G.wings=G.wings.filter(w=>w.nat!==k);
   for(const o in G.nations){G.nations[o].atWar.delete(k);}
+  G.annexed=(G.annexed||0)+1;
   logMsg(`${NATIONS[k].f} ${NATIONS[k].n} has been ANNEXED.`,"war");
+  chronicle(`💀 ${NATIONS[k].n} annexed — wiped from the map.`);
   if(k===G.player){G.over=true;endScreen(false,"Your last province has fallen — the nation is annexed.");G.paused=true;}
   const foes=Object.keys(G.nations).filter(x=>G.nations[x].alive&&!G.nations[x].puppet);
   if(foes.length===1&&foes[0]===G.player){endScreen(true);G.paused=true;}
@@ -1754,6 +1787,8 @@ function endScreen(win,reason){
     };
     ch.appendChild(c);
   }
+  const sb=document.createElement("button");sb.className="bbtn";sb.textContent="📊 Full campaign statistics";
+  sb.onclick=()=>showStats(true);ch.appendChild(sb);
   const b=document.createElement("button");b.className="bbtn";b.textContent="↺ New campaign";
   b.onclick=()=>location.reload();ch.appendChild(b);
   $("#eventBox").style.display="block";
@@ -1780,7 +1815,7 @@ function moveUnits(arr,kind){
     }
     // terrain slows the advance into rough country; out-of-supply units crawl;
     // armor with no fuel loses its speed
-    let tmul=kind==="fleet"?1:terrainOf(b).spd;
+    let tmul=kind==="fleet"?(stormAt(b)||stormAt(a)?0.55:1):terrainOf(b).spd; // storms slow ships to a crawl
     if(kind==="army"){
       if(u.supplied===false)tmul*=0.6;
       if(u.type==="arm"&&G.nations[u.nat].oil<=0)tmul*=0.6;
@@ -3008,6 +3043,18 @@ function draw(){
     ctx.beginPath();ctx.arc(p.x,p.y,10/Math.sqrt(z),0,7);ctx.stroke();
   }
   // fleets
+  // sea storm: a translucent swirling disc
+  if(G.storm&&G.storm.until>=G.day){
+    const s=G.storm;
+    ctx.save();
+    ctx.fillStyle="rgba(120,150,180,0.14)";
+    ctx.beginPath();ctx.arc(s.cx,s.cy,s.r,0,7);ctx.fill();
+    ctx.strokeStyle="rgba(180,205,230,0.5)";ctx.lineWidth=1.5/Math.sqrt(z);
+    ctx.beginPath();ctx.arc(s.cx,s.cy,s.r,0,7);ctx.stroke();
+    ctx.fillStyle="rgba(200,220,245,0.8)";ctx.font=`${16/Math.sqrt(z)}px sans-serif`;ctx.textAlign="center";
+    ctx.fillText("🌀",s.cx,s.cy+5/Math.sqrt(z));
+    ctx.restore();
+  }
   for(const f of G.fleets)drawPiece(f,"⚓","#cfe7f2",z,true);
   // armies
   for(const u of G.units)drawPiece(u,u.type==="arm"?"▲":"■",null,z,false);
@@ -3615,6 +3662,7 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Win by holding half the world (you + puppets), or by destroying, puppeting, or allying every rival great power. Lose your capital for 150 days and you lose.</div>`;
     h+=`<h3>EMPIRE SCORE: ${score}</h3>
     <div style="color:var(--dim);font-size:11px">10/province · 15/puppet · 5/ally · 8/warhead</div>
+    <button class="bbtn" onclick="showStats(false)">📊 FULL CAMPAIGN STATISTICS<small>Graphs, peaks, casualties and the chronicle of your war.</small></button>
     <h3>YOUR EMPIRE OVER TIME</h3>
     <canvas id="histCv" width="270" height="70" style="width:100%;background:#0a0e0a;border:1px solid var(--line)"></canvas>
     <div style="color:var(--dim);font-size:10px"><span style="color:#e8a33d">—</span> provinces &nbsp; <span style="color:#ff8d7a">—</span> world tension</div>`;
@@ -3925,7 +3973,11 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.7 \u2014 SEASONS & ACES (current)",[
+ ["v5.8 \u2014 THE RECKONING (current)",[
+  "\ud83d\udcca CAMPAIGN STATISTICS \u2014 a full report card, from the WARS panel any time or the end screen: a graph of your provinces, divisions and world tension over the whole war; peak empire size and army; puppets, allies, warheads, nations annexed; your casualties and the world\u2019s; and a CHRONICLE that timestamps every turning point \u2014 wars declared, nations annexed, atomic strikes, civil wars.",
+  "\ud83c\udf0a SEA STORMS \u2014 tempests now roam the oceans (a \ud83c\udf00 on the map). Fleets caught in one take steady damage and slow to a crawl; route your task forces around the weather or lose them to the sea.",
+  "\ud83d\udcdc The chronicle, empire peaks and casualty tallies are all saved with your campaign."]],
+ ["v5.7 \u2014 SEASONS & ACES",[
   "\ud83c\udf27 MUD SEASON (RASPUTITSA) \u2014 the spring thaw and autumn rains now turn temperate roads to mud, slowing offensives up to 35% \u2014 worst on open plains and marsh. Together with General Winter it gives every year a real campaigning season: strike in summer, or crawl through the mud.",
   "\ud83c\udf96 NAVAL & AIR VETERANCY \u2014 fleets and air wings now harden through combat just like divisions do (\u2605 / \u2605\u2605 / \ud83c\udf96, up to +24% strength). Veteran task forces and ace squadrons out-fight green ones \u2014 keep your carriers and wolfpacks alive and they become fearsome. Stars show on every ship and wing, and veterancy is saved.",
   "\ud83c\udf26 The date shows \ud83c\udf27 in mud season and \u2744 in winter, and the province panel spells out the current weather penalty on that ground."]],
@@ -4136,7 +4188,7 @@ const HELP=[
   "⛰ TERRAIN: mountains and cities strongly favor the defender; marshes and mountains slow the attack; deserts wear armies down.",
   "❄ WINTER (Nov–Mar in the north): armies on foreign soil above the 50th parallel bleed and fight at −20%. Time your invasions.",
   "🌧 MUD SEASON — the spring thaw (Mar–Apr) and autumn rains bog down offensives at temperate latitudes, worst on open plains and marsh. Between mud and winter, the campaigning season is short.",
-  "⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys. Fleets come in classes: ⚓ battleships bombard the shore, 🛩 carriers project air power over the coast, 🌊 submarines savage convoys and carriers.",
+  "🌊 Storms roam the oceans (a 🌀 on the map) — fleets caught in them take damage and slow to a crawl. Route around them. ⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys. Fleets come in classes: ⚓ battleships bombard the shore, 🛩 carriers project air power over the coast, 🌊 submarines savage convoys and carriers.",
   "🩹 Worn divisions can be REINFORCED with PP on friendly ground, or MERGED into one another.",
   "🪂 AIRBORNE ASSAULT drops a division into the enemy rear within air range (needs Aviation) — it bypasses the front but often lands cut off.",
   "★ Hire generals (+25%, they level up), pick a doctrine, build forts, and keep war support high — it sharpens or dulls every battle.",
@@ -4165,6 +4217,60 @@ function showHelp(){
   $("#eventBox").style.display="block";
 }
 window.showHelp=showHelp;
+/* ===== CAMPAIGN STATISTICS ===== a full end-of-war (or mid-war) report card */
+function showStats(final){
+  if(!G)return;
+  const me=G.nations[G.player];
+  const prov=natProvs(G.player).length;
+  const divs=G.units.filter(u=>u.nat===G.player).length;
+  const pup=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
+  const allies=me?[...me.allies].filter(x=>G.nations[x]&&G.nations[x].alive).length:0;
+  const myLoss=(G.losses&&G.losses[G.player])||0;
+  const worldLoss=Object.values(G.losses||{}).reduce((s,v)=>s+v,0);
+  const dead=G.annexed||0;
+  const score=prov*10+pup*15+allies*5+(me?me.nukes||0:0)*8;
+  const yrs=(G.day/365).toFixed(1);
+  const st=(lbl,val)=>`<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--dim)">${lbl}</span><span style="color:var(--ink)">${val}</span></div>`;
+  $("#evTitle").textContent="📊 CAMPAIGN STATISTICS";
+  let h=`<div style="max-height:56vh;overflow-y:auto">
+  <canvas id="statCv" width="290" height="80" style="width:100%;background:#0a0e0a;border:1px solid var(--line);margin-bottom:4px"></canvas>
+  <div style="color:var(--dim);font-size:10px;margin-bottom:8px"><span style="color:#e8a33d">—</span> provinces &nbsp; <span style="color:#8ec07c">—</span> divisions &nbsp; <span style="color:#ff8d7a">—</span> tension</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;font-size:12px">
+  <div>${st("Years elapsed",yrs)}${st("Provinces",prov)}${st("Peak provinces",G.peakProv||prov)}${st("Divisions",divs)}${st("Peak divisions",G.peakDiv||divs)}</div>
+  <div>${st("Puppets",pup)}${st("Allies",allies)}${st("Warheads",me?me.nukes||0:0)}${st("Nations annexed",dead)}${st("World tension",Math.round(G.tension)+"%")}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;font-size:12px;margin-top:4px;border-top:1px solid var(--line);padding-top:4px">
+  <div>${st("⚰ Your divisions lost",myLoss)}</div><div>${st("⚰ World divisions lost",worldLoss)}</div>
+  </div>
+  <div style="text-align:center;margin:8px 0;font-size:14px">EMPIRE SCORE: <b style="color:var(--amber)">${score}</b></div>`;
+  const chron=(G.chron||[]);
+  if(chron.length){
+    h+=`<h3 style="color:var(--dim);font-size:12px;margin:8px 0 4px;letter-spacing:1px">📜 CHRONICLE OF THE WAR</h3>`;
+    h+=chron.slice(-20).reverse().map(c=>`<div style="font-size:11px;margin:2px 0"><span style="color:var(--amber)">${c.d}</span> · ${c.t}</div>`).join("");
+  }
+  h+=`</div>`;
+  $("#evDesc").innerHTML=h;
+  const ch=$("#evChoices");ch.innerHTML="";
+  if(final){
+    const b=document.createElement("button");b.className="bbtn";b.textContent="↺ New campaign";b.onclick=()=>location.reload();ch.appendChild(b);
+  }
+  const c2=document.createElement("button");c2.className="bbtn";c2.textContent="Close";
+  c2.onclick=()=>{$("#eventBox").style.display="none";if(G&&!G.over)G.paused=G._evPaused||false;};
+  ch.appendChild(c2);
+  if(G&&!G.over){G._evPaused=G.paused;G.paused=true;}
+  $("#eventBox").style.display="block";
+  // draw the graph
+  const cv2=$("#statCv");
+  if(cv2&&G.hist&&G.hist.length>1){
+    const c=cv2.getContext("2d"),n=G.hist.length;
+    const maxP=Math.max(...G.hist.map(x=>x[0]),10),maxD=Math.max(...G.hist.map(x=>x[2]||0),10);
+    c.clearRect(0,0,290,80);
+    const line=(idx,col,mx)=>{c.strokeStyle=col;c.lineWidth=1.4;c.beginPath();
+      G.hist.forEach((x,i)=>{const px=i/(n-1)*286+2,py=76-(x[idx]||0)/mx*70;i?c.lineTo(px,py):c.moveTo(px,py);});c.stroke();};
+    line(0,"#e8a33d",maxP);line(2,"#8ec07c",maxD);line(1,"#ff8d7a",100);
+  }
+}
+window.showStats=showStats;
 window.__ifBoot("sound");
 /* ============================== SOUND ============================== */
 let SND=true;try{SND=localStorage.getItem("if_snd")!=="off";}catch(e){}
@@ -4516,7 +4622,8 @@ function saveGame(auto){
   try{
     localStorage.setItem("if_save",JSON.stringify({era:ERA,year:YEAR,player:G.player,state:mpSerialize(),
       ext:{capLost:G.capLost||0,hist:G.hist||[],histIdx:G.histIdx||0,nextEvent:G.nextEvent||0,
-        dipCd:G.dipCd||{},over:G.over?1:0,airMode:G.airMode,airTarget:G.airTarget||null,losses:G.losses||{}}}));
+        dipCd:G.dipCd||{},over:G.over?1:0,airMode:G.airMode,airTarget:G.airTarget||null,losses:G.losses||{},
+        chron:G.chron||[],peakProv:G.peakProv||0,peakDiv:G.peakDiv||0,annexed:G.annexed||0}}));
     if(!auto)logMsg("Game saved.","good");
   }catch(e){if(!auto)logMsg("Save failed (storage full?).","war");}
 }
@@ -4533,6 +4640,7 @@ function loadGame(){
       G.dipCd=sv.ext.dipCd||{};G.over=!!sv.ext.over;
       G.airMode=sv.ext.airMode||G.airMode;G.airTarget=sv.ext.airTarget||null;
       G.losses=sv.ext.losses||{};
+      G.chron=sv.ext.chron||[];G.peakProv=sv.ext.peakProv||0;G.peakDiv=sv.ext.peakDiv||0;G.annexed=sv.ext.annexed||0;
     }
     { // restore HUD toggles that live outside the state blob
       const me=G.nations[G.player];
