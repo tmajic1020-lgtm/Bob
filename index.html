@@ -120,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.5.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.6.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -137,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.5.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.6.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -1347,9 +1347,64 @@ const SUCC={USA:["New Columbia","🦅","#3a6a9a"],GER:["Rhine Federation","⚙�
 function _succColor(k){let h=0;for(let i=0;i<k.length;i++)h=(h*131+k.charCodeAt(i))>>>0;
   const r=0x55+(h&0x55),g=0x55+((h>>8)&0x55),b=0x55+((h>>16)&0x55);
   return "#"+[r,g,b].map(x=>x.toString(16).padStart(2,"0")).join("");}
+/* ===== CIVIL WAR ===== when a great nation collapses at war, a rebel faction
+   seizes half its land and fights the rump for the country. Rebels are hosted in
+   a dead nation slot (a power from another era with no provinces here). */
+function rebelKeyFor(k){
+  let anyDead=null;
+  for(const r in G.nations){
+    if(r===k||r===G.player)continue;
+    if(!G.nations[r].alive&&natProvs(r).length===0){
+      if(!natInEra(r))return r; // prefer a nation foreign to this era
+      if(!anyDead)anyDead=r;
+    }
+  }
+  return anyDead;
+}
+function spawnCivilWar(k){
+  const ps=natProvs(k);
+  if(ps.length<8)return false;
+  const R=rebelKeyFor(k);
+  if(!R)return false;
+  const cap=G.prov[NATIONS[k].cap];
+  // rebels rise in the provinces farthest from the seat of government
+  ps.sort((a,b)=>((b.x-cap.x)**2+(b.y-cap.y)**2)-((a.x-cap.x)**2+(a.y-cap.y)**2));
+  const take=ps.slice(0,Math.floor(ps.length/2));
+  const nm=("Free "+((NAT_BASE[k]&&NAT_BASE[k].n)||NATIONS[k].n).replace(/^(The|Republic of|Kingdom of|Empire of)\s+/i,"")).slice(0,22);
+  NATIONS[R].n=nm;NATIONS[R].f="🚩";NATIONS[R].c="#c0392b";
+  const rn=G.nations[R];
+  rn.n=nm;rn.f="🚩";rn.c="#c0392b";
+  rn.alive=true;rn.ai=true;rn.puppet=null;rn.collapsed=0;G.collapsed[R]=0;
+  rn.atWar=new Set([k]);rn.allies=new Set();rn.guarantees=new Set();
+  rn.pp=25;rn.rp=0;rn.oil=15;rn.nukes=0;rn.stab=58;rn.warSup=65;
+  rn.res={ind:0,land:1,nav:0,air:0};rn.manpower=45;rn.manpowerMax=70;
+  rn.ideo=n_rebelIdeo(k);rn.cab={};rn.doctrine="ma";rn.law={cons:1,eco:1};
+  rn.aiTimer=20;rn.mobTimer=30;rn.autoCap=false;
+  G.nations[k].atWar.add(R);
+  for(const p of take){p.owner=R;p.home=R;}
+  // garrisons of the seceded land, and defectors from the old army
+  for(const u of[...G.units]){
+    if(u.nat===k&&take.includes(provOf(u.at))&&Math.random()<0.6)u.nat=R;
+  }
+  // fresh rebel divisions muster in their heartland
+  const rebProvs=natProvs(R);
+  for(let i=0;i<Math.min(6,rebProvs.length);i++)addUnit(R,rebProvs[i].id,"inf",3);
+  terDirty=true;
+  try{sfx("revolt");}catch(e){}
+  logMsg(`🚩 CIVIL WAR — the ${nm} rises in revolt against ${NATIONS[k].n}, seizing ${take.length} provinces!`,"war");
+  if(k===G.player)toast("🚩 CIVIL WAR ERUPTS — rebels seize half your nation!");
+  return true;
+}
+function n_rebelIdeo(k){
+  const cur=G.nations[k]&&G.nations[k].ideo;
+  const opp={fas:"com",com:"fas",dem:"aut",aut:"dem",mon:"dem",rev:"mon"};
+  return opp[cur]||"aut";
+}
 function collapseNation(k){
   const n=G.nations[k];if(!n.alive)return;
   const old=NATIONS[k].n;
+  // a large nation at war doesn't just rebrand — it tears itself apart
+  const civ=(natProvs(k).length>=8&&n.atWar.size>0)?spawnCivilWar(k):false;
   const sc=SUCC[k]||["Free State of "+G.prov[NATIONS[k].cap].name,"🏴",_succColor(k)];
   NATIONS[k].n=sc[0];NATIONS[k].f=sc[1];NATIONS[k].c=sc[2];
   n.n=sc[0];n.f=sc[1];n.c=sc[2];
@@ -1682,7 +1737,7 @@ function endScreen(win,reason){
   const b=document.createElement("button");b.className="bbtn";b.textContent="↺ New campaign";
   b.onclick=()=>location.reload();ch.appendChild(b);
   $("#eventBox").style.display="block";
-  sfx(win?"good":"war");
+  sfx(win?"victory":"defeat");
 }
 function moveUnits(arr,kind){
   for(const u of arr){
@@ -3461,6 +3516,10 @@ function renderPanel(){
     <h3>SOUND</h3>
     <div class="row"><button class="tbtn ${SND?"on":""}" onclick="setSnd(true);renderPanel()">🔊 ON</button>
     <button class="tbtn ${!SND?"on":""}" onclick="setSnd(false);renderPanel()">🔇 OFF</button></div>
+    <div class="row"><span>Wartime ambience</span><span>
+      <button class="tbtn ${AMB?"on":""}" onclick="setAmb(true);renderPanel()">🥁 ON</button>
+      <button class="tbtn ${!AMB?"on":""}" onclick="setAmb(false);renderPanel()">✕ OFF</button></span></div>
+    <div style="color:var(--dim);font-size:11px">A low war-drum pulse while your nation is at war.</div>
     <h3>MINIMAP</h3>
     <div class="row"><button class="tbtn ${SHOWMINI?"on":""}" onclick="setMini(true);renderPanel()">🗺 ON</button>
     <button class="tbtn ${!SHOWMINI?"on":""}" onclick="setMini(false);renderPanel()">✕ OFF</button></div>
@@ -3833,7 +3892,11 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.5 \u2014 DEEP WATERS (current)",[
+ ["v5.6 \u2014 RISE AND FALL (current)",[
+  "\ud83d\udea9 CIVIL WARS \u2014 when a great power (8+ provinces) collapses while at war, it no longer just rebrands: a REBEL faction rises in its outer provinces, seizes half the country, absorbs defecting divisions, and fights the rump government for control. Whole nations can now tear themselves apart mid-war \u2014 including yours.",
+  "\ud83e\udd41 WARTIME AMBIENCE \u2014 an optional low war-drum pulse while your nation is at war (SETTINGS \u2192 Sound).",
+  "\ud83c\udfba RICHER AUDIO \u2014 a rising four-note VICTORY fanfare, a falling DEFEAT dirge, and a dissonant REVOLT sting when a civil war erupts."]],
+ ["v5.5 \u2014 DEEP WATERS",[
   "\u2693 SHIP CLASSES \u2014 fleets are no longer interchangeable. \u2693 BATTLESHIPS win stand-up sea battles and bombard the shore; \ud83d\udee9 CARRIERS project air support over any coast they patrol (even far from home) and beat battleships; \ud83c\udf0a SUBMARINES savage troop convoys and carriers and choke trade, but are hunted by battleships. A real rock-paper-scissors at sea.",
   "\ud83d\udee1 GUARANTEES \u2014 pledge to defend any nation\u2019s independence; if it\u2019s attacked, you\u2019re pulled into the war on its side. A deterrent against bullies \u2014 or a tripwire that drags you into someone else\u2019s fight. The AI\u2019s wars can now drag you in through your own promises.",
   "\ud83d\udcdc SEVEN NEW EVENTS \u2014 industrialists\u2019 petitions, general strikes, codebreaking triumphs, refugee crises, flying aces, gold strikes and foiled assassinations add color to every campaign.",
@@ -4088,10 +4151,22 @@ function sfx(k){
   if(k==="march"){tone(300,0.06,"square",0.05);tone(300,0.06,"square",0.05,0.12);}
   if(k==="event")tone(880,0.18,"triangle",0.08);
   if(k==="coin"){tone(988,0.07,"square",0.05);tone(1319,0.1,"square",0.05,0.06);}
+  if(k==="revolt"){tone(140,0.4,"sawtooth",0.12);tone(196,0.4,"square",0.08,0.05);tone(120,0.6,"sawtooth",0.1,0.2);}
+  if(k==="victory"){[523,659,784,1047].forEach((f,i)=>tone(f,0.22,"triangle",0.09,i*0.14));}
+  if(k==="defeat"){[392,330,262,196].forEach((f,i)=>tone(f,0.3,"sawtooth",0.1,i*0.18));}
 }
 window.sfx=sfx;
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest(".tbtn,.bbtn,.nat"))sfx("click");});
 window.setSnd=v=>{SND=v;try{localStorage.setItem("if_snd",v?"on":"off");}catch(e){}};
+/* ambient wartime drums: a soft low pulse every few seconds while you're at war */
+let AMB=false;try{AMB=localStorage.getItem("if_amb")==="on";}catch(e){}
+window.setAmb=v=>{AMB=v;try{localStorage.setItem("if_amb",v?"on":"off");}catch(e){}};
+setInterval(()=>{
+  if(!AMB||!SND||!window.G||G.paused)return;
+  const me=G.nations&&G.nations[G.player];
+  if(!me||!me.alive||!me.atWar||me.atWar.size===0)return;
+  try{tone(58,0.5,"sine",0.06);tone(87,0.35,"triangle",0.03,0.25);}catch(e){}
+},4200);
 
 window.__ifBoot("accounts");
 /* ============================== ACCOUNTS ============================== */
