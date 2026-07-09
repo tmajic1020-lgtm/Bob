@@ -120,6 +120,8 @@ let rows = [];              // obstacles ahead
 let traveled = 0, levelLength = 1;
 let floats = [];            // floating combat text
 let particles = [];
+let tracers = [];           // bullet streaks
+let shotTimer = 0;
 let clash = null;           // active clash animation
 let shake = 0;
 let flash = 0;
@@ -141,10 +143,10 @@ function applyOp(n, o){
   return n;
 }
 function opColor(o){
-  if(o.op==='+') return {a:'#2fd06a',b:'#0e7a38',glow:'rgba(60,220,120,'};
+  if(o.op==='+') return {a:'#4fd6ff',b:'#1466c8',glow:'rgba(80,205,255,'};
   if(o.op==='x') return {a:'#c78cff',b:'#6a2fb0',glow:'rgba(190,140,255,'};
   if(o.op==='-'||o.op==='/') return {a:'#ff6b5a',b:'#a01f18',glow:'rgba(255,90,70,'};
-  return {a:'#3fa9ff',b:'#1560a0',glow:'rgba(80,180,255,'};
+  return {a:'#4fd6ff',b:'#1466c8',glow:'rgba(80,205,255,'};
 }
 function makeGatePair(est, base, idx, total){
   const late = idx > total*0.5;
@@ -195,6 +197,7 @@ function genLevel(lv, startCrowd){
 // ---------- flow ----------
 function startLevel(){
   playerX=0; targetX=0;
+  floats=[]; particles=[]; tracers=[]; clash=null; shake=0; flash=0;
   genLevel(level, crowd);
   speed = 6.2 + level*0.35;
   state = S.RUN;
@@ -270,13 +273,47 @@ function update(dt){
     updateClash(dt);
   }
 
+  updateShooting(dt);
+
   peak = Math.max(peak, crowd);
   for(const f of floats){ f.life-=dt; f.y-=dt*22; }
   floats = floats.filter(f=>f.life>0);
   for(const p of particles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=280*dt; }
   particles = particles.filter(p=>p.life>0);
+  for(const t of tracers){ t.t+=dt; }
+  tracers = tracers.filter(t=>t.t<t.dur);
   if(shake>0) shake=Math.max(0,shake-dt*3);
   if(flash>0) flash=Math.max(0,flash-dt*2.4);
+}
+
+function nearestEnemy(){
+  let best=null;
+  for(const r of rows){ if(!r.done && r.type==='enemy' && r.dist>-1 && r.dist<20){ if(!best||r.dist<best.dist) best=r; } }
+  return best;
+}
+function updateShooting(dt){
+  if(state!==S.RUN && state!==S.CLASH) return;
+  const en = clash ? clash.enemy : nearestEnemy();
+  if(!en || crowd<=0) return;
+  const range = clash ? 26 : 13;
+  if(en.dist>range) return;
+  shotTimer-=dt;
+  if(shotTimer<=0){
+    shotTimer = clash ? 0.05 : 0.11;
+    const shots = clash ? 3 : 1;
+    const from = proj(playerX, PLAYER_DIST-0.2);
+    const to = proj((Math.random()-0.5)*(en.boss?1.4:0.9), Math.max(en.dist,0.5));
+    for(let i=0;i<shots;i++){
+      tracers.push({ x0:from.x+rnd(-16,16), y0:from.y-34, x1:to.x+rnd(-20,20), y1:to.y-20, t:0, dur:rnd(0.12,0.2) });
+    }
+    if(clash){
+      // red damage numbers rising off the horde
+      if(Math.random()<0.55){
+        const dmg = Math.max(1, Math.round((clash.e0)/ (clash.dur/0.12) * rnd(0.6,1.4)));
+        floats.push({ txt:'-'+dmg, x:to.x+rnd(-30,30), y:to.y-40, life:0.6, color:'#ff5a4a', bg:null });
+      }
+    }
+  }
 }
 
 function startClash(enemy){
@@ -336,6 +373,20 @@ function render(){
     else drawEnemy(r);
   }
   drawCrowd();
+
+  // bullet tracers
+  ctx.lineCap='round';
+  for(const t of tracers){
+    const k=t.t/t.dur;
+    const hx=t.x0+(t.x1-t.x0)*k, hy=t.y0+(t.y1-t.y0)*k;
+    const tk=Math.max(0,k-0.35);
+    const tx=t.x0+(t.x1-t.x0)*tk, ty=t.y0+(t.y1-t.y0)*tk;
+    ctx.strokeStyle='rgba(140,225,255,'+(1-k*0.6)+')';
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); ctx.stroke();
+    ctx.fillStyle='#eaffff';
+    ctx.beginPath(); ctx.arc(hx,hy,2.5,0,Math.PI*2); ctx.fill();
+  }
 
   for(const p of particles){
     ctx.globalAlpha = Math.max(0,p.life*2);
@@ -458,22 +509,81 @@ function drawGatePanel(op, xa, xb, dist){
 }
 
 function drawEnemy(r){
-  const count = r.count;
-  const n = Math.min(56, Math.max(6, Math.round(6+Math.sqrt(count)*3)));
-  const cols = Math.min(9, Math.ceil(Math.sqrt(n)));
-  const rowsN = Math.ceil(n/cols);
-  const spread = r.boss ? 0.85 : 0.55;
+  if(r.boss) drawBossArmy(r);
+  else drawTurretBlock(r);
+}
+
+// Yellow barrel-turret blocker (matches reference)
+function drawTurretBlock(r){
+  const dist=r.dist;
+  const bl=proj(-0.62,dist), br=proj(0.62,dist), base=proj(0,dist);
+  const p=base.p;
+  const bx=bl.x, bw=br.x-bl.x, by=base.y;
+  const bh=150*p;
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(base.x, by+6*p, bw*0.55, 12*p, 0,0,Math.PI*2); ctx.fill();
+  // barrel body
+  const bg=ctx.createLinearGradient(bx,0,bx+bw,0);
+  bg.addColorStop(0,'#b8790c'); bg.addColorStop(0.5,'#ffd23a'); bg.addColorStop(1,'#b8790c');
+  ctx.fillStyle=bg;
+  roundRect(bx, by-bh, bw, bh, 16*p); ctx.fill();
+  // top ellipse cap
+  ctx.fillStyle='#ffe066';
+  ctx.beginPath(); ctx.ellipse(base.x, by-bh, bw*0.5, 12*p, 0,0,Math.PI*2); ctx.fill();
+  // barrel staves (horizontal bands)
+  ctx.strokeStyle='rgba(90,55,5,0.5)'; ctx.lineWidth=Math.max(1,2*p);
+  for(let i=1;i<4;i++){ const yy=by-bh+ (bh)*i/4; ctx.beginPath(); ctx.moveTo(bx+3*p,yy); ctx.lineTo(bx+bw-3*p,yy); ctx.stroke(); }
+  // blue gun on top
+  const gx=base.x, gy=by-bh-6*p;
+  ctx.save(); ctx.translate(gx,gy); ctx.rotate(-0.5);
+  ctx.fillStyle='#2f7dd8'; roundRect(-6*p, -46*p, 12*p, 46*p, 4*p); ctx.fill();
+  ctx.fillStyle='#1b4f8a'; roundRect(-8*p, -12*p, 16*p, 14*p, 4*p); ctx.fill();
+  ctx.restore();
+  // number
+  drawCountPlate(base.x, by-bh*0.4, r.count, '#2f9dff', p*1.05);
+}
+
+// Big red marching army for the boss
+function drawBossArmy(r){
+  const count=r.count;
+  const cols=9, rowsN=7;
+  const n=cols*rowsN;
+  const spread=0.92;
+  const march=Math.sin(scroll*3)*0.03;
   const arr=[];
   for(let i=0;i<n;i++){
-    const cxi = i%cols, ryi=Math.floor(i/cols);
-    const wx = ((cxi/(cols-1||1))-0.5)*spread*2;
-    const dd = r.dist + (ryi-rowsN/2)*0.16;
-    arr.push({wx, dd});
+    const ci=i%cols, ri=Math.floor(i/cols);
+    const wx=((ci/(cols-1))-0.5)*spread*2 + march*(ri%2?1:-1);
+    const dd=r.dist + ri*0.55 + 1.4;   // army extends into the distance
+    arr.push({wx,dd,i});
   }
   arr.sort((a,b)=>b.dd-a.dd);
-  for(const s of arr) drawSoldier(s.wx, s.dd, '#e0483a', '#7a1e16', '#ffb0a6');
-  const lp = proj(0, r.dist-0.2);
-  drawCountPlate(lp.x, lp.y - 150*lp.p - (r.boss?30:0), count, r.boss?'#ff5a4a':'#ff6b5a', lp.p*(r.boss?1.35:1));
+  for(const s of arr){
+    const step=Math.sin(scroll*6+s.i*1.3)*0.5+0.5;
+    drawSoldier(s.wx, s.dd, '#e0483a', '#7a1e16', '#ffb0a6', step);
+  }
+  // giant leader
+  const gp=proj(0, r.dist+0.6);
+  drawGiant(gp);
+  // count plate on the horde front
+  const lp=proj(0, r.dist);
+  drawCountPlate(lp.x, lp.y-170*lp.p, count, '#ff5a4a', lp.p*1.3);
+}
+
+function drawGiant(pr){
+  const p=pr.p, x=pr.x, y=pr.y, s=p*2.4;
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(x, y+3*s, 12*s, 4*s,0,0,Math.PI*2); ctx.fill();
+  const bg=ctx.createLinearGradient(0,y-30*s,0,y);
+  bg.addColorStop(0,'#ff7a5a'); bg.addColorStop(0.5,'#c8281c'); bg.addColorStop(1,'#6a0f08');
+  ctx.fillStyle=bg; roundRect(x-9*s, y-28*s, 18*s, 26*s, 6*s); ctx.fill();
+  ctx.fillStyle='#8a1810';
+  ctx.beginPath(); ctx.arc(x, y-34*s, 7*s, 0, Math.PI*2); ctx.fill();
+  // shoulder spikes
+  ctx.fillStyle='#5a0d06';
+  ctx.beginPath(); ctx.moveTo(x-9*s,y-26*s); ctx.lineTo(x-15*s,y-30*s); ctx.lineTo(x-9*s,y-20*s); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+9*s,y-26*s); ctx.lineTo(x+15*s,y-30*s); ctx.lineTo(x+9*s,y-20*s); ctx.fill();
 }
 
 function drawCrowd(){
@@ -496,8 +606,8 @@ function drawCrowd(){
     const step = Math.sin(scroll*8 + s.i*1.7)*0.5+0.5;
     drawSoldier(s.wx, s.dd, '#2f8fff', '#134a8a', '#bfe0ff', step);
   }
-  const lp = proj(playerX, PLAYER_DIST-0.35);
-  drawCountPlate(lp.x, lp.y - 150*lp.p, count, '#2f9dff', lp.p*1.1);
+  const lp = proj(playerX, PLAYER_DIST+0.1);
+  drawCountPlate(lp.x, lp.y - 96*lp.p, count, '#2f9dff', lp.p*1.05);
 }
 
 function drawSoldier(wx, dist, body, dark, hi, step){
