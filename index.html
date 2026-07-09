@@ -11,11 +11,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a1020;font-family:
 canvas{display:block;width:100%;height:100%}
 
 /* HUD */
-#hud{position:fixed;top:0;left:0;right:0;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;pointer-events:none;z-index:5}
+#hud{position:fixed;top:0;left:0;right:0;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;pointer-events:none;z-index:5}
 #lvlBox{background:rgba(10,18,36,.6);border:1px solid rgba(120,180,255,.3);border-radius:10px;padding:6px 12px;font-weight:800;font-size:14px;letter-spacing:1px;backdrop-filter:blur(4px)}
 #lvlBox small{opacity:.6;font-weight:600;font-size:11px;display:block;letter-spacing:1px}
-#progWrap{flex:1;height:14px;background:rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin-top:8px;border:1px solid rgba(255,255,255,.15)}
-#progBar{height:100%;width:0%;background:linear-gradient(90deg,#3fa9ff,#7cf0ff);border-radius:10px;transition:width .15s linear}
+#center{flex:1;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.bar{height:15px;background:rgba(0,0,0,.35);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.15);position:relative}
+.bar>b{display:block;height:100%;width:100%;border-radius:8px;transition:width .12s linear}
+.bar>i{position:absolute;left:9px;top:0;font-size:9px;font-style:normal;font-weight:800;letter-spacing:1.5px;color:#fff;line-height:15px;text-shadow:0 1px 2px #000;opacity:.9}
+#progBar{background:linear-gradient(90deg,#3fa9ff,#7cf0ff)}
+#hpBar{background:linear-gradient(90deg,#c0281c,#ff6a4a)}
 #bestBox{background:rgba(10,18,36,.6);border:1px solid rgba(255,210,90,.35);border-radius:10px;padding:6px 12px;font-weight:800;font-size:14px;color:#ffd86a;backdrop-filter:blur(4px)}
 #bestBox small{opacity:.7;font-weight:600;font-size:11px;display:block;color:#caa84a}
 
@@ -31,19 +35,20 @@ canvas{display:block;width:100%;height:100%}
 .statline b{color:#ffd86a}
 .btn{pointer-events:auto;cursor:pointer;border:none;outline:none;font-family:inherit;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#04122a;background:linear-gradient(180deg,#7cf0ff,#2f9dff);padding:16px 54px;font-size:clamp(16px,4.5vw,22px);border-radius:14px;box-shadow:0 8px 0 #185a9a,0 14px 30px rgba(40,130,255,.45);transition:transform .08s,box-shadow .08s}
 .btn:active{transform:translateY(5px);box-shadow:0 3px 0 #185a9a,0 6px 16px rgba(40,130,255,.4)}
-.hint{margin-top:26px;color:#7f97bd;font-size:clamp(11px,3.2vw,14px);max-width:340px;line-height:1.6}
+.hint{margin-top:26px;color:#7f97bd;font-size:clamp(11px,3.2vw,14px);max-width:360px;line-height:1.6}
 .hint b{color:#bcd2f2}
 .badge{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 14px;font-size:12px;letter-spacing:2px;margin-bottom:18px;color:#9db6da;font-weight:700}
 </style>
 </head>
 <body>
-<div id="game">
-  <canvas id="cv"></canvas>
-</div>
+<div id="game"><canvas id="cv"></canvas></div>
 
 <div id="hud">
   <div id="lvlBox"><small>LEVEL</small><span id="lvlNum">1</span></div>
-  <div id="progWrap"><div id="progBar"></div></div>
+  <div id="center">
+    <div class="bar"><i>DISTANCE</i><b id="progBar" style="width:0%"></b></div>
+    <div class="bar"><i>ENEMY ARMY</i><b id="hpBar" style="width:100%"></b></div>
+  </div>
   <div id="bestBox"><small>BEST</small><span id="bestNum">0</span></div>
 </div>
 
@@ -51,10 +56,10 @@ canvas{display:block;width:100%;height:100%}
 <div class="overlay" id="startScreen">
   <div class="badge">CROWD RUNNER</div>
   <div class="title">CROWD<br>RUSH</div>
-  <div class="subtitle">Grow your army &middot; Crush the enemy</div>
+  <div class="subtitle">Grow your army &middot; Wipe out the red horde</div>
   <button class="btn" id="playBtn">Play</button>
-  <div class="hint">Drag <b>left / right</b> (or use <b>&larr; &rarr;</b> keys) to steer your crowd.
-  Pass through <b>gates</b> to multiply your army, then <b>smash</b> the red horde.</div>
+  <div class="hint">Drag <b>left / right</b> (or <b>&larr; &rarr;</b>) to steer up your lane.
+  Hit <b>blue gates</b> to grow &mdash; a bigger crowd pours more <b>fire</b> into the red army marching on your left. Empty their bar before the lane ends!</div>
 </div>
 
 <!-- Level complete -->
@@ -78,66 +83,58 @@ const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 let W=0,H=0,DPR=1,cx=0;
 
-// ---------- projection / world ----------
-const PP = 0.42;              // perspective curvature
-const HORIZON_F = 0.32;       // horizon as fraction of height
-const PLAYER_DIST = 0.9;      // where the crowd sits (world units ahead)
+// ---------- lanes ----------
+const ELANE_L=-0.98, ELANE_R=-0.12, ELANE_C=-0.55;   // enemy (left)
+const WALL_X=-0.04;                                   // dividing wall
+const RLANE_L=0.06, RLANE_R=0.98, RLANE_MID=0.52, RLANE_C=0.52; // run (right)
+const STEER_MIN=0.16, STEER_MAX=0.90;
+const DPS_K = 0.95;   // damage per crowd unit per second
+
+// ---------- projection ----------
+const PP = 0.42, HORIZON_F = 0.32, PLAYER_DIST = 0.9;
 let horizonY=0, roadBottomY=0, roadHalfBottom=0;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio||1, 2);
   W = window.innerWidth; H = window.innerHeight;
-  cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
+  cv.width=Math.floor(W*DPR); cv.height=Math.floor(H*DPR);
   cv.style.width=W+'px'; cv.style.height=H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  cx = W/2;
-  horizonY = H*HORIZON_F;
-  roadBottomY = H*1.02;
-  roadHalfBottom = Math.min(W*0.40, 300);
+  cx=W/2; horizonY=H*HORIZON_F; roadBottomY=H*1.02;
+  roadHalfBottom=Math.min(W*0.47, 340);
 }
-window.addEventListener('resize', resize);
-resize();
+window.addEventListener('resize', resize); resize();
 
 function pAt(d){ return 1/(1 + Math.max(d,-0.6)*PP); }
 function proj(worldX, dist){
-  const p = pAt(dist);
-  const y = horizonY + (roadBottomY-horizonY)*p;
-  const half = roadHalfBottom*p;
-  return { x: cx + worldX*half, y, p, half };
+  const p=pAt(dist);
+  const y=horizonY+(roadBottomY-horizonY)*p;
+  const half=roadHalfBottom*p;
+  return { x:cx+worldX*half, y, p, half };
 }
 
-// ---------- game state ----------
-const S = { MENU:0, RUN:1, CLASH:2, WIN:3, LOSE:4 };
-let state = S.MENU;
-let level = 1;
-let crowd = 20;
-let peak = 20;
-let best = +(localStorage.getItem('crowdrush_best')||0);
-let targetX = 0, playerX = 0;
-let scroll = 0;
-let speed = 6.2;
-let rows = [];              // obstacles ahead
-let traveled = 0, levelLength = 1;
-let floats = [];            // floating combat text
-let particles = [];
-let tracers = [];           // bullet streaks
-let shotTimer = 0;
-let clash = null;           // active clash animation
-let shake = 0;
-let flash = 0;
+// ---------- state ----------
+const S={ MENU:0, RUN:1, CLASH:2, WIN:3, LOSE:4 };
+let state=S.MENU, level=1, crowd=20, peak=20;
+let best=+(localStorage.getItem('crowdrush_best')||0);
+let targetX=RLANE_C, playerX=RLANE_C, scroll=0, speed=6.2;
+let rows=[], traveled=0, levelLength=1;
+let army=null;
+let floats=[], particles=[], tracers=[], shotTimer=0;
+let clash=null, shake=0, flash=0;
 
-const bestNumEl = document.getElementById('bestNum');
-const lvlNumEl  = document.getElementById('lvlNum');
-const progBar   = document.getElementById('progBar');
-
+const bestNumEl=document.getElementById('bestNum');
+const lvlNumEl=document.getElementById('lvlNum');
+const progBar=document.getElementById('progBar');
+const hpBar=document.getElementById('hpBar');
 function fmt(n){ n=Math.max(0,Math.round(n)); if(n>=1000000) return (n/1000000).toFixed(1)+'M'; if(n>=10000) return (n/1000).toFixed(1)+'k'; return ''+n; }
-bestNumEl.textContent = fmt(best);
+bestNumEl.textContent=fmt(best);
 
-// ---------- level generation ----------
-function rnd(a,b){ return a + Math.random()*(b-a); }
-function applyOp(n, o){
+// ---------- level gen ----------
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function applyOp(n,o){
   if(o.op==='+') return n+o.v;
-  if(o.op==='-') return Math.max(0, n-o.v);
+  if(o.op==='-') return Math.max(0,n-o.v);
   if(o.op==='x') return n*o.v;
   if(o.op==='/') return Math.floor(n/o.v);
   return n;
@@ -149,319 +146,307 @@ function opColor(o){
   return {a:'#4fd6ff',b:'#1466c8',glow:'rgba(80,205,255,'};
 }
 function makeGatePair(est, base, idx, total){
-  const late = idx > total*0.5;
+  const late=idx>total*0.5;
   function randOp(good){
-    const r = Math.random();
+    const r=Math.random();
     if(good){
-      if(r<0.30) return {op:'x', v:2, txt:'×2'};
-      if(r<0.40 && late) return {op:'x', v:3, txt:'×3'};
-      const add = Math.max(4, Math.round(base*rnd(0.6,1.3)));
-      return {op:'+', v:add, txt:'+'+add};
+      if(r<0.30) return {op:'x',v:2,txt:'×2'};
+      if(r<0.40&&late) return {op:'x',v:3,txt:'×3'};
+      const add=Math.max(4,Math.round(base*rnd(0.6,1.3))); return {op:'+',v:add,txt:'+'+add};
     } else {
-      if(r<0.30){ const sub=Math.max(3,Math.round(base*rnd(0.4,0.9))); return {op:'-', v:sub, txt:'-'+sub}; }
-      if(r<0.50) return {op:'/', v:2, txt:'÷2'};
-      const add = Math.max(2, Math.round(base*rnd(0.15,0.45)));
-      return {op:'+', v:add, txt:'+'+add};
+      if(r<0.30){ const sub=Math.max(3,Math.round(base*rnd(0.4,0.9))); return {op:'-',v:sub,txt:'-'+sub}; }
+      if(r<0.50) return {op:'/',v:2,txt:'÷2'};
+      const add=Math.max(2,Math.round(base*rnd(0.15,0.45))); return {op:'+',v:add,txt:'+'+add};
     }
   }
-  let a = randOp(true), b = randOp(Math.random()<0.55 ? false : true);
-  if(Math.random()<0.5){ const t=a; a=b; b=t; }
-  const ea = applyOp(est,a), eb = applyOp(est,b);
-  return [[a,b], Math.max(ea,eb)];
+  let a=randOp(true), b=randOp(Math.random()<0.55?false:true);
+  if(Math.random()<0.5){ const t=a;a=b;b=t; }
+  return [[a,b], Math.max(applyOp(est,a),applyOp(est,b))];
 }
 function genLevel(lv, startCrowd){
-  rows = [];
-  let est = Math.max(startCrowd, 12);
-  let dist = 11;
-  const spacing = 6.4;
-  const pairs = 5 + Math.min(lv, 6);
+  rows=[];
+  let est=Math.max(startCrowd,12);
+  let dist=11; const spacing=6.4;
+  const pairs=5+Math.min(lv,6);
   for(let i=0;i<pairs;i++){
-    const scaleBase = 8 + lv*5 + i*4 + est*0.12;
-    const res = makeGatePair(est, scaleBase, i, pairs);
-    est = res[1];
+    const base=8+lv*5+i*4+est*0.12;
+    const res=makeGatePair(est, base, i, pairs);
+    est=res[1];
     rows.push({ type:'gate', dist, left:res[0][0], right:res[0][1], done:false });
-    dist += spacing;
+    dist+=spacing;
     if(i>0 && i%2===0 && i<pairs-1){
-      const bc = Math.max(3, Math.round(est*rnd(0.22,0.4)));
-      est = Math.max(1, est - bc);
-      rows.push({ type:'enemy', boss:false, dist, count:bc, max:bc, done:false });
-      dist += spacing;
+      const bc=Math.max(3,Math.round(est*rnd(0.2,0.36)));
+      est=Math.max(1,est-bc);
+      rows.push({ type:'enemy', dist, count:bc, max:bc, done:false });
+      dist+=spacing;
     }
   }
-  const bossCount = Math.max(20, Math.round(est*rnd(0.62,0.82)));
-  rows.push({ type:'enemy', boss:true, dist:dist+3, count:bossCount, max:bossCount, done:false });
-  levelLength = dist + 3 + PLAYER_DIST + 2;
-  traveled = 0;
+  levelLength=dist+PLAYER_DIST+2;
+  // Size the red army off best-case final crowd. Covering fire drains most of
+  // its bar over the run; the rest is settled in a final clash vs your crowd.
+  const hp=Math.max(50, Math.round(est*rnd(1.8,2.2)));
+  army={ hp, max:hp, march:0 };
+  traveled=0;
 }
 
 // ---------- flow ----------
 function startLevel(){
-  playerX=0; targetX=0;
+  playerX=RLANE_C; targetX=RLANE_C;
   floats=[]; particles=[]; tracers=[]; clash=null; shake=0; flash=0;
+  speed=6.2+level*0.4;
   genLevel(level, crowd);
-  speed = 6.2 + level*0.35;
-  state = S.RUN;
-  lvlNumEl.textContent = level;
-  hideOverlays();
+  state=S.RUN; lvlNumEl.textContent=level; hideOverlays();
 }
 function newGame(){ level=1; crowd=20; peak=20; startLevel(); }
 function nextLevel(){ level++; startLevel(); }
-
 function winLevel(){
-  state = S.WIN;
-  peak = Math.max(peak, crowd);
-  if(peak>best){ best=peak; localStorage.setItem('crowdrush_best', best); bestNumEl.textContent=fmt(best); }
-  document.getElementById('winArmy').textContent = fmt(crowd);
-  document.getElementById('winLvl').textContent = level;
-  show('winScreen');
+  if(state===S.WIN) return;
+  state=S.WIN; peak=Math.max(peak,crowd);
+  if(peak>best){ best=peak; localStorage.setItem('crowdrush_best',best); bestNumEl.textContent=fmt(best); }
+  document.getElementById('winArmy').textContent=fmt(crowd);
+  document.getElementById('winLvl').textContent=level;
+  flash=0.8; show('winScreen');
 }
 function loseGame(){
-  state = S.LOSE;
-  if(peak>best){ best=peak; localStorage.setItem('crowdrush_best', best); bestNumEl.textContent=fmt(best); }
-  document.getElementById('loseLvl').textContent = 'Level '+level;
-  document.getElementById('loseArmy').textContent = fmt(peak);
+  if(state===S.LOSE) return;
+  state=S.LOSE;
+  if(peak>best){ best=peak; localStorage.setItem('crowdrush_best',best); bestNumEl.textContent=fmt(best); }
+  document.getElementById('loseLvl').textContent='Level '+level;
+  document.getElementById('loseArmy').textContent=fmt(peak);
   show('loseScreen');
 }
 
 // ---------- input ----------
-let dragging=false, lastPX=0;
+let dragging=false,lastPX=0;
 cv.addEventListener('pointerdown', e=>{ dragging=true; lastPX=e.clientX; });
 window.addEventListener('pointermove', e=>{
-  if(dragging){
-    targetX = Math.max(-0.82, Math.min(0.82, targetX + (e.clientX-lastPX)/roadHalfBottom));
-    lastPX=e.clientX;
-  }
+  if(dragging){ targetX=clampSteer(targetX+(e.clientX-lastPX)/roadHalfBottom); lastPX=e.clientX; }
 });
 window.addEventListener('pointerup', ()=>{ dragging=false; });
+function clampSteer(v){ return Math.max(STEER_MIN, Math.min(STEER_MAX, v)); }
 const keys={};
 window.addEventListener('keydown', e=>{ keys[e.key]=true; });
 window.addEventListener('keyup', e=>{ keys[e.key]=false; });
 
 // ---------- update ----------
 function update(dt){
-  if(state===S.MENU || state===S.WIN || state===S.LOSE) return;
-
-  if(keys['ArrowLeft']||keys['a']||keys['A']) targetX = Math.max(-0.82, targetX - 1.6*dt);
-  if(keys['ArrowRight']||keys['d']||keys['D']) targetX = Math.min(0.82, targetX + 1.6*dt);
-  playerX += (targetX-playerX)*Math.min(1, dt*12);
+  if(state===S.MENU||state===S.WIN||state===S.LOSE) return;
+  if(keys['ArrowLeft']||keys['a']||keys['A']) targetX=clampSteer(targetX-1.6*dt);
+  if(keys['ArrowRight']||keys['d']||keys['D']) targetX=clampSteer(targetX+1.6*dt);
+  playerX+=(targetX-playerX)*Math.min(1,dt*12);
+  if(army) army.march=(army.march+dt*1.2);
 
   if(state===S.RUN){
-    const adv = speed*dt;
-    scroll += adv;
-    traveled += adv;
-    for(const r of rows){ if(!r.done) r.dist -= adv; }
-
+    const adv=speed*dt; scroll+=adv; traveled+=adv;
+    for(const r of rows){ if(!r.done) r.dist-=adv; }
     for(const r of rows){
       if(r.done) continue;
-      if(r.type==='gate' && r.dist <= PLAYER_DIST){
-        const pick = playerX < 0 ? r.left : r.right;
-        const before = crowd;
-        crowd = Math.max(0, applyOp(crowd, pick));
-        r.done = true;
+      if(r.type==='gate' && r.dist<=PLAYER_DIST){
+        const pick = playerX<RLANE_MID ? r.left : r.right;
+        crowd=Math.max(0,applyOp(crowd,pick));
+        r.done=true;
         addFloat(pick.txt, playerX, '#fff', (pick.op==='-'||pick.op==='/')?'#c0342a':'#0e7a38');
         pulse();
         if(crowd<=0){ crowd=0; loseGame(); return; }
-      }
-      else if(r.type==='enemy' && r.dist <= PLAYER_DIST+0.15){
-        startClash(r);
-        break;
+      } else if(r.type==='enemy' && r.dist<=PLAYER_DIST+0.15){
+        startBlockerClash(r); break;
       }
     }
-    progBar.style.width = Math.min(100, (traveled/levelLength)*100).toFixed(1)+'%';
-  }
-  else if(state===S.CLASH){
+    updateCombat(dt);
+    progBar.style.width=Math.min(100,(traveled/levelLength)*100).toFixed(1)+'%';
+    if(army) hpBar.style.width=Math.max(0,(army.hp/army.max)*100).toFixed(1)+'%';
+    // reached the end with the army still standing -> final showdown
+    if(state===S.RUN && traveled>=levelLength && army && army.hp>0){ startArmyClash(); }
+  } else if(state===S.CLASH){
     updateClash(dt);
+    if(army) hpBar.style.width=Math.max(0,(army.hp/army.max)*100).toFixed(1)+'%';
   }
 
-  updateShooting(dt);
-
-  peak = Math.max(peak, crowd);
+  peak=Math.max(peak,crowd);
   for(const f of floats){ f.life-=dt; f.y-=dt*22; }
-  floats = floats.filter(f=>f.life>0);
+  floats=floats.filter(f=>f.life>0);
   for(const p of particles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=280*dt; }
-  particles = particles.filter(p=>p.life>0);
+  particles=particles.filter(p=>p.life>0);
   for(const t of tracers){ t.t+=dt; }
-  tracers = tracers.filter(t=>t.t<t.dur);
+  tracers=tracers.filter(t=>t.t<t.dur);
   if(shake>0) shake=Math.max(0,shake-dt*3);
   if(flash>0) flash=Math.max(0,flash-dt*2.4);
 }
 
-function nearestEnemy(){
-  let best=null;
-  for(const r of rows){ if(!r.done && r.type==='enemy' && r.dist>-1 && r.dist<20){ if(!best||r.dist<best.dist) best=r; } }
-  return best;
-}
-function updateShooting(dt){
-  if(state!==S.RUN && state!==S.CLASH) return;
-  const en = clash ? clash.enemy : nearestEnemy();
-  if(!en || crowd<=0) return;
-  const range = clash ? 26 : 13;
-  if(en.dist>range) return;
+// crowd continuously fires on the red army during the run
+function updateCombat(dt){
+  if(!army||army.hp<=0||crowd<=0) return;
+  // covering fire drains the bar smoothly with distance (down to ~38% by the
+  // lane's end), and a big crowd chips it down a little faster for extra reward.
+  const prog=Math.min(1, traveled/levelLength);
+  const sched=army.max*(1-0.62*prog);
+  if(army.hp>sched) army.hp=sched;
+  army.hp=Math.max(0, army.hp - crowd*DPS_K*0.16*dt);
   shotTimer-=dt;
   if(shotTimer<=0){
-    shotTimer = clash ? 0.05 : 0.11;
-    const shots = clash ? 3 : 1;
-    const from = proj(playerX, PLAYER_DIST-0.2);
-    const to = proj((Math.random()-0.5)*(en.boss?1.4:0.9), Math.max(en.dist,0.5));
-    for(let i=0;i<shots;i++){
-      tracers.push({ x0:from.x+rnd(-16,16), y0:from.y-34, x1:to.x+rnd(-20,20), y1:to.y-20, t:0, dur:rnd(0.12,0.2) });
-    }
-    if(clash){
-      // red damage numbers rising off the horde
-      if(Math.random()<0.55){
-        const dmg = Math.max(1, Math.round((clash.e0)/ (clash.dur/0.12) * rnd(0.6,1.4)));
-        floats.push({ txt:'-'+dmg, x:to.x+rnd(-30,30), y:to.y-40, life:0.6, color:'#ff5a4a', bg:null });
-      }
+    shotTimer=0.055;
+    const from=proj(playerX,PLAYER_DIST-0.2);
+    const to=proj(rnd(ELANE_L,ELANE_R), rnd(0.6,5));
+    const shots=1+(crowd>120?1:0);
+    for(let i=0;i<shots;i++)
+      tracers.push({ x0:from.x+rnd(-14,14), y0:from.y-34, x1:to.x+rnd(-10,10), y1:to.y-18, t:0, dur:rnd(0.1,0.18) });
+    if(Math.random()<0.5){
+      const dmg=Math.max(1,Math.round(army.max*0.02*rnd(0.6,1.5)));
+      floats.push({ txt:'-'+dmg, x:to.x+rnd(-18,18), y:to.y-30, life:0.6, color:'#ff5a4a', bg:null });
     }
   }
+  if(army.hp<=0){ army.hp=0; hpBar.style.width='0%'; shake=1; winLevel(); }
 }
 
-function startClash(enemy){
-  state = S.CLASH;
-  const playerWins = crowd > enemy.count;
-  const finalP = playerWins ? Math.max(1, crowd-enemy.count) : 0;
-  const finalE = playerWins ? 0 : Math.max(1, enemy.count-crowd);
-  clash = { enemy, t:0, dur: enemy.boss ? 1.5 : 0.55, p0: crowd, e0: enemy.count, pf: finalP, ef: finalE, win: playerWins, tick:0 };
+function startBlockerClash(enemy){
+  state=S.CLASH;
+  const win=crowd>enemy.count;
+  clash={ army:false, enemy, t:0, dur:0.55, p0:crowd, e0:enemy.count,
+          pf:win?Math.max(1,crowd-enemy.count):0, ef:win?0:Math.max(1,enemy.count-crowd), win, tick:0, atX:RLANE_C, atD:enemy.dist };
+}
+function startArmyClash(){
+  state=S.CLASH;
+  const win=crowd>army.hp;
+  clash={ army:true, enemy:null, t:0, dur:1.6, p0:crowd, e0:army.hp,
+          pf:win?Math.max(1,crowd-Math.round(army.hp)):0, ef:win?0:Math.max(1,Math.round(army.hp)-crowd), win, tick:0, atX:ELANE_C, atD:1.4 };
 }
 function updateClash(dt){
-  clash.t += dt;
-  const k = Math.min(1, clash.t/clash.dur);
-  const ease = 1-Math.pow(1-k,2);
-  crowd = Math.round(clash.p0 + (clash.pf-clash.p0)*ease);
-  clash.enemy.count = Math.round(clash.e0 + (clash.ef-clash.e0)*ease);
-  clash.tick -= dt;
-  if(clash.tick<=0){ clash.tick=0.04; spawnSparks(); shake=Math.max(shake,0.5); }
+  clash.t+=dt;
+  const k=Math.min(1,clash.t/clash.dur), ease=1-Math.pow(1-k,2);
+  crowd=Math.round(clash.p0+(clash.pf-clash.p0)*ease);
+  const eNow=Math.round(clash.e0+(clash.ef-clash.e0)*ease);
+  if(clash.army) army.hp=eNow; else clash.enemy.count=eNow;
+  clash.tick-=dt;
+  if(clash.tick<=0){
+    clash.tick=0.04; shake=Math.max(shake,0.5);
+    spawnSparks(clash.atX, clash.atD);
+    if(clash.army && Math.random()<0.7){
+      const pr=proj(rnd(ELANE_L,ELANE_R), rnd(0.8,3));
+      const dmg=Math.max(1,Math.round(clash.e0/(clash.dur/0.12)*rnd(0.6,1.4)));
+      floats.push({ txt:'-'+dmg, x:pr.x+rnd(-20,20), y:pr.y-30, life:0.6, color:'#ff5a4a', bg:null });
+    }
+  }
   if(k>=1){
-    const wasBoss = clash.enemy.boss;
-    const won = clash.win;
-    clash.enemy.done = true;
-    clash = null;
-    if(!won || crowd<=0){ crowd=Math.max(0,crowd); loseGame(); return; }
+    const won=clash.win, wasArmy=clash.army;
+    if(!wasArmy) clash.enemy.done=true;
+    clash=null;
+    if(!won||crowd<=0){ crowd=Math.max(0,crowd); loseGame(); return; }
     flash=0.6; pulse();
-    if(wasBoss){ winLevel(); return; }
-    state = S.RUN;
+    if(wasArmy){ winLevel(); return; }
+    state=S.RUN;
   }
 }
-
 function addFloat(txt, worldX, color, bg){
-  const pr = proj(worldX, PLAYER_DIST-0.2);
+  const pr=proj(worldX, PLAYER_DIST-0.2);
   floats.push({ txt, x:pr.x, y:pr.y-60, life:0.9, color, bg });
 }
 function pulse(){ flash=Math.max(flash,0.3); }
-function spawnSparks(){
-  const pr = proj(playerX, PLAYER_DIST+0.3);
+function spawnSparks(worldX, dist){
+  const pr=proj(worldX, dist);
   for(let i=0;i<6;i++){
-    const a = Math.random()*Math.PI*2, sp=rnd(60,220);
-    particles.push({ x:pr.x+rnd(-30,30), y:pr.y-40+rnd(-20,20), vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-80, life:rnd(0.2,0.5), c: Math.random()<0.5?'#ffd86a':'#ff8a3a' });
+    const a=Math.random()*Math.PI*2, sp=rnd(60,220);
+    particles.push({ x:pr.x+rnd(-30,30), y:pr.y-40+rnd(-20,20), vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-80, life:rnd(0.2,0.5), c:Math.random()<0.5?'#ffd86a':'#ff8a3a' });
   }
 }
 
 // ---------- render ----------
 function render(){
   ctx.clearRect(0,0,W,H);
-  const sx = shake>0 ? (Math.random()-0.5)*shake*14 : 0;
-  const sy = shake>0 ? (Math.random()-0.5)*shake*14 : 0;
-  ctx.save();
-  ctx.translate(sx,sy);
-
-  drawSky();
-  drawRoad();
-
-  const vis = rows.filter(r=>!r.done && r.dist<24 && r.dist>-2).sort((a,b)=>b.dist-a.dist);
-  for(const r of vis){
-    if(r.type==='gate') drawGate(r);
-    else drawEnemy(r);
-  }
+  const sx=shake>0?(Math.random()-0.5)*shake*14:0, sy=shake>0?(Math.random()-0.5)*shake*14:0;
+  ctx.save(); ctx.translate(sx,sy);
+  drawSky(); drawRoad(); drawWall();
+  if(army && army.hp>0) drawArmy();
+  const vis=rows.filter(r=>!r.done && r.dist<24 && r.dist>-2).sort((a,b)=>b.dist-a.dist);
+  for(const r of vis){ if(r.type==='gate') drawGate(r); else drawTurretBlock(r); }
   drawCrowd();
-
-  // bullet tracers
+  // tracers
   ctx.lineCap='round';
   for(const t of tracers){
     const k=t.t/t.dur;
     const hx=t.x0+(t.x1-t.x0)*k, hy=t.y0+(t.y1-t.y0)*k;
-    const tk=Math.max(0,k-0.35);
-    const tx=t.x0+(t.x1-t.x0)*tk, ty=t.y0+(t.y1-t.y0)*tk;
-    ctx.strokeStyle='rgba(140,225,255,'+(1-k*0.6)+')';
-    ctx.lineWidth=3;
+    const tk=Math.max(0,k-0.35), tx=t.x0+(t.x1-t.x0)*tk, ty=t.y0+(t.y1-t.y0)*tk;
+    ctx.strokeStyle='rgba(150,230,255,'+(1-k*0.6)+')'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); ctx.stroke();
-    ctx.fillStyle='#eaffff';
-    ctx.beginPath(); ctx.arc(hx,hy,2.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#eaffff'; ctx.beginPath(); ctx.arc(hx,hy,2.5,0,Math.PI*2); ctx.fill();
   }
-
-  for(const p of particles){
-    ctx.globalAlpha = Math.max(0,p.life*2);
-    ctx.fillStyle=p.c;
-    ctx.fillRect(p.x, p.y, 3, 3);
-  }
+  for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life*2); ctx.fillStyle=p.c; ctx.fillRect(p.x,p.y,3,3); }
   ctx.globalAlpha=1;
-
   for(const f of floats){
-    ctx.globalAlpha = Math.min(1, f.life*1.6);
-    ctx.font = '900 30px Segoe UI, sans-serif';
-    ctx.textAlign='center';
-    if(f.bg){
-      const w = ctx.measureText(f.txt).width+26;
-      ctx.fillStyle=f.bg; roundRect(f.x-w/2, f.y-30, w, 40, 8); ctx.fill();
-    }
-    ctx.fillStyle=f.color; ctx.fillText(f.txt, f.x, f.y);
+    ctx.globalAlpha=Math.min(1,f.life*1.6);
+    ctx.font='900 30px Segoe UI, sans-serif'; ctx.textAlign='center';
+    if(f.bg){ const w=ctx.measureText(f.txt).width+26; ctx.fillStyle=f.bg; roundRect(f.x-w/2,f.y-30,w,40,8); ctx.fill(); }
+    ctx.fillStyle=f.color;
+    if(!f.bg){ ctx.lineWidth=4; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.strokeText(f.txt,f.x,f.y); }
+    ctx.fillText(f.txt,f.x,f.y);
   }
-  ctx.globalAlpha=1;
-  ctx.restore();
-
+  ctx.globalAlpha=1; ctx.restore();
   if(flash>0){ ctx.fillStyle='rgba(255,255,255,'+(flash*0.28)+')'; ctx.fillRect(0,0,W,H); }
 }
 
 function drawSky(){
-  const g = ctx.createLinearGradient(0,0,0,horizonY+40);
+  const g=ctx.createLinearGradient(0,0,0,horizonY+40);
   g.addColorStop(0,'#173157'); g.addColorStop(1,'#5a86c0');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,horizonY+40);
-  const hz = ctx.createLinearGradient(0,horizonY-30,0,horizonY+30);
+  const hz=ctx.createLinearGradient(0,horizonY-30,0,horizonY+30);
   hz.addColorStop(0,'rgba(200,220,255,0)'); hz.addColorStop(1,'rgba(220,232,255,.5)');
   ctx.fillStyle=hz; ctx.fillRect(0,horizonY-30,W,60);
   const gg=ctx.createLinearGradient(0,horizonY,0,H);
   gg.addColorStop(0,'#b8a884'); gg.addColorStop(1,'#8f7d5c');
   ctx.fillStyle=gg; ctx.fillRect(0,horizonY,W,H-horizonY);
 }
-
+function laneQuad(xa,xb,dNear,dFar){
+  const a=proj(xa,dNear), b=proj(xb,dNear), c=proj(xb,dFar), d=proj(xa,dFar);
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.closePath();
+}
 function drawRoad(){
-  const nearL=proj(-1,-0.5), nearR=proj(1,-0.5);
-  const farL=proj(-1,24), farR=proj(1,24);
-  ctx.beginPath();
-  ctx.moveTo(nearL.x,nearL.y); ctx.lineTo(nearR.x,nearR.y);
-  ctx.lineTo(farR.x,farR.y); ctx.lineTo(farL.x,farL.y); ctx.closePath();
-  const rg=ctx.createLinearGradient(0,horizonY,0,H);
+  // enemy lane (reddish)
+  laneQuad(-1.02, WALL_X, -0.5, 24);
+  let rg=ctx.createLinearGradient(0,horizonY,0,H);
+  rg.addColorStop(0,'#7a6a72'); rg.addColorStop(1,'#8f7a80');
+  ctx.fillStyle=rg; ctx.fill();
+  // run lane (cool grey)
+  laneQuad(WALL_X, 1.02, -0.5, 24);
+  rg=ctx.createLinearGradient(0,horizonY,0,H);
   rg.addColorStop(0,'#7d8aa0'); rg.addColorStop(1,'#9aa6bb');
   ctx.fillStyle=rg; ctx.fill();
-
-  const period=2.6;
-  const off = scroll % period;
+  // depth stripes across whole road
+  const period=2.6, off=scroll%period;
   for(let i=0;i<16;i++){
-    const d = i*period - off + 0.5;
-    if(d<0.4 || d>24) continue;
-    const l=proj(-1,d), r=proj(1,d);
-    const l2=proj(-1,d+period*0.5), r2=proj(1,d+period*0.5);
-    ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.lineTo(r.x,r.y); ctx.lineTo(r2.x,r2.y); ctx.lineTo(l2.x,l2.y); ctx.closePath();
-    ctx.fillStyle = (i%2===0) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-    ctx.fill();
+    const d=i*period-off+0.5; if(d<0.4||d>24) continue;
+    laneQuad(-1.02,1.02,d,d+period*0.5);
+    ctx.fillStyle=(i%2===0)?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'; ctx.fill();
   }
-  drawEdge(-1); drawEdge(1);
+  drawEdge(-1.04); drawEdge(1.04);
+  // run-lane centre dashes
   for(let i=0;i<20;i++){
-    const d=i*1.3 - (scroll%1.3);
-    if(d<0.3||d>22) continue;
-    const a=proj(0,d), b=proj(0,d+0.55);
-    ctx.strokeStyle='rgba(255,235,180,0.5)';
-    ctx.lineWidth=Math.max(1,3*a.p);
+    const d=i*1.3-(scroll%1.3); if(d<0.3||d>22) continue;
+    const a=proj(RLANE_MID,d), b=proj(RLANE_MID,d+0.55);
+    ctx.strokeStyle='rgba(255,235,180,0.4)'; ctx.lineWidth=Math.max(1,3*a.p);
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
   }
 }
 function drawEdge(side){
-  ctx.beginPath();
-  let first=true;
-  for(let d=-0.5; d<=24; d+=1.5){
-    const p=proj(side*1.04,d);
-    if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y);
-  }
+  ctx.beginPath(); let first=true;
+  for(let d=-0.5;d<=24;d+=1.5){ const p=proj(side,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
   ctx.strokeStyle='#e0d4b0'; ctx.lineWidth=3; ctx.stroke();
+}
+function drawWall(){
+  // low dividing wall between the two lanes
+  const wh=42; // world-ish height factor
+  ctx.beginPath(); let first=true;
+  const pts=[];
+  for(let d=24;d>=-0.5;d-=1){ pts.push(proj(WALL_X,d)); }
+  // top edge then bottom edge back
+  for(const p of pts){ if(first){ctx.moveTo(p.x,p.y-wh*p.p);first=false;} else ctx.lineTo(p.x,p.y-wh*p.p); }
+  for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; ctx.lineTo(p.x,p.y); }
+  ctx.closePath();
+  const wg=ctx.createLinearGradient(0,horizonY,0,H);
+  wg.addColorStop(0,'#5a5460'); wg.addColorStop(1,'#3a3640');
+  ctx.fillStyle=wg; ctx.fill();
+  // top highlight
+  ctx.beginPath(); first=true;
+  for(const p of pts){ if(first){ctx.moveTo(p.x,p.y-wh*p.p);first=false;} else ctx.lineTo(p.x,p.y-wh*p.p); }
+  ctx.strokeStyle='#8a8494'; ctx.lineWidth=2; ctx.stroke();
 }
 
 function roundRect(x,y,w,h,r){
@@ -471,182 +456,135 @@ function roundRect(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 
-function drawGate(r){
-  drawGatePanel(r.left,  -1, 0, r.dist);
-  drawGatePanel(r.right,  0, 1, r.dist);
-  const mid=proj(0,r.dist);
-  ctx.fillStyle='rgba(20,30,50,0.5)';
-  ctx.fillRect(mid.x-2*mid.p, mid.y-120*mid.p, 4*mid.p, 120*mid.p);
-}
-function drawGatePanel(op, xa, xb, dist){
-  const c = opColor(op);
-  const bl=proj(xa,dist), br=proj(xb,dist);
-  const p=bl.p;
-  const topH = 150*p;
-  const bx = Math.min(bl.x,br.x), bw = Math.abs(br.x-bl.x);
-  const by = bl.y;
-  const grd=ctx.createLinearGradient(0,by-topH,0,by);
-  grd.addColorStop(0, c.glow+'0.05)');
-  grd.addColorStop(1, c.glow+'0.34)');
-  ctx.fillStyle=grd;
-  ctx.fillRect(bx, by-topH, bw, topH);
-  ctx.strokeStyle=c.a; ctx.lineWidth=Math.max(2,5*p);
-  ctx.beginPath();
-  ctx.moveTo(bl.x, by); ctx.lineTo(bl.x, by-topH);
-  ctx.moveTo(br.x, by); ctx.lineTo(br.x, by-topH);
-  ctx.moveTo(bx, by-topH); ctx.lineTo(bx+bw, by-topH);
-  ctx.stroke();
-  const lw = Math.min(bw*0.82, 170*p), lh = 54*p;
-  const lcx = (bl.x+br.x)/2, lcy = by-topH*0.5;
-  const lg=ctx.createLinearGradient(0,lcy-lh/2,0,lcy+lh/2);
-  lg.addColorStop(0,c.a); lg.addColorStop(1,c.b);
-  ctx.fillStyle=lg; roundRect(lcx-lw/2,lcy-lh/2,lw,lh,10*p); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=Math.max(1,2*p); ctx.stroke();
-  ctx.fillStyle='#fff'; ctx.font='900 '+Math.max(12,42*p)+'px Segoe UI, sans-serif';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(op.txt, lcx, lcy+2*p);
-  ctx.textBaseline='alphabetic';
-}
-
-function drawEnemy(r){
-  if(r.boss) drawBossArmy(r);
-  else drawTurretBlock(r);
-}
-
-// Yellow barrel-turret blocker (matches reference)
-function drawTurretBlock(r){
-  const dist=r.dist;
-  const bl=proj(-0.62,dist), br=proj(0.62,dist), base=proj(0,dist);
-  const p=base.p;
-  const bx=bl.x, bw=br.x-bl.x, by=base.y;
-  const bh=150*p;
-  // shadow
-  ctx.fillStyle='rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.ellipse(base.x, by+6*p, bw*0.55, 12*p, 0,0,Math.PI*2); ctx.fill();
-  // barrel body
-  const bg=ctx.createLinearGradient(bx,0,bx+bw,0);
-  bg.addColorStop(0,'#b8790c'); bg.addColorStop(0.5,'#ffd23a'); bg.addColorStop(1,'#b8790c');
-  ctx.fillStyle=bg;
-  roundRect(bx, by-bh, bw, bh, 16*p); ctx.fill();
-  // top ellipse cap
-  ctx.fillStyle='#ffe066';
-  ctx.beginPath(); ctx.ellipse(base.x, by-bh, bw*0.5, 12*p, 0,0,Math.PI*2); ctx.fill();
-  // barrel staves (horizontal bands)
-  ctx.strokeStyle='rgba(90,55,5,0.5)'; ctx.lineWidth=Math.max(1,2*p);
-  for(let i=1;i<4;i++){ const yy=by-bh+ (bh)*i/4; ctx.beginPath(); ctx.moveTo(bx+3*p,yy); ctx.lineTo(bx+bw-3*p,yy); ctx.stroke(); }
-  // blue gun on top
-  const gx=base.x, gy=by-bh-6*p;
-  ctx.save(); ctx.translate(gx,gy); ctx.rotate(-0.5);
-  ctx.fillStyle='#2f7dd8'; roundRect(-6*p, -46*p, 12*p, 46*p, 4*p); ctx.fill();
-  ctx.fillStyle='#1b4f8a'; roundRect(-8*p, -12*p, 16*p, 14*p, 4*p); ctx.fill();
-  ctx.restore();
-  // number
-  drawCountPlate(base.x, by-bh*0.4, r.count, '#2f9dff', p*1.05);
-}
-
-// Big red marching army for the boss
-function drawBossArmy(r){
-  const count=r.count;
-  const cols=9, rowsN=7;
-  const n=cols*rowsN;
-  const spread=0.92;
-  const march=Math.sin(scroll*3)*0.03;
+// ----- red army (left lane) -----
+function drawArmy(){
+  const frac=Math.max(0.06, army.hp/army.max);
+  const cols=8, rowsN=Math.max(2, Math.round(9*frac));
+  const march=Math.sin(army.march)*0.03;
   const arr=[];
-  for(let i=0;i<n;i++){
+  for(let i=0;i<cols*rowsN;i++){
     const ci=i%cols, ri=Math.floor(i/cols);
-    const wx=((ci/(cols-1))-0.5)*spread*2 + march*(ri%2?1:-1);
-    const dd=r.dist + ri*0.55 + 1.4;   // army extends into the distance
+    const wx=ELANE_L + (ci/(cols-1))*(ELANE_R-ELANE_L) + march*(ri%2?1:-1);
+    const dd=0.9 + ri*0.62;
     arr.push({wx,dd,i});
   }
   arr.sort((a,b)=>b.dd-a.dd);
   for(const s of arr){
-    const step=Math.sin(scroll*6+s.i*1.3)*0.5+0.5;
+    const step=Math.sin(army.march*4+s.i*1.3)*0.5+0.5;
     drawSoldier(s.wx, s.dd, '#e0483a', '#7a1e16', '#ffb0a6', step);
   }
-  // giant leader
-  const gp=proj(0, r.dist+0.6);
-  drawGiant(gp);
-  // count plate on the horde front
-  const lp=proj(0, r.dist);
-  drawCountPlate(lp.x, lp.y-170*lp.p, count, '#ff5a4a', lp.p*1.3);
+  // giant leader at the front
+  drawGiant(proj(ELANE_C, 0.9));
+  // HP plate on the horde
+  const lp=proj(ELANE_C, 1.1);
+  drawCountPlate(lp.x, lp.y-150*lp.p, Math.round(army.hp), '#ff5a4a', lp.p*1.25);
 }
-
 function drawGiant(pr){
-  const p=pr.p, x=pr.x, y=pr.y, s=p*2.4;
-  ctx.fillStyle='rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.ellipse(x, y+3*s, 12*s, 4*s,0,0,Math.PI*2); ctx.fill();
+  const p=pr.p, x=pr.x, y=pr.y, s=p*2.3;
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x,y+3*s,12*s,4*s,0,0,Math.PI*2); ctx.fill();
   const bg=ctx.createLinearGradient(0,y-30*s,0,y);
   bg.addColorStop(0,'#ff7a5a'); bg.addColorStop(0.5,'#c8281c'); bg.addColorStop(1,'#6a0f08');
-  ctx.fillStyle=bg; roundRect(x-9*s, y-28*s, 18*s, 26*s, 6*s); ctx.fill();
-  ctx.fillStyle='#8a1810';
-  ctx.beginPath(); ctx.arc(x, y-34*s, 7*s, 0, Math.PI*2); ctx.fill();
-  // shoulder spikes
+  ctx.fillStyle=bg; roundRect(x-9*s,y-28*s,18*s,26*s,6*s); ctx.fill();
+  ctx.fillStyle='#8a1810'; ctx.beginPath(); ctx.arc(x,y-34*s,7*s,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#5a0d06';
   ctx.beginPath(); ctx.moveTo(x-9*s,y-26*s); ctx.lineTo(x-15*s,y-30*s); ctx.lineTo(x-9*s,y-20*s); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x+9*s,y-26*s); ctx.lineTo(x+15*s,y-30*s); ctx.lineTo(x+9*s,y-20*s); ctx.fill();
 }
 
+// ----- gates -----
+function drawGate(r){
+  drawGatePanel(r.left, RLANE_L, RLANE_MID, r.dist);
+  drawGatePanel(r.right, RLANE_MID, RLANE_R, r.dist);
+  const mid=proj(RLANE_MID,r.dist);
+  ctx.fillStyle='rgba(20,30,50,0.5)';
+  ctx.fillRect(mid.x-2*mid.p, mid.y-120*mid.p, 4*mid.p, 120*mid.p);
+}
+function drawGatePanel(op,xa,xb,dist){
+  const c=opColor(op), bl=proj(xa,dist), br=proj(xb,dist), p=bl.p;
+  const topH=150*p, bx=Math.min(bl.x,br.x), bw=Math.abs(br.x-bl.x), by=bl.y;
+  const grd=ctx.createLinearGradient(0,by-topH,0,by);
+  grd.addColorStop(0,c.glow+'0.05)'); grd.addColorStop(1,c.glow+'0.34)');
+  ctx.fillStyle=grd; ctx.fillRect(bx,by-topH,bw,topH);
+  ctx.strokeStyle=c.a; ctx.lineWidth=Math.max(2,5*p);
+  ctx.beginPath();
+  ctx.moveTo(bl.x,by); ctx.lineTo(bl.x,by-topH);
+  ctx.moveTo(br.x,by); ctx.lineTo(br.x,by-topH);
+  ctx.moveTo(bx,by-topH); ctx.lineTo(bx+bw,by-topH);
+  ctx.stroke();
+  const lw=Math.min(bw*0.82,170*p), lh=54*p, lcx=(bl.x+br.x)/2, lcy=by-topH*0.5;
+  const lg=ctx.createLinearGradient(0,lcy-lh/2,0,lcy+lh/2);
+  lg.addColorStop(0,c.a); lg.addColorStop(1,c.b);
+  ctx.fillStyle=lg; roundRect(lcx-lw/2,lcy-lh/2,lw,lh,10*p); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=Math.max(1,2*p); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='900 '+Math.max(12,42*p)+'px Segoe UI, sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(op.txt,lcx,lcy+2*p); ctx.textBaseline='alphabetic';
+}
+
+// ----- yellow turret blocker -----
+function drawTurretBlock(r){
+  const dist=r.dist;
+  const bl=proj(RLANE_L+0.08,dist), br=proj(RLANE_R-0.08,dist), base=proj(RLANE_C,dist), p=base.p;
+  const bx=bl.x, bw=br.x-bl.x, by=base.y, bh=150*p;
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(base.x,by+6*p,bw*0.55,12*p,0,0,Math.PI*2); ctx.fill();
+  const bg=ctx.createLinearGradient(bx,0,bx+bw,0);
+  bg.addColorStop(0,'#b8790c'); bg.addColorStop(0.5,'#ffd23a'); bg.addColorStop(1,'#b8790c');
+  ctx.fillStyle=bg; roundRect(bx,by-bh,bw,bh,16*p); ctx.fill();
+  ctx.fillStyle='#ffe066'; ctx.beginPath(); ctx.ellipse(base.x,by-bh,bw*0.5,12*p,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(90,55,5,0.5)'; ctx.lineWidth=Math.max(1,2*p);
+  for(let i=1;i<4;i++){ const yy=by-bh+bh*i/4; ctx.beginPath(); ctx.moveTo(bx+3*p,yy); ctx.lineTo(bx+bw-3*p,yy); ctx.stroke(); }
+  const gx=base.x, gy=by-bh-6*p;
+  ctx.save(); ctx.translate(gx,gy); ctx.rotate(-0.5);
+  ctx.fillStyle='#2f7dd8'; roundRect(-6*p,-46*p,12*p,46*p,4*p); ctx.fill();
+  ctx.fillStyle='#1b4f8a'; roundRect(-8*p,-12*p,16*p,14*p,4*p); ctx.fill();
+  ctx.restore();
+  drawCountPlate(base.x, by-bh*0.4, r.count, '#2f9dff', p*1.05);
+}
+
+// ----- your crowd -----
 function drawCrowd(){
-  const count = crowd;
-  if(count<=0) return;
-  const n = Math.min(60, Math.max(1, Math.round(1+Math.sqrt(count)*3.4)));
-  const cols = Math.min(10, Math.ceil(Math.sqrt(n)));
-  const rowsN = Math.ceil(n/cols);
-  const spread = Math.min(0.78, 0.28 + Math.sqrt(count)*0.02);
-  const bob = Math.sin(scroll*6)*0.02;
+  const count=crowd; if(count<=0) return;
+  const n=Math.min(60,Math.max(1,Math.round(1+Math.sqrt(count)*3.4)));
+  const cols=Math.min(9,Math.ceil(Math.sqrt(n))), rowsN=Math.ceil(n/cols);
+  const spread=Math.min(0.34, 0.12+Math.sqrt(count)*0.012);
+  const bob=Math.sin(scroll*6)*0.02;
   const arr=[];
   for(let i=0;i<n;i++){
     const ci=i%cols, ri=Math.floor(i/cols);
-    const wx = playerX + (((ci/(cols-1||1))-0.5))*spread*2 + Math.sin(i*12.9)*0.02;
-    const dd = PLAYER_DIST + (ri-rowsN/2)*0.18 - 0.1 + bob;
+    let wx=playerX+(((ci/(cols-1||1))-0.5))*spread*2+Math.sin(i*12.9)*0.02;
+    wx=Math.max(RLANE_L+0.02, Math.min(RLANE_R-0.02, wx));
+    const dd=PLAYER_DIST+(ri-rowsN/2)*0.18-0.1+bob;
     arr.push({wx,dd,i});
   }
   arr.sort((a,b)=>b.dd-a.dd);
-  for(const s of arr){
-    const step = Math.sin(scroll*8 + s.i*1.7)*0.5+0.5;
-    drawSoldier(s.wx, s.dd, '#2f8fff', '#134a8a', '#bfe0ff', step);
-  }
-  const lp = proj(playerX, PLAYER_DIST+0.1);
-  drawCountPlate(lp.x, lp.y - 96*lp.p, count, '#2f9dff', lp.p*1.05);
+  for(const s of arr){ const step=Math.sin(scroll*8+s.i*1.7)*0.5+0.5; drawSoldier(s.wx,s.dd,'#2f8fff','#134a8a','#bfe0ff',step); }
+  const lp=proj(playerX,PLAYER_DIST+0.1);
+  drawCountPlate(lp.x, lp.y-96*lp.p, count, '#2f9dff', lp.p*1.05);
 }
 
-function drawSoldier(wx, dist, body, dark, hi, step){
-  const pr = proj(wx, dist);
-  const p = pr.p;
-  if(p<=0.02) return;
-  const s = p;
-  const x=pr.x, y=pr.y;
-  const lift = step!==undefined ? Math.abs(Math.sin(step*Math.PI))*4*s : 0;
-  ctx.fillStyle='rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(x, y+2*s, 9*s, 3.2*s, 0,0,Math.PI*2); ctx.fill();
-  const gy = y - lift;
+function drawSoldier(wx,dist,body,dark,hi,step){
+  const pr=proj(wx,dist), p=pr.p; if(p<=0.02) return;
+  const s=p, x=pr.x, y=pr.y;
+  const lift=step!==undefined?Math.abs(Math.sin(step*Math.PI))*4*s:0;
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x,y+2*s,9*s,3.2*s,0,0,Math.PI*2); ctx.fill();
+  const gy=y-lift;
   const bg=ctx.createLinearGradient(0,gy-24*s,0,gy);
   bg.addColorStop(0,hi); bg.addColorStop(0.4,body); bg.addColorStop(1,dark);
-  ctx.fillStyle=bg;
-  roundRect(x-6*s, gy-22*s, 12*s, 20*s, 4*s); ctx.fill();
-  ctx.fillStyle=dark;
-  ctx.beginPath(); ctx.arc(x, gy-27*s, 5.2*s, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle=hi;
-  ctx.beginPath(); ctx.arc(x-1.3*s, gy-28.5*s, 2.2*s, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle=bg; roundRect(x-6*s,gy-22*s,12*s,20*s,4*s); ctx.fill();
+  ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(x,gy-27*s,5.2*s,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=hi; ctx.beginPath(); ctx.arc(x-1.3*s,gy-28.5*s,2.2*s,0,Math.PI*2); ctx.fill();
 }
 
 function drawCountPlate(x,y,count,color,p){
   p=Math.max(0.35,p);
   const txt=fmt(count);
   ctx.font='900 '+Math.round(40*p)+'px Segoe UI, sans-serif';
-  const w=ctx.measureText(txt).width + 34*p;
-  const h=46*p;
-  ctx.save();
-  ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=10*p; ctx.shadowOffsetY=3*p;
+  const w=ctx.measureText(txt).width+34*p, h=46*p;
+  ctx.save(); ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=10*p; ctx.shadowOffsetY=3*p;
   const g=ctx.createLinearGradient(0,y-h/2,0,y+h/2);
-  g.addColorStop(0, shade(color,1.2)); g.addColorStop(1, shade(color,0.7));
-  ctx.fillStyle=g; roundRect(x-w/2,y-h/2,w,h,10*p); ctx.fill();
-  ctx.restore();
-  ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=Math.max(1,2*p);
-  roundRect(x-w/2,y-h/2,w,h,10*p); ctx.stroke();
-  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(txt, x, y+1);
-  ctx.textBaseline='alphabetic';
+  g.addColorStop(0,shade(color,1.2)); g.addColorStop(1,shade(color,0.7));
+  ctx.fillStyle=g; roundRect(x-w/2,y-h/2,w,h,10*p); ctx.fill(); ctx.restore();
+  ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=Math.max(1,2*p); roundRect(x-w/2,y-h/2,w,h,10*p); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(txt,x,y+1); ctx.textBaseline='alphabetic';
 }
 function shade(hex,f){
   const n=parseInt(hex.slice(1),16);
@@ -658,11 +596,8 @@ function shade(hex,f){
 // ---------- loop ----------
 let last=performance.now();
 function frame(now){
-  let dt=(now-last)/1000; last=now;
-  if(dt>0.05) dt=0.05;
-  update(dt);
-  render();
-  requestAnimationFrame(frame);
+  let dt=(now-last)/1000; last=now; if(dt>0.05) dt=0.05;
+  update(dt); render(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
@@ -673,6 +608,15 @@ document.getElementById('playBtn').addEventListener('click', newGame);
 document.getElementById('nextBtn').addEventListener('click', nextLevel);
 document.getElementById('retryBtn').addEventListener('click', newGame);
 
+// debug hooks for automated testing
+window.CRDBG=()=>({state,crowd:Math.round(crowd),hp:army?Math.round(army.hp):0,max:army?army.max:0,traveled:Math.round(traveled),len:Math.round(levelLength),level});
+window.CRBEST=()=>{
+  let g=null;
+  for(const r of rows){ if(!r.done && r.type==='gate' && r.dist>0){ if(!g||r.dist<g.dist) g=r; } }
+  if(!g) return RLANE_C;
+  return applyOp(crowd,g.left)>=applyOp(crowd,g.right) ? (RLANE_L+0.14) : (RLANE_R-0.10);
+};
+window.CRSET=x=>{ targetX=clampSteer(x); };
 })();
 </script>
 </body>
