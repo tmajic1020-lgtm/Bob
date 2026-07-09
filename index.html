@@ -120,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.3.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.4.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -137,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.3.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.4.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -152,6 +152,7 @@ body.light #speedbox{background:#ece7d6d0}
     <button class="tbtn" onclick="mpMenu()">🌐 MULTIPLAYER</button>
     <button class="tbtn" onclick="showChangelog()">📜 UPDATE LOG</button>
     <button class="tbtn" onclick="showHelp()">❓ HOW TO PLAY</button>
+    <button class="tbtn" onclick="showAchievements()">🏅 ACHIEVEMENTS</button>
   </div>
   <div id="years" style="display:flex;gap:6px;margin:-8px 0 12px;flex-wrap:wrap;justify-content:center"></div>
   <button class="tbtn" id="bContinue" style="display:none;margin-bottom:14px;border-color:var(--amber);color:var(--amber)">▶ CONTINUE SAVED CAMPAIGN</button>
@@ -1120,6 +1121,10 @@ function warPair(a,b){
   G.nations[a].atWar.add(b);G.nations[b].atWar.add(a);
   G.nations[a].mobTimer=Math.min(G.nations[a].mobTimer??30,10);
   G.nations[b].mobTimer=Math.min(G.nations[b].mobTimer??30,10);
+  // remember when the player's wars began (for the Blitzkrieg achievement)
+  G.warStart=G.warStart||{};
+  if(a===G.player)G.warStart[b]=G.day;
+  if(b===G.player)G.warStart[a]=G.day;
 }
 let _toastT=null;
 function toast(msg){
@@ -1127,6 +1132,61 @@ function toast(msg){
   t.textContent=msg;t.style.display="block";
   clearTimeout(_toastT);_toastT=setTimeout(()=>t.style.display="none",4500);
 }
+/* ===== ACHIEVEMENTS ===== cross-campaign milestones, saved on the device */
+const ACH={
+ first_blood:{n:"First Blood",d:"Capture your first enemy province.",i:"⚔"},
+ annex:{n:"Annexation",d:"Wipe an enemy nation off the map.",i:"💀"},
+ blitz:{n:"Blitzkrieg",d:"Annex a nation within 90 days of the war starting.",i:"⚡"},
+ airborne:{n:"Airborne",d:"Carry out a paratrooper assault.",i:"🪂"},
+ nuclear:{n:"Nuclear Power",d:"Build your first nuclear weapon.",i:"☢"},
+ fallout:{n:"Fallout",d:"Launch a nuclear strike.",i:"☢"},
+ gunboat:{n:"Gunboat Diplomacy",d:"Seize a province by ultimatum, without firing a shot.",i:"📯"},
+ dictator:{n:"Dictator's Pen",d:"Force a dictated treaty on a beaten enemy.",i:"📜"},
+ puppet:{n:"Puppet Master",d:"Install a puppet government.",i:"⛓"},
+ diplomat:{n:"Grand Coalition",d:"Hold three allies at once.",i:"🤝"},
+ winter:{n:"General Winter",d:"Fight on foreign soil in the depths of winter.",i:"❄"},
+ phoenix:{n:"Phoenix",d:"Keep fighting after your government collapses.",i:"🔥"},
+ warlord:{n:"Warlord",d:"Field 30 divisions at once.",i:"🎖"},
+ superpower:{n:"Superpower",d:"Hold 40 provinces.",i:"🏭"},
+ domination:{n:"World Domination",d:"Win a domination victory.",i:"🌍"},
+ hegemony:{n:"Hegemon",d:"Win a hegemony victory.",i:"👑"}
+};
+function achGot(){try{return new Set(JSON.parse(localStorage.getItem("if_ach")||"[]"));}catch(e){return new Set();}}
+function unlockAch(id){
+  if(!ACH[id])return;
+  const got=achGot();if(got.has(id))return;
+  got.add(id);
+  try{localStorage.setItem("if_ach",JSON.stringify([...got]));}catch(e){}
+  const a=ACH[id];
+  try{const t=$("#toast");if(t){t.style.borderColor="var(--amber)";t.style.background="#2a1f0a";t.style.color="#ffd791";
+    toast("🏅 ACHIEVEMENT: "+a.n.toUpperCase());
+    setTimeout(()=>{t.style.borderColor="";t.style.background="";t.style.color="";},4600);}}catch(e){}
+  try{logMsg("🏅 ACHIEVEMENT UNLOCKED — "+a.i+" "+a.n+": "+a.d,"good");sfx("good");}catch(e){}
+}
+function checkAch(){ // cheap counters, called from refreshHUD
+  if(!G||!G.nations[G.player]||!G.nations[G.player].alive)return;
+  if(G.units.filter(u=>u.nat===G.player).length>=30)unlockAch("warlord");
+  if(natProvs(G.player).length>=40)unlockAch("superpower");
+  if((G.nations[G.player].allies&&G.nations[G.player].allies.size>=3))unlockAch("diplomat");
+}
+function showAchievements(){
+  const got=achGot();
+  $("#evTitle").textContent="🏅 ACHIEVEMENTS — "+got.size+"/"+Object.keys(ACH).length;
+  $("#evDesc").innerHTML="<div style='max-height:52vh;overflow-y:auto'>"+Object.keys(ACH).map(id=>{
+    const a=ACH[id],has=got.has(id);
+    return `<div style="margin:0 0 6px 0;opacity:${has?1:0.45}">
+      <span style="font-size:15px">${has?a.i:"🔒"}</span>
+      <b style="color:${has?"var(--amber)":"var(--dim)"}">${a.n}</b>
+      <div style="margin-left:22px;color:var(--dim);font-size:11px">${a.d}${has?' <span style="color:#8ec07c">✓ unlocked</span>':""}</div></div>`;
+  }).join("")+"</div>";
+  const ch=$("#evChoices");ch.innerHTML="";
+  const b=document.createElement("button");b.className="bbtn";b.textContent="Close";
+  b.onclick=()=>{$("#eventBox").style.display="none";if(G)G.paused=G._evPaused||false;};
+  ch.appendChild(b);
+  if(G){G._evPaused=G.paused;G.paused=true;}
+  $("#eventBox").style.display="block";
+}
+window.showAchievements=showAchievements;
 function declareWar(a,b){
   if(atWar(a,b)||allied(a,b))return;
   warPair(a,b);
@@ -1247,9 +1307,10 @@ function resolveTreaty(a,b,d){
   if(d.puppet){
     B.puppet=a;A.allies.add(b);B.allies.add(a);B.stab=Math.max(B.stab,40);terDirty=true;
     terms.push("a puppet government flying your livery, paying yearly tribute");
+    if(a===G.player)unlockAch("puppet");
   }
   logMsg(`📜 TREATY SIGNED — ${NATIONS[b].f} ${NATIONS[b].n} accepts: ${terms.join(" · ")}.`,"good");
-  if(a===G.player){sfx("good");toast("📜 "+NATIONS[b].n.toUpperCase()+" SIGNS THE TREATY");}
+  if(a===G.player){sfx("good");toast("📜 "+NATIONS[b].n.toUpperCase()+" SIGNS THE TREATY");unlockAch("dictator");}
   return true;
 }
 const SUCC={USA:["New Columbia","🦅","#3a6a9a"],GER:["Rhine Federation","⚙️","#4a5a6a"],
@@ -1275,7 +1336,7 @@ function collapseNation(k){
   for(let i=0;i<Math.floor(mine.length/2);i++)killUnit(mine[i]);
   terDirty=true;
   logMsg(`💥 ${old} has COLLAPSED — no faction could agree. The ${sc[1]} ${sc[0]} rises in its place.`,"war");
-  if(k===G.player){$("#hFlag").textContent=sc[1];$("#hName").textContent=sc[0];}
+  if(k===G.player){$("#hFlag").textContent=sc[1];$("#hName").textContent=sc[0];unlockAch("phoenix");}
 }
 function installPuppet(overlord,target){
   const T=G.nations[target];
@@ -1288,6 +1349,7 @@ function installPuppet(overlord,target){
   T.stab=Math.max(T.stab,40);
   terDirty=true;
   logMsg(`⛓ ${NATIONS[target].f} ${NATIONS[target].n} is now a PUPPET of ${NATIONS[overlord].f} ${NATIONS[overlord].n} — its flag is struck and tribute flows.`,"good");
+  if(overlord===G.player)unlockAch("puppet");
   return true;
 }
 function launchNuke(nat,pid){
@@ -1303,6 +1365,7 @@ function launchNuke(nat,pid){
   sfx("nuke");
   if(p.owner===G.player)toast("☢ "+p.name.toUpperCase()+" HAS BEEN NUKED!");
   logMsg(`☢ ${NATIONS[nat].f} ${NATIONS[nat].n} has NUKED ${p.name}! The world recoils.`,"war");
+  if(nat===G.player)unlockAch("fallout");
   return true;
 }
 /* path within reachable graph (land + sea for armies via sea links if fleet exists; fleets travel coastal network) */
@@ -1458,6 +1521,7 @@ function tick(){
     const pr=provOf(u.at);
     if(isWinterHere(pr)&&pr.owner!==u.nat){
       u.hp-=0.06;
+      if(u.nat===G.player&&atWar(u.nat,pr.owner))unlockAch("winter");
       if(u.hp<=0){killUnit(u);continue;}
     }
     if(!u.to&&pr.owner===u.nat&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
@@ -1554,11 +1618,11 @@ function checkVictory(){
   if(!me.alive)return;
   const total=Object.keys(G.prov).length;
   // WIN 1 — Domination: you + your puppets hold half the world
-  if(dominionCount()>=Math.ceil(total*0.5)){G.over=true;endScreen(true,"DOMINATION — half the world flies your flag (or your puppets').");return;}
+  if(dominionCount()>=Math.ceil(total*0.5)){G.over=true;unlockAch("domination");endScreen(true,"DOMINATION — half the world flies your flag (or your puppets').");return;}
   // WIN 2 — Hegemony: every rival great power destroyed, puppeted, or allied
   const gps=greatPowers();
   if(gps.length&&gps.every(k=>{const n=G.nations[k];return !n.alive||n.puppet===G.player||me.allies.has(k);})){
-    G.over=true;endScreen(true,"HEGEMONY — no great power stands outside your order.");return;
+    G.over=true;unlockAch("hegemony");endScreen(true,"HEGEMONY — no great power stands outside your order.");return;
   }
   // LOSE — capital under enemy occupation too long
   const cap=G.prov[NATIONS[G.player].cap];
@@ -1641,8 +1705,13 @@ function tryCapture(u){
       G.tension=Math.min(100,G.tension+0.4);
       G.nations[old].stab-=p.id===NATIONS[old].cap?8:1.5;
       if(u.nat===G.player||old===G.player){logMsg(`${NATIONS[u.nat].f} captured ${p.name}`,u.nat===G.player?"good":"war");sfx(u.nat===G.player?"good":"war");}
+      if(u.nat===G.player)unlockAch("first_blood");
       if(old===G.player&&(G._lossToastT??-1)<G.day){G._lossToastT=G.day+8;toast("⚠ "+p.name.toUpperCase()+" HAS FALLEN TO "+NATIONS[u.nat].n.toUpperCase()+"!");}
-      if(!natProvs(old).length)die(old);
+      if(!natProvs(old).length){
+        if(u.nat===G.player){unlockAch("annex");
+          if((G.warStart&&G.warStart[old]!==undefined)&&G.day-G.warStart[old]<=90)unlockAch("blitz");}
+        die(old);
+      }
     }
   }
 }
@@ -3142,6 +3211,8 @@ function renderPanel(){
           h+=`<button class="bbtn" onclick="installPuppet('${G.player}','${o}');renderPanel()">⛓ Install PUPPET government in ${NATIONS[o].n}<small>You hold their capital. Ends the war; they keep their land but fly your livery, pay 25% tribute, and follow you to war.</small></button>`;
         else
           h+=`<button class="bbtn" disabled style="opacity:.45">⛓ Puppet ${NATIONS[o].n} — take ${G.prov[NATIONS[o].cap].name} first<small>Capture their capital, then you can vassalize them instead of annexing province by province.</small></button>`;
+        {const pd=paraDropInfo(p.id);
+         h+=`<button class="bbtn" ${pd.ok?"":"disabled"} onclick="paraDrop('${p.id}');renderPanel()">🪂 AIRBORNE ASSAULT on ${p.name} — ${PARA_PP} PP + ${PARA_OIL} 🛢 + 👥 ${PARA_MP}<small>${pd.msg}</small></button>`;}
         h+=`<button class="bbtn" style="border-color:var(--red)" ${G.nations[G.player].nukes<1?"disabled":""} onclick="launchNuke('${G.player}','${p.id}');renderPanel()">☢ NUCLEAR STRIKE on ${p.name}<small>${G.nations[G.player].nukes} warhead(s) ready. Destroys all forces here, halves value forever.</small></button>`;
       }else{
         h+=`<h3>COVERT OPS ${ (G.nations[G.player].spyCd||0)>G.day?"(regrouping)":""}</h3>
@@ -3149,6 +3220,7 @@ function renderPanel(){
         <button class="bbtn" onclick="spyOp('steal','${o}')">🕵 Steal research — 40 PP</button>
         <button class="bbtn" onclick="spyOp('unrest','${o}')">🕵 Incite unrest — 50 PP</button>
         <button class="bbtn" onclick="proposeAlliance('${G.player}','${o}');renderPanel()">🤝 Propose ALLIANCE with ${NATIONS[o].n}</button>
+        ${p.home===o&&!allied(G.player,o)?`<button class="bbtn" style="border-color:var(--amber)" onclick="ultimatum('${o}','${p.id}');renderPanel()">📯 ULTIMATUM — demand ${p.name} (${ultimatumChance(o)}% they cave)<small>Threaten war unless they cede this province. If they refuse, world tension spikes — and a strong hand may face war.</small></button>`:""}
         <button class="bbtn" style="border-color:var(--red)" onclick="playerDeclareWar('${o}')">⚔ DECLARE WAR on ${NATIONS[o].n} <small>${warDeclCost(me)} PP — set by your ideology & cabinet</small></button>`;
       }
     }
@@ -3340,6 +3412,7 @@ function renderPanel(){
     <div class="row"><span>Current scenario</span><span>${ERAS[ERA].label} · ${YEAR}</span></div>
     <div style="color:var(--dim);font-size:11px">Switching era starts a new campaign.</div>
     <button class="bbtn" onclick="showHelp()">❓ How to play — full guide</button>
+    <button class="bbtn" onclick="showAchievements()">🏅 Achievements</button>
     <button class="bbtn" onclick="showChangelog()">📜 View update log</button>
     <h3>SAVE</h3>
     <button class="bbtn" onclick="saveGame()">💾 Save campaign<small>Also auto-saves every 60 days.</small></button>
@@ -3489,6 +3562,90 @@ window.mergeU=id=>{
   if(MP.role==="guest"){MP.send({type:"merge",nat:G.player,id});logMsg("Merge order sent...");return;}
   mergeFor(G.player,id);renderPanel();refreshHUD();
 };
+/* ===== PARATROOPERS ===== drop a division behind the front, within air range of
+   home soil. It lands amid the enemy — often cut off — but bypasses the line. */
+const PARA_PP=50,PARA_OIL=10,PARA_MP=10,PARA_RANGE=190;
+function nearestOwnedDist(nat,p){
+  let bd=1e9;
+  for(const q of natProvs(nat)){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<bd)bd=d;}
+  return bd;
+}
+function paraDropInfo(pid){
+  const me=G.nations[G.player],p=provOf(pid);
+  if(!atWar(G.player,p.owner))return{ok:false,msg:"Only onto enemy territory you're at war with."};
+  if((me.res.air||0)<1)return{ok:false,msg:"Requires Aviation I — research it first."};
+  if(G.prov[NATIONS[G.player].cap].owner!==G.player)return{ok:false,msg:"Your capital airbase is lost — no transports can fly."};
+  const d=nearestOwnedDist(G.player,p);
+  if(d>PARA_RANGE)return{ok:false,msg:"Out of air range — no staging ground of yours is close enough."};
+  if(me.pp<PARA_PP||me.oil<PARA_OIL||(me.manpower||0)<PARA_MP)return{ok:false,msg:"Not enough PP, oil or manpower for the drop."};
+  const def=p.garrison+G.units.filter(u=>u.at===pid&&u.nat===p.owner).reduce((s,u)=>s+u.str,0)*3;
+  return{ok:true,msg:`Drops a division into their rear. Landing under ${def.toFixed(0)} defense — lightly held ground is yours; heavy defense will maul the drop.`};
+}
+function paraDropFor(nat,pid){
+  const me=G.nations[nat],p=provOf(pid);
+  const info=nat===G.player?paraDropInfo(pid):{ok:atWar(nat,p.owner)&&me.pp>=PARA_PP&&me.oil>=PARA_OIL&&(me.manpower||0)>=PARA_MP&&nearestOwnedDist(nat,p)<=PARA_RANGE};
+  if(!info.ok)return false;
+  me.pp-=PARA_PP;me.oil-=PARA_OIL;me.manpower-=PARA_MP;
+  const u=addUnit(nat,pid,"inf",3);
+  u.hp=u.str*10*0.6; // paratroopers land scattered and lightly armed
+  u.para=1;
+  // the drop immediately contests the garrison
+  const bleed=Math.min(u.hp,p.garrison*1.2);
+  p.garrison=Math.max(0,p.garrison-u.str*1.5);
+  u.hp-=bleed*0.4;
+  if(u.hp<=0){killUnit(u);if(nat===G.player)logMsg(`🪂 The drop on ${p.name} was cut to pieces on the way down.`,"war");return true;}
+  computeSupply&&computeSupply();u.supplied=unitSupplied(u);
+  if(nat===G.player){sfx("march");logMsg(`🪂 AIRBORNE ASSAULT — a division drops on ${p.name}${u.supplied===false?" (behind enemy lines — no supply!)":""}.`,"good");unlockAch("airborne");}
+  else if(p.owner===G.player)toast("🪂 ENEMY PARATROOPERS LAND AT "+p.name.toUpperCase()+"!");
+  terDirty=true;
+  return true;
+}
+window.paraDrop=pid=>{
+  if(MP.role==="guest"){MP.send({type:"para",nat:G.player,pid});logMsg("Airborne order sent...");return;}
+  paraDropFor(G.player,pid);renderPanel();refreshHUD();
+};
+window.paraDropInfo=paraDropInfo;
+/* ===== ULTIMATUM ===== demand a province from a neutral neighbor. The weaker
+   and more isolated they are, the likelier they cave; refusal spikes tension
+   and can provoke the war you were bluffing about. */
+function natStrength(k){
+  const n=G.nations[k];if(!n)return 0;
+  return natProvs(k).length+G.units.filter(u=>u.nat===k).length*0.5+(n.ppRate||0)*0.3;
+}
+function ultimatumChance(o){
+  const my=natStrength(G.player),th=natStrength(o);
+  const ratio=my/(my+th||1);
+  const B=G.nations[o];
+  let c=(ratio-0.5)*180+G.tension*0.3+(B.stab<40?15:0)+(natProvs(o).length<=2?15:0);
+  return Math.max(3,Math.min(92,Math.round(c)));
+}
+function ultimatumFor(nat,o,pid){
+  const me=G.nations[nat],p=provOf(pid);
+  if(nat!==G.player)return false; // player-only diplomacy
+  if(atWar(nat,o)||allied(nat,o)||p.owner!==o||p.home!==o)return false;
+  if(dipOnCooldown("ult",nat,o))return false;
+  const chance=ultimatumChance(o);
+  G.tension=Math.min(100,G.tension+5);
+  if(Math.random()*100<chance){
+    p.owner=nat;p.home=nat;terDirty=true;
+    G.nations[o].stab-=6;
+    logMsg(`📯 ${NATIONS[o].f} ${NATIONS[o].n} YIELDS ${p.name} to avoid war. A bloodless conquest.`,"good");
+    sfx("good");toast("📯 "+NATIONS[o].n.toUpperCase()+" CEDES "+p.name.toUpperCase());
+    unlockAch("gunboat");
+    return true;
+  }
+  dipRefused("ult",nat,o,60);
+  logMsg(`📯 ${NATIONS[o].f} ${NATIONS[o].n} REFUSES your ultimatum over ${p.name} — and remembers the insult.`,"war");
+  // a proud or provoked nation may answer the bluff with war
+  if(Math.random()<0.35&&natStrength(o)>natStrength(nat)*0.5){declareWar(o,nat);}
+  else{sfx("war");}
+  return false;
+}
+window.ultimatum=(o,pid)=>{
+  if(MP.role==="guest"){MP.send({type:"ultimatum",nat:G.player,target:o,pid});logMsg("Ultimatum sent...");return;}
+  ultimatumFor(G.player,o,pid);renderPanel();refreshHUD();
+};
+window.ultimatumChance=ultimatumChance;
 function buyFor(nat,t,pid){
   const me=G.nations[nat];
   const mp=me.manpower||0;
@@ -3509,7 +3666,7 @@ window.buy=t=>{
   if(t==="arm"&&me.pp>=35&&me.oil>=5){me.pp-=35;me.oil-=5;me.manpower-=8;addUnit(G.player,sel.id,"arm",4);logMsg(`Armored division raised at ${sel.name}`,"good");}
   if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(G.player,sel.id,2);logMsg(`Task force launched from ${sel.name}`,"good");}
   if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(G.player,2);logMsg(`Air wing commissioned at the ${G.prov[NATIONS[G.player].cap].name} airbase`,"good");}
-  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");}
+  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");unlockAch("nuclear");}
   renderPanel();refreshHUD();
 };
 window.pickFocus=k=>{
@@ -3580,12 +3737,18 @@ function refreshHUD(){
   {const m=G.date.getMonth();
    $("#hDate").textContent=G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})+((m>=10||m<=2)?" ❄":"");}
   if(curPanel&&$("#panel").style.display!=="none")renderPanel();
+  checkAch();
 }
 
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.3 \u2014 THE WAR ROOM (current)",[
+ ["v5.4 \u2014 GLORY & CONQUEST (current)",[
+  "\ud83e\ude82 PARATROOPERS \u2014 AIRBORNE ASSAULT drops a division deep into enemy territory within air range of your soil (needs Aviation research). It bypasses the front and can seize a lightly-held rear province \u2014 but often lands cut off from supply, so time it with a breakthrough. The AI can drop on YOU too.",
+  "\ud83d\udcef ULTIMATUMS \u2014 demand a border province from a neutral neighbor without firing a shot. The weaker and more isolated they are (and the higher world tension), the likelier they cave \u2014 the panel shows the odds. Refusal spikes tension and a proud nation may answer with war.",
+  "\ud83c\udfc5 ACHIEVEMENTS \u2014 16 milestones that persist across every campaign on your device: First Blood, Blitzkrieg, Nuclear Power, Puppet Master, General Winter, World Domination and more. Unlocks pop a gold banner; browse them all from the start screen or SETTINGS.",
+  "\u2699 The war room deepens: airborne and ultimatum orders sync in multiplayer, and every new action is covered in HOW TO PLAY."]],
+ ["v5.3 \u2014 THE WAR ROOM",[
   "\ud83d\uddfa MINIMAP \u2014 a live world overview in the corner: every border change as it happens, battles flashing red, your capital boxed in gold, and a white frame showing where you're looking. Click or drag on it to fly anywhere on Earth instantly (toggle in SETTINGS)",
   "\u26a0 FRONT ALERTS \u2014 when one of YOUR provinces falls, a banner names it and the conqueror, so you're never blindsided while managing the other side of the world"]],
  ["v5.2 \u2014 THE LIVING WORLD",[
@@ -3779,10 +3942,12 @@ const HELP=[
   "❄ WINTER (Nov–Mar in the north): armies on foreign soil above the 50th parallel bleed and fight at −20%. Time your invasions.",
   "⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys.",
   "🩹 Worn divisions can be REINFORCED with PP on friendly ground, or MERGED into one another.",
+  "🪂 AIRBORNE ASSAULT drops a division into the enemy rear within air range (needs Aviation) — it bypasses the front but often lands cut off.",
   "★ Hire generals (+25%, they level up), pick a doctrine, build forts, and keep war support high — it sharpens or dulls every battle."]],
  ["🕊 DIPLOMACY",[
   "Click a foreign province to propose alliances, declare war, or run covert ops.",
   "📜 DICTATE TERMS to an enemy you're beating: reparations, yearly tribute, forced disarmament, or a puppet government. Your WAR SCORE (occupation, their capital, stability, army ratio) decides if they sign — refused treaties keep the war going.",
+  "📯 ULTIMATUM a neutral neighbor to hand over a border province without war — the weaker they are, the likelier they cave, but refusal spikes tension and can start the war anyway.",
   "Beaten enemies sue for peace on their own. Allies can merge into one nation by UNION. Puppets pay tribute and follow you to war."]],
  ["🏛 POLITICS",[
   "Your ideology shapes production, attack and war costs — revolutions are possible but bloody.",
@@ -4129,6 +4294,8 @@ function mpApplyOrder(o){
   if(o.type==="treaty")resolveTreaty(nat,o.target,o.d||{});
   if(o.type==="reinf")reinforceFor(nat,o.id);
   if(o.type==="merge")mergeFor(nat,o.id);
+  if(o.type==="para")paraDropFor(nat,o.pid);
+  if(o.type==="ultimatum")ultimatumFor(nat,o.target,o.pid);
 }
 function saveGame(auto){
   try{
