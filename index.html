@@ -120,7 +120,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.8.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.9.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -137,7 +137,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.8.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.9.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" onclick="signOut()" style="font-size:10px;padding:3px 8px">SIGN OUT</button>
@@ -1201,6 +1201,7 @@ const ACH={
  domination:{n:"World Domination",d:"Win a domination victory.",i:"🌍"},
  hegemony:{n:"Hegemon",d:"Win a hegemony victory.",i:"👑"},
  sealord:{n:"Sea Lord",d:"Commission a carrier group.",i:"🛩"},
+ innovator:{n:"Innovator",d:"Achieve four research breakthroughs in one campaign.",i:"🔬"},
  protector:{n:"Protector",d:"Enter a war by honoring a guarantee.",i:"🛡"}
 };
 function achGot(){try{return new Set(JSON.parse(localStorage.getItem("if_ach")||"[]"));}catch(e){return new Set();}}
@@ -1534,7 +1535,7 @@ function tick(){
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
-    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1)*((n.ppBoost||0)>G.day?1.15:1);
+    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1)*((n.ppBoost||0)>G.day?1.15:1)*(hasTech(k,"asm")?1.10:1);
     let inc=n.ppRate/10;
     if(n.repar&&n.repar.days>0){ // treaty tribute flows to the victor
       const W=G.nations[n.repar.to];
@@ -1546,14 +1547,14 @@ function tick(){
     }
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
-    n.oil+=oil*0.12;
+    n.oil+=oil*0.12*(hasTech(k,"synth")?1.4:1);
     // fuel burn: mechanized forces, air and fleets consume oil while at war —
     // an army without fuel is an army stranded (armor loses its edge, planes ground)
     if(n.atWar.size>0){
       const armor=G.units.filter(u=>u.nat===k&&u.type==="arm").length;
       const wings=G.wings.filter(w=>w.nat===k).length;
       const fleets=G.fleets.filter(f=>f.nat===k).length;
-      const burn=(armor*0.05+wings*0.04+fleets*0.03);
+      const burn=(armor*0.05+wings*0.04+fleets*0.03*(hasTech(k,"logi")?0.5:1));
       n.oil=Math.max(0,n.oil-burn);
     }
     // manpower: slow reserve regeneration toward the population ceiling
@@ -1806,7 +1807,7 @@ function moveUnits(arr,kind){
     // end — submarines are the deadliest commerce raiders
     if(kind==="army"&&a.seaAdj.includes(u.to)){
       let raid=0;
-      for(const f of G.fleets)if(!f.to&&atWar(f.nat,u.nat)&&(f.at===u.at||f.at===u.to))raid+=(f.cls==="sub"?2.2:1.0);
+      for(const f of G.fleets)if(!f.to&&atWar(f.nat,u.nat)&&(f.at===u.at||f.at===u.to))raid+=(f.cls==="sub"?(hasTech(f.nat,"wolf")?3.3:2.2):1.0);
       if(raid>0){
         u.hp-=raid;
         if(u.nat===G.player&&Math.random()<0.08)logMsg("⚓ Our troop convoy is under attack — escort it with a fleet or turn back!","war");
@@ -1821,7 +1822,7 @@ function moveUnits(arr,kind){
       if(u.type==="arm"&&G.nations[u.nat].oil<=0)tmul*=0.6;
       tmul*=seasonMud(b); // the spring thaw and autumn rains bog down the march
     }
-    const spd=kind==="fleet"?0.10*techMul(u.nat,"nav"):0.07*techMul(u.nat,"land");
+    const spd=kind==="fleet"?0.10*techMul(u.nat,"nav")*(hasTech(u.nat,"logi")?1.2:1):0.07*techMul(u.nat,"land");
     u.prog+=spd*dmul*tmul;
     if(u.prog>=1){
       u.prog=0;u.at=u.to;
@@ -1885,15 +1886,19 @@ function battles(){
       if(!atWar(A,B))continue;
       G.battleSites.add(pid);
       const fa=here.filter(u=>u.nat===A),fb=here.filter(u=>u.nat===B);
-      // out-of-supply divisions fight at a third off — a starving army breaks
-      const supF=arr=>arr.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*(u.supplied===false?0.66:1),0);
-      let pa=supF(fa)*techMul(A,"land")*natAtkMul(A);
-      let pb=supF(fb)*techMul(B,"land")*natAtkMul(B);
+      // out-of-supply divisions fight at a third off — a starving army breaks;
+      // breakthrough techs sharpen the units they cover
+      const tum=(nat,u)=>((u.type==="arm"&&hasTech(nat,"heavy"))||(u.type==="inf"&&hasTech(nat,"infw"))?1.15:1)*(hasTech(nat,"comb")?1.10:1);
+      const supF=(arr,nat)=>arr.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*tum(nat,u)*(u.supplied===false?0.66:1),0);
+      let pa=supF(fa,A)*techMul(A,"land")*natAtkMul(A);
+      let pb=supF(fb,B)*techMul(B,"land")*natAtkMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       const fortB=1+(p.fort||0)*0.12;
       const terD=terrainOf(p).def; // terrain shields whoever holds the ground
-      if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
+      // engineers halve the attacker-facing ground bonuses
+      if(p.owner===B){const red=hasTech(A,"eng")?0.5:1;pb*=1.25*(1+(fortB-1)*red)*(1+(terD-1)*red)*natDefMul(B);}
+      if(p.owner===A){const red=hasTech(B,"eng")?0.5:1;pa*=1.25*(1+(fortB-1)*red)*(1+(terD-1)*red)*natDefMul(A);}
       if(isWinterHere(p)){if(p.owner!==A)pa*=0.8;if(p.owner!==B)pb*=0.8;} // General Winter punishes the invader
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
@@ -1928,12 +1933,16 @@ function battles(){
       const fa=here.filter(f=>f.nat===nats[i]),fb=here.filter(f=>f.nat===nats[j]);
       // each fleet's punch depends on the classes it faces (RPS: sub>cv>bb>sub)
       // and on the crew's veterancy — seasoned admirals hit harder
-      const clsPow=(mine,foes)=>mine.reduce((s,f)=>{
-        let m=0;for(const g of foes)m+=navalMatch(f.cls||"bb",g.cls||"bb");
-        return s+f.str*vetMul(f)*(foes.length?m/foes.length:1);
+      const clsPow=(mine,foes,myNat)=>mine.reduce((s,f)=>{
+        let m=0;for(const g of foes){let mm=navalMatch(f.cls||"bb",g.cls||"bb");
+          if(g.cls==="sub"&&hasTech(myNat,"sonar"))mm*=1.3;m+=mm;}
+        let base=f.str*vetMul(f);
+        if(f.cls==="cv"&&hasTech(myNat,"navav"))base*=1.3;
+        if(f.cls==="sub"&&hasTech(myNat,"wolf"))base*=1.3;
+        return s+base*(foes.length?m/foes.length:1);
       },0);
-      const pa=clsPow(fa,fb)*techMul(nats[i],"nav");
-      const pb=clsPow(fb,fa)*techMul(nats[j],"nav");
+      const pa=clsPow(fa,fb,nats[i])*techMul(nats[i],"nav");
+      const pb=clsPow(fb,fa,nats[j])*techMul(nats[j],"nav");
       dmg(fb,pa*0.3);dmg(fa,pb*0.3);
       // fleets that fight, learn
       for(const f of[...fa,...fb]){
@@ -1957,11 +1966,12 @@ function killUnit(u){
 }
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
-  let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*vetMul(w); // veteran aces hit harder
+  const jm=hasTech(nat,"jets")?1.2:1;
+  let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*vetMul(w)*jm; // veteran aces & jets hit harder
   // carriers project air power over an adjacent coast
   const p=provOf(pid);
-  if(p.coastal)for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.cls==="cv")&&(f.at===pid||p.adj.includes(f.at)||p.seaAdj.includes(f.at)))s+=f.str*vetMul(f)*0.7;
-  return Math.min(s,4);
+  if(p.coastal)for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.cls==="cv")&&(f.at===pid||p.adj.includes(f.at)||p.seaAdj.includes(f.at)))s+=f.str*vetMul(f)*0.7*(hasTech(nat,"navav")?1.3:1);
+  return Math.min(s,hasTech(nat,"jets")?5:4);
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
@@ -1981,7 +1991,7 @@ function airOps(){
     }
     if(w.target&&validAirTarget(w)){
       const p=provOf(w.target);
-      const vm=vetMul(w); // seasoned aircrews strike harder
+      const vm=vetMul(w)*(hasTech(w.nat,"strat")?1.25:1); // seasoned aircrews & heavy bombers strike harder
       // bomb garrison + enemy units there
       p.garrison=Math.max(0,p.garrison-w.str*vm*0.15*techMul(w.nat,"air"));
       const foes=G.units.filter(u=>u.at===w.target&&atWar(w.nat,u.nat));
@@ -1993,7 +2003,7 @@ function airOps(){
        if(w.nat===G.player&&(Math.floor(was)<90&&Math.floor(w.xp)>=90))logMsg("🎖 An air wing reaches ELITE ace status.","good");}
       // attrition / interception
       const enemyAir=G.wings.filter(x=>atWar(w.nat,x.nat)&&x.target===w.target);
-      if(enemyAir.length)w.hp-=0.4*enemyAir.length;
+      if(enemyAir.length)w.hp-=0.4*enemyAir.length*(hasTech(w.nat,"aces")?0.6:1);
       if(Math.random()<0.01)w.hp-=1;
       if(w.hp<=0){G.wings=G.wings.filter(x=>x!==w);if(w.nat===G.player)logMsg("An air wing was shot down!","war");}
       // empty province air capture is not allowed: planes can't hold ground
@@ -2084,6 +2094,11 @@ function aiTurn(k){
     const keys=["ind","land","nav","air"];
     const pick=keys[Math.floor(Math.random()*keys.length)];
     if(n.rp>=0)n.researching=pick;
+  }
+  // breakthroughs: the AI takes an available one now and then
+  if(n.rp>=TECH_RP&&Math.random()<0.12){
+    const av=Object.keys(TECHT).filter(id=>techAvail(k,id));
+    if(av.length)buyTech(k,av[Math.floor(Math.random()*av.length)]);
   }
   // build — deploy at FRONT-LINE provinces (adjacent to an enemy), not random rear ones
   const ps=natProvs(k);if(!ps.length)return;
@@ -2420,6 +2435,52 @@ function fireEvent(){
 }
 /* ============================== RESEARCH ============================== */
 const RESNAMES={ind:"Industry",land:"Land Doctrine",nav:"Naval Engineering",air:"Aviation"};
+/* ===== BREAKTHROUGHS: the branching tech tree =====
+   Each research track unlocks a CHOICE at level II and another at level IV —
+   two rival breakthroughs per slot, and picking one locks out the other. */
+const TECHT={
+ asm:{n:"Assembly Lines",d:"+10% national production.",track:"ind",tier:1,pair:"ind1",e:"🏭"},
+ synth:{n:"Synthetic Fuel",d:"+40% oil income from your wells and plants.",track:"ind",tier:1,pair:"ind1",e:"🛢"},
+ warind:{n:"War Industry",d:"Infantry & armored divisions cost 20% less PP.",track:"ind",tier:2,pair:"ind2",e:"⚙"},
+ atomic:{n:"Atomic Engineering",d:"Nuclear weapons cost 70 PP + 18 oil (was 100 + 25).",track:"ind",tier:2,pair:"ind2",e:"☢"},
+ heavy:{n:"Heavy Armor",d:"Armored divisions fight 15% harder.",track:"land",tier:1,pair:"land1",e:"🛡"},
+ infw:{n:"Infantry Weapons",d:"Infantry divisions fight 15% harder.",track:"land",tier:1,pair:"land1",e:"🔫"},
+ comb:{n:"Combined Arms",d:"All land combat +10%.",track:"land",tier:2,pair:"land2",e:"⚔"},
+ eng:{n:"Engineer Corps",d:"Enemy terrain & fort bonuses are HALVED when you attack.",track:"land",tier:2,pair:"land2",e:"🔧"},
+ sonar:{n:"Sonar",d:"Your fleets fight submarines 30% better.",track:"nav",tier:1,pair:"nav1",e:"📡"},
+ navav:{n:"Naval Aviation",d:"Carriers 30% more effective at sea and over the coast.",track:"nav",tier:1,pair:"nav1",e:"🛩"},
+ logi:{n:"Fleet Logistics",d:"Fleets sail 20% faster and burn half the fuel.",track:"nav",tier:2,pair:"nav2",e:"⚓"},
+ wolf:{n:"Wolfpack Tactics",d:"Submarines 30% stronger and far deadlier convoy raiders.",track:"nav",tier:2,pair:"nav2",e:"🌊"},
+ strat:{n:"Strategic Bombing",d:"Air strikes do 25% more damage.",track:"air",tier:1,pair:"air1",e:"💥"},
+ aces:{n:"Fighter Doctrine",d:"Your wings take 40% less interception damage.",track:"air",tier:1,pair:"air1",e:"✈"},
+ jets:{n:"Jet Engines",d:"Air support 20% stronger, and more of it can stack.",track:"air",tier:2,pair:"air2",e:"🚀"},
+ abn:{n:"Airborne Corps",d:"Paradrops cost 40% less and land in better order.",track:"air",tier:2,pair:"air2",e:"🪂"}
+};
+const TECH_RP=25;
+function hasTech(nat,id){const n=G&&G.nations[nat];return !!(n&&n.techs&&n.techs.has(id));}
+function techAvail(nat,id){
+  const t=TECHT[id],n=G.nations[nat];
+  if(!t||!n)return false;
+  if(n.techs&&n.techs.has(id))return false;
+  if(n.res[t.track]<t.tier*2)return false; // tier 1 needs level II, tier 2 needs level IV
+  for(const o in TECHT)if(TECHT[o].pair===t.pair&&n.techs&&n.techs.has(o))return false; // rival taken
+  return true;
+}
+function buyTech(nat,id){
+  const n=G.nations[nat];
+  if(!techAvail(nat,id)||n.rp<TECH_RP)return false;
+  n.rp-=TECH_RP;n.techs=n.techs||new Set();n.techs.add(id);
+  if(nat===G.player){
+    sfx("good");logMsg("🔬 BREAKTHROUGH — "+TECHT[id].e+" "+TECHT[id].n+": "+TECHT[id].d,"good");
+    chronicle("🔬 Breakthrough: "+TECHT[id].n+".");
+    if(n.techs.size>=4)unlockAch("innovator");
+  }
+  return true;
+}
+window.pickTech=id=>{
+  if(MP.role==="guest"){MP.send({type:"tech",nat:G.player,id});logMsg("Research directive sent...");return;}
+  buyTech(G.player,id);renderPanel();refreshHUD();
+};
 const RESDESC={ind:"+25% production & research per level",land:"+25% army attack & speed per level",nav:"+25% fleet power & speed per level",air:"+25% air wing effect per level"};
 function resCost(n,k){return 10+n.res[k]*14;}
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
@@ -3405,8 +3466,8 @@ function renderPanel(){
           h+=`<button class="bbtn" onclick="installPuppet('${G.player}','${o}');renderPanel()">⛓ Install PUPPET government in ${NATIONS[o].n}<small>You hold their capital. Ends the war; they keep their land but fly your livery, pay 25% tribute, and follow you to war.</small></button>`;
         else
           h+=`<button class="bbtn" disabled style="opacity:.45">⛓ Puppet ${NATIONS[o].n} — take ${G.prov[NATIONS[o].cap].name} first<small>Capture their capital, then you can vassalize them instead of annexing province by province.</small></button>`;
-        {const pd=paraDropInfo(p.id);
-         h+=`<button class="bbtn" ${pd.ok?"":"disabled"} onclick="paraDrop('${p.id}');renderPanel()">🪂 AIRBORNE ASSAULT on ${p.name} — ${PARA_PP} PP + ${PARA_OIL} 🛢 + 👥 ${PARA_MP}<small>${pd.msg}</small></button>`;}
+        {const pd=paraDropInfo(p.id),pc=paraCost(G.player);
+         h+=`<button class="bbtn" ${pd.ok?"":"disabled"} onclick="paraDrop('${p.id}');renderPanel()">🪂 AIRBORNE ASSAULT on ${p.name} — ${pc.pp} PP + ${pc.oil} 🛢 + 👥 ${pc.mp}<small>${pd.msg}</small></button>`;}
         h+=`<button class="bbtn" style="border-color:var(--red)" ${G.nations[G.player].nukes<1?"disabled":""} onclick="launchNuke('${G.player}','${p.id}');renderPanel()">☢ NUCLEAR STRIKE on ${p.name}<small>${G.nations[G.player].nukes} warhead(s) ready. Destroys all forces here, halves value forever.</small></button>`;
       }else{
         h+=`<h3>COVERT OPS ${ (G.nations[G.player].spyCd||0)>G.day?"(regrouping)":""}</h3>
@@ -3429,23 +3490,42 @@ function renderPanel(){
     <div class="row"><span>👥 Manpower</span><div class="bar"><i style="width:${Math.min(100,(me.manpower||0)/(me.manpowerMax||1)*100)}%"></i></div><span>${mp}</span></div>
     <div style="color:var(--dim);font-size:11px">Every division costs 👥 manpower. Reserves regrow slowly from your population — a bled-white nation cannot field new armies until it recovers.</div>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
-    <button class="bbtn" ${me.pp<20||mp<10||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + 👥 10<small>STR 3. The backbone.</small></button>
-    <button class="bbtn" ${me.pp<35||me.oil<5||mp<8||!deployable?"disabled":""} onclick="buy('arm')">▲ Armored Division — 35 PP + 5 🛢 + 👥 8<small>STR 4. Spearhead.</small></button>
+    <button class="bbtn" ${me.pp<Math.round(20*(hasTech(G.player,"warind")?0.8:1))||mp<10||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — ${Math.round(20*(hasTech(G.player,"warind")?0.8:1))} PP + 👥 10<small>STR 3. The backbone.</small></button>
+    <button class="bbtn" ${me.pp<Math.round(35*(hasTech(G.player,"warind")?0.8:1))||me.oil<5||mp<8||!deployable?"disabled":""} onclick="buy('arm')">▲ Armored Division — ${Math.round(35*(hasTech(G.player,"warind")?0.8:1))} PP + 5 🛢 + 👥 8<small>STR 4. Spearhead.</small></button>
     <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Battleship Fleet — 30 PP + 8 🛢<small>STR 2. Needs a port. Slugs it out at sea and bombards the shore.</small></button>
     <button class="bbtn" ${me.pp<45||me.oil<12||!deployable||!sel.coastal?"disabled":""} onclick="buy('cv')">🛩 Carrier Group — 45 PP + 12 🛢<small>STR 2. Projects AIR SUPPORT over any coast it patrols, even far from home. Beats battleships, loses to subs.</small></button>
     <button class="bbtn" ${me.pp<25||me.oil<6||!deployable||!sel.coastal?"disabled":""} onclick="buy('sub')">🌊 Submarine Wolfpack — 25 PP + 6 🛢<small>STR 2. Savages troop convoys and carriers, chokes trade — but weak against battleships.</small></button>
     <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[NATIONS[G.player].cap].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[NATIONS[G.player].cap].name}). Direct from AIR COMMAND.</small></button>
-    <button class="bbtn" ${me.pp<100||me.oil<25||(me.res.ind<3&&!me.atomicOk)?"disabled":""} onclick="buy('nuke')">☢ Nuclear Weapon — 100 PP + 25 🛢<small>Requires Industry III (or the Atomic Pioneers focus). You have ${me.nukes}.</small></button>
+    <button class="bbtn" ${me.pp<(hasTech(G.player,"atomic")?70:100)||me.oil<(hasTech(G.player,"atomic")?18:25)||(me.res.ind<3&&!me.atomicOk)?"disabled":""} onclick="buy('nuke')">☢ Nuclear Weapon — ${hasTech(G.player,"atomic")?70:100} PP + ${hasTech(G.player,"atomic")?18:25} 🛢<small>Requires Industry III (or the Atomic Pioneers focus). You have ${me.nukes}.</small></button>
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
   if(curPanel==="research"){
-    let h=`<h2>RESEARCH</h2><div class="row"><span>Points</span><span>🔬 ${me.rp.toFixed(1)} RP</span></div>`;
+    let h=`<h2>RESEARCH</h2><div class="row"><span>Points</span><span>🔬 ${me.rp.toFixed(1)} RP</span></div>
+    <div style="color:var(--dim);font-size:11px">Levels give flat bonuses. At level II and IV of each track, choose ONE of two rival BREAKTHROUGHS — the other is lost.</div>`;
     for(const k of["ind","land","nav","air"]){
       const lvl=me.res[k],cost=resCost(me,k),cur=me.researching===k;
       h+=`<h3>${RESNAMES[k].toUpperCase()} ${roman(lvl)}</h3>
       <div style="color:var(--dim);font-size:11px">${RESDESC[k]}</div>`;
       if(cur)h+=`<div class="row"><div class="bar"><i style="width:${Math.min(100,me.resProg/cost*100)}%"></i></div><span>${Math.round(me.resProg/cost*100)}%</span></div>`;
       else h+=`<button class="bbtn" ${me.researching?"disabled":""} onclick="startRes('${k}')">${me.researching?"Lab busy":"Research level "+roman(lvl+1)} <small>${cost} RP of progress</small></button>`;
+      // breakthrough branches for this track
+      for(const tier of[1,2]){
+        const ids=Object.keys(TECHT).filter(id=>TECHT[id].track===k&&TECHT[id].tier===tier);
+        const owned=ids.find(id=>me.techs&&me.techs.has(id));
+        if(owned){
+          h+=`<div class="row" style="margin-left:8px"><span style="color:var(--amber)">${TECHT[owned].e} ${TECHT[owned].n}</span><span style="color:#8ec07c">✓</span></div>`;
+          continue;
+        }
+        if(lvl<tier*2){
+          h+=`<div style="margin-left:8px;color:var(--dim);font-size:10px">🔒 Breakthrough choice unlocks at ${RESNAMES[k]} ${roman(tier*2)}</div>`;
+          continue;
+        }
+        h+=`<div style="margin-left:8px;color:var(--amber);font-size:10px">CHOOSE ONE — ${TECH_RP} RP (the other is lost):</div>`;
+        for(const id of ids){
+          const t=TECHT[id];
+          h+=`<button class="bbtn" style="margin-left:8px;width:calc(100% - 8px)" ${me.rp<TECH_RP?"disabled":""} onclick="pickTech('${id}')">${t.e} ${t.n}<small>${t.d}</small></button>`;
+        }
+      }
     }
     el.innerHTML=h;
   }
@@ -3770,6 +3850,7 @@ window.mergeU=id=>{
 /* ===== PARATROOPERS ===== drop a division behind the front, within air range of
    home soil. It lands amid the enemy — often cut off — but bypasses the line. */
 const PARA_PP=50,PARA_OIL=10,PARA_MP=10,PARA_RANGE=190;
+function paraCost(nat){const d=hasTech(nat,"abn");return{pp:d?30:PARA_PP,oil:d?6:PARA_OIL,mp:PARA_MP};}
 function nearestOwnedDist(nat,p){
   let bd=1e9;
   for(const q of natProvs(nat)){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<bd)bd=d;}
@@ -3782,17 +3863,18 @@ function paraDropInfo(pid){
   if(G.prov[NATIONS[G.player].cap].owner!==G.player)return{ok:false,msg:"Your capital airbase is lost — no transports can fly."};
   const d=nearestOwnedDist(G.player,p);
   if(d>PARA_RANGE)return{ok:false,msg:"Out of air range — no staging ground of yours is close enough."};
-  if(me.pp<PARA_PP||me.oil<PARA_OIL||(me.manpower||0)<PARA_MP)return{ok:false,msg:"Not enough PP, oil or manpower for the drop."};
+  {const pc=paraCost(G.player);if(me.pp<pc.pp||me.oil<pc.oil||(me.manpower||0)<pc.mp)return{ok:false,msg:"Not enough PP, oil or manpower for the drop."};}
   const def=p.garrison+G.units.filter(u=>u.at===pid&&u.nat===p.owner).reduce((s,u)=>s+u.str,0)*3;
   return{ok:true,msg:`Drops a division into their rear. Landing under ${def.toFixed(0)} defense — lightly held ground is yours; heavy defense will maul the drop.`};
 }
 function paraDropFor(nat,pid){
   const me=G.nations[nat],p=provOf(pid);
-  const info=nat===G.player?paraDropInfo(pid):{ok:atWar(nat,p.owner)&&me.pp>=PARA_PP&&me.oil>=PARA_OIL&&(me.manpower||0)>=PARA_MP&&nearestOwnedDist(nat,p)<=PARA_RANGE};
+  const pc=paraCost(nat);
+  const info=nat===G.player?paraDropInfo(pid):{ok:atWar(nat,p.owner)&&me.pp>=pc.pp&&me.oil>=pc.oil&&(me.manpower||0)>=pc.mp&&nearestOwnedDist(nat,p)<=PARA_RANGE};
   if(!info.ok)return false;
-  me.pp-=PARA_PP;me.oil-=PARA_OIL;me.manpower-=PARA_MP;
+  me.pp-=pc.pp;me.oil-=pc.oil;me.manpower-=pc.mp;
   const u=addUnit(nat,pid,"inf",3);
-  u.hp=u.str*10*0.6; // paratroopers land scattered and lightly armed
+  u.hp=u.str*10*(hasTech(nat,"abn")?0.8:0.6); // paratroopers land scattered — a trained corps less so
   u.para=1;
   // the drop immediately contests the garrison
   const bleed=Math.min(u.hp,p.garrison*1.2);
@@ -3876,13 +3958,14 @@ function buyFor(nat,t,pid){
   const me=G.nations[nat];
   const mp=me.manpower||0;
   const sel=pid&&provOf(pid).owner===nat?provOf(pid):G.prov[NATIONS[nat].cap];
-  if(t==="inf"&&me.pp>=20&&mp>=10){me.pp-=20;me.manpower-=10;addUnit(nat,sel.id,"inf",3);}
-  if(t==="arm"&&me.pp>=35&&me.oil>=5&&mp>=8){me.pp-=35;me.oil-=5;me.manpower-=8;addUnit(nat,sel.id,"arm",4);}
+  const cm=hasTech(nat,"warind")?0.8:1,cInf=Math.round(20*cm),cArm=Math.round(35*cm);
+  if(t==="inf"&&me.pp>=cInf&&mp>=10){me.pp-=cInf;me.manpower-=10;addUnit(nat,sel.id,"inf",3);}
+  if(t==="arm"&&me.pp>=cArm&&me.oil>=5&&mp>=8){me.pp-=cArm;me.oil-=5;me.manpower-=8;addUnit(nat,sel.id,"arm",4);}
   if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(nat,sel.id,2,"bb");}
   if(t==="cv"&&me.pp>=45&&me.oil>=12&&sel.coastal){me.pp-=45;me.oil-=12;addFleet(nat,sel.id,2,"cv");}
   if(t==="sub"&&me.pp>=25&&me.oil>=6&&sel.coastal){me.pp-=25;me.oil-=6;addFleet(nat,sel.id,2,"sub");}
   if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(nat,2);}
-  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&me.res.ind>=3){me.pp-=100;me.oil-=25;me.nukes++;}
+  {const nk=hasTech(nat,"atomic")?[70,18]:[100,25];if(t==="nuke"&&me.pp>=nk[0]&&me.oil>=nk[1]&&me.res.ind>=3){me.pp-=nk[0];me.oil-=nk[1];me.nukes++;}}
 }
 window.buy=t=>{
   if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});logMsg("Order sent to host...");renderPanel();return;}
@@ -3890,13 +3973,15 @@ window.buy=t=>{
   const mp=me.manpower||0;
   const sel=G.sel&&provOf(G.sel).owner===G.player?provOf(G.sel):G.prov[NATIONS[G.player].cap];
   if((t==="inf"&&mp<10)||(t==="arm"&&mp<8)){logMsg("👥 Not enough manpower — reserves regrow slowly from your population.","war");return;}
-  if(t==="inf"&&me.pp>=20){me.pp-=20;me.manpower-=10;addUnit(G.player,sel.id,"inf",3);logMsg(`Infantry division raised at ${sel.name}`,"good");}
-  if(t==="arm"&&me.pp>=35&&me.oil>=5){me.pp-=35;me.oil-=5;me.manpower-=8;addUnit(G.player,sel.id,"arm",4);logMsg(`Armored division raised at ${sel.name}`,"good");}
+  const cm=hasTech(G.player,"warind")?0.8:1,cInf=Math.round(20*cm),cArm=Math.round(35*cm);
+  if(t==="inf"&&me.pp>=cInf){me.pp-=cInf;me.manpower-=10;addUnit(G.player,sel.id,"inf",3);logMsg(`Infantry division raised at ${sel.name}`,"good");}
+  if(t==="arm"&&me.pp>=cArm&&me.oil>=5){me.pp-=cArm;me.oil-=5;me.manpower-=8;addUnit(G.player,sel.id,"arm",4);logMsg(`Armored division raised at ${sel.name}`,"good");}
   if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(G.player,sel.id,2,"bb");logMsg(`Battleship fleet launched from ${sel.name}`,"good");}
   if(t==="cv"&&me.pp>=45&&me.oil>=12&&sel.coastal){me.pp-=45;me.oil-=12;addFleet(G.player,sel.id,2,"cv");logMsg(`Carrier group commissioned at ${sel.name}`,"good");unlockAch("sealord");}
   if(t==="sub"&&me.pp>=25&&me.oil>=6&&sel.coastal){me.pp-=25;me.oil-=6;addFleet(G.player,sel.id,2,"sub");logMsg(`Submarine wolfpack sails from ${sel.name}`,"good");}
   if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(G.player,2);logMsg(`Air wing commissioned at the ${G.prov[NATIONS[G.player].cap].name} airbase`,"good");}
-  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");unlockAch("nuclear");}
+  {const nk=hasTech(G.player,"atomic")?[70,18]:[100,25];
+  if(t==="nuke"&&me.pp>=nk[0]&&me.oil>=nk[1]&&(me.res.ind>=3||me.atomicOk)){me.pp-=nk[0];me.oil-=nk[1];me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");unlockAch("nuclear");}}
   renderPanel();refreshHUD();
 };
 window.pickFocus=k=>{
@@ -3973,7 +4058,14 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.8 \u2014 THE RECKONING (current)",[
+ ["v5.9 \u2014 THE BREAKTHROUGH (current)",[
+  "\ud83d\udd2c BRANCHING TECH TREE \u2014 research is no longer a flat ladder. At level II and IV of every track you must CHOOSE between two rival breakthroughs (25 RP) \u2014 and the one you pass over is lost for the whole campaign. Sixteen technologies, eight decisions, no nation can have them all.",
+  "\ud83c\udfed INDUSTRY: Assembly Lines (+10% production) vs Synthetic Fuel (+40% oil) \u00b7 War Industry (divisions \u221220% PP) vs Atomic Engineering (cheap nukes)",
+  "\u2694 LAND: Heavy Armor vs Infantry Weapons (+15% to that arm) \u00b7 Combined Arms (+10% everything) vs Engineer Corps (halve enemy fort & terrain bonuses on the attack)",
+  "\u2693 NAVAL: Sonar (anti-sub +30%) vs Naval Aviation (carriers +30%) \u00b7 Fleet Logistics (faster, half fuel) vs Wolfpack Tactics (killer submarines)",
+  "\u2708 AIR: Strategic Bombing (+25% strikes) vs Fighter Doctrine (\u221240% interception losses) \u00b7 Jet Engines (stronger, taller air support) vs Airborne Corps (cheap, sharper paradrops)",
+  "\ud83e\udd16 The AI researches its own breakthroughs, every choice syncs in multiplayer and saves, and a new INNOVATOR achievement awaits four breakthroughs in one campaign."]],
+ ["v5.8 \u2014 THE RECKONING",[
   "\ud83d\udcca CAMPAIGN STATISTICS \u2014 a full report card, from the WARS panel any time or the end screen: a graph of your provinces, divisions and world tension over the whole war; peak empire size and army; puppets, allies, warheads, nations annexed; your casualties and the world\u2019s; and a CHRONICLE that timestamps every turning point \u2014 wars declared, nations annexed, atomic strikes, civil wars.",
   "\ud83c\udf0a SEA STORMS \u2014 tempests now roam the oceans (a \ud83c\udf00 on the map). Fleets caught in one take steady damage and slow to a crawl; route your task forces around the weather or lose them to the sea.",
   "\ud83d\udcdc The chronicle, empire peaks and casualty tallies are all saved with your campaign."]],
@@ -4182,7 +4274,7 @@ const HELP=[
   "PP (production) flows daily from your provinces — spend it on divisions, fleets, air wings, forts, factories, ministers and treaties.",
   "🛢 OIL comes from oil provinces (Texas, the Gulf, Caucasus, Java, Venezuela…). Armor, wings and fleets burn it at war — at zero, planes ground, fleets idle, tanks crawl.",
   "👥 MANPOWER is your population's reserve of men. Every division costs it; it regrows slowly. A bled-white nation cannot raise armies.",
-  "🔬 RESEARCH four techs (Industry, Land, Naval, Air) — each level is +25%."]],
+  "🔬 RESEARCH four tracks (Industry, Land, Naval, Air) — each level is +25%. At level II and IV of every track you face a BREAKTHROUGH: two rival technologies, pick one, lose the other. Assembly lines or synthetic fuel? Heavy armor or infantry weapons? Jets or paratroopers? Your choices shape your war machine."]],
  ["⚔ WAR",[
   "🧭 SUPPLY: every division needs a corridor of friendly land back home. Cut off, it fights at −34% and starves (⚠ marker). Encircle enemy salients to destroy them wholesale.",
   "⛰ TERRAIN: mountains and cities strongly favor the defender; marshes and mountains slow the attack; deserts wear armies down.",
@@ -4545,7 +4637,8 @@ function mpSerialize(){
       /* focus & misc (v4.5+) */ n.focus?n.focus.key+":"+Math.round(n.focus.prog):"",Object.keys(n.focusDone||{}).join(","),n.atomicOk?1:0,n.spyCd||0,
       /* treaties (v4.7+) */ n.repar?n.repar.to+"|"+n.repar.frac+"|"+Math.round(n.repar.days):"",n.demilUntil||0,
       /* realism (v5.0+) */ Math.round(n.manpower||0),Math.round(n.manpowerMax||0),n.suedT||0,
-      /* guarantees (v5.5+) */ n.guarantees?[...n.guarantees].join(","):""];}
+      /* guarantees (v5.5+) */ n.guarantees?[...n.guarantees].join(","):"",
+      /* breakthroughs (v5.9+) */ n.techs?[...n.techs].join(","):""];}
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"bb",Math.round(f.xp||0)]),
@@ -4585,6 +4678,9 @@ function mpApplyState(S){
       if(a.length>39){ /* v5.5+: guarantees */
         n.guarantees=new Set(String(a[39]||"").split(",").filter(Boolean));
       }
+      if(a.length>40){ /* v5.9+: breakthroughs */
+        n.techs=new Set(String(a[40]||"").split(",").filter(Boolean));
+      }
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
@@ -4617,6 +4713,7 @@ function mpApplyOrder(o){
   if(o.type==="para")paraDropFor(nat,o.pid);
   if(o.type==="ultimatum")ultimatumFor(nat,o.target,o.pid);
   if(o.type==="guarantee")guaranteeFor(nat,o.target);
+  if(o.type==="tech")buyTech(nat,o.id);
 }
 function saveGame(auto){
   try{
