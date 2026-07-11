@@ -369,10 +369,10 @@ function updateCombat(dt){
       tracers.push({ x0:mx, y0:from.y-34, x1:to.x, y1:to.y, t:0, dur:rnd(0.1,0.18) });
       particles.push({ x:mx-2, y:from.y-38, vx:0, vy:0, life:0.07, c:'#ffe27a', size:6 });
     }
-    if(Math.random()<0.5&&army.hp>0){
+    if(Math.random()<0.28&&army.hp>0){
       const tp=proj(rnd(ELANE_L,ELANE_R), rnd(0.8,4));
       const dmg=Math.max(1,Math.round(army.max*0.02*wm*rnd(0.6,1.5)));
-      floats.push({ txt:'-'+dmg, x:tp.x+rnd(-18,18), y:tp.y-30, life:0.7, color:'#ff5a4a', bg:null, size:32 });
+      floats.push({ txt:'-'+dmg, x:tp.x+rnd(-18,18), y:tp.y-30, life:0.7, color:'#fff', bg:'#c8281c', size:24 });
     }
   }
   if(army.hp<=0&&state===S.RUN){ army.hp=0; hpBar.style.width='0%'; shake=1; winLevel(); }
@@ -404,7 +404,7 @@ function updateClash(dt){
     if(clash.army && Math.random()<0.7){
       const pr=proj(rnd(ELANE_L,ELANE_R), rnd(0.8,3));
       const dmg=Math.max(1,Math.round(clash.e0/(clash.dur/0.12)*rnd(0.6,1.4)));
-      floats.push({ txt:'-'+dmg, x:pr.x+rnd(-20,20), y:pr.y-30, life:0.6, color:'#ff5a4a', bg:null });
+      floats.push({ txt:'-'+dmg, x:pr.x+rnd(-20,20), y:pr.y-30, life:0.6, color:'#fff', bg:'#c8281c', size:26 });
     }
   }
   if(k>=1){
@@ -467,7 +467,7 @@ function render(){
   ctx.globalAlpha=1; ctx.restore();
   // cinematic vignette
   const vg=ctx.createRadialGradient(cx,H*0.45,Math.min(W,H)*0.45,cx,H*0.5,Math.max(W,H)*0.75);
-  vg.addColorStop(0,'rgba(8,12,26,0)'); vg.addColorStop(1,'rgba(8,12,26,0.32)');
+  vg.addColorStop(0,'rgba(8,12,26,0)'); vg.addColorStop(1,'rgba(8,12,26,0.18)');
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
   if(flash>0){ ctx.fillStyle='rgba(255,255,255,'+(flash*0.28)+')'; ctx.fillRect(0,0,W,H); }
 }
@@ -482,7 +482,7 @@ function makeSpeckles(){
 }
 function drawSky(){
   const g=ctx.createLinearGradient(0,0,0,horizonY+40);
-  g.addColorStop(0,'#1a3a66'); g.addColorStop(0.6,'#4a7ab8'); g.addColorStop(1,'#8fb4dd');
+  g.addColorStop(0,'#2a6cc8'); g.addColorStop(0.55,'#5b96d8'); g.addColorStop(1,'#b8d4ee');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,horizonY+40);
   // sun glow
   const sun=ctx.createRadialGradient(W*0.78,horizonY*0.34,4,W*0.78,horizonY*0.34,horizonY*0.9);
@@ -492,13 +492,17 @@ function drawSky(){
   const t=performance.now()/1000;
   for(let i=0;i<4;i++){
     const cx0=((i*0.31*W + t*(6+i*2.5)) % (W+260))-130;
-    const cy=horizonY*(0.18+i*0.16), cs=(0.7+((i*37)%10)/14)*46;
-    ctx.fillStyle='rgba(255,255,255,'+(0.5-i*0.07)+')';
+    const cy=horizonY*(0.24+i*0.17), cs=(0.7+((i*37)%10)/14)*46;
+    ctx.fillStyle='rgba(255,255,255,'+(0.92-i*0.06)+')';
     ctx.beginPath();
-    ctx.ellipse(cx0,cy,cs*1.5,cs*0.42,0,0,Math.PI*2);
-    ctx.ellipse(cx0-cs*0.9,cy+cs*0.13,cs*0.85,cs*0.3,0,0,Math.PI*2);
-    ctx.ellipse(cx0+cs*0.95,cy+cs*0.1,cs*0.95,cs*0.34,0,0,Math.PI*2);
+    ctx.ellipse(cx0,cy,cs*1.5,cs*0.5,0,0,Math.PI*2);
+    ctx.ellipse(cx0-cs*1.05,cy+cs*0.16,cs*0.85,cs*0.34,0,0,Math.PI*2);
+    ctx.ellipse(cx0+cs*1.0,cy+cs*0.12,cs*0.95,cs*0.38,0,0,Math.PI*2);
+    ctx.ellipse(cx0-cs*0.3,cy-cs*0.22,cs*0.8,cs*0.4,0,0,Math.PI*2);
     ctx.fill();
+    // flat under-shadow for that puffy cumulus look
+    ctx.fillStyle='rgba(160,185,215,0.35)';
+    ctx.beginPath(); ctx.ellipse(cx0,cy+cs*0.32,cs*1.45,cs*0.16,0,0,Math.PI*2); ctx.fill();
   }
   // distant dune silhouettes
   for(const[amp,ph,col] of [[16,0,'rgba(150,128,92,0.45)'],[9,2.2,'rgba(128,108,76,0.7)']]){
@@ -513,7 +517,7 @@ function drawSky(){
   ctx.fillStyle=hz; ctx.fillRect(0,horizonY-30,W,60);
   // sandy ground with speckle grain
   const gg=ctx.createLinearGradient(0,horizonY,0,H);
-  gg.addColorStop(0,'#c3b18c'); gg.addColorStop(1,'#8f7d5c');
+  gg.addColorStop(0,'#d6c6a2'); gg.addColorStop(1,'#a8946e');
   ctx.fillStyle=gg; ctx.fillRect(0,horizonY,W,H-horizonY);
   if(!speckles.length) makeSpeckles();
   for(const s of speckles){ ctx.fillStyle='rgba(60,45,25,'+s.a+')'; ctx.fillRect(s.x,s.y,s.s,s.s*0.7); }
@@ -523,49 +527,68 @@ function laneQuad(xa,xb,dNear,dFar){
   ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.closePath();
 }
 function drawRoad(){
-  // enemy lane (reddish)
+  // bright sunlit concrete across the whole road, like the ad
+  laneQuad(-1.02, 1.02, -0.5, 24);
+  const rg=ctx.createLinearGradient(0,horizonY,0,H);
+  rg.addColorStop(0,'#b9b6ae'); rg.addColorStop(0.5,'#cecbc3'); rg.addColorStop(1,'#dbd8d0');
+  ctx.fillStyle=rg; ctx.fill();
+  // faint dust tint where the horde marches
   laneQuad(-1.02, WALL_X, -0.5, 24);
-  let rg=ctx.createLinearGradient(0,horizonY,0,H);
-  rg.addColorStop(0,'#7a6a72'); rg.addColorStop(1,'#8f7a80');
-  ctx.fillStyle=rg; ctx.fill();
-  // run lane (cool grey)
-  laneQuad(WALL_X, 1.02, -0.5, 24);
-  rg=ctx.createLinearGradient(0,horizonY,0,H);
-  rg.addColorStop(0,'#7d8aa0'); rg.addColorStop(1,'#9aa6bb');
-  ctx.fillStyle=rg; ctx.fill();
-  // depth stripes across whole road
+  ctx.fillStyle='rgba(160,70,55,0.05)'; ctx.fill();
+  // scrolling expansion joints
   const period=2.6, off=scroll%period;
   for(let i=0;i<16;i++){
     const d=i*period-off+0.5; if(d<0.4||d>24) continue;
-    laneQuad(-1.02,1.02,d,d+period*0.5);
-    ctx.fillStyle=(i%2===0)?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'; ctx.fill();
+    const l=proj(-1.02,d), r=proj(1.02,d);
+    ctx.strokeStyle='rgba(70,65,58,0.16)'; ctx.lineWidth=Math.max(1,2.4*l.p);
+    ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.lineTo(r.x,r.y); ctx.stroke();
   }
-  drawEdge(-1.04); drawEdge(1.04);
+  // subtle wear strips down each lane
+  for(const wx of [ELANE_C, RLANE_C]){
+    laneQuad(wx-0.14, wx+0.14, 0, 24);
+    ctx.fillStyle='rgba(60,55,50,0.05)'; ctx.fill();
+  }
   drawCurb();
-  // run-lane centre dashes
+  drawRail(-1.06); drawRail(1.06);
+  // faded centre dashes in the run lane
   for(let i=0;i<20;i++){
     const d=i*1.3-(scroll%1.3); if(d<0.3||d>22) continue;
     const a=proj(RLANE_MID,d), b=proj(RLANE_MID,d+0.55);
-    ctx.strokeStyle='rgba(255,235,180,0.4)'; ctx.lineWidth=Math.max(1,3*a.p);
+    ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=Math.max(1,3*a.p);
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
   }
 }
-function drawEdge(side){
+function drawRail(side){
+  // metal guard rail: posts + twin horizontal rails, like the ad's edges
+  const postOff=scroll%2;
+  ctx.strokeStyle='#6e737b';
+  for(let d=2-postOff; d<=24; d+=2){
+    const p=proj(side,d);
+    ctx.lineWidth=Math.max(1,3.4*p.p);
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x,p.y-34*p.p); ctx.stroke();
+  }
+  for(const hgt of [34,20]){
+    ctx.beginPath(); let first=true;
+    for(let d=0;d<=24;d+=1.5){
+      const p=proj(side,d);
+      if(first){ctx.moveTo(p.x,p.y-hgt*p.p);first=false;} else ctx.lineTo(p.x,p.y-hgt*p.p);
+    }
+    ctx.strokeStyle='#9aa0a8'; ctx.lineWidth=2.4; ctx.stroke();
+  }
+  // ground line under the rail
   ctx.beginPath(); let first=true;
   for(let d=-0.5;d<=24;d+=1.5){ const p=proj(side,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
-  ctx.strokeStyle='#e0d4b0'; ctx.lineWidth=3; ctx.stroke();
+  ctx.strokeStyle='rgba(90,85,75,0.5)'; ctx.lineWidth=2; ctx.stroke();
 }
 function drawCurb(){
-  // low curb between the two lanes — crossable, just marks the ramp edge
-  laneQuad(WALL_X-0.045, WALL_X, -0.5, 24);
-  ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fill();     // shadow at ramp base
-  laneQuad(WALL_X, WALL_X+0.035, -0.5, 24);
+  // low kerb marking the two lanes — crossable
+  laneQuad(WALL_X-0.03, WALL_X+0.03, -0.5, 24);
   const cg=ctx.createLinearGradient(0,horizonY,0,H);
-  cg.addColorStop(0,'#cfc6ae'); cg.addColorStop(1,'#e8dfc4');
-  ctx.fillStyle=cg; ctx.fill();                     // pale curb stone
+  cg.addColorStop(0,'#a8a49a'); cg.addColorStop(1,'#c2beb4');
+  ctx.fillStyle=cg; ctx.fill();
   ctx.beginPath(); let first=true;
-  for(let d=-0.5;d<=24;d+=1.5){ const p=proj(WALL_X,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
-  ctx.strokeStyle='rgba(90,80,60,0.45)'; ctx.lineWidth=1.5; ctx.stroke();
+  for(let d=-0.5;d<=24;d+=1.5){ const p=proj(WALL_X-0.03,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
+  ctx.strokeStyle='rgba(70,65,58,0.35)'; ctx.lineWidth=1.5; ctx.stroke();
 }
 
 function rr(g,x,y,w,h,r){
@@ -631,14 +654,56 @@ function shadeHex(hex,f){
   let r=(n>>16)&255,gg=(n>>8)&255,b=n&255;
   return 'rgb('+Math.min(255,r*f|0)+','+Math.min(255,gg*f|0)+','+Math.min(255,b*f|0)+')';
 }
+// stubby hooded brute — the ad's red minion silhouette
+function paintMinion(g,x,gy,s,step){
+  const sw=Math.sin(step*Math.PI*2);
+  g.fillStyle='rgba(0,0,0,0.28)';
+  g.beginPath(); g.ellipse(x,gy+1.6*s,8.5*s,2.8*s,0,0,Math.PI*2); g.fill();
+  // stubby legs
+  const la=sw*1.5*s, lb=-sw*1.5*s;
+  g.fillStyle='#6a1410';
+  rr(g,x-4.4*s,gy-6.5*s+la,3.8*s,6.5*s-la,1.6*s); g.fill();
+  rr(g,x+0.6*s,gy-6.5*s+lb,3.8*s,6.5*s-lb,1.6*s); g.fill();
+  // rounded bulky body (capsule)
+  const bg=g.createLinearGradient(x-7*s,gy-24*s,x+7*s,gy-4*s);
+  bg.addColorStop(0,'#ff7a5e'); bg.addColorStop(0.45,'#d63a2a'); bg.addColorStop(1,'#801a10');
+  g.fillStyle=bg;
+  g.beginPath();
+  g.moveTo(x-7*s,gy-5*s);
+  g.lineTo(x-7*s,gy-17*s);
+  g.arc(x,gy-17*s,7*s,Math.PI,0);
+  g.lineTo(x+7*s,gy-5*s);
+  g.closePath(); g.fill();
+  // short arms swinging
+  g.fillStyle='#8a1c12';
+  rr(g,x-9.6*s,gy-16*s+sw*1.2*s,3*s,7.5*s,1.5*s); g.fill();
+  rr(g,x+6.6*s,gy-16*s-sw*1.2*s,3*s,7.5*s,1.5*s); g.fill();
+  // hood ridge + dark face notch with glowing eyes
+  g.fillStyle='#a02418';
+  g.beginPath(); g.arc(x,gy-17.5*s,6.4*s,Math.PI*1.05,-Math.PI*0.05); g.fill();
+  g.fillStyle='rgba(25,8,6,0.95)';
+  g.beginPath(); g.ellipse(x,gy-18*s,4*s,3*s,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#ffb03a';
+  g.beginPath(); g.arc(x-1.6*s,gy-18.3*s,0.8*s,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(x+1.6*s,gy-18.3*s,0.8*s,0,Math.PI*2); g.fill();
+  // belly shine
+  g.fillStyle='rgba(255,255,255,0.12)';
+  g.beginPath(); g.ellipse(x-2.5*s,gy-12*s,2.6*s,4*s,0.3,0,Math.PI*2); g.fill();
+}
 function bakeSoldier(body,dark,hi,armed){
   const fr=[];
   for(let f=0;f<FRAMES;f++)
     fr.push(makeSprite(64,112,g=>paintSoldier(g,32,106,SS,body,dark,hi,armed,f/FRAMES)));
   return fr;
 }
+function bakeMinion(){
+  const fr=[];
+  for(let f=0;f<FRAMES;f++)
+    fr.push(makeSprite(64,112,g=>paintMinion(g,32,106,SS,f/FRAMES)));
+  return fr;
+}
 const SPR_BLUE=bakeSoldier('#2f8fff','#134a8a','#bfe0ff',true);
-const SPR_RED =bakeSoldier('#e0483a','#7a1e16','#ffb0a6',false);
+const SPR_RED =bakeMinion();
 function drawTroop(wx,dist,frames,step){
   const pr=proj(wx,dist), p=pr.p; if(p<=0.02) return;
   const k=p/SS, f=frames[Math.min(FRAMES-1,Math.floor((step%1)*FRAMES))];
@@ -745,13 +810,21 @@ function drawGatePanel(op,xa,xb,dist){
   ctx.fillStyle='rgba(255,255,255,0.8)';
   ctx.beginPath(); ctx.arc(bl.x-1*p,by-topH-1*p,1.6*p,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.arc(br.x-1*p,by-topH-1*p,1.6*p,0,Math.PI*2); ctx.fill();
-  const lw=Math.min(bw*0.82,170*p), lh=54*p, lcx=(bl.x+br.x)/2, lcy=by-topH*0.5;
-  const lg=ctx.createLinearGradient(0,lcy-lh/2,0,lcy+lh/2);
-  lg.addColorStop(0,c.a); lg.addColorStop(1,c.b);
-  ctx.fillStyle=lg; roundRect(lcx-lw/2,lcy-lh/2,lw,lh,10*p); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=Math.max(1,2*p); ctx.stroke();
-  ctx.fillStyle='#fff'; ctx.font='900 '+Math.max(12,42*p)+'px Segoe UI, sans-serif';
-  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(op.txt,lcx,lcy+2*p); ctx.textBaseline='alphabetic';
+  // central bloom behind the number (ad-style energy core)
+  const lcx=(bl.x+br.x)/2, lcy=by-topH*0.5;
+  const core=ctx.createRadialGradient(lcx,lcy,2,lcx,lcy,Math.max(20,bw*0.42));
+  core.addColorStop(0,c.glow+'0.55)'); core.addColorStop(1,c.glow+'0)');
+  ctx.fillStyle=core;
+  ctx.fillRect(bx,by-topH,bw,topH);
+  // number floating in the panel with a soft glow — no plate
+  ctx.save();
+  ctx.shadowColor=c.a; ctx.shadowBlur=16*p;
+  ctx.fillStyle='#fff'; ctx.font='900 '+Math.max(13,50*p)+'px Segoe UI, sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(op.txt,lcx,lcy+2*p);
+  ctx.fillText(op.txt,lcx,lcy+2*p);
+  ctx.restore();
+  ctx.textBaseline='alphabetic';
 }
 
 // ----- yellow turret blocker -----
@@ -795,7 +868,14 @@ function drawTurretBlock(r){
   ctx.fillStyle='#2f7dd8'; roundRect(-6*p,-46*p,12*p,46*p,4*p); ctx.fill();
   ctx.fillStyle='#1b4f8a'; roundRect(-8*p,-12*p,16*p,14*p,4*p); ctx.fill();
   ctx.restore();
-  drawCountPlate(base.x, by-bh*0.4, Math.ceil(r.count), '#2f9dff', p*1.05);
+  // count painted straight onto the barrel, ad-style
+  const txt=fmt(Math.ceil(r.count));
+  ctx.font='900 '+Math.max(14,52*p)+'px Segoe UI, sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.lineWidth=Math.max(2,8*p); ctx.strokeStyle='#1b3a6e'; ctx.lineJoin='round';
+  ctx.strokeText(txt, base.x, by-bh*0.42);
+  ctx.fillStyle='#fff'; ctx.fillText(txt, base.x, by-bh*0.42);
+  ctx.textBaseline='alphabetic';
 }
 
 // ----- your crowd -----
