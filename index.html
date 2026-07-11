@@ -58,8 +58,8 @@ canvas{display:block;width:100%;height:100%}
   <div class="title">CROWD<br>RUSH</div>
   <div class="subtitle">Grow your army &middot; Wipe out the red horde</div>
   <button class="btn" id="playBtn">Play</button>
-  <div class="hint">Drag <b>left / right</b> (or <b>&larr; &rarr;</b>) to steer &mdash; you can't cross the wall into the red lane.
-  <b>Blue gates grow</b> the longer they take to reach, <b>yellow barrels</b> drop guns when you shoot them to 0, and your fire drains the red army. Empty their bar before the lane ends!</div>
+  <div class="hint">Drag <b>anywhere</b> (or <b>&larr; &rarr;</b>) &mdash; slide across the whole road.
+  <b>Blue gates grow</b> as they approach, <b>yellow barrels</b> drop guns when shot to 0, and darting <b>left</b> grabs the big bonus gate at the horde's front &mdash; but they'll maul you while you're there. Drain the red bar before the lane ends!</div>
 </div>
 
 <!-- Level complete -->
@@ -87,9 +87,10 @@ let W=0,H=0,DPR=1,cx=0;
 const ELANE_L=-0.98, ELANE_R=-0.12, ELANE_C=-0.55;   // enemy (left)
 const WALL_X=-0.04;                                   // dividing wall
 const RLANE_L=0.06, RLANE_R=0.98, RLANE_MID=0.52, RLANE_C=0.52; // run (right)
-// hard steering bounds: the whole formation stays inside the right lane —
-// like the ad, you can never slide left across the wall into the red army
-const STEER_MIN=0.30, STEER_MAX=0.88;
+// free steering across the whole road — slide left into the horde's lane to
+// grab the growing bonus gate (they'll maul you while you're there)
+const STEER_MIN=-0.78, STEER_MAX=0.88;
+const MELEE_X=-0.08;      // left of this = inside the horde's lane
 const DPS_K = 0.95;   // damage per crowd unit per second
 
 // ---------- projection ----------
@@ -104,6 +105,7 @@ function resize(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   cx=W/2; horizonY=H*HORIZON_F; roadBottomY=H*1.02;
   roadHalfBottom=Math.min(W*0.47, 340);
+  speckles=[];
 }
 window.addEventListener('resize', resize); resize();
 
@@ -126,7 +128,7 @@ let floats=[], particles=[], tracers=[], shotTimer=0;
 let clash=null, shake=0, flash=0;
 // weapon upgrades looted from destroyed barrels (ad mechanic)
 const WEAPONS=['PISTOL','SMG','RIFLE','MINIGUN','LASER'];
-let weaponLvl=0;
+let weaponLvl=0, meleeAcc=0;
 function wmult(){ return 1+0.35*weaponLvl; }
 
 const bestNumEl=document.getElementById('bestNum');
@@ -181,6 +183,12 @@ function genLevel(lv, startCrowd){
     const res=makeGatePair(est, base, i, pairs);
     est=res[1];
     rows.push({ type:'gate', dist, left:res[0][0], right:res[0][1], done:false });
+    // big bonus gate riding the horde's front in the LEFT lane (ad's growing
+    // +N counter) — dart left to grab it, at the cost of melee losses
+    if(i%2===1){
+      const lv0=Math.max(6,Math.round(base*rnd(0.9,1.3)));
+      rows.push({ type:'lgate', dist:dist+3.2, op:{op:'+',v:lv0,txt:'+'+lv0,grow:lv0*0.30}, done:false });
+    }
     dist+=spacing;
     if(i>0 && i%2===0 && i<pairs-1){
       const bc=Math.max(3,Math.round(est*rnd(0.2,0.36)));
@@ -200,7 +208,7 @@ function genLevel(lv, startCrowd){
 // ---------- flow ----------
 function startLevel(){
   playerX=RLANE_C; targetX=RLANE_C;
-  floats=[]; particles=[]; tracers=[]; clash=null; shake=0; flash=0;
+  floats=[]; particles=[]; tracers=[]; clash=null; shake=0; flash=0; meleeAcc=0;
   speed=6.2+level*0.4;
   genLevel(level, crowd);
   state=S.RUN; lvlNumEl.textContent=level; hideOverlays();
@@ -249,22 +257,47 @@ function update(dt){
     for(const r of rows){ if(!r.done) r.dist-=adv; }
     // ad mechanic: + gate values tick upward as they approach (14 -> 19 -> 28...)
     for(const r of rows){
-      if(r.done||r.type!=='gate'||r.dist>=18) continue;
-      for(const o of [r.left,r.right]){
+      if(r.done||r.dist>=18) continue;
+      const ops = r.type==='gate' ? [r.left,r.right] : (r.type==='lgate' ? [r.op] : []);
+      for(const o of ops){
         if(o.op==='+'&&o.grow){ o.v+=o.grow*dt; o.txt='+'+Math.round(o.v); }
       }
     }
     for(const r of rows){
       if(r.done) continue;
       if(r.type==='gate' && r.dist<=PLAYER_DIST){
+        r.done=true;
+        if(playerX < RLANE_L-0.05) continue;   // off in the left lane: missed
         const pick = playerX<RLANE_MID ? r.left : r.right;
         crowd=Math.max(0,applyOp(crowd,pick));
-        r.done=true;
         addFloat(pick.txt, playerX, '#fff', (pick.op==='-'||pick.op==='/')?'#c0342a':'#0e7a38');
         pulse();
         if(crowd<=0){ crowd=0; loseGame(); return; }
+      } else if(r.type==='lgate' && r.dist<=PLAYER_DIST){
+        r.done=true;
+        if(playerX < 0.0){   // must be over on the left to grab it
+          crowd=Math.max(0,applyOp(crowd,r.op));
+          addFloat(r.op.txt, playerX, '#fff', '#0e7a38');
+          pulse();
+        }
       } else if(r.type==='enemy' && r.dist<=PLAYER_DIST+0.15){
-        startBlockerClash(r); break;
+        if(playerX > 0.10){ startBlockerClash(r); break; }
+        r.done=true;   // dodged past it on the left — no smash, no gun
+      }
+    }
+    // the horde mauls you while you linger in its lane
+    if(playerX < MELEE_X && army && army.hp>0 && crowd>0){
+      meleeAcc += (1.5 + crowd*0.16)*dt;
+      if(meleeAcc>=1){
+        const loss=Math.floor(meleeAcc); meleeAcc-=loss;
+        crowd=Math.max(0,crowd-loss);
+        shake=Math.max(shake,0.35);
+        if(Math.random()<0.35){
+          const pr=proj(playerX,PLAYER_DIST-0.2);
+          floats.push({ txt:'-'+loss, x:pr.x+rnd(-16,16), y:pr.y-70, life:0.5, color:'#ff8a7a', bg:null });
+          spawnSparks(playerX, PLAYER_DIST+0.2);
+        }
+        if(crowd<=0){ crowd=0; loseGame(); return; }
       }
     }
     updateCombat(dt);
@@ -326,8 +359,11 @@ function updateCombat(dt){
     if(tur&&Math.random()<0.6){ const tp=proj(RLANE_C,Math.max(tur.dist,0.5)); to={x:tp.x+rnd(-24,24), y:tp.y-70*tp.p}; }
     else { const tp=proj(rnd(ELANE_L,ELANE_R), rnd(0.6,5)); to={x:tp.x+rnd(-10,10), y:tp.y-18}; }
     const shots=1+(crowd>120?1:0)+(weaponLvl>=3?1:0);
-    for(let i=0;i<shots;i++)
-      tracers.push({ x0:from.x+rnd(-14,14), y0:from.y-34, x1:to.x, y1:to.y, t:0, dur:rnd(0.1,0.18) });
+    for(let i=0;i<shots;i++){
+      const mx=from.x+rnd(-14,14);
+      tracers.push({ x0:mx, y0:from.y-34, x1:to.x, y1:to.y, t:0, dur:rnd(0.1,0.18) });
+      particles.push({ x:mx-2, y:from.y-38, vx:0, vy:0, life:0.07, c:'#ffe27a', size:6 });
+    }
     if(Math.random()<0.5&&army.hp>0){
       const tp=proj(rnd(ELANE_L,ELANE_R), rnd(0.8,4));
       const dmg=Math.max(1,Math.round(army.max*0.02*wm*rnd(0.6,1.5)));
@@ -394,10 +430,14 @@ function render(){
   ctx.clearRect(0,0,W,H);
   const sx=shake>0?(Math.random()-0.5)*shake*14:0, sy=shake>0?(Math.random()-0.5)*shake*14:0;
   ctx.save(); ctx.translate(sx,sy);
-  drawSky(); drawRoad(); drawWall();
+  drawSky(); drawRoad();
   if(army && army.hp>0) drawArmy();
   const vis=rows.filter(r=>!r.done && r.dist<24 && r.dist>-2).sort((a,b)=>b.dist-a.dist);
-  for(const r of vis){ if(r.type==='gate') drawGate(r); else drawTurretBlock(r); }
+  for(const r of vis){
+    if(r.type==='gate') drawGate(r);
+    else if(r.type==='lgate') drawGatePanel(r.op, ELANE_L+0.04, ELANE_R-0.02, r.dist);
+    else drawTurretBlock(r);
+  }
   drawCrowd();
   // tracers
   ctx.lineCap='round';
@@ -409,7 +449,7 @@ function render(){
     ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); ctx.stroke();
     ctx.fillStyle='#eaffff'; ctx.beginPath(); ctx.arc(hx,hy,2.5,0,Math.PI*2); ctx.fill();
   }
-  for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life*2); ctx.fillStyle=p.c; ctx.fillRect(p.x,p.y,3,3); }
+  for(const p of particles){ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*2)); ctx.fillStyle=p.c; const ps=p.size||3; ctx.fillRect(p.x,p.y,ps,ps); }
   ctx.globalAlpha=1;
   for(const f of floats){
     ctx.globalAlpha=Math.min(1,f.life*1.6);
@@ -423,16 +463,43 @@ function render(){
   if(flash>0){ ctx.fillStyle='rgba(255,255,255,'+(flash*0.28)+')'; ctx.fillRect(0,0,W,H); }
 }
 
+var speckles=[];
+function makeSpeckles(){
+  speckles=[];
+  for(let i=0;i<70;i++){
+    const y=horizonY+Math.pow(Math.random(),1.6)*(H-horizonY);
+    speckles.push({ x:Math.random()*W, y, s:1+((y-horizonY)/(H-horizonY))*3, a:0.04+Math.random()*0.08 });
+  }
+}
 function drawSky(){
   const g=ctx.createLinearGradient(0,0,0,horizonY+40);
-  g.addColorStop(0,'#173157'); g.addColorStop(1,'#5a86c0');
+  g.addColorStop(0,'#1a3a66'); g.addColorStop(0.6,'#4a7ab8'); g.addColorStop(1,'#8fb4dd');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,horizonY+40);
+  // sun glow
+  const sun=ctx.createRadialGradient(W*0.78,horizonY*0.34,4,W*0.78,horizonY*0.34,horizonY*0.9);
+  sun.addColorStop(0,'rgba(255,244,200,0.9)'); sun.addColorStop(0.08,'rgba(255,240,190,0.5)'); sun.addColorStop(1,'rgba(255,240,190,0)');
+  ctx.fillStyle=sun; ctx.fillRect(0,0,W,horizonY+40);
+  // drifting clouds
+  const t=performance.now()/1000;
+  for(let i=0;i<4;i++){
+    const cx0=((i*0.31*W + t*(6+i*2.5)) % (W+260))-130;
+    const cy=horizonY*(0.18+i*0.16), cs=(0.7+((i*37)%10)/14)*46;
+    ctx.fillStyle='rgba(255,255,255,'+(0.5-i*0.07)+')';
+    ctx.beginPath();
+    ctx.ellipse(cx0,cy,cs*1.5,cs*0.42,0,0,Math.PI*2);
+    ctx.ellipse(cx0-cs*0.9,cy+cs*0.13,cs*0.85,cs*0.3,0,0,Math.PI*2);
+    ctx.ellipse(cx0+cs*0.95,cy+cs*0.1,cs*0.95,cs*0.34,0,0,Math.PI*2);
+    ctx.fill();
+  }
   const hz=ctx.createLinearGradient(0,horizonY-30,0,horizonY+30);
-  hz.addColorStop(0,'rgba(200,220,255,0)'); hz.addColorStop(1,'rgba(220,232,255,.5)');
+  hz.addColorStop(0,'rgba(210,226,255,0)'); hz.addColorStop(1,'rgba(228,238,255,.55)');
   ctx.fillStyle=hz; ctx.fillRect(0,horizonY-30,W,60);
+  // sandy ground with speckle grain
   const gg=ctx.createLinearGradient(0,horizonY,0,H);
-  gg.addColorStop(0,'#b8a884'); gg.addColorStop(1,'#8f7d5c');
+  gg.addColorStop(0,'#c3b18c'); gg.addColorStop(1,'#8f7d5c');
   ctx.fillStyle=gg; ctx.fillRect(0,horizonY,W,H-horizonY);
+  if(!speckles.length) makeSpeckles();
+  for(const s of speckles){ ctx.fillStyle='rgba(60,45,25,'+s.a+')'; ctx.fillRect(s.x,s.y,s.s,s.s*0.7); }
 }
 function laneQuad(xa,xb,dNear,dFar){
   const a=proj(xa,dNear), b=proj(xb,dNear), c=proj(xb,dFar), d=proj(xa,dFar);
@@ -457,6 +524,7 @@ function drawRoad(){
     ctx.fillStyle=(i%2===0)?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'; ctx.fill();
   }
   drawEdge(-1.04); drawEdge(1.04);
+  drawCurb();
   // run-lane centre dashes
   for(let i=0;i<20;i++){
     const d=i*1.3-(scroll%1.3); if(d<0.3||d>22) continue;
@@ -470,23 +538,17 @@ function drawEdge(side){
   for(let d=-0.5;d<=24;d+=1.5){ const p=proj(side,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
   ctx.strokeStyle='#e0d4b0'; ctx.lineWidth=3; ctx.stroke();
 }
-function drawWall(){
-  // low dividing wall between the two lanes
-  const wh=42; // world-ish height factor
+function drawCurb(){
+  // low curb between the two lanes — crossable, just marks the ramp edge
+  laneQuad(WALL_X-0.045, WALL_X, -0.5, 24);
+  ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fill();     // shadow at ramp base
+  laneQuad(WALL_X, WALL_X+0.035, -0.5, 24);
+  const cg=ctx.createLinearGradient(0,horizonY,0,H);
+  cg.addColorStop(0,'#cfc6ae'); cg.addColorStop(1,'#e8dfc4');
+  ctx.fillStyle=cg; ctx.fill();                     // pale curb stone
   ctx.beginPath(); let first=true;
-  const pts=[];
-  for(let d=24;d>=-0.5;d-=1){ pts.push(proj(WALL_X,d)); }
-  // top edge then bottom edge back
-  for(const p of pts){ if(first){ctx.moveTo(p.x,p.y-wh*p.p);first=false;} else ctx.lineTo(p.x,p.y-wh*p.p); }
-  for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; ctx.lineTo(p.x,p.y); }
-  ctx.closePath();
-  const wg=ctx.createLinearGradient(0,horizonY,0,H);
-  wg.addColorStop(0,'#5a5460'); wg.addColorStop(1,'#3a3640');
-  ctx.fillStyle=wg; ctx.fill();
-  // top highlight
-  ctx.beginPath(); first=true;
-  for(const p of pts){ if(first){ctx.moveTo(p.x,p.y-wh*p.p);first=false;} else ctx.lineTo(p.x,p.y-wh*p.p); }
-  ctx.strokeStyle='#8a8494'; ctx.lineWidth=2; ctx.stroke();
+  for(let d=-0.5;d<=24;d+=1.5){ const p=proj(WALL_X,d); if(first){ctx.moveTo(p.x,p.y);first=false;} else ctx.lineTo(p.x,p.y); }
+  ctx.strokeStyle='rgba(90,80,60,0.45)'; ctx.lineWidth=1.5; ctx.stroke();
 }
 
 function roundRect(x,y,w,h,r){
@@ -510,7 +572,7 @@ function drawArmy(){
   }
   arr.sort((a,b)=>b.dd-a.dd);
   for(const s of arr){
-    const step=Math.sin(army.march*4+s.i*1.3)*0.5+0.5;
+    const step=(army.march*0.8+s.i*0.37)%1;
     drawSoldier(s.wx, s.dd, '#e0483a', '#7a1e16', '#ffb0a6', step);
   }
   // giant leader at the front
@@ -591,12 +653,12 @@ function drawCrowd(){
   for(let i=0;i<n;i++){
     const ci=i%cols, ri=Math.floor(i/cols);
     let wx=playerX+(((ci/(cols-1||1))-0.5))*spread*2+Math.sin(i*12.9)*0.02;
-    wx=Math.max(RLANE_L+0.02, Math.min(RLANE_R-0.02, wx));
+    wx=Math.max(-0.96, Math.min(RLANE_R-0.02, wx));
     const dd=PLAYER_DIST+(ri-rowsN/2)*0.18-0.1+bob;
     arr.push({wx,dd,i});
   }
   arr.sort((a,b)=>b.dd-a.dd);
-  for(const s of arr){ const step=Math.sin(scroll*8+s.i*1.7)*0.5+0.5; drawSoldier(s.wx,s.dd,'#2f8fff','#134a8a','#bfe0ff',step); }
+  for(const s of arr){ const step=(scroll*1.3+s.i*0.31)%1; drawSoldier(s.wx,s.dd,'#2f8fff','#134a8a','#bfe0ff',step,true); }
   const lp=proj(playerX,PLAYER_DIST+0.1);
   drawCountPlate(lp.x, lp.y-96*lp.p, count, '#2f9dff', lp.p*1.05);
   // looted-weapon badge above the count plate
@@ -615,17 +677,44 @@ function drawCrowd(){
   }
 }
 
-function drawSoldier(wx,dist,body,dark,hi,step){
+function drawSoldier(wx,dist,body,dark,hi,step,armed){
   const pr=proj(wx,dist), p=pr.p; if(p<=0.02) return;
   const s=p, x=pr.x, y=pr.y;
-  const lift=step!==undefined?Math.abs(Math.sin(step*Math.PI))*4*s:0;
-  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x,y+2*s,9*s,3.2*s,0,0,Math.PI*2); ctx.fill();
+  const sw=step!==undefined?Math.sin(step*Math.PI*2):0;      // leg swing
+  const lift=step!==undefined?Math.abs(Math.sin(step*Math.PI))*3*s:0;
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x,y+2*s,8.5*s,3*s,0,0,Math.PI*2); ctx.fill();
   const gy=y-lift;
-  const bg=ctx.createLinearGradient(0,gy-24*s,0,gy);
-  bg.addColorStop(0,hi); bg.addColorStop(0.4,body); bg.addColorStop(1,dark);
-  ctx.fillStyle=bg; roundRect(x-6*s,gy-22*s,12*s,20*s,4*s); ctx.fill();
-  ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(x,gy-27*s,5.2*s,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=hi; ctx.beginPath(); ctx.arc(x-1.3*s,gy-28.5*s,2.2*s,0,Math.PI*2); ctx.fill();
+  // legs (alternating stride)
+  ctx.fillStyle=dark;
+  roundRect(x-4.2*s, gy-9*s+sw*1.6*s, 3.4*s, 9*s-sw*1.6*s, 1.5*s); ctx.fill();
+  roundRect(x+0.8*s, gy-9*s-sw*1.6*s, 3.4*s, 9*s+sw*1.6*s, 1.5*s); ctx.fill();
+  // armored torso
+  const bg=ctx.createLinearGradient(0,gy-22*s,0,gy-7*s);
+  bg.addColorStop(0,hi); bg.addColorStop(0.45,body); bg.addColorStop(1,dark);
+  ctx.fillStyle=bg; roundRect(x-6*s,gy-22*s,12*s,14.5*s,4*s); ctx.fill();
+  // chest plate seam
+  ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=Math.max(0.5,1*s);
+  ctx.beginPath(); ctx.moveTo(x-5*s,gy-15*s); ctx.lineTo(x+5*s,gy-15*s); ctx.stroke();
+  // arms
+  ctx.fillStyle=dark;
+  roundRect(x-8.2*s,gy-20*s,3*s,8*s,1.5*s); ctx.fill();
+  roundRect(x+5.2*s,gy-20*s,3*s,8*s,1.5*s); ctx.fill();
+  // rifle held forward (player troops)
+  if(armed){
+    ctx.fillStyle='#20242c';
+    roundRect(x+5.6*s,gy-30*s,2.6*s,11*s,1*s); ctx.fill();
+    ctx.fillStyle='#3a4150';
+    roundRect(x+5*s,gy-21*s,3.8*s,3.4*s,1*s); ctx.fill();
+  }
+  // helmet + visor
+  ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(x,gy-26.5*s,5.4*s,0,Math.PI*2); ctx.fill();
+  const hg=ctx.createLinearGradient(0,gy-31*s,0,gy-22*s);
+  hg.addColorStop(0,hi); hg.addColorStop(1,body);
+  ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(x,gy-27*s,4.9*s,Math.PI,0); ctx.fill();
+  ctx.fillStyle='rgba(15,20,35,0.85)';
+  roundRect(x-3.4*s,gy-27.5*s,6.8*s,2.6*s,1.3*s); ctx.fill();
+  ctx.fillStyle='rgba(180,230,255,0.5)';
+  roundRect(x-2.8*s,gy-27.2*s,2.6*s,1*s,0.5*s); ctx.fill();
 }
 
 function drawCountPlate(x,y,count,color,p){
@@ -663,7 +752,7 @@ document.getElementById('nextBtn').addEventListener('click', nextLevel);
 document.getElementById('retryBtn').addEventListener('click', newGame);
 
 // debug hooks for automated testing
-window.CRDBG=()=>({state,crowd:Math.round(crowd),hp:army?Math.round(army.hp):0,max:army?army.max:0,traveled:Math.round(traveled),len:Math.round(levelLength),level});
+window.CRDBG=()=>({state,crowd:Math.round(crowd),hp:army?Math.round(army.hp):0,max:army?army.max:0,traveled:Math.round(traveled),len:Math.round(levelLength),level,px:+playerX.toFixed(2)});
 window.CRBEST=()=>{
   let g=null;
   for(const r of rows){ if(!r.done && r.type==='gate' && r.dist>0){ if(!g||r.dist<g.dist) g=r; } }
