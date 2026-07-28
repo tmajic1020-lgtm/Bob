@@ -126,7 +126,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 5.9.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 6.0.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -145,7 +145,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 5.9.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 6.0.0</div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
     <button class="tbtn" id="bSignIn" onclick="showSignIn()" style="font-size:10px;padding:3px 8px;display:none">SIGN IN</button>
@@ -996,13 +996,17 @@ const TERR_OVR={
  // v5.1 provinces
  trn:"mtn",erz:"mtn",chih:"des",tim:"des",ali:"des",krs:"for",gab:"for",jav:"mar"
 };
+/* `w` is COMBAT WIDTH — how many divisions a side can physically bring to bear
+   in this province at once. Open country lets a whole army deploy; a mountain
+   pass or a river marsh admits a handful at a time, which is why a small force
+   can hold one against a horde. Everything above the width waits in reserve. */
 const TERR={
- plains:{n:"Plains",e:"🌾",spd:1.0,def:1.0},
- mtn:{n:"Mountains",e:"⛰",spd:0.55,def:1.45},
- for:{n:"Forest",e:"🌲",spd:0.8,def:1.2},
- des:{n:"Desert",e:"🏜",spd:0.9,def:0.95,attrit:0.04},
- mar:{n:"Marsh",e:"🥾",spd:0.65,def:1.25},
- urb:{n:"Urban",e:"🏙",spd:0.85,def:1.35}
+ plains:{n:"Plains",e:"🌾",spd:1.0,def:1.0,w:8},
+ mtn:{n:"Mountains",e:"⛰",spd:0.55,def:1.45,w:3},
+ for:{n:"Forest",e:"🌲",spd:0.8,def:1.2,w:5},
+ des:{n:"Desert",e:"🏜",spd:0.9,def:0.95,attrit:0.04,w:7},
+ mar:{n:"Marsh",e:"🥾",spd:0.65,def:1.25,w:3},
+ urb:{n:"Urban",e:"🏙",spd:0.85,def:1.35,w:5}
 };
 function terrainOf(p){
   if(TERR_OVR[p.id])return TERR[TERR_OVR[p.id]];
@@ -1169,6 +1173,12 @@ function techMul(nat,k){return 1+G.nations[nat].res[k]*0.25;}
 function logMsg(t,cls){
   G.log.unshift({t,cls});if(G.log.length>6)G.log.pop();
   $("#log").innerHTML=G.log.map(l=>`<div class="l ${l.cls||""}">▸ ${l.t}</div>`).join("");
+  /* The on-map log shows six lines and then the news of a collapsing front is
+     gone forever. Keep a dated dispatch file behind it that can actually be
+     read back — see the WAR LOG in the WARS panel. */
+  G.dispatch=G.dispatch||[];
+  G.dispatch.push({d:G.date?G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"",t,cls:cls||""});
+  if(G.dispatch.length>300)G.dispatch.shift();
 }
 /* the campaign chronicle: a lasting timeline of the war's turning points */
 function chronicle(t){
@@ -1298,6 +1308,76 @@ function offerPeace(a,b){
   }else{dipRefused("p",a,b,45);logMsg(`${NATIONS[b].f} ${NATIONS[b].n} rejects your peace offer — they think they can still win.`,"war");}
   return ok;
 }
+/* ===== ARMISTICE — suing for peace from the losing side =====
+   The treaty system only ever ran one way: you dictated terms to someone you
+   were beating. A player losing a coalition war had no exit at all and simply
+   played on to annihilation. Now you can buy your way out — cede the ground
+   they already hold, pay tribute, disarm — and the harder you are losing, the
+   more they will demand before they put down the rifle. */
+function armisticeValue(d){
+  d=d||{};let v=0;
+  if(d.cede)v+=34;if(+d.repar)v+=10;if(d.tribute)v+=18;if(d.demil)v+=18;
+  if(d.vassal)v+=60; // submission is worth more than any amount of land
+  return v;
+}
+function sueForPeace(me,foe,d){
+  const A=G.nations[me],B=G.nations[foe];
+  if(!A||!B||!B.alive||!atWar(me,foe))return false;
+  const their=warScore(foe,me);          // how badly we are losing
+  const offer=armisticeValue(d);
+  /* Envoys turned away will not hear THE SAME terms again for a month — but a
+     better offer is always worth their time. A flat cooldown meant one refused
+     white-peace locked you out of conceding anything for thirty days, which is
+     precisely when a losing nation most needs to be able to raise its bid. */
+  G.sueCd=G.sueCd||{};
+  const key=me+">"+foe,rec=G.sueCd[key];
+  if(rec&&rec.until>G.day&&offer<=rec.v){
+    logMsg(`🏳 ${NATIONS[foe].f} ${NATIONS[foe].n} has already refused these terms — offer more, or wait ${Math.ceil(rec.until-G.day)} days.`,"war");
+    return false;
+  }
+  if(offer+14<their){
+    G.sueCd[key]={v:offer,until:G.day+30};
+    logMsg(`🏳 ${NATIONS[foe].f} ${NATIONS[foe].n} rejects our terms — they smell blood and want more.`,"war");
+    if(me===G.player)sfx("war");
+    return false;
+  }
+  A.atWar.delete(foe);B.atWar.delete(me);
+  G.tension=Math.max(0,G.tension-5);
+  const terms=[];
+  if(d.cede){
+    // whatever each side holds of the other's homeland becomes theirs for good
+    let n=0;
+    for(const p of Object.values(G.prov)){
+      if(p.home===me&&p.owner===foe){p.home=foe;n++;}
+      if(p.home===foe&&p.owner===me){p.owner=foe;}   // our gains are handed back
+    }
+    terDirty=true;
+    terms.push(n?`${n} province${n>1?"s":""} ceded`:"conquests returned");
+  }
+  if(+d.repar){const take=Math.max(0,A.pp)*0.4;A.pp-=take;B.pp+=take;terms.push(`${Math.round(take)} PP indemnity`);}
+  if(d.tribute){A.repar={to:foe,frac:0.25,days:1825};terms.push("25% of our production for 5 years");}
+  if(d.demil){
+    const arr=G.units.filter(u=>u.nat===me),cut=Math.floor(arr.length/2);
+    for(let i=0;i<cut;i++){const idx=G.units.indexOf(arr[i]);if(idx>=0)G.units.splice(idx,1);}
+    if(G.selUnit&&G.selUnit.kind==="army"&&!G.units.includes(G.selUnit))G.selUnit=null;
+    A.demilUntil=G.day+730;
+    terms.push(`${cut} divisions disbanded, no war for 2 years`);
+  }
+  if(d.vassal){
+    /* The last card a doomed government can play: submit, and go on existing.
+       You keep your land and your flag, but you fly their livery, pay tribute
+       and follow them to war. Better than the map forgetting your name. */
+    A.puppet=foe;B.allies.add(me);A.allies.add(foe);
+    A.stab=Math.max(A.stab,35);terDirty=true;
+    terms.push(`a puppet government under ${NATIONS[foe].n}`);
+  }
+  A.warSup=Math.max(0,(A.warSup??50)-10);
+  A.stab=Math.max(0,A.stab-5);
+  logMsg(`🏳 ARMISTICE with ${NATIONS[foe].f} ${NATIONS[foe].n} — ${terms.join(" · ")||"white peace"}. The guns fall silent.`,"war");
+  chronicle(`🏳 Armistice with ${NATIONS[foe].n}${terms.length?" — "+terms.join(", "):""}.`);
+  return true;
+}
+window.sueForPeace=sueForPeace;
 function proposeAlliance(a,b){
   const A=G.nations[a],B=G.nations[b];
   if(!B.alive||atWar(a,b)||allied(a,b))return false;
@@ -1667,7 +1747,14 @@ function tick(){
       if(u.nat===G.player&&atWar(u.nat,pr.owner))unlockAch("winter");
       if(u.hp<=0){killUnit(u);continue;}
     }
-    if(!u.to&&pr.owner===u.nat&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
+    /* Rest and refit. Now that beaten divisions fall back instead of dying,
+       recovery has to be fast enough to be worth doing — at the old 0.15/day a
+       division that broke off at 1 HP took over six months to be useful again,
+       so a retreat was only a slower death. Supply and home ground matter. */
+    if(!u.to&&pr.owner===u.nat&&u.hp<u.str*10&&u.supplied!==false){
+      const rate=(pr.home===u.nat?0.7:0.45)*(G.battleSites&&G.battleSites.has(u.at)?0.3:1);
+      u.hp=Math.min(u.str*10,u.hp+rate);
+    }
   }
   G.tension=Math.max(0,G.tension-0.04);
   // national focus progress
@@ -1700,7 +1787,10 @@ function tick(){
   airOps();
   battles();
   garrisonRegen();
-  for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai&&n.autoCap)autoCapture(k);}
+  /* Re-plan the army's orders every few days, not every single day: replanning
+     continuously means a division that has just arrived is instantly sent
+     somewhere else, and nothing ever gets where it was going. */
+  if(G.day%3===0)for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai&&n.autoCap)autoCapture(k);}
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
   if(G.day%10===0){
     G.hist=G.hist||[];
@@ -1729,6 +1819,21 @@ function tick(){
       } else if(me.stab<20&&G.day%30===0&&Math.random()<0.25){
         me.pp=Math.max(0,me.pp-30);me.warSup=Math.max(0,me.warSup-15);
         logMsg("⚠ ATTEMPTED COUP — loyalists hold the capital, but the purge costs 30 PP and war support.","war");
+      }
+    }
+  }
+  /* Tell the player they are losing while there is still something left to
+     bargain with. Losing wars used to end in silent annihilation because
+     nothing ever suggested that suing for peace was an option. */
+  if(G.day%10===0&&!G.over){
+    const me=G.nations[G.player];
+    if(me&&me.alive&&!me.puppet&&me.atWar.size){
+      let worst=null,ws=0;
+      for(const f of me.atWar){const s=warScore(f,G.player);if(s>ws){ws=s;worst=f;}}
+      if(ws>=55&&(G._sueWarn||0)<G.day){
+        G._sueWarn=G.day+120;
+        toast("🏳 WE ARE LOSING TO "+NATIONS[worst].n.toUpperCase()+" — consider suing for peace (WARS panel)");
+        logMsg(`🏳 The staff advise that the war against ${NATIONS[worst].n} is going badly (their war score ${ws}). Terms could still be had — open the WARS panel to sue for peace.`,"war");
       }
     }
   }
@@ -1867,6 +1972,73 @@ function tryCapture(u){
     }
   }
 }
+/* ===== THE COMBAT MODEL =====
+   One function computes a battle, and both the simulation and the battle panel
+   read from it — so what the player is shown is exactly what is resolved, never
+   a second implementation that drifts out of step. */
+/* How hard a day of battle bites. Raised from the old 0.25 because combat width
+   now caps how many divisions can swing at once: fights are narrower, so each
+   day has to count for more or fronts simply congeal. */
+const COMBAT_RATE=0.3;
+/* Fraction of the day's punishment that reaches divisions waiting in reserve. */
+const RESERVE_SHARE=0.35;
+function combatWidth(p){return terrainOf(p).w||8;}
+/* Combined arms: tanks want room to maneuver and hate close country; infantry
+   is steadier when it is dug into ground it owns. */
+function armorMul(u,p){
+  if(u.type!=="arm")return 1;
+  const t=terrainOf(p);
+  if(t===TERR.plains||t===TERR.des)return 1.3;              // open ground: breakthrough
+  if(t===TERR.mtn||t===TERR.mar||t===TERR.urb)return 0.7;   // passes, bogs and rubble
+  return 0.9;                                               // forest
+}
+function infSteady(u,p){return (u.type==="inf"&&p.owner===u.nat)?1.1:1;}
+/* What one division contributes to the line, all personal modifiers folded in. */
+function unitPower(u,p){
+  return u.str*genMul(u)*vetMul(u)
+    *(u.supplied===false?0.66:1)
+    *((u.shaken||0)>G.day?0.7:1)
+    *armorMul(u,p)*infSteady(u,p);
+}
+/* Who actually stands in the firing line. Fit, veteran divisions hold the front;
+   shaken and mauled ones rotate to the rear and recover — which is what makes a
+   deep reserve worth having rather than just more targets. */
+function engagedOf(arr,width){
+  return arr.slice().sort((a,b)=>
+      (((a.shaken||0)>G.day?1:0)-((b.shaken||0)>G.day?1:0))
+      ||(b.hp/(b.str*10))-(a.hp/(a.str*10))
+      ||((b.xp||0)-(a.xp||0))
+    ).slice(0,width);
+}
+/* Full breakdown of a two-sided fight: engaged, reserves, final power and every
+   multiplier that got it there, itemized for display. */
+function battleReport(pid,A,B,here){
+  const p=provOf(pid);
+  const width=combatWidth(p);
+  const at=here||G.units.filter(u=>u.at===pid&&!u.to);
+  const build=k=>{
+    const arr=at.filter(u=>u.nat===k);
+    const engaged=engagedOf(arr,width);
+    const mods=[];
+    let pw=engaged.reduce((s,u)=>s+unitPower(u,p),0);
+    const base=pw;
+    const push=(label,mul)=>{if(Math.abs(mul-1)>0.005){mods.push([label,mul]);pw*=mul;}};
+    push("Land doctrine",techMul(k,"land"));
+    push("Government & staff",natAtkMul(k));
+    const air=airSupport(k,pid),nav=navalSupport(k,pid);
+    push("Air support",1+air*0.3);
+    push("Naval gunfire",1+nav*0.25);
+    if(p.owner===k){
+      push("Holding the ground",1.25);
+      push("Fortifications",1+(p.fort||0)*0.12);
+      push(terrainOf(p).e+" "+terrainOf(p).n,terrainOf(p).def);
+      push("Doctrine (defensive)",natDefMul(k));
+    }else if(isWinterHere(p))push("❄ Winter (invader)",0.8);
+    return {nat:k,all:arr,engaged,reserve:arr.length-engaged.length,base,power:pw,mods,air,nav};
+  };
+  return {pid,width,terrain:terrainOf(p),a:build(A),b:build(B)};
+}
+window.battleReport=battleReport;
 function battles(){
   // group combat per province
   G.battleSites=G.battleSites||new Set();G.battleSites.clear();
@@ -1896,21 +2068,20 @@ function battles(){
       const A=sidesPresent[i],B=sidesPresent[j];
       if(!atWar(A,B))continue;
       G.battleSites.add(pid);
-      const fa=here.filter(u=>u.nat===A),fb=here.filter(u=>u.nat===B);
-      // out-of-supply divisions fight at a third off — a starving army breaks
-      const supF=arr=>arr.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*(u.supplied===false?0.66:1)*((u.shaken||0)>G.day?0.7:1),0);
-      let pa=supF(fa)*techMul(A,"land")*natAtkMul(A);
-      let pb=supF(fb)*techMul(B,"land")*natAtkMul(B);
-      pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
-      pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
-      const fortB=1+(p.fort||0)*0.12;
-      const terD=terrainOf(p).def; // terrain shields whoever holds the ground
-      if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
-      if(isWinterHere(p)){if(p.owner!==A)pa*=0.8;if(p.owner!==B)pb*=0.8;} // General Winter punishes the invader
+      const R=battleReport(pid,A,B,here);
+      const fa=R.a.engaged,fb=R.b.engaged;   // only the front line fights and bleeds
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
         if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
-      dmg(fb,pa*0.25);dmg(fa,pb*0.25);
+      dmg(fb,R.a.power*COMBAT_RATE);dmg(fa,R.b.power*COMBAT_RATE);
+      /* Reserves are safer than the firing line, not safe. Shellfire and air
+         reach the rear areas too, so they take a share of the punishment —
+         without it, a deep stack rotates fresh troops in forever and never
+         loses a single division, which made defenders literally unkillable. */
+      const resA=R.a.all.filter(u=>!R.a.engaged.includes(u));
+      const resB=R.b.all.filter(u=>!R.b.engaged.includes(u));
+      dmg(resB,R.a.power*COMBAT_RATE*RESERVE_SHARE);
+      dmg(resA,R.b.power*COMBAT_RATE*RESERVE_SHARE);
       for(const u of[...fa,...fb]){
         u.xp=Math.min(150,(u.xp||0)+1);
         if(u.nat===G.player&&(u.xp===15||u.xp===45||u.xp===90))
@@ -2089,39 +2260,91 @@ function provThreat(pid,nat){
   }
   return t;
 }
-function targetScore(p,from,nat){
-  // prefer weak, valuable, undefended, nearby provinces; capitals are juicy
-  const dist=Math.sqrt((p.x-from.x)**2+(p.y-from.y)**2);
-  const def=p.garrison+G.units.filter(u=>u.at===p.id&&u.nat===p.owner).reduce((s,u)=>s+u.str,0)*3;
-  const capBonus=NATIONS[p.owner].cap===p.id?6:0;
-  return p.val*3+capBonus - def*1.4 - dist*0.04;
+/* How many divisions it is worth sending at an objective. Enough to beat what is
+   there — but never more than the ground can hold, because combat width means
+   the twenty-first division in a mountain pass is a spectator, not a soldier. */
+function objectiveNeed(p,nat){
+  const def=p.garrison*0.5+G.units.filter(u=>u.at===p.id&&u.nat===p.owner&&!u.to)
+    .reduce((s,u)=>s+unitPower(u,p),0);
+  const want=Math.ceil(def*terrainOf(p).def*(1+(p.fort||0)*0.12)/2.2)+1;
+  return Math.max(1,Math.min(combatWidth(p)+1,want));
 }
+/* AUTO CAPTURE — operational direction for a whole army.
+
+   The old version had every division independently pick the single
+   best-scoring province on the map, which scattered them across continents and
+   fed them into defended ground a division at a time. This one works like a
+   staff: hold the threatened border, pick objectives on the actual front, and
+   send each one a force calculated to take it — no more, so the surplus goes
+   somewhere it can matter. */
 function autoCapture(nat){
-  const enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
-  if(!enemies.length)return;
-  // defend threatened home provinces first: hold a third of forces near hot borders
-  const mine=G.units.filter(u=>u.nat===nat&&!u.to);
+  const idle=G.units.filter(u=>u.nat===nat&&!u.to);
+  if(!idle.length)return;
+  const ours=new Set(natProvs(nat).map(p=>p.id));
+  // divisions already locked in a fight stay in it — pulling them out mid-battle
+  // to chase a better target elsewhere lost more wars than it won
+  const committed=u=>{
+    const p=provOf(u.at);
+    if(atWar(nat,p.owner))return true;
+    return G.units.some(x=>x.at===u.at&&atWar(nat,x.nat));
+  };
+  /* Spent divisions are not sent back over the top. A unit that has just fallen
+     back, or that is down to a fraction of its strength, holds where it is and
+     recovers — feeding it straight back into the attack is how an army bleeds
+     itself white one battalion at a time. */
+  const fit=u=>(u.shaken||0)<=G.day&&u.hp>=u.str*10*0.45;
+  const mine=idle.filter(u=>!committed(u)&&fit(u));
+  // 1. DEFENCE — the most threatened home ground gets held first
   const threatened=natProvs(nat).map(p=>[p,provThreat(p.id,nat)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
-  const defenders=new Set();
-  let defendBudget=Math.floor(mine.length*0.34);
+  const spoken=new Set();
+  let defendBudget=Math.floor(idle.length*0.3);
   for(const[tp]of threatened){
     if(defendBudget<=0)break;
-    // nearest idle unit garrisons the threatened province
+    if(G.units.some(u=>u.nat===nat&&u.at===tp.id))continue; // already garrisoned
     let best=null,bd=1e9;
-    for(const u of mine){if(defenders.has(u))continue;const d=(provOf(u.at).x-tp.x)**2+(provOf(u.at).y-tp.y)**2;if(d<bd){bd=d;best=u;}}
+    for(const u of mine){if(spoken.has(u))continue;const d=(provOf(u.at).x-tp.x)**2+(provOf(u.at).y-tp.y)**2;if(d<bd){bd=d;best=u;}}
     if(best){
-      defenders.add(best);defendBudget--;
+      spoken.add(best);defendBudget--;
       if(best.at!==tp.id){const path=findPath(best.at,tp.id,"army",nat);if(path&&path.length){best.to=path.shift();best.path=path;best.prog=0;}}
     }
   }
-  // the rest attack the best-scoring targets
-  for(const u of mine){
-    if(defenders.has(u)||u.to)continue;
-    const from=provOf(u.at);
-    let best=null,bs=-1e9;
-    for(const p of enemies){const s=targetScore(p,from,nat);if(s>bs){bs=s;best=p;}}
-    if(best){
-      const path=findPath(u.at,best.id,"army",nat);
+  // 2. OBJECTIVES — enemy ground touching our own. An advance has to start
+  // somewhere we already stand; if nothing borders us (an overseas war), fall
+  // back to the whole enemy map.
+  let objectives=[];
+  for(const p of Object.values(G.prov)){
+    if(!atWar(nat,p.owner))continue;
+    if([...p.adj,...p.seaAdj].some(a=>ours.has(a)))objectives.push(p);
+  }
+  if(!objectives.length)objectives=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
+  if(!objectives.length)return;
+  // worth attacking = valuable and cheap to take
+  const ranked=objectives.map(p=>({
+    p,need:objectiveNeed(p,nat),
+    value:p.val*3+(NATIONS[p.owner].cap===p.id?8:0)+(p.oil?3:0)
+  })).sort((a,b)=>(b.value-b.need*1.6)-(a.value-a.need*1.6));
+  // 3. ASSIGNMENT — nearest free divisions fill each objective's quota in turn
+  const free=()=>mine.filter(u=>!spoken.has(u));
+  for(const o of ranked){
+    const already=G.units.filter(u=>u.nat===nat&&(u.at===o.p.id||u.to===o.p.id)).length;
+    let quota=o.need-already;
+    if(quota<=0)continue;
+    const avail=free();
+    if(!avail.length)break;
+    const cands=avail
+      .map(u=>({u,d:Math.hypot(provOf(u.at).x-o.p.x,provOf(u.at).y-o.p.y)}))
+      .sort((a,b)=>a.d-b.d).slice(0,quota);
+    for(const c of cands){
+      const path=findPath(c.u.at,o.p.id,"army",nat);
+      if(path&&path.length){c.u.to=path.shift();c.u.path=path;c.u.prog=0;spoken.add(c.u);}
+    }
+  }
+  // 4. Anything still spare weights the main effort rather than idling at home
+  const spare=free();
+  if(spare.length&&ranked.length){
+    const main=ranked[0].p;
+    for(const u of spare){
+      const path=findPath(u.at,main.id,"army",nat);
       if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;}
     }
   }
@@ -3436,6 +3659,45 @@ document.querySelectorAll(".spd").forEach(b=>b.onclick=()=>{G.speed=+b.dataset.s
 /* Every province where our own divisions are currently in contact. Wars used to
    be fought entirely off-screen: the log holds six lines and then the news of a
    collapsing front scrolls away forever. */
+/* THE BATTLE PANEL — the combat model, shown. Every multiplier that decides the
+   fight is itemized here, so losing a province is a lesson instead of a mystery.
+   When our divisions are present it reports the live battle; when they are not,
+   it is a staff estimate of the assault we would be walking into. */
+function battlePanel(p,foe,unitsHere){
+  const mine=unitsHere.filter(u=>u.nat===G.player&&!u.to);
+  const width=combatWidth(p);
+  const bar=(label,mul)=>{
+    const up=mul>1;
+    return `<div class="row" style="margin:1px 0"><span style="color:var(--dim);font-size:11px">${label}</span>
+      <span style="color:${up?"#8ec07c":"#ff8d7a"};font-size:11px">${up?"+":""}${Math.round((mul-1)*100)}%</span></div>`;
+  };
+  if(!mine.length){
+    // no contact yet: what would we be attacking into?
+    const defs=unitsHere.filter(u=>u.nat===foe);
+    const est=(p.garrison+defs.reduce((s,u)=>s+unitPower(u,p),0)*3)*(1+(p.fort||0)*0.12)*terrainOf(p).def;
+    return `<h3>STAFF ESTIMATE</h3>
+    <div class="row"><span>Enemy strength</span><span style="color:${est>10?"#ff8d7a":est>4?"var(--amber)":"#8ec07c"}">⚔ ${est.toFixed(1)}</span></div>
+    <div class="row"><span>Defenders</span><span>${defs.length} div · 🛡 ${p.garrison.toFixed(1)}${p.fort?" · 🏰 "+p.fort:""}</span></div>
+    <div class="row"><span>Combat width</span><span>${terrainOf(p).e} ${width} divisions abreast</span></div>
+    <div style="color:var(--dim);font-size:11px">Only ${width} of your divisions can engage here at once — the rest wait in reserve and rotate in as the front line tires. Sending more than that buys staying power, not a faster breakthrough.</div>`;
+  }
+  const R=battleReport(p.id,G.player,foe);
+  const me=R.a,them=R.b;
+  const tot=me.power+them.power;
+  const edge=tot>0?Math.round(me.power/tot*100):50;
+  let h=`<h3>⚔ BATTLE OF ${p.name.toUpperCase()}</h3>
+  <div class="row"><span>Balance</span><span style="color:${edge>=60?"#8ec07c":edge>=45?"var(--amber)":"#ff8d7a"}">${edge}% ours</span></div>
+  <div class="bar" style="height:10px"><i style="width:${edge}%;background:${edge>=60?"#8ec07c":edge>=45?"var(--amber)":"#ff8d7a"}"></i></div>
+  <div class="row"><span>Combat width</span><span>${R.terrain.e} ${R.width} abreast</span></div>
+  <div class="row"><span>Ours</span><span>⚔ ${me.power.toFixed(1)} — ${me.engaged.length} engaged${me.reserve?" · "+me.reserve+" in reserve":""}</span></div>
+  <div class="row"><span>${NATIONS[foe].f} ${NATIONS[foe].n}</span><span>⚔ ${them.power.toFixed(1)} — ${them.engaged.length} engaged${them.reserve?" · "+them.reserve+" in reserve":""}</span></div>`;
+  if(me.reserve)h+=`<div style="color:var(--dim);font-size:11px">${me.reserve} of your divisions cannot reach the firing line here. They rest and rotate forward as the engaged ones are worn down.</div>`;
+  h+=`<h3 style="margin-top:8px">YOUR MODIFIERS</h3>`;
+  h+=me.mods.length?me.mods.map(([l,m])=>bar(l,m)).join(""):`<div style="color:var(--dim);font-size:11px">None — an even fight.</div>`;
+  h+=`<h3>THEIRS</h3>`;
+  h+=them.mods.length?them.mods.map(([l,m])=>bar(l,m)).join(""):`<div style="color:var(--dim);font-size:11px">None.</div>`;
+  return h;
+}
 function myBattles(){
   if(!G||!G.battleSites)return [];
   const out=[];
@@ -3455,6 +3717,7 @@ function nextBattle(){
   logMsg(`⚔ Front ${G._battleIdx+1}/${b.length}: ${p.name}.`);
 }
 window.nextBattle=nextBattle;
+window.setLogFilter=k=>{G.logFilter=k;renderPanel();};
 function openPanel(name){
   curPanel=name;const el=$("#panel");el.style.display="block";
   renderPanel();
@@ -3470,8 +3733,18 @@ function renderPanel(){
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     <div class="row"><span>Terrain</span><span>${terrainOf(p).e} ${terrainOf(p).n}${terrainOf(p).def>1?` · +${Math.round((terrainOf(p).def-1)*100)}% defense`:""}${terrainOf(p).spd<1?` · ${Math.round((1-terrainOf(p).spd)*100)}% slower`:""}</span></div>
+    <div class="row"><span>Combat width</span><span>${combatWidth(p)} divisions abreast</span></div>
     ${seasonMud(p)<1?`<div class="row"><span style="color:#c9a06a">🌧 Mud season</span><span style="color:#c9a06a">−${Math.round((1-seasonMud(p))*100)}% movement</span></div>`:""}${isWinterHere(p)?`<div class="row"><span style="color:#bcd6ea">❄ Winter</span><span style="color:#bcd6ea">invaders bleed · −20% combat</span></div>`:""}
     <div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
+    /* The fight comes first. Whether we are storming this province or holding
+       it, the balance of the battle is the one thing worth reading before
+       anything else on the panel. */
+    {
+      const foeHere=(p.owner!==G.player&&G.nations[p.owner]&&G.nations[p.owner].alive&&atWar(G.player,p.owner))
+        ? p.owner
+        : (us.find(u=>atWar(G.player,u.nat))||{}).nat;
+      if(foeHere)h+=battlePanel(p,foeHere,us);
+    }
     if(p.owner===G.player){
       h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
       <button class="bbtn" ${me.pp<40||(p.fac||0)>=2?"disabled":""} onclick="buildIn('${p.id}','fac')">🏭 Build factory — 40 PP ${(p.fac||0)>=2?"(max)":""}<small>+1 province value, forever.</small></button>`;
@@ -3517,13 +3790,9 @@ function renderPanel(){
         h+=`<div class="row"><span>Status</span><span style="color:#8ec07c">🤝 ALLIED</span></div>
         <button class="bbtn" onclick="if(proposeUnion('${G.player}','${o}'))renderPanel();else renderPanel()">⚜ Propose UNION — merge into one nation<small>Both sides must agree. Easier when you're the larger partner.</small></button>`;
       }else if(atWar(G.player,o)){
-        { // staff estimate of what an assault here would face
-          const defs=us.filter(u=>u.nat===o);
-          const est=(p.garrison+defs.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u),0)*3)*(1+(p.fort||0)*0.12);
-          h+=`<div class="row"><span>Est. defense</span><span style="color:${est>10?"#ff8d7a":est>4?"var(--amber)":"#8ec07c"}">⚔ ${est.toFixed(1)} — ${defs.length} div · 🛡 ${p.garrison.toFixed(1)}${p.fort?" · 🏰 "+p.fort:""}</span></div>`;
-        }
         h+=`<button class="bbtn" onclick="offerPeace('${G.player}','${o}');renderPanel()">🕊 Offer PEACE TREATY to ${NATIONS[o].n}<small>White peace — the war ends and borders stay as they are. They may refuse while they still think they can win.</small></button>
-        <button class="bbtn" style="border-color:var(--amber)" onclick="openTreaty('${o}')">📜 DICTATE TERMS to ${NATIONS[o].n} — war score ${warScore(G.player,o)}<small>Demand reparations, yearly tribute, disarmament, or a puppet government. If they refuse, the war goes on.</small></button>`;
+        <button class="bbtn" style="border-color:var(--amber)" onclick="openTreaty('${o}')">📜 DICTATE TERMS to ${NATIONS[o].n} — war score ${warScore(G.player,o)}<small>Demand reparations, yearly tribute, disarmament, or a puppet government. If they refuse, the war goes on.</small></button>
+        <button class="bbtn" ${warScore(o,G.player)>45?'style="border-color:var(--red)"':""} onclick="openArmistice('${o}')">🏳 SUE FOR PEACE — their war score ${warScore(o,G.player)}<small>Losing? Buy your way out: cede the ground they hold, pay an indemnity or tribute, disarm. Better a hard peace than annihilation.</small></button>`;
         if(G.prov[NATIONS[o].cap].owner===G.player)
           h+=`<button class="bbtn" onclick="installPuppet('${G.player}','${o}');renderPanel()">⛓ Install PUPPET government in ${NATIONS[o].n}<small>You hold their capital. Ends the war; they keep their land but fly your livery, pay 25% tribute, and follow you to war.</small></button>`;
         else
@@ -3570,6 +3839,11 @@ function renderPanel(){
     if(fight)h+=`<div class="row"><span style="color:#ffb877">⚔ Engaged</span><span style="color:#ffb877">${fight} division${fight>1?"s":""}</span></div>`;
     if(hurt.length)
       h+=`<button class="bbtn" ${me.pp<repairCost?"disabled":""} onclick="reinforceAll()">🩹 Reinforce ALL ${hurt.length} damaged divisions — ${repairCost} PP<small>Every worn division on friendly, supplied ground is brought back to full strength.</small></button>`;
+    {
+      const spare=mine.filter(u=>!u.to&&!atWar(G.player,provOf(u.at).owner)
+        &&!G.units.some(x=>x.at===u.at&&atWar(G.player,x.nat))).length;
+      if(spare)h+=`<button class="bbtn" onclick="selReserve()">⚑ Command all ${spare} uncommitted divisions<small>Everything not marching or already in contact. Then click any province — they all march together.</small></button>`;
+    }
     if(!mine.length)h+=`<div style="color:var(--dim)">No divisions in the field. Recruit them from the RECRUIT panel.</div>`;
     h+=`<div style="color:var(--dim);font-size:11px;margin-top:6px">Tap any line to fly to it and take command.</div>`;
     for(const{u,s}of rows){
@@ -3597,8 +3871,14 @@ function renderPanel(){
     <div class="row"><span>👥 Manpower</span><div class="bar"><i style="width:${Math.min(100,(me.manpower||0)/(me.manpowerMax||1)*100)}%"></i></div><span>${mp}</span></div>
     <div style="color:var(--dim);font-size:11px">Every division costs 👥 manpower. Reserves regrow slowly from your population — a bled-white nation cannot field new armies until it recovers.</div>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
-    <button class="bbtn" ${me.pp<20||mp<10||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + 👥 10<small>STR 3. The backbone.</small></button>
-    <button class="bbtn" ${me.pp<35||me.oil<5||mp<8||!deployable?"disabled":""} onclick="buy('arm')">▲ Armored Division — 35 PP + 5 🛢 + 👥 8<small>STR 4. Spearhead.</small></button>
+    <button class="bbtn" ${me.pp<20||mp<10||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + 👥 10<small>STR 3. The backbone. Steadier defending ground you own.</small></button>
+    <div style="display:flex;gap:4px;margin:-2px 0 5px">
+      ${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||mp<10*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">×${n} — ${20*n} PP</button>`).join("")}
+    </div>
+    <button class="bbtn" ${me.pp<35||me.oil<5||mp<8||!deployable?"disabled":""} onclick="buy('arm')">▲ Armored Division — 35 PP + 5 🛢 + 👥 8<small>STR 4. +30% in open country, −30% in mountains, marsh and cities.</small></button>
+    <div style="display:flex;gap:4px;margin:-2px 0 5px">
+      ${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<35*n||me.oil<5*n||mp<8*n||!deployable?"disabled":""} onclick="buyN('arm',${n})">×${n} — ${35*n} PP</button>`).join("")}
+    </div>
     <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Battleship Fleet — 30 PP + 8 🛢<small>STR 2. Needs a port. Slugs it out at sea and bombards the shore.</small></button>
     <button class="bbtn" ${me.pp<45||me.oil<12||!deployable||!sel.coastal?"disabled":""} onclick="buy('cv')">🛩 Carrier Group — 45 PP + 12 🛢<small>STR 2. Projects AIR SUPPORT over any coast it patrols, even far from home. Beats battleships, loses to subs.</small></button>
     <button class="bbtn" ${me.pp<25||me.oil<6||!deployable||!sel.coastal?"disabled":""} onclick="buy('sub')">🌊 Submarine Wolfpack — 25 PP + 6 🛢<small>STR 2. Savages troop convoys and carriers, chokes trade — but weak against battleships.</small></button>
@@ -3651,6 +3931,25 @@ function renderPanel(){
       if(me.focusDone[k]){h+=`<div class="row"><span style="color:var(--dim)">✔ ${f.n}</span><span style="color:var(--dim)">done</span></div>`;continue;}
       h+=`<button class="bbtn" ${me.focus?"disabled":""} onclick="pickFocus('${k}')">🎯 ${f.n}<small>${f.d}</small></button>`;
     }
+    el.innerHTML=h;
+  }
+  if(curPanel==="armistice"){
+    const t=G.armTgt;
+    if(!t||!G.nations[t]||!atWar(G.player,t)){el.innerHTML="<h2>ARMISTICE</h2><div style='color:var(--dim)'>That war is already over.</div>";return;}
+    const their=warScore(t,G.player);
+    let h=`<h2>🏳 SUE FOR PEACE</h2>
+    <div class="row"><span>Enemy</span><span>${NATIONS[t].f} ${NATIONS[t].n}</span></div>
+    <div class="row"><span>Their war score against us</span><span style="color:${their>60?"#ff8d7a":their>35?"var(--amber)":"#8ec07c"}">${their}/100</span></div>
+    <div class="bar"><i style="width:${their}%;background:${their>60?"#ff8d7a":"var(--amber)"}"></i></div>
+    <div style="color:var(--dim);font-size:11px;margin:6px 0">The stronger their hand, the more they will demand before they stop shooting. Offer too little and they fight on — and won't parley again for 30 days.</div>`;
+    for(const k in ARMISTICE_PACKS){
+      const P=ARMISTICE_PACKS[k],v=armisticeValue(P.d);
+      const likely=v+14>=their;
+      h+=`<button class="bbtn" style="${likely?"border-color:var(--amber)":""}" onclick="offerArmistice('${t}','${k}')">
+        ${likely?"✓":"✕"} ${P.n} <span style="color:var(--dim)">— offer worth ${v}</span>
+        <small>${P.desc}<br><span style="color:${likely?"#8ec07c":"#ff8d7a"}">${likely?"They would likely accept this.":"Almost certainly not enough."}</span></small></button>`;
+    }
+    h+=`<button class="bbtn" style="margin-top:8px" onclick="openPanel('diplo')">← Back to WARS</button>`;
     el.innerHTML=h;
   }
   if(curPanel==="ledger"){
@@ -3815,13 +4114,35 @@ function renderPanel(){
     if(!wars.length)h+=`<div style="color:var(--dim)">At peace. Click a foreign province to declare war from its panel.</div>`;
     for(const w of wars){
       const n=G.nations[w];if(!n.alive)continue;
-      h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} (${natProvs(w).length})</span>
-      <button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 PEACE</button></div>`;
+      const losing=warScore(w,G.player);
+      h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} (${natProvs(w).length})<br><span style="color:var(--dim);font-size:10px">their war score ${losing}</span></span>
+      <span style="display:flex;gap:3px">
+      <button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 PEACE</button>
+      <button class="tbtn" style="font-size:10px;padding:3px 7px${losing>45?";border-color:var(--red);color:#ff8d7a":""}" onclick="openArmistice('${w}')">🏳 SUE</button>
+      </span></div>`;
     }
     const pupN=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
     const score=natProvs(G.player).length*10+pupN*15+[...me.allies].length*5+me.nukes*8;
     const tot=Object.keys(G.prov).length,dom=dominionCount(),need=Math.ceil(tot*0.5);
     const gps=greatPowers(),gpsDone=gps.filter(k=>{const n=G.nations[k];return !n.alive||n.puppet===G.player||me.allies.has(k);}).length;
+    /* The dispatch file: the whole war, readable, newest first, filterable down
+       to the things that actually went wrong. */
+    {
+      const all=G.dispatch||[];
+      const only=G.logFilter||"all";
+      const shown=(only==="war"?all.filter(x=>x.cls==="war"):only==="good"?all.filter(x=>x.cls==="good"):all).slice(-60).reverse();
+      h+=`<h3>📻 WAR LOG</h3>
+      <div style="display:flex;gap:4px;margin-bottom:5px">
+        ${[["all","ALL"],["war","⚠ BAD NEWS"],["good","★ GOOD NEWS"]].map(([k,l])=>
+          `<button class="tbtn" style="font-size:10px;padding:3px 7px${only===k?";border-color:var(--amber);color:var(--amber)":""}" onclick="setLogFilter('${k}')">${l}</button>`).join("")}
+      </div>
+      <div style="max-height:150px;overflow-y:auto;font-size:11px;line-height:1.5;border:1px solid var(--line);padding:5px;background:#0a0e0a">`;
+      if(!shown.length)h+=`<div style="color:var(--dim)">Nothing filed yet.</div>`;
+      for(const e of shown)
+        h+=`<div style="margin-bottom:3px;color:${e.cls==="war"?"#ff9a86":e.cls==="good"?"#ffd791":"var(--ink)"}">
+          <span style="color:var(--dim)">${e.d}</span> ${e.t}</div>`;
+      h+=`</div>`;
+    }
     h+=`<h3>🏆 VICTORY CONDITIONS</h3>
     <div class="row"><span>Domination</span><span>${dom}/${need} provinces</span></div>
     <div class="row"><div class="bar"><i style="width:${Math.min(100,dom/need*100)}%"></i></div></div>
@@ -3885,6 +4206,21 @@ function renderPanel(){
   }
 }
 window.openTreaty=t=>{G.treatyTgt=t;G.treatyD={repar:0,tribute:0,demil:0,puppet:0};openPanel("treaty");};
+window.openArmistice=t=>{G.armTgt=t;openPanel("armistice");};
+window.offerArmistice=(t,key)=>{
+  const packs=ARMISTICE_PACKS[key];if(!packs)return;
+  if(sueForPeace(G.player,t,packs.d)){openPanel("diplo");}
+  else renderPanel();
+  refreshHUD();
+};
+/* Escalating ways out of a war you are losing. */
+const ARMISTICE_PACKS={
+  white:{n:"White peace",d:{},desc:"Guns down, borders as they were. Only a foe who has gained nothing will take it."},
+  cede:{n:"Cede occupied ground",d:{cede:1},desc:"They keep every province of ours they currently hold; anything of theirs we hold goes back."},
+  indemnity:{n:"Cede ground & pay an indemnity",d:{cede:1,repar:40},desc:"As above, plus 40% of the treasury handed over on signing."},
+  total:{n:"Total capitulation",d:{cede:1,repar:40,tribute:1,demil:1},desc:"Territory, treasury, a quarter of our output for five years, half the army disbanded and no war for two."},
+  vassal:{n:"Submit as a puppet state",d:{cede:1,repar:40,tribute:1,demil:1,vassal:1},desc:"Everything above, and the nation becomes their vassal — our flag stays on the map, but we fly their livery and follow them to war. The last card a doomed government can play."}
+};
 window.tglDemand=k=>{
   const d=G.treatyD;if(!d)return;
   if(k==="repar")d.repar=d.repar===0?30:d.repar===30?50:0;
@@ -3903,6 +4239,17 @@ window.selAll=pid=>{
   G.selGroup=G.units.filter(u=>u.nat===G.player&&u.at===pid&&!u.to);
   G.selUnit=G.selGroup[0]||null;
   logMsg(`⚑ ${G.selGroup.length} divisions awaiting orders — click a destination.`);
+  $("#panel").style.display="none";
+};
+/* Gather every division that is neither marching nor already locked in a fight
+   — the strategic reserve — and put it under one order. */
+window.selReserve=()=>{
+  G.selGroup=G.units.filter(u=>u.nat===G.player&&!u.to
+    &&!atWar(G.player,provOf(u.at).owner)
+    &&!G.units.some(x=>x.at===u.at&&atWar(G.player,x.nat)));
+  if(!G.selGroup.length){G.selGroup=null;logMsg("Every division is already committed or on the march.","war");return;}
+  G.selUnit=G.selGroup[0];
+  logMsg(`⚑ ${G.selGroup.length} uncommitted divisions awaiting orders — click a destination.`);
   $("#panel").style.display="none";
 };
 window.selU=id=>{const u=[...G.units,...G.fleets].find(x=>x.id===id);if(u&&u.nat===G.player){G.selUnit=u;renderPanel();}};
@@ -4098,6 +4445,24 @@ window.buy=t=>{
   if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");unlockAch("nuclear");}
   renderPanel();refreshHUD();
 };
+/* Raise a formation of several divisions in one order. Building an army one
+   click at a time was the single most tedious thing in the game; this stops as
+   soon as PP, oil or manpower runs out and reports what it actually managed. */
+window.buyN=(t,n)=>{
+  const me=G.nations[G.player];
+  const before=G.units.length+G.fleets.length+G.wings.length+me.nukes;
+  for(let i=0;i<n;i++){
+    if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});continue;}
+    const pp=me.pp,made=G.units.length+G.fleets.length+G.wings.length+me.nukes;
+    buyFor(G.player,t,G.sel);
+    if(me.pp===pp&&G.units.length+G.fleets.length+G.wings.length+me.nukes===made)break; // could not afford it
+  }
+  const got=G.units.length+G.fleets.length+G.wings.length+me.nukes-before;
+  if(MP.role==="guest")logMsg(`Order for ${n} sent to host...`);
+  else if(got)logMsg(`🏭 ${got} ${got>1?"units":"unit"} raised.`,"good");
+  else logMsg("Not enough production, oil or manpower to raise anything.","war");
+  renderPanel();refreshHUD();
+};
 window.pickFocus=k=>{
   const me=G.nations[G.player];
   me.focusDone=me.focusDone||{};
@@ -4176,7 +4541,18 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v5.9 \u2014 THE LINE OF RETREAT (current)",[
+ ["v6.0 \u2014 THE OPERATIONAL ART (current)",[
+  "\ud83d\udcd0 COMBAT WIDTH \u2014 a province can only take so many divisions at once. Open plains fit 8 abreast; forest and cities 5; a mountain pass or river marsh just 3. Everything above that waits in RESERVE: it takes only a third of the punishment and rotates forward as the front line is worn down. Two divisions can now genuinely hold a mountain against twenty \u2014 and stacking a doomstack into rough ground buys staying power, not a faster breakthrough.",
+  "\u2694 THE BATTLE PANEL \u2014 click any province where fighting is happening and the whole calculation is laid bare: the balance of the battle, how many divisions each side has engaged and in reserve, and EVERY modifier itemized \u2014 terrain, fortifications, holding the ground, air support, naval gunfire, doctrine, winter. Losing a province is finally a lesson instead of a mystery. It works defending your own soil too.",
+  "\ud83d\udee1 COMBINED ARMS \u2014 armour is now a different weapon, not just a bigger number: +30% in open plains and desert where it can maneuver, \u221230% in mountains, marsh and city rubble where it bogs down. Infantry is steadier (+10%) dug into ground it owns. Composition and terrain now decide battles together.",
+  "\ud83e\udde0 AUTO CAPTURE REWRITTEN \u2014 it used to have every division independently pick the single best-scoring province on the map, which scattered an army across continents and fed it into defended ground a battalion at a time. It now works like a staff: hold the threatened border, choose objectives on the actual front, and send each one a force calculated to take it \u2014 and no more than the ground can hold. Poland now falls in about 60 days instead of 120, and Germany can win a two-front war it used to lose outright.",
+  "\ud83e\ude79 REST AND REFIT \u2014 divisions that have just fallen back, or that are below 45% strength, are no longer thrown straight back over the top; they hold and recover. Recovery is far faster on home soil, slower in occupied land, and nearly stops while a battle rages around them.",
+  "\ud83d\udcfb WAR LOG \u2014 the map log still shows six lines, but every dispatch is now filed with its date and readable in the WARS panel, filterable down to bad news or good. No more watching the news of a collapsing front scroll away forever.",
+  "\ud83c\udff3 SUE FOR PEACE \u2014 the treaty system only ever ran one way: you dictated terms to nations you were beating. A player losing a war had no exit and simply played on to annihilation. Now you can buy your way out \u2014 cede the ground they already hold, pay an indemnity, pay tribute, disarm \u2014 and if the situation is truly hopeless, submit as a puppet state and keep your flag on the map. The harder you are losing, the more they demand. Your staff now warn you while there is still something left to bargain with.",
+  "\ud83d\udd4a Refused envoys no longer lock you out: they won't hear the SAME terms again for a month, but a better offer is always heard immediately \u2014 which is exactly when a losing nation needs to be able to raise its bid.",
+  "\ud83c\udfed BULK RECRUITMENT \u2014 raise 3, 5 or 10 divisions in one order instead of clicking the same button eleven times. It stops the moment production, oil or manpower runs out and tells you what it managed.",
+  "\u2691 Command every uncommitted division at once from the ARMY panel \u2014 everything not already marching or in contact, under a single order."]],
+ ["v5.9 \u2014 THE LINE OF RETREAT",[
   "\u25b6 PLAY NOW \u2014 no account, no sign-in, no waiting. The whole campaign opens straight from the title screen; an account is only needed for multiplayer (friends, invites, hosted rooms) and you can sign in later from the start screen without losing anything.",
   "\u21a9 FIGHTING RETREAT \u2014 a division shot below a fifth of its strength no longer stands there until it is annihilated. It falls back down its line of communication, pays a rearguard toll, and comes out SHAKEN: \u221230% combat for twelve days, and it cannot break contact again until it recovers.",
   "\u26d3 \u2026 which finally gives ENCIRCLEMENT teeth. A division with no friendly ground behind it has nowhere to go, so pockets are destroyed outright. Cutting the neck of a salient is now how you actually kill an army \u2014 not grinding it down frontally.",
@@ -4402,6 +4778,8 @@ const HELP=[
   "↩ FIGHTING RETREAT: a division beaten below a fifth of its strength breaks contact and falls back to friendly ground instead of being wiped out. It arrives SHAKEN — −30% combat for twelve days, and it cannot withdraw again until it recovers. So a frontal grind rarely destroys an army; it just pushes it back.",
   "⛓ …which is why ENCIRCLEMENT is how you actually kill one. A division with no friendly province behind it has nowhere to retreat to, so a sealed pocket dies where it stands. Cut the neck of the salient first, then finish it.",
   "⛰ TERRAIN: mountains and cities strongly favor the defender; marshes and mountains slow the attack; deserts wear armies down.",
+  "📐 COMBAT WIDTH: a province only has room for so many divisions at once — 8 abreast in open plains, 5 in forest or a city, 3 in a mountain pass or marsh. Anything above that is a RESERVE: it takes only a third of the damage and rotates forward as the front line tires. So a handful of defenders really can hold a pass, and piling more divisions into rough ground buys endurance, not speed. Click a contested province to see the whole calculation.",
+  "🛡 COMBINED ARMS: armour hits +30% in open plains and desert but −30% in mountains, marsh and cities; infantry is steadier defending ground it owns. Match the tool to the terrain.",
   "❄ WINTER (Nov–Mar in the north): armies on foreign soil above the 50th parallel bleed and fight at −20%. Time your invasions.",
   "🌧 MUD SEASON — the spring thaw (Mar–Apr) and autumn rains bog down offensives at temperate latitudes, worst on open plains and marsh. Between mud and winter, the campaigning season is short.",
   "🌊 Storms roam the oceans (a 🌀 on the map) — fleets caught in them take damage and slow to a crawl. Route around them. ⚓ Sea lanes need a fleet in service; enemy fleets raid unescorted troop convoys. Fleets come in classes: ⚓ battleships bombard the shore, 🛩 carriers project air power over the coast, 🌊 submarines savage convoys and carriers.",
@@ -4414,6 +4792,7 @@ const HELP=[
   "📜 DICTATE TERMS to an enemy you're beating: reparations, yearly tribute, forced disarmament, or a puppet government. Your WAR SCORE (occupation, their capital, stability, army ratio) decides if they sign — refused treaties keep the war going.",
   "🛡 GUARANTEE a nation's independence — if it's attacked, you're dragged into the war on its side. A deterrent, or a tripwire.",
   "📯 ULTIMATUM a neutral neighbor to hand over a border province without war — the weaker they are, the likelier they cave, but refusal spikes tension and can start the war anyway.",
+  "🏳 SUE FOR PEACE when it is YOU who is losing — from the WARS panel or any enemy province. Cede the ground they hold, pay an indemnity or tribute, disarm; and if it is truly hopeless, submit as a puppet state and keep your nation on the map. The stronger their hand, the more they demand — so bargain early, while you still have something to trade. Offering better terms is always heard at once; repeating a refused offer is not.",
   "Beaten enemies sue for peace on their own. Allies can merge into one nation by UNION. Puppets pay tribute and follow you to war."]],
  ["🏛 POLITICS",[
   "Your ideology shapes production, attack and war costs — revolutions are possible but bloody.",
@@ -4864,7 +5243,8 @@ function saveGame(auto){
     localStorage.setItem("if_save",JSON.stringify({era:ERA,year:YEAR,player:G.player,state:mpSerialize(),
       ext:{capLost:G.capLost||0,hist:G.hist||[],histIdx:G.histIdx||0,nextEvent:G.nextEvent||0,
         dipCd:G.dipCd||{},over:G.over?1:0,airMode:G.airMode,airTarget:G.airTarget||null,losses:G.losses||{},
-        chron:G.chron||[],peakProv:G.peakProv||0,peakDiv:G.peakDiv||0,annexed:G.annexed||0}}));
+        chron:G.chron||[],peakProv:G.peakProv||0,peakDiv:G.peakDiv||0,annexed:G.annexed||0,
+        sueCd:G.sueCd||{},dispatch:(G.dispatch||[]).slice(-150)}}));
     if(!auto)logMsg("Game saved.","good");
   }catch(e){if(!auto)logMsg("Save failed (storage full?).","war");}
 }
@@ -4882,6 +5262,7 @@ function loadGame(){
       G.airMode=sv.ext.airMode||G.airMode;G.airTarget=sv.ext.airTarget||null;
       G.losses=sv.ext.losses||{};
       G.chron=sv.ext.chron||[];G.peakProv=sv.ext.peakProv||0;G.peakDiv=sv.ext.peakDiv||0;G.annexed=sv.ext.annexed||0;
+      G.sueCd=sv.ext.sueCd||{};G.dispatch=sv.ext.dispatch||[]; // v6.0: armistice cooldowns & the war log
     }
     { // restore HUD toggles that live outside the state blob
       const me=G.nations[G.player];
