@@ -7786,7 +7786,15 @@ function _fpStickTo(sx,sy){
   FP.ms=dx;FP.mf=-dy;
 }
 cv.addEventListener("pointerdown",e=>{
-  cv.setPointerCapture(e.pointerId);
+  /* Capturing the pointer only keeps events coming if the finger leaves the
+     canvas — a convenience, not a requirement. Unguarded it was the FIRST
+     statement in the handler, and it throws NotFoundError whenever the pointer
+     is already gone by the time the event is dispatched (multi-touch races,
+     synthetic and assistive input). That aborted the rest of pointerdown, so
+     `drag` was never set, and with it null every later pointerup did nothing
+     either: one throw and the map, the units and the whole first-person
+     interface stopped responding to touch for good. */
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
   /* A finger that lands on the stick drives; anything else looks around. */
   if(FPV&&FP.stickC&&Math.hypot(e.clientX-FP.stickC.x,e.clientY-FP.stickC.y)<FP.stickC.r*1.25){
     stick={id:e.pointerId};_fpStickTo(e.clientX,e.clientY);return;
