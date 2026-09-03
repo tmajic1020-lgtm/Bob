@@ -207,7 +207,7 @@ body.light #speedbox{background:#ece7d6d0}
     <button class="tbtn" style="border:0;border-left:1px solid var(--line);padding:6px 10px" onclick="chatSend()">SEND</button>
   </div>
 </div>
-<div id="eventBox" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;width:min(340px,90vw);background:var(--panel);border:2px solid var(--amber);padding:16px;box-shadow:0 0 40px #000c">
+<div id="eventBox" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:55;width:min(340px,90vw);background:var(--panel);border:2px solid var(--amber);padding:16px;box-shadow:0 0 40px #000c">
   <h2 id="evTitle" style="color:var(--amber);font-size:15px;letter-spacing:1px;margin-bottom:8px"></h2>
   <div id="evDesc" style="font-size:12px;line-height:1.5;color:var(--ink);margin-bottom:12px"></div>
   <div id="evChoices"></div>
@@ -9710,12 +9710,16 @@ function loadGame(){
   }catch(e){return false;}
 }
 window.saveGame=saveGame;window.loadGame=loadGame;
+let HOSTPUSH=null;       // the single host state-push interval
 function mpHostStart(){
   MP.role="host";MP.code=(""+(1000+Math.floor(Math.random()*9000)));
   MP.ref=DB.ref("ifrooms/"+MP.code);
   MP.ref.set({meta:{era:ERA,year:YEAR,host:G.player,t:Date.now()},state:mpSerialize()});
   MP.ref.child("orders").on("child_added",sn=>{mpApplyOrder(sn.val());sn.ref.remove();});
-  setInterval(()=>{if(G&&MP.role==="host")MP.ref.child("state").set(mpSerialize());},2000);
+  /* Same reason as the game clock: hosting a second room would otherwise leave
+     the first room's push timer running and serialize the world twice over. */
+  if(HOSTPUSH){clearInterval(HOSTPUSH);HOSTPUSH=null;}
+  HOSTPUSH=setInterval(()=>{if(G&&MP.role==="host")MP.ref.child("state").set(mpSerialize());},2000);
   chatListen();
   logMsg(`MULTIPLAYER HOSTING — room code ${MP.code}. Friends: MULTIPLAYER → JOIN → ${MP.code}.`,"good");
 }
@@ -10159,7 +10163,14 @@ function renderStart(){
     ?`<button class="bbtn" style="border-color:var(--amber);color:var(--amber)" onclick="startGame(PICK)">\u25B6 BEGIN AS ${NATIONS[PICK].f} ${NATIONS[PICK].n} \u2014 ${YEAR}<small>Or tap ${NATIONS[PICK].n} again. Switch years above and the badges follow your pick.</small></button>`
     :`<div style="color:var(--dim);font-size:11px">No country picked yet \u2014 tap one below (its corner turns \u2714), then choose your year.</div>`;
 }
+let GAMECLOCK=null;      // the single daily-tick interval; see startGame
 function startGame(k){
+  /* A campaign never inherits a modal from the screen before it. Random events
+     only fire while #eventBox is hidden, so a box left open on the title screen
+     silently killed EVERY event for the whole campaign — measured: 1500 days,
+     not one event. Clearing it here means no route into that state survives the
+     start of a game. */
+  {const bx=$("#eventBox");if(bx)bx.style.display="none";}
   newGame(k);window.G=G;terDirty=true;
   G.achAtStart=Object.keys(ACHU);        // snapshot for the end-of-campaign summary
   ACHSEEN[EPOCH]=1;try{localStorage.setItem("if_ach_epochs",JSON.stringify(ACHSEEN));}catch(e){}
@@ -10263,7 +10274,16 @@ function startGame(k){
   refreshHUD();
   runHistory(true); // later-year starts inherit the wars already raging
   if(G.histIdx&&MP.role!=="guest")logMsg("📰 Historical mode: the wars of "+YEAR+" are already underway.","war");
-  if(MP.role!=="guest")setInterval(()=>{if(G&&!G.paused)for(let i=0;i<G.speed;i++)tick();},500);
+  /* ONE game clock, ever. This interval used to be created fresh on every
+     startGame() and never cleared — and startGame() is reachable again from
+     inside a running campaign (SETTINGS -> SCENARIO -> another year calls
+     restartYear, and CONTINUE calls loadGame). Each restart therefore left the
+     previous clock ticking: the day counter ran at double, then triple speed,
+     and every consequence of a day — events, AI turns, production, combat —
+     happened that many times over. Measured 10 days per 5s becoming 20, then
+     40. */
+  if(GAMECLOCK){clearInterval(GAMECLOCK);GAMECLOCK=null;}
+  if(MP.role!=="guest")GAMECLOCK=setInterval(()=>{if(G&&!G.paused)for(let i=0;i<G.speed;i++)tick();},500);
   if(MP.pendingHost){MP.pendingHost=false;mpHostStart();
     if(MP.pendingInvite&&AUTH_USER){const tk=MP.pendingInvite,tn=MP.pendingInviteName||"your friend";
       MP.pendingInvite=null;MP.pendingInviteName=null;_sendInvite(tk,tn);}
