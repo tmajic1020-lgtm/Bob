@@ -7833,7 +7833,13 @@ function endPtr(e){
 let lastTap=0,lastTapX=0,lastTapY=0;
 cv.addEventListener("pointerup",e=>{
   if(stick&&e.pointerId===stick.id){stick=null;FP.mf=0;FP.ms=0;return;}
-  if(!pinch&&drag&&e.pointerId===drag.id&&!moved){
+  /* Double-tap-to-zoom is a MAP gesture, and standing in the line has no map.
+     Unguarded it did two wrong things at once in first person: it swallowed the
+     second tap (so the fire button, the sector list and the kit shelf all
+     ignored every quick second press — constant on a touch screen), and it
+     zoomed the map you cannot see, so the view had silently jumped by the time
+     you went back to it. */
+  if(!FPV&&!pinch&&drag&&e.pointerId===drag.id&&!moved){
     const now=Date.now();
     if(now-lastTap<350&&Math.abs(e.clientX-lastTapX)<30&&Math.abs(e.clientY-lastTapY)<30){
       zoomAt(e.clientX,e.clientY,G.cam.z*1.9);lastTap=0;drag=null;return;
