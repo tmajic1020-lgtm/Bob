@@ -1501,13 +1501,32 @@ function declareWar(a,b){if(!G||!G.nations)return;
 /* War score: how thoroughly A has beaten B so far. Drives what terms B will
    actually accept \u2014 a white peace needs almost nothing, annexing half their
    country needs to have already won the war in all but name. */
+/* Handing ground back to the country it belongs to only works if that country
+   still exists. The Horde swallows nations whole, so by the time it is cured or
+   driven back its victims are usually dead — and restoring their land to a dead
+   owner froze it out of the game for good: nobody can be at war with a dead
+   nation, so no living army could ever enter or take those provinces again, and
+   they accumulated for the rest of the campaign. Liberation brings the country
+   back along with its land. (The partisan path already checked this; these two
+   did not.) */
+function restoreFromHorde(p){
+  const h=G.nations[p.home];
+  if(!h)return false;
+  if(!h.alive){
+    h.alive=true;
+    const N=NATIONS[p.home]||{f:"",n:p.home};
+    logMsg(`${N.f} ${N.n} rises again as the Horde is driven out.`,"good");
+  }
+  p.owner=p.home;p.garrison=1;terDirty=true;
+  return true;
+}
 function cureHorde(){if(!G||!G.nations)return;
   if(!G.zom||G.zomDead)return false;
   const me=G.nations[G.player];
   const cost={pp:150,rp:80};
   if(me.pp<cost.pp||me.rp<cost.rp){logMsg(`A cure needs ${cost.pp} PP and ${cost.rp} RP \u2014 not ready yet.`,"war");return false;}
   me.pp-=cost.pp;me.rp-=cost.rp;
-  for(const p of Object.values(G.prov))if(p.owner==="ZOM"){p.owner=p.home;p.garrison=1;terDirty=true;}
+  for(const p of Object.values(G.prov))if(p.owner==="ZOM")restoreFromHorde(p);
   G.units=G.units.filter(u=>u.nat!=="ZOM");
   if(G.nations.ZOM)G.nations.ZOM.alive=false;
   G.zomDead=true;
@@ -1887,7 +1906,7 @@ function tick(){
         for(let i=0;i<reclaim;i++){
           const p=zp[Math.floor(Math.random()*zp.length)];
           if(!p||p.owner!=="ZOM")continue;
-          p.owner=p.home;p.garrison=1;terDirty=true;
+          restoreFromHorde(p);
           for(const u of G.units.filter(u=>u.nat==="ZOM"&&u.at===p.id))killUnit(u);
         }
         if(reclaim&&G.player)logMsg(`\u{1F9EA} World forces push the Horde back \u2014 ${reclaim} province${reclaim===1?"":"s"} retaken.`,"good");
