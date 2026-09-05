@@ -1290,7 +1290,7 @@ function computeSupply(){
     const src=[],cap=G.prov[capOf(k)];
     if(cap&&cap.owner===k)src.push(cap.id);
     for(const q of mine){
-      if(q.val>=3)src.push(q.id);
+      if(q.val>=3||q.depot)src.push(q.id);
       else if(q.coastal&&G.fleets.some(f=>f.nat===k&&!f.to&&(f.at===q.id||q.seaAdj.indexOf(f.at)>=0)))src.push(q.id);
     }
     /* The capital has fallen and nothing else qualifies: the government keeps
@@ -1355,7 +1355,11 @@ function supplyPct(nat,pid){
   const R=supplyRange(G.nations[nat]||{});
   return d<=R?1:Math.max(0.45,1-(d-R)*0.03);
 }
-function supMul(u){const q=supplyPct(u.nat,u.at);return q<=0?0.55:0.55+0.45*q;}
+function supMul(u){
+  let q=supplyPct(u.nat,u.at);
+  if(u.gen&&u.gen.trait==="log")q=Math.max(q,0.85);   // a good quartermaster is worth a division
+  return q<=0?0.55:0.55+0.45*q;
+}
 
 /* ============================== POLITICS ============================== */
 window.__ifBoot("politics");
@@ -1642,7 +1646,7 @@ function newGame(playerNation){
      day:0,date:new Date(sd[0],sd[1],sd[2]),speed:2,paused:false,uid:0,
      tension:ERA==="modern"?35:10,collapsed:{},
      sel:null,selUnit:null,auto:false,airMode:"manual",airTarget:null,
-     stats:{lost:0,killed:0,taken:0,lostProv:0,starved:0,peakProv:0,peakDiv:0,warDays:0,battles:0},
+     stats:{lost:0,killed:0,taken:0,lostProv:0,starved:0,peakProv:0,peakDiv:0,warDays:0,battles:0},queue:[],
      cam:{x:0,y:0,z:1},log:[]};
   // starting forces scaled to historical strength
   for(const k in nations){
@@ -2208,6 +2212,7 @@ function tick(){
     st.peakDiv=Math.max(st.peakDiv,G.units.filter(u=>u.nat===G.player).length);
     if(me0&&me0.atWar.size)st.warDays++;
   }
+  productionTick();
   supplyTick();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
@@ -2493,6 +2498,7 @@ function moveUnits(arr,kind){
       spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move;
     }
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
+    if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
     u.prog+=spd*(MODS.blitz?1.6:1)*(MODS.trench?0.75:1);
     if(u.prog>=1){
       u.prog=0;u.at=u.to;
@@ -2556,8 +2562,8 @@ function battles(){
       G.battleSites.add(pid);
       if(G.stats&&(A===G.player||B===G.player))G.stats.battles++;
       const fa=here.filter(u=>u.nat===A),fb=here.filter(u=>u.nat===B);
-      let pa=fa.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*supMul(u),0)*techMul(A,"land")*natAtkMul(A);
-      let pb=fb.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*supMul(u),0)*techMul(B,"land")*natAtkMul(B);
+      let pa=fa.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u),0)*techMul(A,"land")*natAtkMul(A);
+      let pb=fb.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u),0)*techMul(B,"land")*natAtkMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       /* Weather blunts both sides' offence; the ground itself only helps the
@@ -2916,12 +2922,42 @@ function hireGeneral(uid){if(!G||!G.nations)return;
   if(have>=4){logMsg("The general staff is full (4 commanders).","war");return;}
   if(me.pp<40){logMsg("Hiring a general costs 40 PP.","war");return;}
   me.pp-=40;
-  u.gen={name:GEN_NAMES[Math.floor(Math.random()*GEN_NAMES.length)],lvl:1,xp:0};
-  sfx("good");logMsg(`★ General ${u.gen.name} takes command of the division.`,"good");
+  const tr=GEN_TRAITS[Math.floor(Math.random()*GEN_TRAITS.length)];
+  u.gen={name:GEN_NAMES[Math.floor(Math.random()*GEN_NAMES.length)],lvl:1,xp:0,trait:tr.id};
+  sfx("good");logMsg(`★ General ${u.gen.name} takes command — ${tr.i} ${tr.n}: ${tr.d}.`,"good");
   renderPanel();refreshHUD();
 }
 window.hireGeneral=hireGeneral;
-function genMul(u){return u.gen?1.15+0.1*u.gen.lvl:1;}
+/* A general used to be a flat +15% and another +10% a level, which made every
+   commander in the game the same commander. A trait ties him to the map the
+   army is actually standing on: a mountaineer is worth having in the Caucasus
+   and worth nothing in Poland, so WHERE you post a man matters as much as
+   whether you hired one. */
+const GEN_TRAITS=[
+ {id:"mtn",   n:"Mountaineer",       i:"\u26F0",     d:"+30% fighting in mountains or hills"},
+ {id:"winter",n:"Winter Soldier",    i:"\u2744",     d:"+30% fighting in snow or blizzard"},
+ {id:"desert",n:"Desert Rat",        i:"\u{1F42A}",  d:"+30% fighting in desert"},
+ {id:"jungle",n:"Jungle Fighter",    i:"\u2618",     d:"+30% fighting in jungle or marsh"},
+ {id:"urban", n:"Street Fighter",    i:"\u25A6",     d:"+35% fighting in a city"},
+ {id:"def",   n:"Master of Defence", i:"\u{1F6E1}",  d:"+35% defending ground you already hold"},
+ {id:"blitz", n:"Panzer Leader",     i:"\u26A1",     d:"+30% march speed"},
+ {id:"log",   n:"Logistician",       i:"\u{1F69B}",  d:"his division never fights below 85% supply"}
+];
+const genTrait=u=>u&&u.gen&&GEN_TRAITS.find(t=>t.id===u.gen.trait);
+function genMul(u,p){
+  if(!u.gen)return 1;
+  let m=1.15+0.1*u.gen.lvl;
+  const tr=u.gen.trait,ter=p&&p.ter;
+  if(p){
+    if(tr==="mtn"&&(ter==="mtn"||ter==="hills"))m*=1.30;
+    else if(tr==="desert"&&ter==="desert")m*=1.30;
+    else if(tr==="jungle"&&(ter==="jungle"||ter==="marsh"))m*=1.30;
+    else if(tr==="urban"&&ter==="urban")m*=1.35;
+    else if(tr==="def"&&p.owner===u.nat)m*=1.35;
+    else if(tr==="winter"){const w=weatherAt(p);if(w===WEATHER.snow||w===WEATHER.blizzard)m*=1.30;}
+  }
+  return m;
+}
 function vetMul(u){return 1+Math.min(0.24,(u.xp||0)*0.002);}
 function vetStars(u){const x=u&&u.xp||0;return x>=90?" 🎖":x>=45?" ★★":x>=15?" ★":"";}
 /* buildings */
@@ -2933,6 +2969,16 @@ function buildIn(pid,what){if(!G||!G.nations)return;
     if(me.pp<25){logMsg("A fort level costs 25 PP.","war");return;}
     me.pp-=25;p.fort=(p.fort||0)+1;sfx("good");
     logMsg(`🏰 Fortifications raised at ${p.name} (level ${p.fort}).`,"good");
+  }
+  if(what==="depot"){
+    /* A depot is a supply source in its own right, which is the only way to
+       hold ground a long way from any city you own -- a desert, a mountain
+       range, the far end of a conquest. It is also the first thing worth
+       spending production on that is not another division. */
+    if(p.depot)return;
+    if(me.pp<60){logMsg("A supply depot costs 60 PP.","war");return;}
+    me.pp-=60;p.depot=1;G.supply=null;sfx("good");
+    logMsg(`\u{1F69B} Supply depot established at ${p.name}.`,"good");
   }
   if(what==="fac"){
     if((p.fac||0)>=2)return;
@@ -8532,10 +8578,12 @@ function renderPanel(){
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
       return `<div class="row"><span>Ground</span><span>${t.i} ${t.n} · def ×${t.def.toFixed(2)} · move ×${t.move.toFixed(2)}</span></div>
       <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
-      <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]} — for ${NATIONS[p.owner].n}</span></div>`;})()}
+      <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
+      <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
     ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
       h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
+      <button class="bbtn" ${me.pp<60||p.depot?"disabled":""} onclick="buildIn('${p.id}','depot')">🚛 Build supply depot — 60 PP ${p.depot?"(built)":""}<small>Feeds every province around it. The only way to hold ground far from your cities.</small></button>
       <button class="bbtn" ${me.pp<40||(p.fac||0)>=2?"disabled":""} onclick="buildIn('${p.id}','fac')">🏭 Build factory — 40 PP ${(p.fac||0)>=2?"(max)":""}<small>+1 province value, forever.</small></button>`;
     }
     if(G.selUnit){
@@ -8550,7 +8598,7 @@ function renderPanel(){
     if(us.length||fs.length){
       h+=`<h3>FORCES HERE</h3>`;
       for(const u of us){
-        h+=`<button class="bbtn" onclick="selU(${u.id})">${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name:""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
+        h+=`<button class="bbtn" onclick="selU(${u.id})">${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name+(genTrait(u)?" "+genTrait(u).i:""):""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
         if(u.nat===G.player&&!u.gen)h+=`<button class="bbtn" style="margin-left:14px;width:calc(100% - 14px)" onclick="hireGeneral(${u.id})">★ Hire a general for this division — 40 PP<small>+25% combat, grows with every battle (max 4 generals).</small></button>`;
       }
       for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
@@ -8615,6 +8663,15 @@ function renderPanel(){
         <span style="color:${s.c}">${s.e} ${s.t}</span> \u2014 ${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)}${u.gen?" \u2605"+u.gen.lvl:""}
         <small>${p.name} ${terOf(p).i}${weatherAt(p)===WEATHER.clear?"":" "+weatherAt(p).i}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
     }
+    const staff=mine.filter(u=>u.gen);
+    if(staff.length){
+      h+=`<h3>★ GENERAL STAFF</h3><div style="color:var(--dim);font-size:11px">A commander is only worth what the ground he is standing on is worth to him.</div>`;
+      for(const u of staff){
+        const tr=genTrait(u),pp=G.prov[u.at],active=tr&&pp&&genMul(u,pp)>1.15+0.1*u.gen.lvl+0.001;
+        h+=`<button class="bbtn" onclick="jumpTo(${u.id})">★${u.gen.lvl} ${u.gen.name} ${tr?tr.i+" "+tr.n:""}
+          <small${active?' style="color:#5d9a4e"':''}>${tr?tr.d:""}${pp?" · at "+pp.name+(active?" — IN EFFECT HERE":""):""}</small></button>`;
+      }
+    }
     if(myFleets.length){
       h+=`<h3>FLEETS</h3>`;
       for(const f of myFleets){const p=G.prov[f.at];if(!p)continue;
@@ -8632,11 +8689,11 @@ function renderPanel(){
     const deployable=provOf(sel.id).owner===G.player;
     el.innerHTML=`<h2>RECRUIT</h2>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
-    <button class="bbtn" ${me.pp<20||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP<small>STR 3. The backbone.</small></button>
+    <button class="bbtn" ${me.pp<20||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
     <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
-    <button class="bbtn" ${me.pp<35||me.oil<armOil()||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."}</small></button>
-    <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Task Force — 30 PP + 8 🛢<small>STR 2. Needs a port. Escorts invasions, blockades coasts.</small></button>
-    <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[capOf(G.player)].name}). Direct from AIR COMMAND.</small></button>
+    <button class="bbtn" ${me.pp<35||me.oil<armOil()||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
+    <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Task Force — 30 PP + 8 🛢<small>STR 2. Needs a port. Ready in ${buildDays(G.player,"ship")} days.</small></button>
+    <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[capOf(G.player)].name}). Ready in ${buildDays(G.player,"wing")} days.</small></button>
     ${(()=>{
       /* Say WHICH requirement is missing. Most of the roster owns no oil
          province and so has no oil income at all — those nations used to see
@@ -8648,8 +8705,18 @@ function renderPanel(){
       if(needTech)why.push("needs Industry III or the Atomic Pioneers focus");
       if(needPP)why.push("needs "+Math.ceil(100-me.pp)+" more PP");
       if(needOil)why.push("needs "+Math.ceil(25-me.oil)+" more oil — buy it on the market under GOVERNMENT");
-      return `<button class="bbtn" ${needTech||needPP||needOil?"disabled":""} onclick="buy('nuke')">☢ Nuclear Weapon — 100 PP + 25 🛢<small>${why.length?why.join(" · "):"Ready to assemble."} You have ${me.nukes}.</small></button>`;
+      return `<button class="bbtn" ${needTech||needPP||needOil?"disabled":""} onclick="buy('nuke')">☢ Nuclear Weapon — 100 PP + 25 🛢<small>${why.length?why.join(" · "):"Assembly takes "+buildDays(G.player,"nuke")+" days."} You have ${me.nukes}.</small></button>`;
     })()}
+    ${(()=>{const q=(G.queue||[]).filter(o=>o.nat===G.player);
+      if(!q.length)return `<div style="color:var(--dim);font-size:11px;margin-top:8px">Nothing on the slipway. Production is charged when you order; the unit arrives when it is built \u2014 research INDUSTRY and build factories to shorten the wait.</div>`;
+      return `<h3>\u{1F3ED} ON THE SLIPWAY \u2014 ${q.length}</h3>`+
+        q.slice().sort((a,b)=>a.left-b.left).map(o=>{
+          const pct=Math.round((1-o.left/o.total)*100),pv=G.prov[o.at];
+          return `<div class="row" style="align-items:center;gap:6px">
+            <span style="flex:1;min-width:0">${BUILD_N[o.t]}<br><small style="color:var(--dim)">${o.t==="nuke"?"assembly":pv?pv.name:"—"} \u00b7 ${o.left} day${o.left>1?"s":""} left</small>
+            <div class="bar" style="margin-top:3px"><i style="width:${pct}%"></i></div></span>
+            <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">\u2715</button></div>`;
+        }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
   if(curPanel==="research"){
@@ -9054,35 +9121,88 @@ window.selAll=pid=>{if(!G||!G.nations)return;
   $("#panel").style.display="none";
 };
 window.selU=id=>{if(!G||!G.nations)return;const u=[...G.units,...G.fleets].find(x=>x.id===id);if(u&&u.nat===G.player){G.selUnit=u;renderPanel();}};
-function buyFor(nat,t,pid){
-  const me=G.nations[nat];
-  const sel=pid&&provOf(pid).owner===nat?provOf(pid):G.prov[capOf(nat)];
-  if(t==="inf"&&me.pp>=20){me.pp-=20;addUnit(nat,sel.id,"inf",3);}
-  if(t==="arm"&&me.pp>=35&&me.oil>=armOil()){me.pp-=35;me.oil-=armOil();addUnit(nat,sel.id,"arm",4);}
-  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(nat,sel.id,2);}
-  if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(nat,2);}
-  /* This is the path AI nations and multiplayer GUESTS go through. It never
-     honoured the Atomic Pioneers focus, so the same button that assembled a
-     warhead in single player did nothing at all in a multiplayer game. */
-  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;}
+/* Building things takes TIME now, and both the player and a multiplayer guest
+   go through the same function -- there used to be two near-identical copies of
+   the purchase rules, buyFor() for guests and buy() for the player, which is
+   how the Atomic Pioneers focus came to work in one of them and not the other.
+   Production is charged the moment you order, and the unit arrives when it is
+   built; industry research and factories are what make that wait shorter,
+   which is the first time either has been worth anything you could feel. */
+const BUILD_TIME={inf:12,arm:20,ship:30,wing:24,nuke:90};
+const BUILD_N={inf:"Infantry division",arm:"Armoured division",ship:"Task force",wing:"Air wing",nuke:"Nuclear weapon"};
+function buildDays(nat,t){
+  const n=G.nations[nat];if(!n)return BUILD_TIME[t]||12;
+  let fac=0;for(const id in G.prov){const q=G.prov[id];if(q.owner===nat)fac+=q.fac||0;}
+  const speed=1+(((n.res&&n.res.ind)||0)*0.14)+fac*0.04+(MODS.industry?0.8:0)+(MODS.swift?1:0);
+  return Math.max(2,Math.round((BUILD_TIME[t]||12)/speed));
 }
-window.buy=t=>{if(!G||!G.nations)return;
-  if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});logMsg("Order sent to host...");renderPanel();return;}
-  const me=G.nations[G.player];
-  const sel=G.sel&&provOf(G.sel).owner===G.player?provOf(G.sel):G.prov[capOf(G.player)];
-  if(t==="inf"&&me.pp>=20){me.pp-=20;addUnit(G.player,sel.id,"inf",3);logMsg(`Infantry division raised at ${sel.name}`,"good");}
-  if(t==="arm"&&me.pp>=35&&me.oil>=armOil()){me.pp-=35;me.oil-=armOil();addUnit(G.player,sel.id,"arm",4);logMsg(`${armName()} raised at ${sel.name}`,"good");}
-  if(t==="ship"&&me.pp>=30&&me.oil>=8&&sel.coastal){me.pp-=30;me.oil-=8;addFleet(G.player,sel.id,2);logMsg(`Task force launched from ${sel.name}`,"good");}
-  if(t==="wing"&&me.pp>=25&&me.oil>=6){me.pp-=25;me.oil-=6;addWing(G.player,2);logMsg(`Air wing commissioned at the ${G.prov[capOf(G.player)].name} airbase`,"good");}
-  if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");}
+function buyCost(t){return {inf:[20,0],arm:[35,armOil()],ship:[30,8],wing:[25,6],nuke:[100,25]}[t];}
+function buyFor(nat,t,pid){
+  const me=G.nations[nat];if(!me||!me.alive)return false;
+  const c=buyCost(t);if(!c)return false;
+  const cap=G.prov[capOf(nat)];
+  const sel=(pid&&G.prov[pid]&&provOf(pid).owner===nat)?provOf(pid):cap;
+  if(!sel||sel.owner!==nat)return false;
+  if(t==="ship"&&!sel.coastal)return false;
+  if(t==="wing"&&(!cap||cap.owner!==nat))return false;
+  if(t==="nuke"&&!(me.res.ind>=3||me.atomicOk))return false;
+  if(me.pp<c[0]||me.oil<c[1])return false;
+  me.pp-=c[0];me.oil-=c[1];
+  const d=buildDays(nat,t);
+  G.queue=G.queue||[];
+  G.queue.push({oid:++G.uid,nat,t,at:t==="wing"?cap.id:sel.id,left:d,total:d});
+  return true;
+}
+function productionTick(){
+  if(!G.queue||!G.queue.length)return;
+  const done=[];
+  for(const o of G.queue){o.left--;if(o.left<=0)done.push(o);}
+  if(!done.length)return;
+  G.queue=G.queue.filter(o=>o.left>0);
+  for(const o of done){
+    const n=G.nations[o.nat];if(!n||!n.alive)continue;
+    /* The province it was to be raised in may have fallen while it was being
+       built. Put it wherever the country still stands rather than dropping the
+       order the player already paid for. */
+    let at=(G.prov[o.at]&&G.prov[o.at].owner===o.nat)?o.at:null;
+    if(!at){const ps=natProvs(o.nat);if(!ps.length)continue;
+      at=(G.prov[capOf(o.nat)]&&G.prov[capOf(o.nat)].owner===o.nat)?capOf(o.nat):ps[0].id;}
+    if(o.t==="inf")addUnit(o.nat,at,"inf",3);
+    else if(o.t==="arm")addUnit(o.nat,at,"arm",4);
+    else if(o.t==="ship")addFleet(o.nat,at,2);
+    else if(o.t==="wing")addWing(o.nat,2);
+    else if(o.t==="nuke")n.nukes++;
+    if(o.nat===G.player){
+      logMsg(`${BUILD_N[o.t]} ready${o.t==="nuke"?"":" at "+G.prov[at].name}.`,"good");
+      if(curPanel==="build")renderPanel();
+    }
+  }
+}
+function cancelOrder(oid){
+  if(!G||!G.queue)return;
+  const i=G.queue.findIndex(o=>o.oid===oid&&o.nat===G.player);
+  if(i<0)return;
+  const o=G.queue[i],c=buyCost(o.t);
+  G.queue.splice(i,1);
+  /* Half back. Cancelling has to cost something or the queue is a free bank. */
+  if(c){const me=G.nations[G.player];me.pp+=Math.round(c[0]*0.5);me.oil+=Math.round(c[1]*0.5);}
+  logMsg(`${BUILD_N[o.t]} order cancelled \u2014 half the production refunded.`,"war");
   renderPanel();refreshHUD();
+}
+window.cancelOrder=cancelOrder;
+window.buy=t=>{if(!G||!G.nations)return false;
+  if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});logMsg("Order sent to host...");renderPanel();return true;}
+  const ok=buyFor(G.player,t,G.sel);
+  if(ok){const d=buildDays(G.player,t);logMsg(`${BUILD_N[t]} laid down \u2014 ready in ${d} day${d>1?"s":""}.`,"good");sfx("coin");}
+  renderPanel();refreshHUD();
+  return ok;
 };
 /* Raise several divisions in one order. Building an army one click at a time
    was the most tedious thing in the game; this stops the moment production or
    oil runs out and reports what it actually managed. */
 window.buyN=(t,n)=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
-  const count=()=>G.units.length+G.fleets.length+G.wings.length+(me.nukes||0);
+  const count=()=>G.units.length+G.fleets.length+G.wings.length+(me.nukes||0)+((G.queue&&G.queue.length)||0);
   const before=count();
   for(let i=0;i<n;i++){
     if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});continue;}
@@ -9215,10 +9335,16 @@ const MANUAL=[
   "A line that runs a long way, or through mountains and bad weather, is a STRETCHED line \u2014 the men at the end of it fight worse.",
   "A division with NO route home at all is CUT OFF. It fights at little better than half strength, loses men every day, and after about ten weeks it surrenders where it stands.",
   "Supply pushes two provinces past your border, so an attack does not starve the moment it crosses the frontier \u2014 but a spearhead driven deep with no ground held behind it will.",
-  "This is what makes encirclement worth doing. Cutting the road behind an army beats beating it in a battle, and it costs less."]],
+  "This is what makes encirclement worth doing. Cutting the road behind an army beats beating it in a battle, and it costs less.",
+  "\u{1F69B} BUILD A SUPPLY DEPOT (60 PP, from the province panel) to make a province a depot in its own right. It is the only way to hold ground a long way from any city you own \u2014 a desert, a mountain range, the far end of a conquest."]],
+ ["\u2605 GENERALS",[
+  "Hiring a general costs 40 PP and you may have four. He adds 15% to his division and another 10% a level, and he learns by fighting.",
+  "Every general also has a TRAIT, and traits are tied to the map: a Mountaineer is worth having in the Caucasus and worth nothing in Poland, a Winter Soldier earns his keep in January, a Logistician\u2019s division never fights below 85% supply, a Panzer Leader marches 30% faster.",
+  "The general staff is listed in the ARMY panel, and it says in green when the man is standing somewhere his trait actually applies. Posting him is as much of a decision as hiring him."]],
  ["\u{1F3ED} RUNNING A COUNTRY",[
   "PP (production) pays for divisions, forts and factories. It comes from the provinces you hold \u2014 occupied land pays only 60%, and a blockaded port pays half.",
   "\u{1F6E2} Oil runs tanks, ships and aircraft. Without it your air wings and fleets simply stop. It comes from oil provinces, or off the market under GOVERNMENT.",
+  "Building takes time. Production is charged the moment you place the order and the unit arrives when it is finished \u2014 an infantry division in about twelve days, a warhead in about ninety. Researching INDUSTRY and building factories is what shortens that, and ON THE SLIPWAY in the RECRUIT panel shows everything under construction. Cancelling returns half.",
   "\u{1F52C} RP buys the four research lines. Industry raises everything you produce AND how far supply reaches; Land, Naval and Air raise their arm of the service.",
   "Stability falls in long wars and when provinces fall. At zero the government COLLAPSES and something else takes its place."]],
  ["\u{1F3C1} WINNING",[
@@ -9241,7 +9367,7 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v19.0 \u2014 GROUND, WEATHER AND SUPPLY (current)",[
+ ["v19.0 \u2014 GROUND, WEATHER, SUPPLY AND THE MEN WHO RUN THEM (current)",[
   "\u26F0 THE GROUND IS REAL NOW. Every one of the 251 provinces has a terrain \u2014 ten kinds, assigned from actual geography rather than generated: the Alps, the Caucasus, the Urals, the Andes and the Atlas are mountains; the Pripet and the Flanders mud are marsh; the Sahara, the Arabian and the Karakum are desert; the Congo and the Amazon are jungle; the taiga is forest and the far north is tundra. It decides how fast you cross a place, how hard it is to take from whoever holds it, and how far supply reaches through it. Mountains defend at \u00d71.65 and halve your speed; a city defends at \u00d71.55. Before this, an attack into the Alps cost exactly what an attack across Poland cost.",
   "\u2744 AND THE WEATHER, ON A REAL CALENDAR. Eight kinds of weather over eight regional climates, and the seasons are hemisphere-correct \u2014 January is deep winter in Berlin and high summer in Sydney. A blizzard cuts movement to a third, attacks to under two thirds, and puts almost every aircraft on the ground; mud does nearly as much to a timetable, sandstorms do it to the desert war and the monsoon to the jungle. Weather is regional and a spell lasts about ten days, so it is something to wait out or to attack into on purpose, not noise \u2014 and it is a hash, not a dice roll, so the same storm is there when you reload.",
   "\u{1F69B} SUPPLY LINES, WHICH IS THE BIG ONE. Every division traces a line back to a depot: the capital, any city you hold, or a port with one of your fleets standing off it. Terrain and weather decide how far that line reaches, so a line across Poland runs much further than the same line into the Caucasus in February. A stretched line means the men at the end fight worse. NO line at all means CUT OFF: barely half strength, losing men every day, and surrendering where they stand after about ten weeks. Supply pushes two provinces past your own border so that attacking is possible, and no further, so that a spearhead driven deep with nothing held behind it dies.",
@@ -9251,6 +9377,10 @@ const CHANGELOG=[
   "\u{1F916} THE COMPUTER READS THE SAME MAP. It discounts ground that defends itself, discounts an advance into a blizzard, and goes hard after garrisons that have been cut off from their own supply. Otherwise terrain and weather would have been a tax only the human pays.",
   "\u{1F4BE} FOUR SAVE SLOTS instead of one. There was a single save shared between the autosave and every save you made by hand, so the autosave sixty days later quietly ate the save you made on purpose before trying something reckless \u2014 which is the one moment anybody saves. Now: one autosave the game keeps, three you control from SETTINGS, each showing the country, the date, and what it held. CONTINUE resumes the most recent and says which one it is.",
   "\u{1F4D3} A CAMPAIGN RECORD in the WARS panel: years in the field and what share of them was spent at war, provinces taken and lost, divisions lost and destroyed, how many of yours starved in pockets, battles fought, and your high-water mark. It is saved with the campaign.",
+  "\u{1F69B} SUPPLY DEPOTS, 60 PP from the province panel. A depot is a supply source in its own right, which is the only way to hold ground a long way from any city you own \u2014 a desert, a mountain range, the far end of a conquest. It is also the first thing worth spending production on that is not another division.",
+  "\u2605 GENERALS HAVE TRAITS NOW, and the traits are tied to the map. A general used to be a flat +15% and another +10% a level, which made every commander in the game the same commander. There are eight: Mountaineer, Winter Soldier, Desert Rat, Jungle Fighter, Street Fighter, Master of Defence, Panzer Leader and Logistician \u2014 whose division never fights below 85% supply. A Mountaineer is worth having in the Caucasus and worth nothing in Poland, so WHERE you post a man is now as much of a decision as whether you hired one. The ARMY panel lists your general staff and says in green when a man is standing somewhere his trait actually applies.",
+  "\u{1F3ED} BUILDING THINGS TAKES TIME. Production is charged the moment you place an order and the unit arrives when it is finished \u2014 an infantry division in about twelve days, a warhead in about ninety. Researching INDUSTRY and building factories is what shortens that, which is the first time either has been worth anything you could feel. ON THE SLIPWAY in the RECRUIT panel shows everything under construction with a countdown, and cancelling returns half. An order whose province falls while it is being built is delivered somewhere you still hold, rather than being lost.",
+  "\u{1F527} And that closed a real bug: there were TWO near-identical copies of the purchase rules \u2014 one for the player, one for multiplayer guests and network orders \u2014 which is how the Atomic Pioneers focus came to work in one of them and not the other. There is one now, and both go through it.",
   "\u{1F4D6} AND A FIELD MANUAL, on the title screen and in SETTINGS. The game has terrain, weather, supply, encirclement, four research lines, ideologies, focuses, puppets and peace conferences, and none of that is discoverable by clicking. Eight sections, written as instructions rather than as a feature list."]],
  ["v18.7 \u2014 A HUNDRED AND FORTY-FOUR COUNTRIES, AND A BLUE SEA",[
   "\u{1F30A} THE SEA IS BLUE. It had been \u0023\u0030\u0063\u0031\u0035\u0031\u0063 \u2014 a blue-black so dark it read as empty space rather than water, which is why the world looked like coloured shapes floating in a void instead of a map. Ocean, grid and sea lanes are all properly blue now, in both the dark and light themes, and the dashed shipping routes are light enough to actually see against it.",
@@ -10341,7 +10471,7 @@ const MP={role:null,code:null,ref:null,
   send(o){if(this.ref)this.ref.child("orders").push(o);}
 };
 function mpSerialize(){
-  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||""];}
+  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0];}
   const nat={};
   for(const k in G.nations){const n=G.nations[k];
     nat[k]=[+n.pp.toFixed(1),+n.rp.toFixed(1),+n.oil.toFixed(1),n.nukes,+n.stab.toFixed(1),
@@ -10353,7 +10483,8 @@ function mpSerialize(){
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1)]),
-    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""])};
+    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""]),
+    queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total])};
 }
 function mpBroadcastMods(){if(MP.role==="host"&&MP.ref)MP.ref.child("state").set(mpSerialize());}
 window.mpBroadcastMods=mpBroadcastMods;
@@ -10366,8 +10497,10 @@ function mpApplyState(S){
     MODS.view3d=myView3d;                        // never let the host override it
   }
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
-  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob]=S.prov[id];
-    if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}}
+  G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
+  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp]=S.prov[id];
+    if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
+    if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}}
   /* A guest can be sent a country it has never heard of: one that ROSE out of a
      conquest after the guest joined, or a Shattered World shard. The old code
      skipped anything it did not recognise \u2014 and then the provinces it had just
