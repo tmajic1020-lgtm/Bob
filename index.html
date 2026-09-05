@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">21.0.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">21.0.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="21.0.0";
+const BUILD="22.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1024,6 +1024,79 @@ const SUBPARENT={
     is not the modern day, so they change hands with it. */
  tas:"alm",ash:"alm",fru:"alm",dus:"alm",tbi:"sta",yer:"sta",bak:"sta",uln:"irk",
  rig:"len",tal:"len",vil:"min",kish:"ode"};
+/* ================= WHAT ARMIES ARE MADE OF =================
+   The economy was one abstract number and a barrel of oil. Everything from an
+   infantry rifle to a fleet carrier came out of the same pot of "production",
+   so no province was worth taking for any reason except its size, a blockade
+   only ever cost you money, and trade was a button that turned money into oil.
+
+   Four strategic resources, placed where they actually are in the ground.
+   Nothing is buildable without them, nobody has all four, and the map now has
+   places worth fighting over for what is under them rather than what is on
+   them. */
+const RESOURCES={
+ steel:{n:"Steel",     i:"\u26D3", d:"Hulls, guns and armour plate. Everything heavy needs it."},
+ rubber:{n:"Rubber",   i:"\u25CD", d:"Tyres, tracks and seals. Grows in about six places on Earth."},
+ alu:{n:"Aluminium",   i:"\u25A4", d:"Airframes. Without it you have no air force at all."},
+ tung:{n:"Tungsten",   i:"\u25C6", d:"Machine tools, armour-piercing shot and the hardest edges."}
+};
+const RESKEYS=Object.keys(RESOURCES);
+/* No country on the map has all four. Germany has the Ruhr and neither rubber
+   nor bauxite; Malaya has the rubber and no steel worth the name. That is the
+   point: it forces trade, it makes particular provinces worth invading for
+   what is under them, and it gives a blockade something real to strangle. */
+const BUILD_RES={
+ inf:{steel:3},
+ arm:{steel:10,rubber:4,tung:3},
+ art:{steel:8,tung:3},
+ aa:{steel:5,tung:2},
+ nuke:{steel:25,alu:12,tung:15},
+ s_dd:{steel:14},
+ s_sub:{steel:12,rubber:2},
+ s_cap:{steel:34,tung:6},
+ s_cv:{steel:30,alu:10,tung:4},
+ a_fig:{alu:10,rubber:2},
+ a_cas:{alu:12,rubber:3},
+ a_stb:{alu:20,rubber:4},
+ a_nvb:{alu:13,rubber:3}
+};
+const resCostOf=t=>BUILD_RES[t]||null;
+function haveRes(k,t){
+  const need=resCostOf(t);if(!need)return true;
+  const st=(G.nations[k]||{}).stock||{};
+  for(const r in need)if((st[r]||0)<need[r])return false;
+  return true;
+}
+function shortOf(k,t){
+  const need=resCostOf(t),out=[];if(!need)return out;
+  const st=(G.nations[k]||{}).stock||{};
+  for(const r in need)if((st[r]||0)<need[r])out.push(RESOURCES[r].n);
+  return out;
+}
+function spendRes(k,t){
+  const need=resCostOf(t);if(!need)return true;
+  const n=G.nations[k];if(!n)return false;
+  if(!haveRes(k,t))return false;
+  for(const r in need)n.stock[r]-=need[r];
+  return true;
+}
+const resCostText=t=>{
+  const need=resCostOf(t);if(!need)return "";
+  return " + "+Object.keys(need).map(r=>need[r]+RESOURCES[r].i).join(" ");
+};
+/* Deposits, from real geography: the Ruhr and Lorraine, Swedish iron ore, the
+   Urals and the Donbas, Malayan and Indochinese rubber, Congo and Amazon
+   plantations, West African and Hungarian bauxite, Chinese and Iberian
+   tungsten. Two means a major producer. */
+const DEPOSITS={};
+(function(){
+ const put=(kind,tab)=>{for(const id in tab){(DEPOSITS[id]=DEPOSITS[id]||{})[kind]=tab[id];}};
+ put("steel",{rhi:3,lil:1,ncl:2,man2:1,sto:3,got:1,ura:3,ros:2,kie:2,ode:1,chi:2,stl:1,
+              har:2,jhb:2,bsb:2,cui:1,per:2,cal:2,mad2:1,bir:1,kra:1,mtl:1,tor:1,sev:1});
+ put("rubber",{kul:3,sin:2,sgn:2,pnh:1,bkk:1,rgn:1,man:3,kis:2,kin:1,abi:2,acc:1,lag:1,bog:1,mba:1});
+ put("alu",{dak:2,kano:1,bud:2,zag:1,ath:1,mar:1,bog:2,dar:2,per:1,mtl:1,osl:1,tbi:1});
+ put("tung",{chq:2,kun:2,can:1,xan:1,opo:2,lis:1,mad:1,sev:1,mdl:2,seo:1,pyo:1,lim:2,bog:1,alm:1});
+})();
 const OILP=new Set(["dal","ria","bag","teh","sta","ura","nov","trp","alg","vla","man","mty","buc","ben","sin","psud","bak","ash"]);
 /* Starting nuclear stockpiles */
 const NUKES_START={
@@ -1402,6 +1475,9 @@ const MINISTERS={
  staff:{n:"Chief of the General Staff",d:"+10% army attack",cost:60},
  sec:{n:"Security Chief",d:"+0.05 stability per day",cost:60},
  spy:{n:"Spymaster",d:"Espionage operations cost 30% less",cost:60}};
+/* Steel keeps guns and armour serviceable. Run out and the whole army fights
+   like an army with no spare barrels, which is what one is. */
+function steelMul(k){return shortOn(k,"steel")?0.82:1;}
 function natAtkMul(k){const n=G.nations[k];if(!n)return 1;
   let m=(k==="ZOM"?1.5:1)*ideoOf(n).atk*((DOCTRINES[n.doctrine]||{atk:1}).atk)*(n.cab&&n.cab.staff?1.10:1)*(MODS.blitz?1.35:1)*(MODS.trench?0.6:1);
   m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m;}
@@ -1662,6 +1738,7 @@ function makeNation(k,s,ai){
     ideo:(IDEO_DEF[ERA]&&IDEO_DEF[ERA][k])||IDEO_FALLBACK[ERA]||"aut",
     warSup:50,cab:{},doctrine:null,spyT:null,spyNet:0,sabotage:0,electT:1460,
     puppet:null,grudge:0,pacts:{},lend:{},mp:0,mpUsed:0,law:{cons:0,eco:0},
+    stock:{steel:s*4,rubber:s*2,alu:s*2,tung:s*2},income:{steel:0,rubber:0,alu:0,tung:0},
     atWar:new Set(),allies:new Set(),ai:!!ai,alive:true,aiTimer:60+Math.random()*120};
 }
 function newGame(playerNation){
@@ -1670,7 +1747,7 @@ function newGame(playerNation){
   for(const[id,name,lon,lat,nat,coastal,val]of P){
     const[x,y]=PX(lon,lat);
     prov[id]={id,name,x,y,lat,owner:nat,home:nat,coastal,val,adj:[],seaAdj:[],garrison:0,
-               ter:PTERRAIN[id]||"plain",oil:OILP.has(id)?1:0,nuked:0};
+               ter:PTERRAIN[id]||"plain",oil:OILP.has(id)?1:0,dep:DEPOSITS[id]||null,nuked:0};
   }
   for(const L of LINKS){
     const[a,b,s]=L; const sea=L.length>2?L[2]:0;
@@ -2215,7 +2292,7 @@ function tick(){
     const n=G.nations[k];if(!n.alive)continue;
     const ps=natProvs(k);
     if(!ps.length){die(k);continue;}
-    let pp=0,oil=0;
+    let pp=0,oil=0;const resInc={steel:0,rubber:0,alu:0,tung:0};
     for(const p of ps){
       let v=p.val;
       if(p.home!==k&&G.nations[p.home]&&G.nations[p.home].alive)v*=0.6; // occupied land resists
@@ -2225,9 +2302,7 @@ function tick(){
            submarine arm strangles a coast, a lone escort barely inconveniences
            it, and the owner's own warships in the same water push it off. */
         let raid=0,guard=0;
-        for(const f of G.fleets){
-          if(f.to)continue;
-          if(!(f.at===p.id||p.adj.indexOf(f.at)>=0||p.seaAdj.indexOf(f.at)>=0))continue;
+        for(const f of (navalPresence()[p.id]||[])){
           if(atWar(f.nat,k))raid+=f.str*shipOf(f).raid;
           else if(f.nat===k||allied(k,f.nat))guard+=f.str*shipOf(f).asw*0.5+f.str*shipOf(f).gun*0.3;
         }
@@ -2235,7 +2310,23 @@ function tick(){
         if(net>0)v*=Math.max(MODS.navaldom?0.22:0.35,1-net*0.09);
       }
       pp+=v;oil+=p.oil;
+      /* Resources ride on exactly the same multiplier the province's
+         production does, so occupation, bombing and a blockade choke the ore
+         and the rubber the same way they choke the money -- which is what
+         makes commerce raiding and strategic bombing worth doing to an economy
+         rather than merely to a balance sheet. */
+      if(p.dep){const f=v/Math.max(0.001,p.val);
+        for(const r in p.dep)resInc[r]+=p.dep[r]*f;}
     }
+    n.income=resInc;
+    {const cap=110+ps.length*14;
+     /* Synthetic production. A country with no bauxite in the ground can
+        still, given enough industry, make some aluminium -- Germany really did
+        run its war on synthetic rubber and fuel. It is a trickle, never a
+        substitute for the real thing, and it is what stops a nation with an
+        unlucky map being permanently unable to build an aeroplane. */
+     const synth=((n.res&&n.res.ind)||0)*0.35*(1+(n.law?n.law.eco:0)*0.4);
+     for(const r of RESKEYS)n.stock[r]=Math.min(cap,(n.stock[r]||0)+resInc[r]*0.6+synth*0.25);}
     const _law=n.law||{cons:0,eco:0};
     n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*consOf(n).pp*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1);
     let inc=n.ppRate/10;
@@ -2291,7 +2382,7 @@ function tick(){
          for the pool to matter, and conscription stayed a number on a screen
          that no government ever had a reason to change. */
       n.mobTimer=n.atWar.size>0?22:90;
-      if(have<cap&&spendMP(k,MP_COST.inf)){
+      if(have<cap&&haveRes(k,"inf")&&spendMP(k,MP_COST.inf)&&spendRes(k,"inf")){
         const where=G.prov[capOf(k)].owner===k?G.prov[capOf(k)]:ps[Math.floor(Math.random()*ps.length)];
         addUnit(k,where.id,"inf",3);
         if(k===G.player)logMsg(`Reserves mobilized — new infantry division at ${where.name}`,"good");
@@ -2468,7 +2559,8 @@ function tick(){
     }
   }
   garrisonRegen();
-  pactTick();lendTick();wearinessTick();
+  resUpkeepTick();
+  pactTick();lendTick();wearinessTick();resTradeTick();
   resistanceTick();
   if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai)runGroups(k);}
@@ -2706,6 +2798,16 @@ function supplyTick(){
      }}
     {let gn=0;for(const g in (G.groups||{}))if(G.groups[g].nat===G.player&&groupUnits(G.player,+g).length)gn++;
      if(gn>=4)unlockAch("army_groups");}
+    {const me3=G.nations[G.player];
+     if(me3&&me3.stock){
+       if(RESKEYS.every(r=>(me3.stock[r]||0)>=250))unlockAch("quartermaster");
+       if(RESKEYS.some(r=>(me3.income[r]||0)>=10))unlockAch("autarky");
+     }
+     for(const k in G.nations){
+       const en=G.nations[k];
+       if(!en.alive||!atWar(G.player,k)||!en.shortage)continue;
+       if(RESKEYS.filter(r=>en.shortage[r]).length>=3){unlockAch("strangler");break;}
+     }}
     if((G.stats&&G.stats.shotDown||0)>=15)unlockAch("air_supremacy");
     {const have={};for(const f of G.fleets)if(f.nat===G.player)have[f.cls||"dd"]=1;
      if(Object.keys(SHIPS).every(c=>have[c]))unlockAch("balanced_fleet");}
@@ -2729,6 +2831,7 @@ function moveUnits(arr,kind){
       spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move;
     }
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
+    if(kind==="army"&&shortOn(u.nat,"rubber"))spd*=0.80;  // no tyres, no tracks, no pace
     if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
     /* AMPHIBIOUS OPERATIONS. Owning a single warship anywhere on Earth used to
        let an army walk across any ocean on the map at full speed. A crossing
@@ -2836,8 +2939,8 @@ function battles(){
          the same divisions spread across three. */
       const lineA=frontLine(fa,p,p.owner===A),lineB=frontLine(fb,p,p.owner===B);
       const pw=(arr,side,def)=>arr.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*roleMul(u,def),0);
-      let pa=(pw(lineA.front,A,p.owner===A)+pw(lineA.rear,A,p.owner===A)*0.12)*techMul(A,"land")*natAtkMul(A);
-      let pb=(pw(lineB.front,B,p.owner===B)+pw(lineB.rear,B,p.owner===B)*0.12)*techMul(B,"land")*natAtkMul(B);
+      let pa=(pw(lineA.front,A,p.owner===A)+pw(lineA.rear,A,p.owner===A)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
+      let pb=(pw(lineB.front,B,p.owner===B)+pw(lineB.rear,B,p.owner===B)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       /* Weather blunts both sides' offence; the ground itself only helps the
@@ -2995,7 +3098,28 @@ function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
   let s=0;
   for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*wingOf(w).ground;
-  return Math.min(s,5)*weatherAt(G.prov[pid]).air*airControl(nat,pid);
+  /* No aluminium, no airframes to replace the ones that come back holed. */
+  return Math.min(s,5)*weatherAt(G.prov[pid]).air*airControl(nat,pid)*(shortOn(nat,"alu")?0.5:1);
+}
+/* Which hulls are in reach of which coast, worked out once a day. The economy
+   asked this question for every coastal province of every living nation, and
+   answered it by scanning all two hundred-odd fleets each time -- fifty-odd
+   thousand checks a day, which was three quarters of the entire tick and by
+   far the most expensive thing in the game. */
+let _navTbl=null,_navTblDay=-1,_navTblN=-1;
+function navalPresence(){
+  if(_navTblDay===G.day&&_navTblN===G.fleets.length&&_navTbl)return _navTbl;
+  const t={};
+  const touch=(pid,f)=>{(t[pid]||(t[pid]=[])).push(f);};
+  for(const f of G.fleets){
+    if(f.to)continue;
+    touch(f.at,f);
+    const p=G.prov[f.at];if(!p)continue;
+    for(const j of p.adj)touch(j,f);
+    for(const j of p.seaAdj)touch(j,f);
+  }
+  _navTblDay=G.day;_navTblN=G.fleets.length;_navTbl=t;
+  return t;
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
@@ -3003,7 +3127,7 @@ function navalSupport(nat,pid){
   let s=0;
   /* Shore bombardment is what a battleship is for and what a submarine cannot
      do at all -- it used to be the same number for every hull afloat. */
-  for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.at===pid||provOf(f.at).adj.includes(pid)||provOf(f.at).seaAdj.includes(pid)))s+=f.str*shipOf(f).shore;
+  for(const f of (navalPresence()[pid]||[]))if(f.nat===nat)s+=f.str*shipOf(f).shore;
   return Math.min(s,4);
 }
 function airOps(){
@@ -3330,14 +3454,20 @@ function aiTurn(k){
     const port=ps.find(p=>p.coastal);
     if(port){
       const cls=aiShortfall(k,SHIPS,NAVY_DOCTRINE,f=>f.cls||"dd",G.fleets);
-      const e=SHIPS[cls];
-      if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]){n.pp-=e.cost[0];n.oil-=e.cost[1];addFleet(k,port.id,e.str,cls);}
+      const e=SHIPS[cls],t="s_"+cls;
+      if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]&&(n.mp||0)>=mpCostOf(t)&&haveRes(k,t)){
+        n.pp-=e.cost[0];n.oil-=e.cost[1];spendMP(k,mpCostOf(t));spendRes(k,t);
+        addFleet(k,port.id,e.str,cls);
+      }
     }
   }
   if(Math.random()<0.26&&G.prov[capOf(k)].owner===k){
     const wt=aiShortfall(k,WINGTYPES,AIR_DOCTRINE,w=>w.wt||"cas",G.wings);
-    const e=WINGTYPES[wt];
-    if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]){n.pp-=e.cost[0];n.oil-=e.cost[1];addWing(k,e.str,wt);}
+    const e=WINGTYPES[wt],t="a_"+wt;
+    if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]&&(n.mp||0)>=mpCostOf(t)&&haveRes(k,t)){
+      n.pp-=e.cost[0];n.oil-=e.cost[1];spendMP(k,mpCostOf(t));spendRes(k,t);
+      addWing(k,e.str,wt);
+    }
   }
   // forts on threatened border provinces (smart defense)
   if(n.pp>=25&&Math.random()<0.2){
@@ -3349,6 +3479,15 @@ function aiTurn(k){
   /* The computer runs the same home front the player does: it digs deeper for
      men when the pool is drying up and it can still stand the politics, and it
      demobilises when the war is over or the country will not take any more. */
+  /* A country that cannot get rubber has to buy rubber. Without this the
+     computer would simply stop being able to build tanks and never work out
+     why, and every nation with an awkward map would quietly fall out of the
+     war. It buys the thing it is shortest of, when it can afford to. */
+  if(n.pp>resPrice()*2.5){
+    let worst=null,wv=1e9;
+    for(const r of RESKEYS){const v=(n.stock[r]||0);if(v<wv){wv=v;worst=r;}}
+    if(worst&&wv<25){n.pp-=resPrice();n.stock[worst]=wv+10;}
+  }
   const short=(n.mp||0)<mpCap(k)*0.5;
   if(n.atWar.size>0&&short&&n.law.cons<4&&n.stab>45&&n.pp>=25){n.pp-=25;n.law.cons++;}
   if(n.atWar.size>0&&n.stab<25&&n.law.cons>1){n.law.cons--;}
@@ -3791,12 +3930,22 @@ addEventListener("resize",resize);resize();
 /* Fitting the whole world also has to CENTRE it. Setting the zoom alone left
    the camera wherever it happened to be, so the globe sat against one corner
    with a wedge of empty ocean beside it. */
-const MAPOVERS=["none","terrain","supply","weather"];
-const MAPOVER_N={none:"OFF",terrain:"TERRAIN",supply:"SUPPLY",weather:"WEATHER"};
+const MAPOVERS=["none","terrain","supply","weather","resource"];
+const MAPOVER_N={none:"OFF",terrain:"TERRAIN",supply:"SUPPLY",weather:"WEATHER",resource:"RESOURCES"};
+const RES_COL={steel:"#9aa4ae",rubber:"#3f7f4f",alu:"#7fb0d8",tung:"#c98a3a"};
 let MAPOVER="none";
 function overlayColor(p){
   if(MAPOVER==="terrain")return terOf(p).c;
   if(MAPOVER==="weather"){const w=weatherAt(p);return w===WEATHER.clear?null:w.c;}
+  if(MAPOVER==="resource"){
+    if(p.oil)return "#e8c23a";
+    if(!p.dep)return null;
+    /* Whichever deposit is the biggest decides the colour, so a glance at the
+       map tells you where the steel is and where the rubber is. */
+    let best=null,bv=0;
+    for(const r in p.dep)if(p.dep[r]>bv){bv=p.dep[r];best=r;}
+    return best?RES_COL[best]:null;
+  }
   if(MAPOVER==="supply"){
     /* Shown from the point of view of whoever holds the province, so an enemy
        pocket lights up red on their own ground -- which is the whole reason to
@@ -3984,6 +4133,9 @@ const ACH=[
  {id:"kesselschlacht",n:"Kesselschlacht",i:"\u26D3",d:"Have 8 enemy divisions cut off from supply at once."},
  {id:"wolfpack",n:"Wolfpack",i:"\u25BE",d:"Sink 15 enemy ships in one campaign."},
  {id:"last_levy",n:"The Last Levy",i:"\u{1F465}",d:"Put your country under All Adults Serve."},
+ {id:"quartermaster",n:"Quartermaster",i:"\u{1F3ED}",d:"Hold 250 of all four strategic resources at once."},
+ {id:"autarky",n:"Autarky",i:"\u26D3",d:"Dig 10 a day of one resource out of your own ground."},
+ {id:"strangler",n:"Strangler",i:"\u25BE",d:"Leave an enemy short of three resources at once."},
  {id:"blood_price",n:"The Blood Price",i:"\u{1FA78}",d:"Lose a million men in one campaign."},
  {id:"army_groups",n:"High Command",i:"\u{1F396}",d:"Command four army groups at once."},
  {id:"home_front",n:"Held Together",i:"\u{1F3E1}",d:"Win a war of 5+ years without war support ever falling below 40%."},
@@ -9192,7 +9344,7 @@ function renderPanel(){
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
-    <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
+    <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
       return `<div class="row"><span>Ground</span><span>${t.i} ${t.n} · def ×${t.def.toFixed(2)} · move ×${t.move.toFixed(2)}</span></div>
@@ -9348,19 +9500,20 @@ function renderPanel(){
     const deployable=provOf(sel.id).owner===G.player;
     el.innerHTML=`<h2>RECRUIT</h2>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
+    <div class="row" style="flex-wrap:wrap;gap:8px">${RESKEYS.map(r=>`<span title="${RESOURCES[r].n}">${RESOURCES[r].i} <b>${Math.floor(me.stock[r]||0)}</b> <small style="color:var(--dim)">+${(me.income[r]||0).toFixed(1)}</small></span>`).join("")}</div>
     <div class="row"><span>\u{1F465} Manpower</span><span style="color:${(me.mp||0)<MP_COST.inf?"var(--red)":""}">${Math.round(me.mp||0)}K of ${Math.round(mpCap(G.player))}K \u00b7 +${mpRegen(G.player).toFixed(1)}K/day</span></div>
     ${(me.mp||0)<MP_COST.inf?`<div style="color:var(--red);font-size:11px">No men left to call up. Raise CONSCRIPTION under POLICY \u2014 or stop losing divisions.</div>`:""}
-    <button class="bbtn" ${me.pp<20||(me.mp||0)<MP_COST.inf||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + ${MP_COST.inf}K \u{1F465}<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
+    <button class="bbtn" ${me.pp<20||(me.mp||0)<MP_COST.inf||!haveRes(G.player,"inf")||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + ${MP_COST.inf}K \u{1F465}${resCostText("inf")}<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
     <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
-    <button class="bbtn" ${me.pp<35||me.oil<armOil()||(me.mp||0)<MP_COST.arm||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""} + ${MP_COST.arm}K \u{1F465}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
-    <button class="bbtn" ${me.pp<30||(me.mp||0)<MP_COST.art||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP + ${MP_COST.art}K \u{1F465}<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
-    <button class="bbtn" ${me.pp<25||(me.mp||0)<MP_COST.aa||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP + ${MP_COST.aa}K \u{1F465}<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
+    <button class="bbtn" ${me.pp<35||me.oil<armOil()||(me.mp||0)<MP_COST.arm||!haveRes(G.player,"arm")||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""} + ${MP_COST.arm}K \u{1F465}${resCostText("arm")}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
+    <button class="bbtn" ${me.pp<30||(me.mp||0)<MP_COST.art||!haveRes(G.player,"art")||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP + ${MP_COST.art}K \u{1F465}${resCostText("art")}<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
+    <button class="bbtn" ${me.pp<25||(me.mp||0)<MP_COST.aa||!haveRes(G.player,"aa")||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP + ${MP_COST.aa}K \u{1F465}${resCostText("aa")}<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
     <h3>⚓ SHIPYARD${sel.coastal?"":" — needs a port"}</h3>
     ${Object.keys(SHIPS).map(c=>{const e=SHIPS[c],t="s_"+c;
-      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||!haveRes(G.player,t)||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}${resCostText(t)}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
     <h3>✈ AIRFIELD</h3>
     ${Object.keys(WINGTYPES).map(c=>{const e=WINGTYPES[c],t="a_"+c;
-      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||!haveRes(G.player,t)||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}${resCostText(t)}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
     ${(()=>{
       /* Say WHICH requirement is missing. Most of the roster owns no oil
          province and so has no oil income at all — those nations used to see
@@ -9586,6 +9739,12 @@ function renderPanel(){
     ${CONSCRIPTION.map((c,i)=>`<button class="bbtn" ${me.law.cons===i?"disabled":""} onclick="setLaw('cons',${i})">${me.law.cons===i?"\u25B6 ":""}${c.n}<small>${c.d} \u00b7 ${(popBase(G.player)*c.rate).toFixed(1)}K/day \u00b7 production \u00d7${c.pp.toFixed(2)} \u00b7 stability ${c.stab>=0?"+":""}${(c.stab*365).toFixed(0)}/yr</small></button>`).join("")}
     <h3>ECONOMY — ${eco[me.law.eco]}</h3>
     ${eco.map((c,i)=>`<button class="bbtn" ${me.law.eco===i?"disabled":""} onclick="setLaw('eco',${i})">${me.law.eco===i?"▶ ":""}${c}<small>${["normal production","+30% production, −stability over time"][i]}${me.law.eco===i?"":" — costs 25 PP"}</small></button>`).join("")}
+    <h3>\u{1F3ED} STRATEGIC RESOURCES</h3>
+    <div style="color:var(--dim);font-size:11px">Nothing is built without them and no country has all four. What you cannot dig up you must buy, trade for, or take.</div>
+    ${RESKEYS.map(r=>{const st=Math.floor(me.stock[r]||0),inc=(me.income[r]||0);
+      return `<div class="row"><span>${RESOURCES[r].i} ${RESOURCES[r].n}</span><span style="color:${st<10?"var(--red)":inc<0.4?"var(--amber)":""}">${st} \u00b7 ${inc>0?"+"+inc.toFixed(1):"none in the ground"}/day</span></div>
+      <div class="row" style="gap:4px"><button class="tbtn" style="flex:1;font-size:10px" ${me.pp<resPrice()?"disabled":""} onclick="trade('rbuy','${r}')">Buy 10 \u2014 ${resPrice()} PP</button>
+      <button class="tbtn" style="flex:1;font-size:10px" ${st<10?"disabled":""} onclick="trade('rsell','${r}')">Sell 10 \u2014 ${Math.round(resPrice()*0.5)} PP</button></div>`;}).join("")}
     <h3>OIL MARKET</h3>
     <div class="row"><span>Stockpile</span><span>🛢 ${Math.floor(me.oil)}</span></div>
     <button class="bbtn" ${me.pp<15?"disabled":""} onclick="trade('buy')">Buy 10 🛢 for 15 PP</button>
@@ -9863,7 +10022,8 @@ function buyFor(nat,t,pid){
   if(me.pp<c[0]||me.oil<c[1])return false;
   const mp=mpCostOf(t);
   if((me.mp||0)<mp)return false;              // the production is there; the men are not
-  me.pp-=c[0];me.oil-=c[1];spendMP(nat,mp);
+  if(!haveRes(nat,t))return false;            // and the steel or the rubber is not
+  me.pp-=c[0];me.oil-=c[1];spendMP(nat,mp);spendRes(nat,t);
   const d=buildDays(nat,t);
   G.queue=G.queue||[];
   G.queue.push({oid:++G.uid,nat,t,at:t.startsWith("a_")?cap.id:sel.id,left:d,total:d});
@@ -9951,12 +10111,82 @@ window.setLaw=(k,v)=>{if(!G||!G.nations)return;
   me.pp-=25;me.law[k]=v;sfx("good");
   logMsg("National policy enacted.","good");renderPanel();refreshHUD();
 };
-window.trade=t=>{if(!G||!G.nations)return;
+/* The market. Buying is deliberately a bad deal and selling a worse one: it
+   is there so a shortage is survivable, not so it is irrelevant. Wartime
+   demand makes everything dearer. */
+function resPrice(){return Math.round(18*(1+G.tension/160));}
+window.trade=(t,r)=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
   if(t==="buy"&&me.pp>=15){me.pp-=15;me.oil+=10;sfx("coin");}
   if(t==="sell"&&me.oil>=10){me.oil-=10;me.pp+=8;sfx("coin");}
+  if(t==="rbuy"&&RESOURCES[r]){
+    const c=resPrice();
+    if(me.pp>=c){me.pp-=c;me.stock[r]=(me.stock[r]||0)+10;sfx("coin");}
+    else logMsg(`Ten ${RESOURCES[r].n.toLowerCase()} costs ${c} PP on the open market.`,"war");
+  }
+  if(t==="rsell"&&RESOURCES[r]&&(me.stock[r]||0)>=10){
+    me.stock[r]-=10;me.pp+=Math.round(resPrice()*0.5);sfx("coin");
+  }
   renderPanel();refreshHUD();
 };
+/* A trade agreement now moves actual goods: each partner ships whatever it has
+   most of to whoever has least, which is what a trade agreement is for and
+   what the old one -- a flag on a set with no effect on anything -- was not. */
+/* An army does not merely cost materiel once and then run on air. Divisions
+   wear out track and barrels, fleets eat plate, air wings eat aluminium. This
+   is what turns a stockpile from a purchase price into an economy: a force
+   bigger than your industry can feed will run its own reserves down, and then
+   it will start to feel it. Without upkeep the stockpiles simply climbed for
+   forty years and constrained nothing at all -- measured, a median of eleven
+   hundred steel by 1979, which is a hundred divisions' worth sitting idle. */
+const UPKEEP={unit:{steel:0.020},fleet:{steel:0.050},wing:{alu:0.040,rubber:0.010}};
+function resUpkeepTick(){
+  const bill={};
+  const add=(nat,tab,mul)=>{
+    const b=bill[nat]||(bill[nat]={});
+    for(const r in tab)b[r]=(b[r]||0)+tab[r]*mul;
+  };
+  for(const u of G.units)add(u.nat,UPKEEP.unit,1);
+  for(const f of G.fleets)add(f.nat,UPKEEP.fleet,1);
+  for(const w of G.wings)add(w.nat,UPKEEP.wing,1);
+  for(const k in G.nations){
+    const n=G.nations[k];if(!n||!n.alive)continue;
+    const b=bill[k];
+    const sh=n.shortage||(n.shortage={});
+    for(const r of RESKEYS){
+      const owe=(b&&b[r])||0;
+      if(!owe){sh[r]=false;continue;}
+      const have=n.stock[r]||0;
+      if(have>=owe){n.stock[r]=have-owe;sh[r]=false;}
+      else{
+        /* Take what there is and go short. Going short is not fatal; it is
+           felt, in exactly the arm that needed the thing. */
+        n.stock[r]=0;
+        if(!sh[r]&&k===G.player)
+          logMsg(`\u26A0 ${RESOURCES[r].n.toUpperCase()} SHORTAGE \u2014 there is not enough to keep the forces you have supplied.`,"war");
+        sh[r]=true;
+      }
+    }
+  }
+}
+const shortOn=(k,r)=>{const n=G.nations[k];return !!(n&&n.shortage&&n.shortage[r]);};
+function resTradeTick(){
+  if(G.day%3!==0)return;
+  for(const k in G.nations){
+    const a=G.nations[k];
+    if(!a||!a.alive||!a.trade)continue;
+    for(const o of a.trade){
+      const bN=G.nations[o];
+      if(!bN||!bN.alive||atWar(k,o))continue;
+      for(const r of RESKEYS){
+        const mine=a.stock[r]||0,theirs=bN.stock[r]||0;
+        if(mine-theirs<20)continue;
+        const move=Math.min(3,(mine-theirs)*0.05);
+        a.stock[r]-=move;bN.stock[r]=theirs+move;
+      }
+    }
+  }
+}
 window.spyOp=(op,target)=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
   if((me.spyCd||0)>G.day){logMsg("Your agents need time to regroup.","war");return;}
@@ -10087,6 +10317,13 @@ const MANUAL=[
   "Assign divisions to one of four ARMY GROUPS from the ARMY panel (select a province and put everything there into a group), then give the group a stance. \u2694 ADVANCE takes ground. \u{1F6E1} HOLD defends what you already have and moves only to threatened ground. \u25CB RESERVE stands fast and repairs.",
   "A group can also be pointed at one particular enemy, so Army Group 1 can fight Russia while Army Group 2 holds the Atlantic wall and Army Group 3 sits in reserve.",
   "Anything not in a group still answers to AUTO CAPTURE exactly as before."]],
+ ["\u26D3 STRATEGIC RESOURCES",[
+  "Four things everything is made of, and they are in the ground where they really are. \u26D3 STEEL for hulls, guns and armour \u2014 the Ruhr, Lorraine, Swedish ore, the Urals, the Donbas. \u25CD RUBBER for tracks, tyres and seals \u2014 Malaya, Indochina, the Congo, the Amazon, and almost nowhere else. \u25A4 ALUMINIUM for airframes \u2014 West African and Hungarian bauxite. \u25C6 TUNGSTEN for tools and armour-piercing shot \u2014 China, Iberia, Burma, the Andes.",
+  "NO COUNTRY HAS ALL FOUR. Germany holds the Ruhr and has neither rubber nor bauxite in the ground; Malaya has the rubber and no steel worth the name. That is the point \u2014 it forces trade, it makes particular provinces worth invading for what is UNDER them, and it gives a blockade something real to strangle.",
+  "Nothing is built without them, and the recruit panel says which one is missing. An army also EATS them: divisions wear out barrels and track, fleets eat plate, air wings eat aluminium. A force larger than your industry can feed will run its own reserves down.",
+  "Run out and you feel it in that arm: no steel and the whole army fights at 82%, no aluminium and air support is halved, no rubber and everything moves 20% slower.",
+  "What you cannot dig up you must buy on the market (dearer as world tension rises), trade for \u2014 a trade agreement now moves actual goods to whichever partner has less \u2014 or take. INDUSTRY research also gives you a trickle of synthetics, which is what stops an unlucky map from ever being hopeless.",
+  "Press M to the RESOURCES overlay to see what is under the whole world at a glance."]],
  ["\u{1F3ED} RUNNING A COUNTRY",[
   "PP (production) pays for divisions, forts and factories. It comes from the provinces you hold \u2014 occupied land pays only 60%, and a blockaded port pays half.",
   "\u{1F6E2} Oil runs tanks, ships and aircraft. Without it your air wings and fleets simply stop. It comes from oil provinces, or off the market under GOVERNMENT.",
@@ -10118,7 +10355,15 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v21.0 \u2014 THE HOME FRONT AND THE HIGH COMMAND (current)",[
+ ["v22.0 \u2014 WHAT ARMIES ARE MADE OF (current)",[
+  "\u26D3 THE ECONOMY WAS ONE ABSTRACT NUMBER AND A BARREL OF OIL. Everything from an infantry rifle to a fleet carrier came out of the same pot of \u201Cproduction\u201D, so no province was worth taking for any reason except its size, a blockade only ever cost you money, and trade was a button that turned money into oil. There are now four strategic resources, placed where they actually are in the ground: \u26D3 STEEL in the Ruhr, Lorraine, Sweden, the Urals and the Donbas; \u25CD RUBBER in Malaya, Indochina, the Congo and the Amazon; \u25A4 ALUMINIUM in West African and Hungarian bauxite; \u25C6 TUNGSTEN in China, Iberia, Burma and the Andes.",
+  "\u{1F30D} AND NO COUNTRY HAS ALL FOUR. Germany holds the Ruhr and has neither rubber nor bauxite anywhere in its ground \u2014 exactly the problem the real one had. Malaya has the rubber and no steel worth the name. Every unit type has a bill of materials, the recruit panel greys out and tells you which one you are missing, and suddenly there are provinces worth invading for what is under them rather than what is on them.",
+  "\u{1F3ED} AN ARMY EATS THEM, TOO. Divisions wear out barrels and track, fleets eat plate, air wings eat aluminium. A force bigger than your industry can feed runs its own reserves down \u2014 and then feels it in exactly the arm that needed the thing: no steel and the whole army fights at 82%, no aluminium and air support is halved, no rubber and everything moves a fifth slower. Without upkeep the stockpiles just climbed for forty years and constrained nothing; measured, a median of eleven hundred steel by 1979, which is a hundred divisions\u2019 worth sitting idle.",
+  "\u{1F6A2} WHICH FINALLY GIVES A BLOCKADE SOMETHING TO STRANGLE. Resources ride on the same multiplier a province\u2019s production does, so occupation, strategic bombing and commerce raiding choke the ore and the rubber exactly as they choke the money. Cutting a country off from its aluminium now grounds its air force.",
+  "\u{1F91D} A TRADE AGREEMENT MOVES ACTUAL GOODS. It used to be a flag on a set that had no effect on anything at all; partners now ship whatever they have most of to whoever has least. There is a commodity market as well, dearer as world tension rises, and INDUSTRY research gives a trickle of synthetics \u2014 Germany really did run its war on synthetic rubber \u2014 so an unlucky map is never hopeless. The computer buys what it is shortest of rather than quietly losing the ability to build tanks and never working out why.",
+  "\u{1F5FA} A FIFTH MAP OVERLAY, RESOURCES, showing what is under the whole world at a glance, and a resources section in POLICY with stock, income and the market. Three new achievements: Quartermaster, Autarky and Strangler.",
+  "\u26A1 And the biggest single cost in the game is gone. The economy asked which warships were in reach of each coastal province, for every coastal province of every living nation, by scanning all two hundred-odd fleets each time \u2014 fifty thousand checks a day, three quarters of the entire tick. Worked out once a day instead: 9.6ms to 5.2ms, and a forty-year run holds 4.1\u20134.9ms even carrying the whole new economy."]],
+ ["v21.0 \u2014 THE HOME FRONT AND THE HIGH COMMAND",[
   "\u{1F465} A WAR NOW COSTS MEN. A division used to cost production and nothing else, so a war had no human cost at all \u2014 you could lose four hundred divisions and raise four hundred more, and the only thing that ever ran out was money. Every country has a MANPOWER pool drawn from the people it actually governs, and every man in every division comes out of it. A division is twenty thousand of them, armour twenty-six, artillery sixteen, and a ship or a wing is its crew.",
   "\u{1F480} And they do not come back. Casualties are permanent, which is what finally gives the last two updates their teeth: an encirclement costs the enemy the pocket AND the men in it, attrition in the mountains costs real people, and a division starved in a supply pocket is twenty thousand men you will never conscript again.",
   "\u{1F4DC} CONSCRIPTION IS A DECISION, not a number on a screen. Five laws from Volunteers Only to All Adults Serve, each roughly doubling the recruits and costing production and stability for as long as it is in force \u2014 the last levy fills the ranks at a quarter of your industry. The computer runs the same home front: it digs deeper when the pool dries up and it can still stand the politics, and it demobilises when it cannot. Across a forty-year run nations now sit spread across all five laws instead of all on one.",
@@ -11257,7 +11502,8 @@ function mpSerialize(){
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",
       /* politics (v4.1+) */ n.ideo||"aut",Math.round(n.warSup??50),Object.keys(n.cab||{}).join(","),n.doctrine||"",
       n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,Math.round(n.grudge||0),[...(n.trade||[])].join(","),
-      JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(","),Math.round(n.mp||0)];}
+      JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(","),Math.round(n.mp||0),
+      RESKEYS.map(r=>Math.round(n.stock&&n.stock[r]||0)).join(",")];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0]),
@@ -11318,6 +11564,8 @@ function mpApplyState(S){
       n.pacts={};if(a[32]){try{n.pacts=JSON.parse(a[32])||{};}catch(e){}}
       n.lend={};if(a[33])for(const o of String(a[33]).split(","))if(o)n.lend[o]=1;
       if(a[34]!==undefined)n.mp=+a[34]||0;
+      n.stock=n.stock||{};n.income=n.income||{};
+      if(a[35]){const v=String(a[35]).split(",");RESKEYS.forEach((r,i)=>{n.stock[r]=+v[i]||0;});}
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army"}));
