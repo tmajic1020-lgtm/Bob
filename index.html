@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">18.7.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">19.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">18.7.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">19.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -166,6 +166,7 @@ body.light #speedbox{background:#ece7d6d0}
     <button class="tbtn" id="bTheme0">☀ LIGHT MODE</button>
   <button class="tbtn" id="bSettings0">⚙ SETTINGS</button>
     <button class="tbtn" onclick="mpMenu()">🌐 MULTIPLAYER</button>
+    <button class="tbtn" onclick="showManual()">📖 FIELD MANUAL</button>
     <button class="tbtn" onclick="showChangelog()">📜 UPDATE LOG</button>
   </div>
   <div id="years" style="display:flex;gap:6px;margin:-8px 0 12px;flex-wrap:wrap;justify-content:center"></div>
@@ -184,6 +185,8 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🗺 <b id="hProv">0</b> prov</span>
   <span>⚔ <b id="hDiv">0</b> div</span>
   <span>📅 <b id="hDate"></b></span>
+  <span id="hWx" title="The season, and the weather over your capital">☀ <b id="hWxT"></b></span>
+  <button class="tbtn" id="bMap" title="Cycle the map overlay: terrain, supply, weather (M)">🗺 MAP</button>
   <button class="tbtn" id="bBattles" style="display:none" title="Jump to the next front where your divisions are fighting (B)">⚔ 0 BATTLES</button>
   <button class="tbtn" id="bHome" title="Recentre on your capital (H)">🎯 HOME</button>
   <button class="tbtn" id="bAuto">AUTO CAPTURE: OFF</button>
@@ -279,7 +282,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="18.7.0";
+const BUILD="19.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1138,6 +1141,222 @@ function powerOf(k,yi){
   const t=POWER[ERA]&&POWER[ERA][k];return t?t[Math.min(yi,t.length-1)]:2;
 }
 const NAT_BASE=JSON.parse(JSON.stringify(NATIONS));
+/* ================= TERRAIN, WEATHER AND SUPPLY =================
+   Three systems that only mean anything together. Terrain decides what a piece
+   of ground costs to cross, to hold and to feed. Weather decides what the same
+   ground costs THIS month. Supply decides whether the army standing on it can
+   fight at all.
+
+   Before this the map was a flat graph of interchangeable dots: a division in
+   the Sahara in August was exactly as effective as one in the Loire in May, an
+   attack into the Alps cost what an attack across Poland cost, and a division
+   three hundred miles behind enemy lines with no route home fought at full
+   strength for ever. Encirclement did not exist as an idea, because there was
+   nothing to encircle anyone FROM.                                          */
+const TERRAIN={
+ plain: {n:"Plains",    i:"\u25AC", def:1.00, move:1.00, sup:1.00, wear:0.000, c:"#8fa05a"},
+ steppe:{n:"Steppe",    i:"\u2261", def:0.92, move:1.12, sup:0.85, wear:0.004, c:"#c8b56a"},
+ forest:{n:"Forest",    i:"\u2663", def:1.22, move:0.78, sup:0.88, wear:0.002, c:"#2f6b3a"},
+ hills: {n:"Hills",     i:"\u25B3", def:1.30, move:0.74, sup:0.82, wear:0.003, c:"#9c7a4a"},
+ mtn:   {n:"Mountains", i:"\u25B2", def:1.65, move:0.48, sup:0.60, wear:0.010, c:"#8f909c"},
+ desert:{n:"Desert",    i:"\u2591", def:1.02, move:0.86, sup:0.52, wear:0.014, c:"#e0c070"},
+ jungle:{n:"Jungle",    i:"\u2618", def:1.38, move:0.52, sup:0.58, wear:0.016, c:"#1f7a4a"},
+ marsh: {n:"Marshland", i:"\u2248", def:1.26, move:0.52, sup:0.70, wear:0.010, c:"#5a7a6a"},
+ tundra:{n:"Tundra",    i:"\u2744", def:1.14, move:0.58, sup:0.50, wear:0.014, c:"#bcd2dd"},
+ urban: {n:"Urban",     i:"\u25A6", def:1.55, move:0.66, sup:1.15, wear:0.000, c:"#b0625f"}
+};
+/* Assigned from real geography, not generated: the Alps, the Caucasus, the
+   Urals, the Andes and the Atlas are mountains; the Pripet and the Flanders
+   mud are marsh; the Sahara, the Arabian and the Karakum are desert; the
+   Congo and the Amazon are jungle; the taiga is forest and the far north is
+   tundra. Everything else is open country. */
+const PTERRAIN={};
+(function(){const _t=(t,...ids)=>{for(const id of ids)PTERRAIN[id]=t;};
+ _t("plain","ada","ade","ale","alg","bag","beir","bel","bir","blo","bor","bri","bsb","buc","bud","cas",
+   "cgy","cor","cta","dak","dal","deb","dsm","dub","for","gda","ham","har","kie","kish","la",
+   "lah","lua","lus","mad2","man2","mba","mel","mil","mpt","msp","okc","plv","poa","poz","rec",
+   "reg","sev","slk","stl","syd","sze","tun","val","var","ver","war","win","wuh",);
+ _t("steppe","alm","ank","cui","kano","kny","ode","pat","ros","sta","uln",);
+ _t("forest","bos","got","hal","hel","irk","kha","kon","len","lub","mtl","nov","oms","ott","rig","sap",
+   "sea","sto","tal","tku","tor","vil","vla",);
+ _t("hills","ath","atl","bari","bcn","bfs","can","car","dur","flo","fra","fuk","gdl","har2","hir","hue",
+   "hyd","ist","izm","jhb","kmp","kra","lbs","lis","lwo","lyo","mad","mar","mdl","mun","nag",
+   "nai","nan","nap","ncl","opo","osl","pal","pez","pra","ptr","pus","pyo","rhi","rio","rom",
+   "sao","sco","sen","seo","sfo","sof","trn","vie","xan","zag",);
+ _t("mtn","add","asm","bak","bil","bog","bra","brg","brn","chq","clj","cmi","cpt","cre","cst","den",
+   "dus","erz","fru","kun","lim","mrk","nar","sarj","scl","slc","tbi","teh","tir","trd","ura",
+   "van","xin","yer",);
+ _t("desert","ash","asw","ben","cai","chih","isf","jed","khartoum","mog","mtr","mty","obd","ora","per",
+   "phx","psud","ria","sue","tas","tij","tob","trp","wind","zar",);
+ _t("jungle","abi","acc","bgi","dar","hmb","kin","kis","kul","lag","man","mbm","rgn","yuc",);
+ _t("marsh","bas","bkk","cal","dac","han","lil","mia","min","pnh","sgn","ven",);
+ _t("tundra","anc","arc","nuk","rey","sco2","thu","yak","yel",);
+ _t("urban","bei","ber","bom","bue","chi","cph","del","lon","mex","mos","nyc","osa","par","sha","sin",
+   "tok","wash",);
+})();
+function terOf(p){return TERRAIN[p&&p.ter]||TERRAIN.plain;}
+
+const WEATHER={
+ clear:   {n:"Clear",     i:"\u2600",     move:1.00, atk:1.00, air:1.00, wear:0.000, c:"#9fb0c0"},
+ rain:    {n:"Rain",      i:"\u{1F327}",  move:0.86, atk:0.94, air:0.68, wear:0.001, c:"#5a86a8"},
+ mud:     {n:"Mud",       i:"\u{1F7EB}",  move:0.52, atk:0.80, air:0.60, wear:0.006, c:"#8a6a3a"},
+ snow:    {n:"Snow",      i:"\u{1F328}",  move:0.64, atk:0.86, air:0.52, wear:0.012, c:"#cfe0ea"},
+ blizzard:{n:"Blizzard",  i:"\u2744",     move:0.32, atk:0.62, air:0.10, wear:0.038, c:"#ffffff"},
+ sand:    {n:"Sandstorm", i:"\u{1F32A}",  move:0.44, atk:0.68, air:0.15, wear:0.030, c:"#d8a850"},
+ monsoon: {n:"Monsoon",   i:"\u26C8",     move:0.42, atk:0.74, air:0.25, wear:0.024, c:"#3f7f6a"},
+ heat:    {n:"Heat",      i:"\u{1F525}",  move:0.86, atk:0.90, air:1.00, wear:0.020, c:"#e06a3a"}
+};
+const SEASON_N=["Winter","Spring","Summer","Autumn"];
+/* The southern hemisphere is not an afterthought: January in Cape Town is high
+   summer, and an offensive in the Australian winter is an offensive in July. */
+function seasonOf(lat){
+  const m=G.date.getMonth();
+  const s=(m<=1||m===11)?0:m<=4?1:m<=7?2:3;
+  return (lat<0)?(s+2)%4:s;
+}
+/* A spell of weather has to cover a whole region and last about ten days. Roll
+   it fresh per province per tick and it averages out to no weather at all, and
+   the map flickers. This is a hash, not a random number: the same province in
+   the same spell always gives the same answer, on every frame and every
+   machine, so the picture is stable and a save reloads into the same storm. */
+function _wHash(p,spell){
+  let x=((Math.round(p.x*7)|0)^((Math.round(p.y*13)|0)<<9)^Math.imul(spell,2654435761))>>>0;
+  x^=x<<13;x>>>=0;x^=x>>>17;x^=x<<5;x>>>=0;
+  return x/4294967296;
+}
+let _wCache=null,_wKey="";
+function weatherAt(p){
+  if(!p||!G)return WEATHER.clear;
+  const spell=Math.floor(G.day/10),key=spell+":"+G.date.getMonth();
+  if(_wKey!==key){_wCache={};_wKey=key;}
+  const hit=_wCache[p.id];if(hit)return hit;
+  return (_wCache[p.id]=_weatherCalc(p,spell));
+}
+function _weatherCalc(p,spell){
+  const lat=p.lat||0,al=Math.abs(lat),s=seasonOf(lat),t=p.ter,r=_wHash(p,spell);
+  if(t==="desert")
+    return s===2?(r<0.30?WEATHER.sand:r<0.75?WEATHER.heat:WEATHER.clear)
+                :(r<0.12?WEATHER.sand:WEATHER.clear);
+  if(t==="mtn"&&al>25){
+    if(s===0)return r<0.45?WEATHER.blizzard:WEATHER.snow;
+    if(s!==2)return r<0.30?WEATHER.snow:r<0.60?WEATHER.rain:WEATHER.clear;
+  }
+  if(t==="jungle"||(al<16&&(t==="marsh"||t==="plain")))
+    return (s===1||s===2)?(r<0.45?WEATHER.monsoon:r<0.80?WEATHER.rain:WEATHER.clear)
+                         :(r<0.20?WEATHER.rain:WEATHER.clear);
+  if(al>=60||t==="tundra"){
+    if(s===0)return r<0.50?WEATHER.blizzard:WEATHER.snow;
+    if(s===2)return r<0.30?WEATHER.rain:WEATHER.clear;
+    return r<0.35?WEATHER.snow:r<0.70?WEATHER.mud:WEATHER.clear;
+  }
+  if(al>=45){                     /* the ground that ate two invasions of Russia */
+    if(s===0)return r<0.30?WEATHER.blizzard:WEATHER.snow;
+    if(s===1)return r<0.50?WEATHER.mud:r<0.80?WEATHER.rain:WEATHER.clear;
+    if(s===3)return r<0.42?WEATHER.mud:r<0.75?WEATHER.rain:WEATHER.clear;
+    return r<0.22?WEATHER.rain:WEATHER.clear;
+  }
+  if(al>=30){
+    if(s===0)return r<0.35?WEATHER.rain:r<0.50?WEATHER.snow:WEATHER.clear;
+    if(s===2)return r<0.18?WEATHER.heat:WEATHER.clear;
+    return r<0.30?WEATHER.rain:WEATHER.clear;
+  }
+  return s===2?(r<0.22?WEATHER.heat:r<0.40?WEATHER.rain:WEATHER.clear)
+              :(r<0.25?WEATHER.rain:WEATHER.clear);
+}
+
+/* ---- Supply ---------------------------------------------------------------
+   Every division traces a line back to a depot: the capital, a port with a
+   fleet standing off it, or -- if the capital has fallen -- the largest city
+   the government still holds. Terrain and weather decide how far that line
+   reaches, so a line across Poland runs much further than the same line into
+   the Caucasus in February. Step off the end of it and the men start going
+   hungry, fight at little better than half strength, and eventually surrender
+   where they stand. That is what makes cutting a line worth more than winning
+   a battle on it. */
+function supplyRange(n){return 11+((n.res&&n.res.ind)||0)*1.6+(n.doctrine==="ma"?2:0);}
+function supplyCost(p){
+  const w=weatherAt(p);
+  return (1/Math.max(0.3,terOf(p).sup))*(w.wear>=0.02?1.5:w.move<0.7?1.2:1);
+}
+function computeSupply(){
+  const sup={};
+  for(const k in G.nations){
+    const n=G.nations[k];if(!n.alive){sup[k]={};continue;}
+    const mine=natProvs(k);
+    if(!mine.length){sup[k]={};continue;}
+    /* Depots: the capital, every real city the nation still holds, and any
+       port with a fleet standing off it. A country does not feed its armies
+       from one building in the capital. */
+    const src=[],cap=G.prov[capOf(k)];
+    if(cap&&cap.owner===k)src.push(cap.id);
+    for(const q of mine){
+      if(q.val>=3)src.push(q.id);
+      else if(q.coastal&&G.fleets.some(f=>f.nat===k&&!f.to&&(f.at===q.id||q.seaAdj.indexOf(f.at)>=0)))src.push(q.id);
+    }
+    /* The capital has fallen and nothing else qualifies: the government keeps
+       going from the largest city left, rather than the whole army starving
+       the day the enemy enters the capital. */
+    if(!src.length){let best=mine[0];for(const q of mine)if(q.val>best.val)best=q;src.push(best.id);}
+    const hasNavy=G.fleets.some(f=>f.nat===k);
+    const dist={},q2=[];
+    for(const id of src)if(dist[id]===undefined){dist[id]=0;q2.push(id);}
+    let guard=0;
+    while(q2.length&&guard++<6000){
+      const id=q2.shift(),d=dist[id],pr=G.prov[id];
+      if(!pr)continue;
+      for(let pass=0;pass<2;pass++){
+        if(pass&&!hasNavy)break;
+        for(const j of (pass?pr.seaAdj:pr.adj)){
+          const t=G.prov[j];
+          if(!t||(t.owner!==k&&!allied(k,t.owner)))continue;
+          const nd=d+(pass?3:supplyCost(t));
+          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;q2.push(j);}
+        }
+      }
+    }
+    /* Supply projects a short way past the border. Without this every attack
+       starves the moment it crosses the frontier -- the attacker is standing on
+       ground he does not own yet, which is the definition of attacking. Two
+       provinces deep at a steep cost: enough to fight a battle over the border
+       and exploit a breakthrough, not enough to drive a spearhead across a
+       continent and stay fed. */
+    let front=Object.keys(dist);
+    for(let hop=0;hop<2&&front.length;hop++){
+      const next=[];
+      for(const id of front){
+        const pr=G.prov[id],d=dist[id];if(!pr)continue;
+        for(const j of pr.adj){
+          const t=G.prov[j];
+          if(!t||t.owner===k||allied(k,t.owner))continue;
+          const nd=d+4;
+          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;next.push(j);}
+        }
+      }
+      front=next;
+    }
+    sup[k]=dist;
+  }
+  G.supply=sup;
+}
+/* Two different questions, deliberately kept apart. CONNECTED is binary: is
+   there any route at all back to a depot through ground we hold? Lose that and
+   the men starve, which is what an encirclement actually is. DISTANCE is a
+   soft penalty on top: an army at the end of a very long line fights worse,
+   but it does not starve just for being far from home -- otherwise Siberia
+   would be a permanent famine and the mechanic would punish having a big
+   country rather than punishing being cut off. */
+function supplied(nat,pid){
+  const s=G.supply&&G.supply[nat];
+  return s?s[pid]!==undefined:true;
+}
+function supplyPct(nat,pid){
+  const s=G.supply&&G.supply[nat];if(!s)return 1;
+  const d=s[pid];if(d===undefined)return 0;
+  const R=supplyRange(G.nations[nat]||{});
+  return d<=R?1:Math.max(0.45,1-(d-R)*0.03);
+}
+function supMul(u){const q=supplyPct(u.nat,u.at);return q<=0?0.55:0.55+0.45*q;}
+
 /* ============================== POLITICS ============================== */
 window.__ifBoot("politics");
 const IDEO_FX={
@@ -1374,7 +1593,8 @@ function newGame(playerNation){
   const prov={};
   for(const[id,name,lon,lat,nat,coastal,val]of P){
     const[x,y]=PX(lon,lat);
-    prov[id]={id,name,x,y,owner:nat,home:nat,coastal,val,adj:[],seaAdj:[],garrison:0,oil:OILP.has(id)?1:0,nuked:0};
+    prov[id]={id,name,x,y,lat,owner:nat,home:nat,coastal,val,adj:[],seaAdj:[],garrison:0,
+               ter:PTERRAIN[id]||"plain",oil:OILP.has(id)?1:0,nuked:0};
   }
   for(const L of LINKS){
     const[a,b,s]=L; const sea=L.length>2?L[2]:0;
@@ -1422,6 +1642,7 @@ function newGame(playerNation){
      day:0,date:new Date(sd[0],sd[1],sd[2]),speed:2,paused:false,uid:0,
      tension:ERA==="modern"?35:10,collapsed:{},
      sel:null,selUnit:null,auto:false,airMode:"manual",airTarget:null,
+     stats:{lost:0,killed:0,taken:0,lostProv:0,starved:0,peakProv:0,peakDiv:0,warDays:0,battles:0},
      cam:{x:0,y:0,z:1},log:[]};
   // starting forces scaled to historical strength
   for(const k in nations){
@@ -1939,7 +2160,7 @@ function tick(){
   }
   // idle units recover in friendly territory
   for(const u of G.units){
-    if(!u.to&&provOf(u.at).owner===u.nat&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
+    if(!u.to&&provOf(u.at).owner===u.nat&&supplied(u.nat,u.at)&&u.hp<u.str*10)u.hp=Math.min(u.str*10,u.hp+0.15);
   }
   G.tension=Math.max(0,G.tension-0.04);
   // national focus progress
@@ -1981,6 +2202,13 @@ function tick(){
     const shaky=(occ.stab<55?1.8:1)*(occ.atWar.size?1.6:1)*(1+G.tension/160);
     if(Math.random()<0.0009*shaky){riseNewNation(p.id);break;}   // at most one a day
   }
+  if(G.stats){
+    const st=G.stats,me0=G.nations[G.player];
+    st.peakProv=Math.max(st.peakProv,natProvs(G.player).length);
+    st.peakDiv=Math.max(st.peakDiv,G.units.filter(u=>u.nat===G.player).length);
+    if(me0&&me0.atWar.size)st.warDays++;
+  }
+  supplyTick();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
   airOps();
@@ -2078,7 +2306,7 @@ function tick(){
       if(k===G.player||lordKey===G.player)sfx("war");
     }
   }
-  if(G.day%60===0&&MP.role!=="guest")saveGame(true);
+  if(G.day%60===0&&MP.role!=="guest")saveGame("auto",true);
   refreshHUD();
 }
 /* Every tie a nation has, cut in both directions. Annexation used to clear
@@ -2210,10 +2438,61 @@ function toMainMenu(){
   try{ renderStart(); }catch(e){}
 }
 window.toMainMenu=toMainMenu;
+/* Recomputed every third day rather than every day: it is a graph search over
+   251 provinces for every living nation, and nothing about a supply line
+   changes fast enough for a two-day lag to be visible. It is also recomputed
+   the instant a province changes hands, because that is exactly when a line
+   gets cut and the whole point is that you feel it immediately. */
+function supplyTick(){
+  if(!G.supply||G.day%3===0)computeSupply();
+  const lost={},starving={};
+  for(const u of [...G.units]){
+    const p=G.prov[u.at];if(!p)continue;
+    const w=weatherAt(p),t=terOf(p);
+    /* Men in their own supplied country are in billets, not in the field, so
+       the same blizzard costs them a fraction of what it costs an army sitting
+       in the open on the far side of a border. Without this every army in the
+       world quietly melts each winter, at home and at peace. */
+    const shelter=(p.owner===u.nat&&supplied(u.nat,u.at))?0.4:1;
+    const wear=(w.wear+t.wear)*shelter*(1-Math.min(0.45,((G.nations[u.nat].res&&G.nations[u.nat].res.land)||0)*0.05));
+    if(wear>0)u.hp-=u.str*wear*3;
+    if(supplied(u.nat,u.at)){ if(u.osup)u.osup=Math.max(0,u.osup-2); }
+    else{
+      u.osup=(u.osup||0)+1;
+      u.hp-=u.str*(0.08+Math.min(0.22,u.osup*0.003));
+      if(u.osup>=70){
+        if(u.nat===G.player){lost[p.name]=(lost[p.name]||0)+1;if(G.stats)G.stats.starved++;}
+        killUnit(u);continue;
+      }
+      if(u.nat===G.player&&u.osup===12)starving[p.name]=(starving[p.name]||0)+1;
+    }
+    if(u.hp<=0)killUnit(u);
+  }
+  for(const where in starving)
+    logMsg(`\u26A0 ${starving[where]>1?starving[where]+" divisions are":"A division is"} CUT OFF at ${where} \u2014 no supply is reaching them.`,"war");
+  for(const where in lost)
+    logMsg(`\u{1F3F3} ${lost[where]>1?lost[where]+" starved divisions have":"A starved division has"} surrendered at ${where}.`,"war");
+  /* Encirclement, counted from the enemy's point of view: not "did I win a
+     battle" but "how many of theirs can no longer be fed". */
+  if(G.day%9===0&&G.player){
+    let pocket=0;
+    for(const u of G.units)if(atWar(u.nat,G.player)&&!supplied(u.nat,u.at))pocket++;
+    G.bigPocket=Math.max(G.bigPocket||0,pocket);
+    if(pocket>=8)unlockAch("kesselschlacht");
+  }
+}
 function moveUnits(arr,kind){
   for(const u of arr){
     if(!u.to)continue;
-    const spd=kind==="fleet"?0.10*techMul(u.nat,"nav"):0.07*techMul(u.nat,"land");
+    let spd=kind==="fleet"?0.10*techMul(u.nat,"nav"):0.07*techMul(u.nat,"land");
+    /* An advance is paid for in the ground it crosses and the month it crosses
+       it in. Ships feel a storm too, but they do not bog down in it. */
+    const dest=G.prov[u.to];
+    if(dest){
+      const w=weatherAt(dest);
+      spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move;
+    }
+    if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
     u.prog+=spd*(MODS.blitz?1.6:1)*(MODS.trench?0.75:1);
     if(u.prog>=1){
       u.prog=0;u.at=u.to;
@@ -2238,11 +2517,18 @@ function tryCapture(u){
           if(u.nat===G.player)logMsg(`\u{1F6A9} Occupying ${p.name} \u2014 hold it ${occNeed(p)} days to annex it.`);}
         return;
       }
-      const old=p.owner;p.owner=u.nat;p.garrison=0;terDirty=true;
+      const old=p.owner;p.owner=u.nat;p.garrison=0;terDirty=true;G.supply=null;
+      if(G.stats){if(u.nat===G.player)G.stats.taken++;else if(old===G.player)G.stats.lostProv++;}
       if(MODS.scorched)p.val=Math.max(1,Math.round(p.val*0.4));
       G.tension=Math.min(100,G.tension+0.4);
       G.nations[old].stab-=p.id===capOf(old)?8:1.5;
       if(u.nat===G.player||old===G.player){logMsg(`${NATIONS[u.nat].f} captured ${p.name}`,u.nat===G.player?"good":"war");sfx(u.nat===G.player?"good":"war");}
+      if(u.nat===G.player){
+        const wq=weatherAt(p);
+        if(wq===WEATHER.blizzard)unlockAch("general_winter");
+        if(wq===WEATHER.sand&&p.ter==="desert")unlockAch("desert_fox");
+        if(p.ter==="mtn")unlockAch("alpinist");
+      }
       if(!natProvs(old).length)die(old);
     }
   }
@@ -2268,13 +2554,18 @@ function battles(){
       const A=sidesPresent[i],B=sidesPresent[j];
       if(!atWar(A,B))continue;
       G.battleSites.add(pid);
+      if(G.stats&&(A===G.player||B===G.player))G.stats.battles++;
       const fa=here.filter(u=>u.nat===A),fb=here.filter(u=>u.nat===B);
-      let pa=fa.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u),0)*techMul(A,"land")*natAtkMul(A);
-      let pb=fb.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u),0)*techMul(B,"land")*natAtkMul(B);
+      let pa=fa.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*supMul(u),0)*techMul(A,"land")*natAtkMul(A);
+      let pb=fb.reduce((s,u)=>s+u.str*genMul(u)*vetMul(u)*supMul(u),0)*techMul(B,"land")*natAtkMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
-      const fortB=1+(p.fort||0)*0.12;
-      if(p.owner===B)pb*=1.25*fortB*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*natDefMul(A);
+      /* Weather blunts both sides' offence; the ground itself only helps the
+         side that already holds it, which is what makes mountains and cities
+         worth defending and worth going around. */
+      const wx=weatherAt(p);pa*=wx.atk;pb*=wx.atk;
+      const fortB=1+(p.fort||0)*0.12,terD=terOf(p).def;
+      if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
         if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
@@ -2307,6 +2598,10 @@ function dmg(arr,amt){
   for(const u of arr){u.hp-=per;}
 }
 function killUnit(u){
+  if(G.stats){
+    if(u.nat===G.player)G.stats.lost++;
+    else if(atWar(u.nat,G.player))G.stats.killed++;
+  }
   {const kn=G.nations[u.nat];if(kn)kn.warSup=Math.max(0,(kn.warSup??50)-0.6);}
   G.units=G.units.filter(x=>x!==u);
   if(u===G.selUnit)G.selUnit=null;
@@ -2315,7 +2610,7 @@ function killUnit(u){
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
   let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str;
-  return Math.min(s,4);
+  return Math.min(s,4)*weatherAt(G.prov[pid]).air;   // and grounded by the weather over the target
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
@@ -2383,7 +2678,14 @@ function targetScore(p,from,nat){
   const dist=Math.sqrt((p.x-from.x)**2+(p.y-from.y)**2);
   const def=p.garrison+G.units.filter(u=>u.at===p.id&&u.nat===p.owner).reduce((s,u)=>s+u.str,0)*3;
   const capBonus=capOf(p.owner)===p.id?6:0;
-  return p.val*3+capBonus - def*1.4 - dist*0.04;
+  /* The computer has to read the same map the player does, or terrain and
+     weather become a tax the human alone pays. It discounts ground that
+     defends itself, discounts an advance into a blizzard, and goes hard after
+     provinces whose garrison has been cut off from its own supply -- which is
+     what makes an encirclement worth making rather than just worth seeing. */
+  const t=terOf(p),w=weatherAt(p);
+  const starving=(G.supply&&!supplied(p.owner,p.id))?7:0;
+  return p.val*3+capBonus+starving - def*1.4*t.def - dist*0.04 - (1-w.move)*5 - (t.def-1)*4;
 }
 function autoCapture(nat){
   const enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
@@ -2833,6 +3135,30 @@ addEventListener("resize",resize);resize();
 /* Fitting the whole world also has to CENTRE it. Setting the zoom alone left
    the camera wherever it happened to be, so the globe sat against one corner
    with a wedge of empty ocean beside it. */
+const MAPOVERS=["none","terrain","supply","weather"];
+const MAPOVER_N={none:"OFF",terrain:"TERRAIN",supply:"SUPPLY",weather:"WEATHER"};
+let MAPOVER="none";
+function overlayColor(p){
+  if(MAPOVER==="terrain")return terOf(p).c;
+  if(MAPOVER==="weather"){const w=weatherAt(p);return w===WEATHER.clear?null:w.c;}
+  if(MAPOVER==="supply"){
+    /* Shown from the point of view of whoever holds the province, so an enemy
+       pocket lights up red on their own ground -- which is the whole reason to
+       look at this map. */
+    if(!G.supply||!G.nations[p.owner]||!G.nations[p.owner].alive)return null;
+    const q=supplyPct(p.owner,p.id);
+    return q<=0?"#c4452f":q<0.7?"#e8a33d":q<1?"#c9c05a":"#5d9a4e";
+  }
+  return null;
+}
+function cycleOverlay(d){
+  MAPOVER=MAPOVERS[(MAPOVERS.indexOf(MAPOVER)+(d||1)+MAPOVERS.length)%MAPOVERS.length];
+  const b=$("#bMap");if(b){b.textContent="\u{1F5FA} "+MAPOVER_N[MAPOVER];b.classList.toggle("on",MAPOVER!=="none");}
+  try{localStorage.setItem("if_mapover",MAPOVER);}catch(e){}
+  if(curPanel)renderPanel();
+}
+window.cycleOverlay=cycleOverlay;
+try{const _mo=localStorage.getItem("if_mapover");if(MAPOVERS.indexOf(_mo)>0)MAPOVER=_mo;}catch(e){}
 function fitCam(){const z=Math.min(W/MW,H/MH);G.cam.z=z;G.cam.x=(MW-W/z)/2;G.cam.y=(MH-H/z)/2;clampCam();}
 /* Put a world point in the middle of the screen. Pass a span to zoom so a box
    that big fits comfortably; omit it to keep the current zoom. */
@@ -2999,6 +3325,10 @@ function epochIdx(id){const i=EPOCHS.findIndex(e=>e.id===id);return i<0?EPOCHS.l
    each tick from state that already exists \u2014 no new simulation cost. */
 const ACH=[
  {id:"first_blood",n:"First Blood",i:"\u2694",d:"Capture your first enemy province."},
+ {id:"kesselschlacht",n:"Kesselschlacht",i:"\u26D3",d:"Have 8 enemy divisions cut off from supply at once."},
+ {id:"general_winter",n:"General Winter",i:"\u2744",d:"Capture a province during a blizzard."},
+ {id:"desert_fox",n:"Desert Fox",i:"\u{1F42A}",d:"Capture a desert province during a sandstorm."},
+ {id:"alpinist",n:"Alpinist",i:"\u26F0",d:"Take a mountain province by assault."},
  {id:"conqueror",n:"Conqueror",i:"\u{1F451}",d:"Hold 20 provinces at once."},
  {id:"world_ledger_top",n:"Top of the Ledger",i:"\u{1F3C6}",d:"Be ranked #1 in the World Ledger."},
  {id:"diplomat",n:"Statesman",i:"\u{1F4DC}",d:"Successfully negotiate a peace conference."},
@@ -5068,7 +5398,10 @@ function _drawFrame(){
      would drop stripes and stars outright) and left hard-edged when it is being
      blown up, where filtering is exactly what looks blurry. */
   ctx.imageSmoothingEnabled=(z*DPR)<1;
-  ctx.globalAlpha=terr?0.78:0.82;
+  /* An overlay is a different question about the same map, so the flags step
+     back while one is up. Left at full strength the terrain and supply
+     colours simply disappear under the national colours they sit on. */
+  ctx.globalAlpha=(terr?0.78:0.82)*(MAPOVER!=="none"?0.34:1);
   ctx.drawImage(terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
   ctx.restore();
@@ -5096,6 +5429,22 @@ function _drawFrame(){
       ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
     }
     ctx.setLineDash([]);
+  }
+  /* Overlays are drawn UNDER the province markers as a soft disc, so the map
+     still reads as a map: you can see which country holds a place and what the
+     ground there is at the same time, instead of one replacing the other. */
+  if(MAPOVER!=="none"){
+    for(const p of Object.values(G.prov)){
+      const col=overlayColor(p);
+      if(!col)continue;
+      const rr=(3+p.val)/Math.sqrt(z)*1.1*2.9;
+      /* A soft disc rather than a hard dot: at world zoom neighbouring
+         provinces bleed into one another and the picture reads as regions --
+         a desert belt, a mountain chain, a pocket -- instead of confetti. */
+      const g2=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
+      g2.addColorStop(0,col+"cc");g2.addColorStop(0.55,col+"7a");g2.addColorStop(1,col+"00");
+      ctx.beginPath();ctx.arc(p.x,p.y,rr,0,7);ctx.fillStyle=g2;ctx.fill();
+    }
   }
   // provinces
   for(const p of Object.values(G.prov)){
@@ -8138,6 +8487,7 @@ let curPanel=null;
 document.querySelectorAll("#sidebtns .tbtn").forEach(b=>b.onclick=()=>openPanel(b.dataset.p));
 $("#bBattles").onclick=nextBattle;
 $("#bHome").onclick=goHome;
+$("#bMap").onclick=()=>cycleOverlay(1);
 /* Two map shortcuts. Deliberately narrow: first person already owns WASD and
    shift, typing must not trigger them, and a modal waiting on a choice should
    keep the keyboard to itself. */
@@ -8148,6 +8498,7 @@ addEventListener("keydown",e=>{
   if($("#eventBox")&&getComputedStyle($("#eventBox")).display!=="none")return;
   if(e.key==="h"||e.key==="H"){e.preventDefault();goHome();}
   else if(e.key==="b"||e.key==="B"){e.preventDefault();nextBattle();}
+  else if(e.key==="m"||e.key==="M"){e.preventDefault();cycleOverlay(1);}
 });
 $("#bAuto").onclick=()=>{
   const me=G.nations[G.player];me.autoCap=!me.autoCap;
@@ -8177,6 +8528,11 @@ function renderPanel(){
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
+    ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
+      const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
+      return `<div class="row"><span>Ground</span><span>${t.i} ${t.n} · def ×${t.def.toFixed(2)} · move ×${t.move.toFixed(2)}</span></div>
+      <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
+      <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]} — for ${NATIONS[p.owner].n}</span></div>`;})()}
     ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
       h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
@@ -8232,6 +8588,10 @@ function renderPanel(){
     const myWings=G.wings.filter(w=>w.nat===G.player);
     const inBattle=u=>G.battleSites&&G.battleSites.has(u.at)&&!u.to;
     const state=u=>{
+      /* A cut-off division outranks everything else in the list. It is the one
+         state the player can still do something about and the one that ends
+         with the division gone if they do not. */
+      if(!supplied(u.nat,u.at))return {k:-1,e:"\u26A0",t:"CUT OFF",c:"#c4452f"};
       if(inBattle(u))return {k:0,e:"\u2694",t:"IN BATTLE",c:"#ffb877"};
       if(u.hp<u.str*10*0.5)return {k:1,e:"\u{1FA79}",t:"MAULED",c:"#ff8d7a"};
       if(u.hp<u.str*10*0.8)return {k:2,e:"\u25CB",t:"WORN",c:"#c9a06a"};
@@ -8240,8 +8600,10 @@ function renderPanel(){
     };
     const rows=mine.map(u=>({u,s:state(u)})).sort((a,b)=>a.s.k-b.s.k||a.u.hp-b.u.hp);
     const fighting=rows.filter(r=>r.s.k===0).length, mauled=rows.filter(r=>r.s.k===1).length;
+    const cut=rows.filter(r=>r.s.k===-1).length;
     let h=`<h2>ORDER OF BATTLE</h2>
     <div class="row"><span>Forces</span><span>\u{1FA96} ${mine.length} \u00b7 \u2693 ${myFleets.length} \u00b7 \u2708 ${myWings.length}</span></div>`;
+    if(cut)h+=`<div class="row"><span style="color:#c4452f">\u26A0 Cut off</span><span style="color:#c4452f">${cut} division${cut>1?"s":""} starving</span></div>`;
     if(fighting)h+=`<div class="row"><span style="color:#ffb877">\u2694 Engaged</span><span style="color:#ffb877">${fighting} division${fighting>1?"s":""}</span></div>`;
     if(mauled)h+=`<div class="row"><span style="color:#ff8d7a">\u{1FA79} Mauled</span><span style="color:#ff8d7a">${mauled} under half strength</span></div>`;
     if(!mine.length)h+=`<div style="color:var(--dim)">No divisions in the field. Raise them from RECRUIT.</div>`;
@@ -8251,7 +8613,7 @@ function renderPanel(){
       const pct=Math.max(0,Math.round(u.hp/(u.str*10)*100));
       h+=`<button class="bbtn" onclick="jumpTo(${u.id})" style="${s.k<=1?"border-color:"+s.c:""}">
         <span style="color:${s.c}">${s.e} ${s.t}</span> \u2014 ${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)}${u.gen?" \u2605"+u.gen.lvl:""}
-        <small>${p.name}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
+        <small>${p.name} ${terOf(p).i}${weatherAt(p)===WEATHER.clear?"":" "+weatherAt(p).i}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
     }
     if(myFleets.length){
       h+=`<h3>FLEETS</h3>`;
@@ -8571,11 +8933,19 @@ function renderPanel(){
     <h3>CAMPAIGN</h3>
     <div class="row"><span>Current scenario</span><span>${ERAS[ERA].label} · ${YEAR}</span></div>
     <div style="color:var(--dim);font-size:11px">Switching era starts a new campaign.</div>
+    <button class="bbtn" style="border-color:var(--amber);color:var(--amber)" onclick="showManual()">📖 Field manual <small>How the map, supply, terrain and weather actually work.</small></button>
     <button class="bbtn" onclick="showChangelog()">📜 View update log</button>
     <button class="bbtn" onclick="showAchievements()">🏅 Achievements <small>${achCount()}/${ACH.length} unlocked</small></button>
     <h3>SAVE</h3>
-    ${G?`<button class="bbtn" onclick="saveGame()">💾 Save campaign<small>Also auto-saves every 60 days.</small></button>
-    <button class="bbtn" onclick="location.reload()">↺ New campaign (back to nation select)</button>`
+    ${G?SAVE_SLOTS.map(sl=>{const m=saveMeta(sl);
+      return `<div class="row" style="align-items:center;gap:4px">
+        <span style="flex:1;min-width:0"><b>${SLOT_N(sl)}</b><br><small style="color:var(--dim)">${slotLine(m)}</small></span>
+        ${sl==="auto"?"":`<button class="tbtn" onclick="saveGame('${sl}')" title="Save here">\u{1F4BE}</button>`}
+        <button class="tbtn" ${m?"":"disabled"} onclick="loadGame('${sl}')" title="Load this save">\u21BA</button>
+        <button class="tbtn" ${m?"":"disabled"} onclick="deleteSave('${sl}')" title="Delete this save">\u2715</button>
+      </div>`;}).join("")+
+    `<div style="color:var(--dim);font-size:11px">The autosave is written every 60 days and cannot be saved to by hand \u2014 that is the point of the other three.</div>
+    <button class="bbtn" onclick="toMainMenu()">\u{1F3E0} Main menu (keeps your saves)</button>`
     :`<button class="bbtn" style="border-color:var(--amber);color:var(--amber)" onclick="closeSettings()">✔ DONE — back to nation select</button>`}`;
   }
   if(curPanel==="diplo"){
@@ -8639,6 +9009,18 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Win by holding half the world (you + puppets), or by destroying, puppeting, or allying every rival great power. Lose your capital for 150 days and you lose.</div>`;
     h+=`<h3>EMPIRE SCORE: ${score}</h3>
     <div style="color:var(--dim);font-size:11px">10/province · 15/puppet · 5/ally · 8/warhead</div>
+    ${(()=>{const st=G.stats;if(!st)return "";
+      const yrs=(G.day/365).toFixed(1);
+      const row=(a,b,c)=>`<div class="row"><span>${a}</span><span${c?` style="color:${c}"`:""}>${b}</span></div>`;
+      return `<h3>\u{1F4D3} CAMPAIGN RECORD</h3>`+
+      row("Time in the field",yrs+" years \u00b7 "+Math.round(st.warDays/Math.max(1,G.day)*100)+"% of it at war")+
+      row("Provinces taken",st.taken,"#5d9a4e")+
+      row("Provinces lost",st.lostProv,st.lostProv?"#ff8d7a":"")+
+      row("Divisions lost",st.lost,st.lost?"#ff8d7a":"")+
+      row("Enemy divisions destroyed",st.killed,"#5d9a4e")+
+      (st.starved?row("\u2014 of yours, starved in pockets",st.starved,"#c4452f"):"")+
+      row("Battles fought",st.battles)+
+      row("High-water mark",st.peakProv+" provinces \u00b7 "+st.peakDiv+" divisions");})()}
     <h3>YOUR EMPIRE OVER TIME</h3>
     <canvas id="histCv" width="270" height="70" style="width:100%;background:#0a0e0a;border:1px solid var(--line)"></canvas>
     <div style="color:var(--dim);font-size:10px"><span style="color:#e8a33d">—</span> provinces &nbsp; <span style="color:#ff8d7a">—</span> world tension</div>`;
@@ -8787,6 +9169,12 @@ function refreshHUD(){
   $("#hRP").textContent=me.rp.toFixed(1);
   $("#hOil").textContent=Math.floor(me.oil);
   $("#hNuke").textContent=me.nukes;
+  {const cp=G.prov[capOf(G.player)],el2=$("#hWxT");
+   if(el2&&cp){const w=weatherAt(cp);
+     el2.textContent=SEASON_N[seasonOf(cp.lat)]+" \u00b7 "+w.n;
+     $("#hWx").firstChild.textContent=w.i+" ";
+     el2.style.color=w===WEATHER.clear?"":"var(--amber)";}}
+  {const b=$("#bMap");if(b){b.textContent="\u{1F5FA} "+MAPOVER_N[MAPOVER];b.classList.toggle("on",MAPOVER!=="none");}}
   const t=$("#hTen");t.textContent=Math.round(G.tension);
   t.style.color=G.tension>70?"#ff8d7a":G.tension>40?"#e8a33d":"";
   $("#hProv").textContent=natProvs(G.player).length;
@@ -8799,9 +9187,72 @@ function refreshHUD(){
 }
 
 window.__ifBoot("updatelog");
+/* ============================== FIELD MANUAL ============================== */
+/* Written because the game now has terrain, weather and supply on top of
+   everything it already had, and none of that is discoverable by clicking. */
+const MANUAL=[
+ ["\u{1F5FA} THE MAP",[
+  "Every circle is a province. Its size is its value in production; its colour is whoever holds it. A white ring marks a national capital.",
+  "Drag to pan, pinch or the +/\u2212 buttons to zoom. \u{1F3AF} HOME (or H) recentres on your capital, \u2694 BATTLES (or B) walks you through every front you are fighting on.",
+  "\u{1F5FA} MAP (or M) cycles three overlays: TERRAIN colours the ground, SUPPLY shows whose lines are holding and whose have been cut, WEATHER shows what the sky is doing. The flags fade while an overlay is up so you can actually read it."]],
+ ["\u2694 GIVING ORDERS",[
+  "Click a province to select it, click one of your divisions in the panel to take command, then click any province to march there. Routes follow land links; sea crossings need a fleet in service.",
+  "\u26D1 Command ALL divisions here sends the whole stack at once.",
+  "AUTO CAPTURE hands your army to the staff: it picks its own targets, holds a third of its strength back to defend, and keeps going while you do something else.",
+  "ARMY (the order of battle) lists every division you own, worst trouble first \u2014 cut off, then in battle, then mauled. Tap any line to fly to it and take command."]],
+ ["\u26F0 GROUND",[
+  "Ten kinds of terrain, assigned from real geography. It changes three things: how fast you cross it, how hard it is to take from whoever holds it, and how far supply reaches through it.",
+  "Mountains defend at \u00d71.65 and halve your speed. Cities defend at \u00d71.55. Jungle, marsh and mountains all strangle supply; plains and cities carry it easily.",
+  "Desert, jungle, tundra and mountains also grind divisions down just by being stood in \u2014 slowly, but for as long as you stay.",
+  "The defence bonus belongs to whoever ALREADY holds the ground. That is what makes going around a mountain range cheaper than going through it."]],
+ ["\u2744 WEATHER AND SEASONS",[
+  "The calendar is real, and so are the seasons \u2014 January is deep winter in Berlin and high summer in Sydney.",
+  "Blizzards cut movement to a third, attacks to under two thirds, and put almost every aircraft on the ground. Mud does nearly as much damage to a timetable. Sandstorms do it to the desert war, monsoon to the jungle.",
+  "Weather is regional and lasts about ten days, so a spell is something to wait out or to attack into deliberately \u2014 not noise.",
+  "The top bar always shows the season and the weather over your capital. The province panel shows it for any province you click."]],
+ ["\u{1F69B} SUPPLY \u2014 AND WHY IT DECIDES WARS",[
+  "Every division traces a line back to a depot: your capital, any city you hold, or a port with one of your fleets standing off it.",
+  "A line that runs a long way, or through mountains and bad weather, is a STRETCHED line \u2014 the men at the end of it fight worse.",
+  "A division with NO route home at all is CUT OFF. It fights at little better than half strength, loses men every day, and after about ten weeks it surrenders where it stands.",
+  "Supply pushes two provinces past your border, so an attack does not starve the moment it crosses the frontier \u2014 but a spearhead driven deep with no ground held behind it will.",
+  "This is what makes encirclement worth doing. Cutting the road behind an army beats beating it in a battle, and it costs less."]],
+ ["\u{1F3ED} RUNNING A COUNTRY",[
+  "PP (production) pays for divisions, forts and factories. It comes from the provinces you hold \u2014 occupied land pays only 60%, and a blockaded port pays half.",
+  "\u{1F6E2} Oil runs tanks, ships and aircraft. Without it your air wings and fleets simply stop. It comes from oil provinces, or off the market under GOVERNMENT.",
+  "\u{1F52C} RP buys the four research lines. Industry raises everything you produce AND how far supply reaches; Land, Naval and Air raise their arm of the service.",
+  "Stability falls in long wars and when provinces fall. At zero the government COLLAPSES and something else takes its place."]],
+ ["\u{1F3C1} WINNING",[
+  "DOMINATION \u2014 hold half the provinces on Earth, your puppets counting toward it.",
+  "HEGEMONY \u2014 destroy, puppet or ally every rival great power.",
+  "You lose if your last province falls, or if your capital spends 150 days under enemy occupation.",
+  "Winning does not end the campaign: the victory screen offers KEEP PLAYING, and the war simply goes on with the map you won."]],
+ ["\u{1F4BE} SAVES",[
+  "Four slots: an autosave the game writes every 60 days, and three you control from SETTINGS.",
+  "CONTINUE on the title screen resumes whichever was written most recently, and says which one it is.",
+  "The whole campaign runs with no connection at all. An account is only needed for multiplayer."]]
+];
+function showManual(){
+  $("#evTitle").textContent="\u{1F4D6} FIELD MANUAL";
+  $("#evDesc").innerHTML="<div style='max-height:55vh;overflow-y:auto'>"+MANUAL.map(([h,items])=>
+    `<div style="color:var(--amber);margin:12px 0 4px;font-weight:bold">${h}</div>`+
+    items.map(i=>`<div style="margin:0 0 5px 6px;line-height:1.5">\u00b7 ${i}</div>`).join("")).join("")+"</div>";
+  _openBox();
+}
+window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v18.7 \u2014 A HUNDRED AND FORTY-FOUR COUNTRIES, AND A BLUE SEA (current)",[
+ ["v19.0 \u2014 GROUND, WEATHER AND SUPPLY (current)",[
+  "\u26F0 THE GROUND IS REAL NOW. Every one of the 251 provinces has a terrain \u2014 ten kinds, assigned from actual geography rather than generated: the Alps, the Caucasus, the Urals, the Andes and the Atlas are mountains; the Pripet and the Flanders mud are marsh; the Sahara, the Arabian and the Karakum are desert; the Congo and the Amazon are jungle; the taiga is forest and the far north is tundra. It decides how fast you cross a place, how hard it is to take from whoever holds it, and how far supply reaches through it. Mountains defend at \u00d71.65 and halve your speed; a city defends at \u00d71.55. Before this, an attack into the Alps cost exactly what an attack across Poland cost.",
+  "\u2744 AND THE WEATHER, ON A REAL CALENDAR. Eight kinds of weather over eight regional climates, and the seasons are hemisphere-correct \u2014 January is deep winter in Berlin and high summer in Sydney. A blizzard cuts movement to a third, attacks to under two thirds, and puts almost every aircraft on the ground; mud does nearly as much to a timetable, sandstorms do it to the desert war and the monsoon to the jungle. Weather is regional and a spell lasts about ten days, so it is something to wait out or to attack into on purpose, not noise \u2014 and it is a hash, not a dice roll, so the same storm is there when you reload.",
+  "\u{1F69B} SUPPLY LINES, WHICH IS THE BIG ONE. Every division traces a line back to a depot: the capital, any city you hold, or a port with one of your fleets standing off it. Terrain and weather decide how far that line reaches, so a line across Poland runs much further than the same line into the Caucasus in February. A stretched line means the men at the end fight worse. NO line at all means CUT OFF: barely half strength, losing men every day, and surrendering where they stand after about ten weeks. Supply pushes two provinces past your own border so that attacking is possible, and no further, so that a spearhead driven deep with nothing held behind it dies.",
+  "\u26D3 WHICH MAKES ENCIRCLEMENT AN IDEA THE GAME HAS. Cutting the road behind an army is now worth more than beating it in a battle, and costs less. There is an achievement for having eight enemy divisions in the bag at once, and three more for taking a province in a blizzard, taking a desert in a sandstorm, and storming a mountain.",
+  "\u{1F5FA} THREE MAP OVERLAYS \u2014 press M or the MAP button to cycle TERRAIN, SUPPLY and WEATHER. The national flags fade to a third while one is up, because at full strength the overlay colours simply vanish underneath them. The supply map is drawn from each province owner\u2019s point of view, so an enemy pocket lights up red on their own ground, which is the entire reason to look at it.",
+  "\u{1F4CB} AND THE PANELS SAY WHY. The province panel gives you the ground, the weather, the season and whether supply is reaching that province. The order of battle now ranks CUT OFF above everything else \u2014 it is the one kind of trouble that ends with the division gone if you ignore it \u2014 and every line shows the terrain and weather the division is standing in. The top bar carries the season and the sky over your capital.",
+  "\u{1F916} THE COMPUTER READS THE SAME MAP. It discounts ground that defends itself, discounts an advance into a blizzard, and goes hard after garrisons that have been cut off from their own supply. Otherwise terrain and weather would have been a tax only the human pays.",
+  "\u{1F4BE} FOUR SAVE SLOTS instead of one. There was a single save shared between the autosave and every save you made by hand, so the autosave sixty days later quietly ate the save you made on purpose before trying something reckless \u2014 which is the one moment anybody saves. Now: one autosave the game keeps, three you control from SETTINGS, each showing the country, the date, and what it held. CONTINUE resumes the most recent and says which one it is.",
+  "\u{1F4D3} A CAMPAIGN RECORD in the WARS panel: years in the field and what share of them was spent at war, provinces taken and lost, divisions lost and destroyed, how many of yours starved in pockets, battles fought, and your high-water mark. It is saved with the campaign.",
+  "\u{1F4D6} AND A FIELD MANUAL, on the title screen and in SETTINGS. The game has terrain, weather, supply, encirclement, four research lines, ideologies, focuses, puppets and peace conferences, and none of that is discoverable by clicking. Eight sections, written as instructions rather than as a feature list."]],
+ ["v18.7 \u2014 A HUNDRED AND FORTY-FOUR COUNTRIES, AND A BLUE SEA",[
   "\u{1F30A} THE SEA IS BLUE. It had been \u0023\u0030\u0063\u0031\u0035\u0031\u0063 \u2014 a blue-black so dark it read as empty space rather than water, which is why the world looked like coloured shapes floating in a void instead of a map. Ocean, grid and sea lanes are all properly blue now, in both the dark and light themes, and the dashed shipping routes are light enough to actually see against it.",
   "\u{1F5FA} SEVENTY-TWO MORE COUNTRIES TO PLAY \u2014 the roster goes from 72 to 144, which is every nation on the map except the Horde. They were all there already, holding real territory and fighting real wars; they simply could not be picked. The Ottoman Empire held thirty-six provinces across three continents in the Napoleonic era and was not on the list. Neither were Canada, Mexico, Scandinavia, Persia, Siam, South Africa, Qing China, Tokugawa Japan, medieval England, the Iberian kingdoms, Kamakura Japan, or the peoples of the Americas and Australia before contact. Every one of them now has a card, a description and a start.",
   "\u2626 AND BYZANTIUM STARTS WHERE IT ACTUALLY WAS. Its capital was set to Constantinople, which the Latin Empire holds for the whole Mongol era \u2014 the Fourth Crusade had taken it in 1204 \u2014 so it would have begun every campaign without its own capital. In this era it is governed from Nicaea, in Anatolia, exactly as the empire in exile was.",
@@ -9985,24 +10436,68 @@ function mpApplyOrder(o){
   if(o.type==="break")breakAllianceFor(nat,o.target);
   if(o.type==="betray")betrayAllyFor(nat,o.target);
 }
-function saveGame(auto){if(!G||!G.nations)return;
+/* Four save slots: one the game keeps for you and three you control. There
+   used to be exactly one, shared between the autosave and every manual save,
+   so the autosave 60 days later quietly ate the save you made on purpose
+   before trying something reckless -- which is the one moment anybody saves.
+   Slot "auto" keeps the old key so campaigns saved by earlier builds still
+   load. */
+const SAVE_SLOTS=["auto","1","2","3"];
+const SLOT_KEY=sl=>sl==="auto"?"if_save":"if_save_"+sl;
+const SLOT_N=sl=>sl==="auto"?"Autosave":"Slot "+sl;
+function saveMeta(sl){
   try{
-    localStorage.setItem("if_save",JSON.stringify({era:ERA,year:YEAR,player:G.player,state:mpSerialize()}));
-    if(!auto)logMsg("Game saved.","good");
-  }catch(e){if(!auto)logMsg("Save failed (storage full?).","war");}
+    const raw=localStorage.getItem(SLOT_KEY(sl));if(!raw)return null;
+    const sv=JSON.parse(raw);if(!sv)return null;
+    return {era:sv.era,year:sv.year,player:sv.player,day:sv.day||0,
+            date:sv.dateStr||"",prov:sv.prov||0,div:sv.div||0,t:sv.t||0,slot:sl};
+  }catch(e){return null;}
 }
-function loadGame(){
+function saveGame(sl,auto){
+  if(!G||!G.nations)return false;
+  if(sl===true){auto=true;sl="auto";}          // old call shape: saveGame(true)
+  sl=SAVE_SLOTS.indexOf(sl)>=0?sl:"1";
   try{
-    const sv=JSON.parse(localStorage.getItem("if_save")||"null");
+    localStorage.setItem(SLOT_KEY(sl),JSON.stringify({
+      era:ERA,year:YEAR,player:G.player,state:mpSerialize(),
+      day:G.day,dateStr:G.date.toDateString(),
+      prov:natProvs(G.player).length,div:G.units.filter(u=>u.nat===G.player).length,
+      stats:G.stats,t:Date.now(),build:typeof BUILD!=="undefined"?BUILD:""}));
+    if(!auto)logMsg("Campaign saved to "+SLOT_N(sl)+".","good");
+    if(curPanel==="settings")renderPanel();
+    return true;
+  }catch(e){if(!auto)logMsg("Save failed \u2014 device storage is full.","war");return false;}
+}
+function loadGame(sl){
+  try{
+    sl=SAVE_SLOTS.indexOf(sl)>=0?sl:latestSlot();
+    if(!sl)return false;
+    const sv=JSON.parse(localStorage.getItem(SLOT_KEY(sl))||"null");
     if(!sv)return false;
     ERA=sv.era;YEAR=sv.year;applyEra(ERA);
     startGame(sv.player);
     mpApplyState(sv.state);
-    logMsg("Campaign restored from save.","good");
+    if(sv.stats)G.stats=Object.assign(G.stats||{},sv.stats);   // the record is part of the campaign
+    logMsg("Campaign restored from "+SLOT_N(sl)+".","good");
     return true;
   }catch(e){return false;}
 }
-window.saveGame=saveGame;window.loadGame=loadGame;
+function latestSlot(){
+  let best=null;
+  for(const sl of SAVE_SLOTS){const m=saveMeta(sl);if(m&&(!best||m.t>best.t))best=m;}
+  return best?best.slot:null;
+}
+function deleteSave(sl){
+  try{localStorage.removeItem(SLOT_KEY(sl));}catch(e){}
+  if(curPanel==="settings")renderPanel();
+  if(typeof renderStart==="function"&&!G)renderStart();
+}
+function slotLine(m){
+  if(!m)return "empty";
+  const N=NATIONS[m.player];
+  return `${N?N.f+" "+N.n:m.player} \u00b7 ${m.date||m.year} \u00b7 ${m.prov} prov \u00b7 ${m.div} div`;
+}
+window.saveGame=saveGame;window.loadGame=loadGame;window.deleteSave=deleteSave;
 let HOSTPUSH=null;       // the single host state-push interval
 function mpHostStart(){
   MP.role="host";MP.code=(""+(1000+Math.floor(Math.random()*9000)));
@@ -10422,10 +10917,13 @@ function renderStart(){
      button only ever appeared once the player clicked a year — a fresh page
      load offered no way back into a save at all. */
   try{
-    const cont=$("#bContinue");
-    if(localStorage.getItem("if_save")){
+    const cont=$("#bContinue"),sl=latestSlot(),m=sl&&saveMeta(sl);
+    if(m){
       cont.style.display="block";
-      cont.onclick=()=>{if(!loadGame())alert("Save could not be loaded.");};
+      /* Say WHICH campaign it is going to resume. One unlabelled button over
+         four slots is a coin toss the player has no way to call. */
+      cont.innerHTML=`\u25B6 CONTINUE \u2014 ${SLOT_N(sl).toUpperCase()}<small style="display:block;font-weight:normal;opacity:.8">${slotLine(m)}</small>`;
+      cont.onclick=()=>{if(!loadGame(sl))alert("That save could not be loaded.");};
     }else cont.style.display="none";
   }catch(e){}
   natEl.innerHTML="";
