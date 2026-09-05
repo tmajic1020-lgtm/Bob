@@ -131,7 +131,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 18.6.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">18.6.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -150,7 +150,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 18.6.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">18.6.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -273,6 +273,12 @@ body.light #speedbox{background:#ece7d6d0}
 
 <script>
 "use strict";
+/* The one place the build number lives. Every visible copy is stamped from it,
+   so a bumped build can never disagree with the number a crash report shows. */
+const BUILD="18.6.0";
+addEventListener("DOMContentLoaded",()=>{
+  for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
+});
 /* ============================== ERROR REPORTER ============================== */
 (function(){
   let box=null,n=0;
@@ -285,7 +291,7 @@ body.light #speedbox{background:#ece7d6d0}
         /* The build number goes in the box. A report of a crash is only useful
            if it says which file it came from, and a browser holding an old copy
            in its cache looks exactly like a bug that was never fixed. */
-        x.textContent="✕ tap to dismiss · build 18.5.0";x.style.cssText="color:#e8a33d;margin-bottom:4px";
+        x.textContent="✕ tap to dismiss · build "+BUILD;x.style.cssText="color:#e8a33d;margin-bottom:4px";
         box.onclick=()=>{box.remove();box=null;n=0;};
         box.appendChild(x);
         document.body?document.body.appendChild(box):addEventListener("DOMContentLoaded",()=>document.body.appendChild(box));
@@ -2095,7 +2101,9 @@ function die(k){
   if(k===G.player){G.over=true;endScreen(false,"Your last province has fallen — the nation is annexed.");G.paused=true;}
   else if(G&&G.player&&G.nations[G.player]&&G.nations[G.player].alive)unlockAch("annihilator");
   const foes=Object.keys(G.nations).filter(x=>G.nations[x].alive&&!G.nations[x].puppet);
-  if(foes.length===1&&foes[0]===G.player){endScreen(true);G.paused=true;}
+  /* Guarded by G.over so a player who chose KEEP PLAYING is not shown the
+     victory screen again every time another country falls. */
+  if(!G.over&&foes.length===1&&foes[0]===G.player){G.over=true;endScreen(true);}
 }
 function greatPowers(){
   const yi=Math.max(0,ERAS[ERA].years.indexOf(YEAR));
@@ -2153,12 +2161,51 @@ function endScreen(win,reason){
   }
   h+=`<div style="margin-top:8px;color:var(--dim);font-size:11px">${achCount()}/${ACH.length} achievements unlocked, all-time.</div>`;
   $("#evDesc").innerHTML=h;
+  /* A campaign does not have to stop because it has been won. Conquering the
+     world used to leave exactly one button — reload the page — which threw the
+     world away and made you sit through start-up again. You now choose: carry
+     on in the same world, come back to the menu, or run the scenario again. */
   const ch=$("#evChoices");ch.innerHTML="";
-  const b=document.createElement("button");b.className="bbtn";b.textContent="↺ New campaign";
-  b.onclick=()=>location.reload();ch.appendChild(b);
+  const mk=(label,fn)=>{const b=document.createElement("button");b.className="bbtn";b.textContent=label;b.onclick=fn;ch.appendChild(b);};
+  if(win&&me&&me.alive){
+    mk("▶ KEEP PLAYING — the campaign has no end",()=>{
+      $("#eventBox").style.display="none";
+      /* G.over stays true on purpose: it is what stops checkVictory raising
+         this popup again every five days for the rest of the game. */
+      G.over=true;G._evOpen=false;G.paused=false;
+      logMsg("🌍 The war goes on — there is always more map.","good");
+      refreshHUD();
+    });
+  }
+  mk("🏠 MAIN MENU",()=>toMainMenu());
+  mk("↺ RESTART — "+ERAS[ERA].label+" · "+YEAR,()=>{
+    $("#eventBox").style.display="none";
+    const again=(G&&G.player)||PICK;
+    try{ startGame(again); }catch(e){ location.reload(); }
+  });
+  G.paused=true;                       // the dialog waits for a real choice
   $("#eventBox").style.display="block";
   sfx(win?"good":"war");
 }
+/* Back to the title screen without reloading, so choosing a new nation is
+   immediate rather than a full restart of the app. Everything belonging to the
+   finished campaign is let go here — the clock above all, which would
+   otherwise keep ticking a world nobody is looking at. */
+function toMainMenu(){
+  $("#eventBox").style.display="none";
+  if(GAMECLOCK){clearInterval(GAMECLOCK);GAMECLOCK=null;}
+  try{ if(typeof setFPV==="function")setFPV(false); }catch(e){}
+  try{ if(typeof _fpReset==="function")_fpReset(); }catch(e){}
+  G=null;window.G=null;
+  curPanel=null;
+  for(const id of ["panel","topbar","sidebtns","speedbox","chatbox"]){
+    const el=$("#"+id); if(el)el.style.display="none";
+  }
+  const lg=$("#log"); if(lg)lg.innerHTML="";
+  $("#start").style.display="flex";
+  try{ renderStart(); }catch(e){}
+}
+window.toMainMenu=toMainMenu;
 function moveUnits(arr,kind){
   for(const u of arr){
     if(!u.to)continue;
@@ -8747,7 +8794,9 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v18.6 \u2014 FINDING YOUR OWN ARMY (current)",[
+ ["v18.6 \u2014 THE CAMPAIGN WITH NO END (current)",[
+  "\u{1F30D} CONQUERING THE WORLD NO LONGER ENDS IT. Victory used to put up one button that threw the whole campaign away and reloaded the page \u2014 every division, every border you had spent hours drawing, gone before you had finished reading the score. The victory screen now asks: KEEP PLAYING and the war simply goes on, with the map you won and no further interruption; MAIN MENU to return to the title screen and pick a different country or era; or RESTART to fight the same year again. Defeat offers the last two.",
+  "\u{1F3E0} AND MAIN MENU ACTUALLY MEANS IT \u2014 it stops the game clock, drops out of first person, clears the campaign and rebuilds the title screen in place, rather than reloading. Starting a second campaign from it runs at exactly the same speed as the first: the old clock is shut down instead of being left running alongside the new one.",
   "\u{1F3AF} THE MAP OPENS ON YOUR COUNTRY. A campaign began fitted to the entire globe, so picking Germany meant spending the first minute hunting for it among a hundred and seventy-eight provinces. It now frames the ground you actually hold, and \u{1F3AF} HOME (or H) brings you back to your capital whenever you get lost.",
   "\u2694 A BATTLE COUNTER IN THE TOP BAR, and clicking it (or B) walks the camera through every front your divisions are fighting on, one press at a time. Wars were being decided off-screen: the log shows six lines and then the news of a collapsing front is gone for good.",
   "\u{1FA96} ORDER OF BATTLE \u2014 a new ARMY panel listing your whole force, sorted by what needs you most: in battle, mauled, worn, on the march, holding. Every line flies the camera to that division and takes command of it, so a unit under half strength on another continent is one tap away instead of invisible until it dies. Fleets and air wings are listed with it.",
@@ -8756,7 +8805,7 @@ const CHANGELOG=[
   "\u{1F9DF} AND A REAL BUG BEHIND THE HORDE: both paths that hand zombie-held ground back to its owner \u2014 the cure, and the world pushing the Horde back \u2014 returned provinces to countries that were already dead. Dying clears every war, so nobody could be at war with the owner, nobody could enter, and that ground was frozen out of the game permanently \u2014 five provinces at the cure, nine and climbing six hundred days later. Liberation now brings the country back with its land."]],
  ["v18.5 \u2014 A FROZEN PICTURE IS WORSE THAN THE ERROR",[
   "\u{1F5BC} THE FRAME LOOP NOW SURVIVES ANYTHING. The request for the next frame sat at the BOTTOM of the drawing function, so a throw anywhere above it killed the loop outright and the picture froze \u2014 which is a far worse failure than whatever caused it, and it is how one bad frame becomes a dead game. The next frame is now scheduled whatever happens, and the error is reported the first three times and then swallowed, because a broken frame repeats sixty times a second",
-  "\u{1F3F7} AND THE ERROR BOX CARRIES THE BUILD NUMBER. A crash report is only useful if it says which file it came from, and a browser holding an old copy in its cache looks exactly like a bug that was never fixed",
+  "\u{1F3F7} AND THE ERROR BOX CARRIES THE BUILD NUMBER \u2014 the real one. It was hand-typed in three places and two of them had already been bumped without it, so a crash report named a build that was not the one running. A crash report is only useful if it says which file it came from, and a browser holding an old copy in its cache looks exactly like a bug that was never fixed",
   "\u{1F50D} On the reported crash: the same line, in this build, is a closing brace. Every panel \u2014 settings and mods included, which are the two that render before a campaign exists \u2014 was called with no game running and none of them throws; so was the whole start screen with every view setting restored from a previous session, every era, every year, every mod, every preset and sixty frames of drawing"]],
  ["v18.4 \u2014 SIX PASSES, AND THE PATTERN NAMED",[
   "\u{1F9EC} \u201c__proto__\u201d WAS A COUNTRY. G.nations[\u201c__proto__\u201d] resolves to an object, because every object inherits one \u2014 so it sailed straight through every `if(!G.nations[k])return` guard in the file and then broke on the first real field it was asked for. Every check that means \u201cis this a nation\u201d now asks whether the table actually HAS that key, which is a different question and the right one",
