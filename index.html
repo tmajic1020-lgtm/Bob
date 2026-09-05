@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">20.0.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">20.1.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">20.0.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">20.1.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -282,7 +282,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="20.0.0";
+const BUILD="20.1.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1602,7 +1602,7 @@ function makeNation(k,s,ai){
     researching:null,resProg:0,
     ideo:(IDEO_DEF[ERA]&&IDEO_DEF[ERA][k])||IDEO_FALLBACK[ERA]||"aut",
     warSup:50,cab:{},doctrine:null,spyT:null,spyNet:0,sabotage:0,electT:1460,
-    puppet:null,grudge:0,
+    puppet:null,grudge:0,pacts:{},lend:{},
     atWar:new Set(),allies:new Set(),ai:!!ai,alive:true,aiTimer:60+Math.random()*120};
 }
 function newGame(playerNation){
@@ -1783,8 +1783,77 @@ function toast(msg){
   t.textContent=msg;t.style.display="block";
   clearTimeout(_toastT);_toastT=setTimeout(()=>t.style.display="none",4500);
 }
+/* A non-aggression pact is a promise with a price for breaking it, which is
+   the only kind worth having in this game. Everyone can see who signed what,
+   and tearing one up costs stability at home and is not forgotten abroad. */
+function pactWith(a,b){
+  const A=G.nations[a];
+  return !!(A&&A.pacts&&A.pacts[b]>0);
+}
+function signPact(a,b,days){
+  const A=G.nations[a],B=G.nations[b];
+  if(!A||!B||atWar(a,b))return false;
+  days=days||1460;
+  A.pacts=A.pacts||{};B.pacts=B.pacts||{};
+  A.pacts[b]=days;B.pacts[a]=days;
+  logMsg(`\u{1F4DC} ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} sign a non-aggression pact.`,"good");
+  return true;
+}
+function breakPact(a,b){
+  const A=G.nations[a],B=G.nations[b];
+  if(A&&A.pacts)delete A.pacts[b];
+  if(B&&B.pacts)delete B.pacts[a];
+  if(A){A.stab-=10;A.warSup=Math.max(0,(A.warSup??50)-8);}
+  if(B)B.grudge=(B.grudge||0)+22;
+  /* Everyone else takes note too: a country that tears up one treaty is
+     assumed to be capable of tearing up theirs. */
+  for(const k in G.nations){
+    const n=G.nations[k];
+    if(k===a||k===b||!n.alive)continue;
+    if(pactWith(k,a))n.grudge=(n.grudge||0)+4;
+  }
+}
+function pactTick(){
+  for(const k in G.nations){
+    const n=G.nations[k];if(!n||!n.pacts)continue;
+    for(const o in n.pacts){
+      if(--n.pacts[o]<=0){
+        delete n.pacts[o];
+        if(k===G.player&&NATIONS[o])logMsg(`\u{1F4DC} The pact with ${NATIONS[o].f} ${NATIONS[o].n} has lapsed.`,"war");
+      }
+    }
+  }
+}
+/* Lend-lease: keep somebody else's war going with your production. */
+function lendTick(){
+  for(const k in G.nations){
+    const n=G.nations[k];if(!n||!n.alive||!n.lend)continue;
+    for(const o in n.lend){
+      const t=G.nations[o];
+      if(!t||!t.alive||n.pp<8){delete n.lend[o];continue;}
+      const amt=Math.min(n.pp*0.02,3);
+      n.pp-=amt;t.pp+=amt*0.9;
+      if(n.oil>2){n.oil-=0.25;t.oil+=0.2;}
+      if(G.day%180===0&&t.grudge>0)t.grudge=Math.max(0,t.grudge-3);
+    }
+  }
+}
+window.signPactWith=o=>{
+  if(!G||!G.nations[o])return;
+  const me=G.nations[G.player];
+  if(me.pp<40){logMsg("A pact needs 40 PP of diplomatic groundwork.","war");return;}
+  me.pp-=40;signPact(G.player,o,1460);renderPanel();refreshHUD();
+};
+window.toggleLend=o=>{
+  if(!G||!G.nations[o])return;
+  const me=G.nations[G.player];me.lend=me.lend||{};
+  if(me.lend[o]){delete me.lend[o];logMsg(`Lend-lease to ${NATIONS[o].n} ends.`,"war");}
+  else{me.lend[o]=1;logMsg(`\u{1F4E6} Lend-lease to ${NATIONS[o].f} ${NATIONS[o].n} begins \u2014 2% of your production a day.`,"good");}
+  renderPanel();
+};
 function declareWar(a,b){if(!G||!G.nations)return;
   if(atWar(a,b)||allied(a,b))return;
+  if(pactWith(a,b))breakPact(a,b);      // you can still do it. It just costs.
   warPair(a,b);
   if(b===G.player){toast("⚔ "+NATIONS[a].n.toUpperCase()+" HAS DECLARED WAR ON YOU!");sfx("war");}
   G.tension=Math.min(100,G.tension+8);
@@ -2123,7 +2192,7 @@ function tick(){
     if(n.grudge>0){                       // a nation you betrayed nurses the insult
       n.grudge-=0.05;
       if(k!==G.player&&n.alive&&!n.puppet&&!n.atWar.has(G.player)&&!allied(k,G.player)
-         &&n.grudge>8&&Math.random()<0.0016*DIFF.aiAggro){
+         &&!pactWith(k,G.player)&&n.grudge>8&&Math.random()<0.0016*DIFF.aiAggro){
         n.grudge=0;declareWar(k,G.player);
         logMsg(`${NATIONS[k].f} ${NATIONS[k].n} has not forgotten your broken word.`,"war");
       }
@@ -2326,6 +2395,8 @@ function tick(){
     }
   }
   garrisonRegen();
+  pactTick();lendTick();
+  resistanceTick();
   if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai&&n.autoCap)autoCapture(k);}
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
@@ -2577,10 +2648,39 @@ function moveUnits(arr,kind){
     }
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
     if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
+    /* AMPHIBIOUS OPERATIONS. Owning a single warship anywhere on Earth used to
+       let an army walk across any ocean on the map at full speed. A crossing
+       now needs hulls at the crossing: escorted, it is an invasion; unescorted,
+       it is a slow convoy, and if the enemy holds that water it is a massacre.
+       The route is still allowed either way, so nothing about pathfinding or
+       the computer's planning changes -- only what the attempt costs. */
+    if(kind==="army"&&dest&&provOf(u.at).seaAdj.indexOf(u.to)>=0){
+      let escort=0,hostile=0;
+      for(const f of G.fleets){
+        if(f.to||(f.at!==u.at&&f.at!==u.to))continue;
+        if(f.nat===u.nat||allied(u.nat,f.nat))escort+=f.str*(shipOf(f).gun+shipOf(f).asw*0.5);
+        else if(atWar(u.nat,f.nat))hostile+=f.str*(shipOf(f).gun+shipOf(f).raid);
+      }
+      if(escort<=0){
+        spd*=0.28;                                   // an unescorted crossing is a crawl
+        if(!u.warnedSea&&u.nat===G.player){
+          u.warnedSea=1;
+          logMsg(`\u2693 ${G.prov[u.to].name} crossing is UNESCORTED \u2014 send warships to that water or the division will be picked apart.`,"war");
+        }
+      }
+      const net=hostile-escort;
+      if(net>0){
+        u.hp-=u.str*Math.min(0.9,net*0.05);          // interception at sea
+        if(u.hp<=0){
+          if(u.nat===G.player)logMsg(`\u{1F30A} A division was lost at sea crossing to ${G.prov[u.to].name}.`,"war");
+          killUnit(u);continue;
+        }
+      }
+    }
     u.prog+=spd*(MODS.blitz?1.6:1)*(MODS.trench?0.75:1);
     if(u.prog>=1){
       u.prog=0;u.at=u.to;
-      u.to=null;
+      u.to=null;u.warnedSea=0;
       if(u.path&&u.path.length){const nxt=u.path.shift();if(validStep(u,nxt))u.to=nxt;else u.path=null;}
       if(kind==="army")tryCapture(u);
     }
@@ -2930,6 +3030,34 @@ function aiShortfall(nat,table,doctrine,classOf,pool){
     if(gap>bestGap){bestGap=gap;best=c;}
   }
   return best;
+}
+/* RESISTANCE. Conquered land does not simply become yours: a province held
+   against its own people fights back, and the more of it you hold with nothing
+   standing on it the more it costs. Partisans already liberated undefended
+   provinces outright; this is the slower, constant tax that makes garrisoning
+   a conquest a real decision instead of something you never think about. */
+function resistanceTick(){
+  if(G.day%5!==0)return;
+  for(const id in G.prov){
+    const p=G.prov[id];
+    const occ=G.nations[p.owner];
+    if(!occ||!occ.alive||p.home===p.owner)continue;
+    const home=G.nations[p.home];
+    if(!home)continue;
+    let str=0.9*(p.val*0.35+1);
+    if(occ.ideo==="com")str*=0.7;               // as the ideology already claimed
+    if(occ.cab&&occ.cab.sec)str*=0.75;
+    str*=(1+Math.max(0,(60-occ.stab))/120);
+    if(home.alive)str*=1.4;                      // a government still in the field to rally to
+    const held=G.units.reduce((a,u)=>u.at===id&&u.nat===p.owner?a+u.str:a,0)+(p.garrison||0)*0.5;
+    const net=str-held*0.85;
+    if(net<=0)continue;
+    occ.pp=Math.max(0,occ.pp-net*0.30);
+    occ.stab-=net*0.012;
+    p.garrison=Math.max(0,(p.garrison||0)-net*0.05);
+    if(p.owner===G.player&&Math.random()<0.02)
+      logMsg(`\u{1F525} Resistance in ${p.name} \u2014 nothing of ours is standing on it.`,"war");
+  }
 }
 function targetScore(p,from,nat){
   // prefer weak, valuable, undefended, nearby provinces; capitals are juicy
@@ -9321,6 +9449,28 @@ function renderPanel(){
     const als=[...me.allies].filter(x=>G.nations[x].alive);
     h+=`<h3>ALLIES</h3>`;
     if(!als.length)h+=`<div style="color:var(--dim)">None. Click a foreign province to propose an alliance.</div>`;
+    /* Treaties short of an alliance. An alliance drags you into everyone
+       else's wars; a pact just buys you a quiet border, and lend-lease keeps
+       somebody else's war going with your factories instead of your men. */
+    {
+      const pacted=Object.keys(me.pacts||{}).filter(k=>G.nations[k]&&G.nations[k].alive);
+      h+=`<h3>\u{1F4DC} TREATIES</h3>`;
+      if(pacted.length){
+        h+=pacted.map(k=>`<div class="row"><span>${NATIONS[k].f} ${NATIONS[k].n}</span><span style="color:#5d9a4e">non-aggression \u00b7 ${Math.ceil(me.pacts[k]/365*10)/10} yr</span></div>`).join("");
+      }else h+=`<div style="color:var(--dim);font-size:11px">No pacts signed. A pact costs 40 PP and buys a quiet border without dragging you into their wars \u2014 breaking one later costs stability, and everyone who signed with you notices.</div>`;
+      const canPact=tradeable.filter(k=>!pacted.includes(k)).slice(0,6);
+      if(canPact.length)h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+canPact.map(k=>
+        `<button class="tbtn" style="font-size:10px" ${me.pp<40?"disabled":""} onclick="signPactWith('${k}')">\u{1F4DC} ${NATIONS[k].f} ${NATIONS[k].n} \u2014 40 PP</button>`).join("")+"</div>";
+      const lendable=Object.keys(G.nations).filter(k=>k!==G.player&&G.nations[k].alive&&!atWar(G.player,k));
+      const lending=Object.keys(me.lend||{}).filter(k=>G.nations[k]&&G.nations[k].alive);
+      h+=`<h3>\u{1F4E6} LEND-LEASE</h3>`;
+      if(lending.length)h+=lending.map(k=>
+        `<button class="bbtn" onclick="toggleLend('${k}')">\u{1F4E6} Supplying ${NATIONS[k].f} ${NATIONS[k].n}<small>2% of your production and a trickle of oil, every day. Tap to stop.</small></button>`).join("");
+      else h+=`<div style="color:var(--dim);font-size:11px">Nobody. Sending production to a country fighting your enemy is cheaper than fighting them yourself, and it wears down a grudge.</div>`;
+      const canLend=lendable.filter(k=>!lending.includes(k)&&(allied(G.player,k)||myTrade.has(k))).slice(0,6);
+      if(canLend.length)h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+canLend.map(k=>
+        `<button class="tbtn" style="font-size:10px" onclick="toggleLend('${k}')">\u{1F4E6} ${NATIONS[k].f} ${NATIONS[k].n}</button>`).join("")+"</div>";
+    }
     const untraded=tradeable.filter(function(k){return !myTrade.has(k);}).slice(0,6);
     if(untraded.length){
       h+="<h3>PROPOSE TRADE</h3><div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+untraded.map(function(k){
@@ -9661,7 +9811,8 @@ const MANUAL=[
   "Four kinds of warship, and they beat each other in a cycle. \u25BE SUBMARINES strangle enemy trade and butcher a fleet with no escorts \u2014 guns and aircraft cannot hit what is submerged. \u25B8 ESCORTS are the only thing that hunts submarines properly. \u25A0 CAPITAL SHIPS win gunnery actions and flatten a coastline for your landings. \u25C6 CARRIERS strike before the guns are in range.",
   "So a fleet of one kind of hull loses to a fleet of the right kind. All battleships is beaten by submarines; all submarines is beaten by escorts; all escorts is beaten by battleships and carriers.",
   "COMMERCE RAIDING is now worth doing on purpose. Warships near an enemy coastal province cut its production, and submarines cut it hardest \u2014 but the owner\u2019s escorts in the same water push the raiders off. If your anti-submarine strength is low, your own coasts are the ones bleeding.",
-  "Only capital ships and carriers do much shore bombardment, and it is what makes an assault across a beach survivable."]],
+  "Only capital ships and carriers do much shore bombardment, and it is what makes an assault across a beach survivable.",
+  "\u{1F30A} AN INVASION IS ESCORTED OR IT IS A MASSACRE. Crossing water needs warships AT the crossing, not merely somewhere in the world. Escorted, it is an invasion. Unescorted, it is a slow convoy \u2014 three times as long in the water. If the enemy holds that water, the division does not arrive at all."]],
  ["\u2708 THE SKY",[
   "Four kinds of aircraft. \u2708 FIGHTERS take the air over a province; \u2708 TACTICAL BOMBERS break divisions and garrisons; \u2708 STRATEGIC BOMBERS burn factories and production instead of soldiers; \u2708 NAVAL BOMBERS sink ships.",
   "AIR SUPERIORITY is the number everything else is multiplied by. Whoever wins the air over a province has their aircraft work at full effect there and the loser\u2019s at a third \u2014 and the side that loses it pays for it in aircraft shot down. A fighter that cannot bomb anything is still worth building, because it decides how well your bombers work.",
@@ -9673,6 +9824,11 @@ const MANUAL=[
   "Building takes time. Production is charged the moment you place the order and the unit arrives when it is finished \u2014 an infantry division in about twelve days, a warhead in about ninety. Researching INDUSTRY and building factories is what shortens that, and ON THE SLIPWAY in the RECRUIT panel shows everything under construction. Cancelling returns half.",
   "\u{1F52C} RP buys the four research lines. Industry raises everything you produce AND how far supply reaches; Land, Naval and Air raise their arm of the service.",
   "Stability falls in long wars and when provinces fall. At zero the government COLLAPSES and something else takes its place."]],
+ ["\u{1F4DC} TREATIES AND OCCUPATION",[
+  "A NON-AGGRESSION PACT costs 40 PP and buys a quiet border without dragging you into anyone\u2019s wars the way an alliance does. You can still break it \u2014 it just costs: stability at home, a lasting grudge from them, and every other country you have signed with trusts you a little less.",
+  "LEND-LEASE sends 2% of your production and a trickle of oil to another country every day. Keeping somebody else\u2019s war going is cheaper than fighting it yourself, and it wears down a grudge.",
+  "\u{1F525} OCCUPIED LAND FIGHTS BACK. A province held against its own people costs you production and stability every few days, and the bill scales with how much of it you hold with nothing standing on it. Garrison a conquest and the cost is roughly a tenth. It matters most while the country you took it from is still in the field.",
+  "Occupied provinces also pay only 60% of their production, and undefended ones can be liberated outright by partisans."]],
  ["\u{1F3C1} WINNING",[
   "DOMINATION \u2014 hold half the provinces on Earth, your puppets counting toward it.",
   "HEGEMONY \u2014 destroy, puppet or ally every rival great power.",
@@ -9693,7 +9849,13 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v20.0 \u2014 THE SEA, THE SKY, AND THE WIDTH OF A FRONT (current)",[
+ ["v20.1 \u2014 LANDINGS, TREATIES AND THE COST OF HOLDING GROUND (current)",[
+  "\u{1F30A} AN INVASION IS ESCORTED OR IT IS A MASSACRE. Owning a single warship anywhere on Earth used to let an army walk across any ocean on the map at full speed. A crossing now needs hulls AT the crossing. Escorted, it is an invasion \u2014 eighteen days across the Atlantic. Unescorted, it is a slow convoy at barely a quarter speed \u2014 sixty-two days for the same water. And if the enemy holds that water, the division is picked apart and never lands. The route itself is still allowed either way, so nothing about pathfinding or the computer\u2019s planning changed \u2014 only what the attempt costs. The navy finally has a say in who wins a war on land.",
+  "\u{1F525} OCCUPIED LAND FIGHTS BACK. Conquered ground used to simply become yours and then never be thought about again. A province held against its own people now costs production and stability every few days, scaled by how much of it you are holding with nothing standing on it, and by whether its government is still in the field to be rallied to. Measured over two hundred days on six occupied provinces: 206 PP and 8 stability ungarrisoned, 20 PP and under 1 garrisoned. Garrisoning a conquest is a decision now instead of something the game never asked you about. Communist states and a security cabinet still suppress it, exactly as they always claimed to.",
+  "\u{1F4DC} NON-AGGRESSION PACTS. 40 PP buys a quiet border WITHOUT the thing that made alliances expensive \u2014 being dragged into every war your ally picks. You can still break one; it just costs, and properly: stability at home, a lasting grudge from them, and a smaller one from every other country that has signed with you, because a state that tears up one treaty is assumed to be capable of tearing up theirs. The computer honours its own signature and will not open a war it has a pact against.",
+  "\u{1F4E6} LEND-LEASE \u2014 send 2% of your production and a trickle of oil to another country every day. Keeping somebody else\u2019s war going is cheaper than fighting it yourself, and it wears down a grudge over time. Both pacts and lend-lease are saved with the campaign.",
+  "\u{1F4D6} The field manual has two new sections covering all of it."]],
+ ["v20.0 \u2014 THE SEA, THE SKY, AND THE WIDTH OF A FRONT",[
   "\u2693 A FLEET IS NO LONGER ONE BLOB WITH A NUMBER ON IT. Two fleets meeting used to resolve as the sum of one side\u2019s strength against the sum of the other\u2019s \u2014 pure attrition, no structure, nothing to decide. There are now four kinds of warship and they beat each other in a cycle. \u25BE SUBMARINES strangle trade and butcher a fleet with no escorts, because guns and aircraft cannot hit what is submerged. \u25B8 ESCORTS are the only thing that hunts submarines properly. \u25A0 CAPITAL SHIPS win gunnery actions and flatten a coastline. \u25C6 CARRIERS strike before the guns are in range. A fleet of one kind of hull loses to a fleet of the right kind, which means what you build is finally a decision and not just how much.",
   "\u{1F30A} AND THE FIGHT IS THREE FIGHTS, because it really is three. Guns and carrier aircraft can only touch what is on the surface. Anti-submarine work is the only thing that finds a submarine, and only escorts and carriers carry much of it. Torpedoes bite anything afloat and are blunted by the screen around it. That is what closes the cycle instead of faking it with a modifier.",
   "\u{1F6A2} COMMERCE RAIDING IS WORTH DOING ON PURPOSE. A blockade used to be a flat half-production penalty for having any enemy ship nearby. It is now worth what the hulls enforcing it are worth \u2014 a submarine arm strangles a coast, a lone escort barely inconveniences it \u2014 and the owner\u2019s own warships in the same water push the raiders off. If your anti-submarine strength is low, the coast bleeding is yours.",
@@ -10816,7 +10978,8 @@ function mpSerialize(){
       n.researching||"",+(n.resProg||0).toFixed(1),n.alive?1:0,[...n.atWar],[...n.allies],
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",
       /* politics (v4.1+) */ n.ideo||"aut",Math.round(n.warSup??50),Object.keys(n.cab||{}).join(","),n.doctrine||"",
-      n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,Math.round(n.grudge||0),[...(n.trade||[])].join(",")];}
+      n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,Math.round(n.grudge||0),[...(n.trade||[])].join(","),
+      JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(",")];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
@@ -10870,6 +11033,10 @@ function mpApplyState(S){
       if(a.length>28)n.law={cons:a[28]||0,eco:a[29]||0};
       if(a[30]!==undefined)n.grudge=a[30];
       if(a[31])n.trade=new Set(String(a[31]).split(",").filter(function(x){return x;}));
+      /* Treaties are part of the world state, not decoration: a save that
+         forgets who signed what reloads into a different diplomatic map. */
+      n.pacts={};if(a[32]){try{n.pacts=JSON.parse(a[32])||{};}catch(e){}}
+      n.lend={};if(a[33])for(const o of String(a[33]).split(","))if(o)n.lend[o]=1;
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
