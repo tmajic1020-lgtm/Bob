@@ -131,7 +131,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 18.5.0</div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD 18.6.0</div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -150,7 +150,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 18.5.0</div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD 18.6.0</div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -180,11 +180,14 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🗺 <b id="hProv">0</b> prov</span>
   <span>⚔ <b id="hDiv">0</b> div</span>
   <span>📅 <b id="hDate"></b></span>
+  <button class="tbtn" id="bBattles" style="display:none" title="Jump to the next front where your divisions are fighting (B)">⚔ 0 BATTLES</button>
+  <button class="tbtn" id="bHome" title="Recentre on your capital (H)">🎯 HOME</button>
   <button class="tbtn" id="bAuto">AUTO CAPTURE: OFF</button>
 </div>
 
 <div id="sidebtns" class="hud" style="display:none">
   <button class="tbtn" data-p="prov">PROVINCE</button>
+  <button class="tbtn" data-p="army">ARMY</button>
   <button class="tbtn" data-p="build">RECRUIT</button>
   <button class="tbtn" data-p="research">RESEARCH</button>
   <button class="tbtn" data-p="air">AIR COMMAND</button>
@@ -2777,6 +2780,64 @@ let _frameCv=null,_frameKey="";
 function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+"px";cv.style.height=H+"px";_frameCv=null;}
 addEventListener("resize",resize);resize();
 function fitCam(){const z=Math.min(W/MW,H/MH);G.cam.z=z;clampCam();}
+/* Put a world point in the middle of the screen. Pass a span to zoom so a box
+   that big fits comfortably; omit it to keep the current zoom. */
+function centerOn(wx,wy,spanX,spanY){
+  if(spanX!=null){
+    const pad=1.9;
+    G.cam.z=Math.max(Math.min(W/MW,H/MH),Math.min(6,Math.min(W/(spanX*pad),H/(spanY*pad))));
+  }
+  G.cam.x=wx-W/G.cam.z/2;G.cam.y=wy-H/G.cam.z/2;clampCam();
+}
+/* Open a campaign looking at YOUR country rather than the whole globe: fit the
+   bounding box of everything it holds, with room to breathe. Starting zoomed
+   out to the entire world means a player picking Germany spends their first
+   minute hunting for it. */
+function focusNation(k){
+  const ps=natProvs(k||G.player);
+  if(!ps.length){fitCam();return;}
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const p of ps){if(p.x<x0)x0=p.x;if(p.x>x1)x1=p.x;if(p.y<y0)y0=p.y;if(p.y>y1)y1=p.y;}
+  centerOn((x0+x1)/2,(y0+y1)/2,Math.max(x1-x0,90),Math.max(y1-y0,55));
+}
+function goHome(){
+  if(!G)return;
+  const cap=G.prov[capOf(G.player)];
+  if(cap&&cap.owner===G.player)centerOn(cap.x,cap.y,110,70);
+  else focusNation(G.player);
+}
+window.goHome=goHome;
+/* Every province where our own divisions are actually in contact. */
+function myBattles(){
+  if(!G||!G.battleSites)return [];
+  const out=[];
+  for(const pid of G.battleSites)
+    if(G.units.some(u=>u.at===pid&&u.nat===G.player&&!u.to))out.push(pid);
+  return out;
+}
+/* Step through the active fronts one press at a time. Wars were otherwise
+   fought entirely off-screen: the log shows six lines and then the news of a
+   collapsing front is gone. */
+function nextBattle(){
+  const b=myBattles();
+  if(!b.length){logMsg("No divisions of ours are in contact right now.");return;}
+  G._battleIdx=((G._battleIdx||0)+1)%b.length;
+  const p=G.prov[b[G._battleIdx]];
+  centerOn(p.x,p.y,G.cam.z<1.6?150:null,G.cam.z<1.6?95:null);
+  G.sel=p.id;G.selUnit=null;openPanel("prov");
+  logMsg(`\u2694 Front ${G._battleIdx+1}/${b.length}: ${p.name}.`);
+}
+window.nextBattle=nextBattle;
+/* Fly the camera to one of our units and take command of it. */
+window.jumpTo=id=>{
+  const u=[...G.units,...G.fleets].find(x=>x.id===id&&x.nat===G.player);
+  if(!u)return;
+  const a=G.prov[u.at];let x=a.x,y=a.y;
+  if(u.to&&G.prov[u.to]){const b=G.prov[u.to];x=a.x+(b.x-a.x)*u.prog;y=a.y+(b.y-a.y)*u.prog;}
+  centerOn(x,y,G.cam.z<1.6?150:null,G.cam.z<1.6?95:null);
+  G.selUnit=u;G.sel=u.at;G.selGroup=null;
+  openPanel("prov");
+};
 function clampCam(){
   const c=G.cam,minz=Math.min(W/MW,H/MH)*0.95;
   c.z=Math.max(minz,Math.min(c.z,14));
@@ -7970,6 +8031,19 @@ window.__ifBoot("ui");
 /* ============================== UI ============================== */
 let curPanel=null;
 document.querySelectorAll("#sidebtns .tbtn").forEach(b=>b.onclick=()=>openPanel(b.dataset.p));
+$("#bBattles").onclick=nextBattle;
+$("#bHome").onclick=goHome;
+/* Two map shortcuts. Deliberately narrow: first person already owns WASD and
+   shift, typing must not trigger them, and a modal waiting on a choice should
+   keep the keyboard to itself. */
+addEventListener("keydown",e=>{
+  if(!window.G||FPV||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
+  const t=e.target;
+  if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
+  if($("#eventBox")&&getComputedStyle($("#eventBox")).display!=="none")return;
+  if(e.key==="h"||e.key==="H"){e.preventDefault();goHome();}
+  else if(e.key==="b"||e.key==="B"){e.preventDefault();nextBattle();}
+});
 $("#bAuto").onclick=()=>{
   const me=G.nations[G.player];me.autoCap=!me.autoCap;
   if(MP.role==="guest")MP.send({type:"auto",nat:G.player,on:me.autoCap?1:0});
@@ -8043,12 +8117,56 @@ function renderPanel(){
     }
     el.innerHTML=h;
   }
+  if(curPanel==="army"){
+    /* ORDER OF BATTLE — the whole force in one list, ordered by what needs you
+       most, because on a 178-province map a mauled division on another
+       continent is otherwise invisible until it dies. Every line flies the
+       camera to that unit and takes command of it. */
+    const mine=G.units.filter(u=>u.nat===G.player);
+    const myFleets=G.fleets.filter(f=>f.nat===G.player);
+    const myWings=G.wings.filter(w=>w.nat===G.player);
+    const inBattle=u=>G.battleSites&&G.battleSites.has(u.at)&&!u.to;
+    const state=u=>{
+      if(inBattle(u))return {k:0,e:"\u2694",t:"IN BATTLE",c:"#ffb877"};
+      if(u.hp<u.str*10*0.5)return {k:1,e:"\u{1FA79}",t:"MAULED",c:"#ff8d7a"};
+      if(u.hp<u.str*10*0.8)return {k:2,e:"\u25CB",t:"WORN",c:"#c9a06a"};
+      if(u.to)return {k:3,e:"\u2192",t:"ON THE MARCH",c:"var(--dim)"};
+      return {k:4,e:"\u00b7",t:"HOLDING",c:"var(--dim)"};
+    };
+    const rows=mine.map(u=>({u,s:state(u)})).sort((a,b)=>a.s.k-b.s.k||a.u.hp-b.u.hp);
+    const fighting=rows.filter(r=>r.s.k===0).length, mauled=rows.filter(r=>r.s.k===1).length;
+    let h=`<h2>ORDER OF BATTLE</h2>
+    <div class="row"><span>Forces</span><span>\u{1FA96} ${mine.length} \u00b7 \u2693 ${myFleets.length} \u00b7 \u2708 ${myWings.length}</span></div>`;
+    if(fighting)h+=`<div class="row"><span style="color:#ffb877">\u2694 Engaged</span><span style="color:#ffb877">${fighting} division${fighting>1?"s":""}</span></div>`;
+    if(mauled)h+=`<div class="row"><span style="color:#ff8d7a">\u{1FA79} Mauled</span><span style="color:#ff8d7a">${mauled} under half strength</span></div>`;
+    if(!mine.length)h+=`<div style="color:var(--dim)">No divisions in the field. Raise them from RECRUIT.</div>`;
+    else h+=`<div style="color:var(--dim);font-size:11px;margin-top:6px">Tap any line to fly to it and take command.</div>`;
+    for(const {u,s} of rows){
+      const p=G.prov[u.at]; if(!p)continue;
+      const pct=Math.max(0,Math.round(u.hp/(u.str*10)*100));
+      h+=`<button class="bbtn" onclick="jumpTo(${u.id})" style="${s.k<=1?"border-color:"+s.c:""}">
+        <span style="color:${s.c}">${s.e} ${s.t}</span> \u2014 ${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)}${u.gen?" \u2605"+u.gen.lvl:""}
+        <small>${p.name}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
+    }
+    if(myFleets.length){
+      h+=`<h3>FLEETS</h3>`;
+      for(const f of myFleets){const p=G.prov[f.at];if(!p)continue;
+        h+=`<button class="bbtn" onclick="jumpTo(${f.id})">\u2693 Task force${vetStars(f)}<small>${p.name}${f.to&&G.prov[f.to]?" \u2192 "+G.prov[f.to].name:""} \u00b7 HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;}
+    }
+    if(myWings.length){
+      h+=`<h3>AIR WINGS</h3>`;
+      for(const w of myWings)
+        h+=`<div class="row"><span>\u2708 Wing ${w.id}${vetStars(w)}</span><span>${w.target&&G.prov[w.target]?"\u2192 "+G.prov[w.target].name:"standby"} \u00b7 HP ${Math.max(0,w.hp).toFixed(0)}</span></div>`;
+    }
+    el.innerHTML=h;
+  }
   if(curPanel==="build"){
     const sel=G.sel&&provOf(G.sel).owner===G.player?provOf(G.sel):G.prov[capOf(G.player)];
     const deployable=provOf(sel.id).owner===G.player;
     el.innerHTML=`<h2>RECRUIT</h2>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <button class="bbtn" ${me.pp<20||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP<small>STR 3. The backbone.</small></button>
+    <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
     <button class="bbtn" ${me.pp<35||me.oil<armOil()||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."}</small></button>
     <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Task Force — 30 PP + 8 🛢<small>STR 2. Needs a port. Escorts invasions, blockades coasts.</small></button>
     <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[capOf(G.player)].name}). Direct from AIR COMMAND.</small></button>
@@ -8472,6 +8590,25 @@ window.buy=t=>{if(!G||!G.nations)return;
   if(t==="nuke"&&me.pp>=100&&me.oil>=25&&(me.res.ind>=3||me.atomicOk)){me.pp-=100;me.oil-=25;me.nukes++;logMsg("☢ Nuclear weapon assembled. May it never be needed.","war");}
   renderPanel();refreshHUD();
 };
+/* Raise several divisions in one order. Building an army one click at a time
+   was the most tedious thing in the game; this stops the moment production or
+   oil runs out and reports what it actually managed. */
+window.buyN=(t,n)=>{if(!G||!G.nations)return;
+  const me=G.nations[G.player];
+  const count=()=>G.units.length+G.fleets.length+G.wings.length+(me.nukes||0);
+  const before=count();
+  for(let i=0;i<n;i++){
+    if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel});continue;}
+    const pp=me.pp,made=count();
+    buy(t);
+    if(me.pp===pp&&count()===made)break;      // could not afford another
+  }
+  const got=count()-before;
+  if(MP.role==="guest")logMsg(`Order for ${n} sent to host...`);
+  else if(got)logMsg(`\u{1F3ED} ${got} raised.`,"good");
+  else logMsg("Not enough production or oil to raise anything.","war");
+  renderPanel();refreshHUD();
+};
 window.pickFocus=k=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
   me.focusDone=me.focusDone||{};
@@ -8550,13 +8687,22 @@ function refreshHUD(){
   $("#hProv").textContent=natProvs(G.player).length;
   $("#hDiv").textContent=G.units.filter(u=>u.nat===G.player).length;
   $("#hDate").textContent=G.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+  {const bb=$("#bBattles"),n=myBattles().length;
+   if(bb){ if(n){bb.style.display="";bb.textContent="\u2694 "+n+" BATTLE"+(n>1?"S":"");bb.classList.add("warn");}
+           else bb.style.display="none"; }}
   if(curPanel&&$("#panel").style.display!=="none")renderPanel();
 }
 
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v18.5 \u2014 A FROZEN PICTURE IS WORSE THAN THE ERROR (current)",[
+ ["v18.6 \u2014 FINDING YOUR OWN ARMY (current)",[
+  "\u{1F3AF} THE MAP OPENS ON YOUR COUNTRY. A campaign began fitted to the entire globe, so picking Germany meant spending the first minute hunting for it among a hundred and seventy-eight provinces. It now frames the ground you actually hold, and \u{1F3AF} HOME (or H) brings you back to your capital whenever you get lost.",
+  "\u2694 A BATTLE COUNTER IN THE TOP BAR, and clicking it (or B) walks the camera through every front your divisions are fighting on, one press at a time. Wars were being decided off-screen: the log shows six lines and then the news of a collapsing front is gone for good.",
+  "\u{1FA96} ORDER OF BATTLE \u2014 a new ARMY panel listing your whole force, sorted by what needs you most: in battle, mauled, worn, on the march, holding. Every line flies the camera to that division and takes command of it, so a unit under half strength on another continent is one tap away instead of invisible until it dies. Fleets and air wings are listed with it.",
+  "\u{1F3ED} BULK RECRUITMENT \u2014 raise 3, 5 or 10 divisions in one order instead of clicking the same button ten times. It stops the moment production or oil runs out and tells you what it managed.",
+  "\u{1F9DF} AND A REAL BUG BEHIND THE HORDE: both paths that hand zombie-held ground back to its owner \u2014 the cure, and the world pushing the Horde back \u2014 returned provinces to countries that were already dead. Dying clears every war, so nobody could be at war with the owner, nobody could enter, and that ground was frozen out of the game permanently \u2014 five provinces at the cure, nine and climbing six hundred days later. Liberation now brings the country back with its land."]],
+ ["v18.5 \u2014 A FROZEN PICTURE IS WORSE THAN THE ERROR",[
   "\u{1F5BC} THE FRAME LOOP NOW SURVIVES ANYTHING. The request for the next frame sat at the BOTTOM of the drawing function, so a throw anywhere above it killed the loop outright and the picture froze \u2014 which is a far worse failure than whatever caused it, and it is how one bad frame becomes a dead game. The next frame is now scheduled whatever happens, and the error is reported the first three times and then swallowed, because a broken frame repeats sixty times a second",
   "\u{1F3F7} AND THE ERROR BOX CARRIES THE BUILD NUMBER. A crash report is only useful if it says which file it came from, and a browser holding an old copy in its cache looks exactly like a bug that was never fixed",
   "\u{1F50D} On the reported crash: the same line, in this build, is a closing brace. Every panel \u2014 settings and mods included, which are the two that render before a campaign exists \u2014 was called with no game running and none of them throws; so was the whole start screen with every view setting restored from a previous session, every era, every year, every mod, every preset and sixty frames of drawing"]],
@@ -10304,6 +10450,7 @@ function startGame(k){
   $("#start").style.display="none";
   $("#topbar").style.display="flex";$("#sidebtns").style.display="flex";$("#speedbox").style.display="flex";
   $("#hFlag").textContent=NATIONS[k].f;$("#hName").textContent=NATIONS[k].n;
+  focusNation(k);   // open on your own country, not on the whole globe
   refreshHUD();
   runHistory(true); // later-year starts inherit the wars already raging
   if(G.histIdx&&MP.role!=="guest")logMsg("📰 Historical mode: the wars of "+YEAR+" are already underway.","war");
