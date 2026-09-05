@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">20.1.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">21.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">20.1.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">21.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -180,6 +180,7 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🏭 <b id="hPP">0</b> PP <span id="hPPr" style="color:var(--dim)"></span></span>
   <span>🔬 <b id="hRP">0</b> RP</span>
   <span>🛢 <b id="hOil">0</b> oil</span>
+  <span title="Manpower — every division comes out of this and does not come back">👥 <b id="hMP">0</b>K</span>
   <span>☢ <b id="hNuke">0</b></span>
   <span>🌡 <b id="hTen">0</b>%</span>
   <span>🗺 <b id="hProv">0</b> prov</span>
@@ -282,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="20.1.0";
+const BUILD="21.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1595,6 +1596,64 @@ let G=null;
    version from memory and left fields out. A nation missing res crashes
    techMul on the first shot it fires; one missing ai is never played by the
    AI at all. Both go through here now. */
+/* ==================== THE HOME FRONT ====================
+   A division used to cost production and nothing else, so a war had no human
+   cost at all: you could lose four hundred divisions and raise four hundred
+   more, and the only thing that ever ran out was money. Every country now has
+   a MANPOWER pool drawn from the people it actually governs, and every man in
+   every division came out of it.
+
+   That is what makes the rest of the game mean something. Casualties are
+   permanent. An encirclement costs you the pocket AND the men in it. Holding a
+   conquest gives you almost nothing to conscript, because occupied people do
+   not fill your barracks. And conscription is a real decision instead of a
+   number on a policy screen: you can put the whole country under arms, and pay
+   for it in stability and production for as long as you do. */
+const CONSCRIPTION=[
+ {n:"Volunteers Only",        rate:0.140, stab:+0.020, pp:1.00, d:"A professional army. Slow to grow, cheap to keep, and popular."},
+ {n:"Limited Conscription",   rate:0.240, stab:-0.005, pp:0.99, d:"The peacetime draft. A steady trickle of recruits."},
+ {n:"Extensive Conscription", rate:0.380, stab:-0.030, pp:0.95, d:"Whole classes called up. Real numbers, and the country notices."},
+ {n:"Service by Requirement", rate:0.560, stab:-0.060, pp:0.88, d:"Everyone fit to serve. Factories start losing their workers."},
+ {n:"All Adults Serve",       rate:0.800, stab:-0.105, pp:0.76, d:"The last levy. It fills the ranks and it hollows out the country."}
+];
+const consOf=n=>CONSCRIPTION[Math.max(0,Math.min(CONSCRIPTION.length-1,(n&&n.law&&n.law.cons)||0))];
+/* Manpower comes from people you GOVERN. Occupied populations are not your
+   recruits -- a quarter at most, and that is generous. */
+function popBase(k){
+  let v=0;
+  for(const p of natProvs(k)){
+    /* A burning city and an irradiated one do not send their sons anywhere.
+       This is what finally gives strategic bombing and the bomb a purpose
+       beyond the day they land: they take an enemy's ability to REPLACE what
+       you destroy, which is the only thing that ends a war of attrition. */
+    v+=p.val*(p.home===k?1:0.22)*(1-(p.bombed||0)*0.6)*(p.nuked?0.35:1);
+  }
+  return v;
+}
+function mpRegen(k){
+  const n=G.nations[k];if(!n)return 0;
+  const ideo=n.ideo==="fas"?1.14:n.ideo==="com"?1.10:n.ideo==="dem"?0.94:1;
+  return popBase(k)*consOf(n).rate*ideo*(MODS.horde2?2:1);
+}
+/* About two months of recruits in the barracks. Enough to absorb a bad
+   campaign, not enough to absorb losing an army every year. */
+function mpCap(k){return Math.max(60,mpRegen(k)*60);}
+/* Costs are in thousands of men. A division is twenty thousand of them; a
+   fleet or an air wing is the crews. */
+const MP_COST={inf:20,arm:26,art:16,aa:11,nuke:0};
+function mpCostOf(t){
+  if(!t)return 0;
+  if(t.charAt(1)==="_")return t.charAt(0)==="s"?9:6;
+  return MP_COST[t]||0;
+}
+function spendMP(k,amt){
+  const n=G.nations[k];
+  if(!n||amt<=0)return true;
+  if((n.mp||0)<amt)return false;
+  n.mp-=amt;
+  if(n.mpUsed!==undefined)n.mpUsed+=amt; else n.mpUsed=amt;
+  return true;
+}
 function makeNation(k,s,ai){
   s=s||0;
   return {...NATIONS[k],id:k,pp:20+s*6,rp:s*2,oil:s*5,nukes:0,stab:60+s*3,
@@ -1602,7 +1661,7 @@ function makeNation(k,s,ai){
     researching:null,resProg:0,
     ideo:(IDEO_DEF[ERA]&&IDEO_DEF[ERA][k])||IDEO_FALLBACK[ERA]||"aut",
     warSup:50,cab:{},doctrine:null,spyT:null,spyNet:0,sabotage:0,electT:1460,
-    puppet:null,grudge:0,pacts:{},lend:{},
+    puppet:null,grudge:0,pacts:{},lend:{},mp:0,mpUsed:0,law:{cons:0,eco:0},
     atWar:new Set(),allies:new Set(),ai:!!ai,alive:true,aiTimer:60+Math.random()*120};
 }
 function newGame(playerNation){
@@ -1685,6 +1744,7 @@ function newGame(playerNation){
     const nWing=Math.floor(s/4);
     for(let i=0;i<nWing;i++)addWing(k,i%3===0?3:2,i%3===0?"fig":i%3===1?"cas":(s>=7?"stb":"cas"));
   }
+  for(const k in nations)if(nations[k].alive)nations[k].mp=mpCap(k)*0.55;
   fitCam();
   logMsg("The world holds its breath. Command your nation.","good");
 }
@@ -2177,13 +2237,19 @@ function tick(){
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
-    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1);
+    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*consOf(n).pp*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1);
     let inc=n.ppRate/10;
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
     n.oil+=oil*0.12;
     // stability drifts: war grinds nations down, peace heals
-    n.stab+=(n.atWar.size>0?-0.05*n.atWar.size:0.04)-_law.cons*0.015-_law.eco*0.015+ideoOf(n).drift+(n.cab&&n.cab.sec?0.05:0);
+    n.stab+=(n.atWar.size>0?-0.05*n.atWar.size:0.04)+consOf(n).stab-_law.eco*0.015+ideoOf(n).drift+(n.cab&&n.cab.sec?0.05:0);
+    /* Recruits come in daily and the country pays for the law that produces
+       them, every day it is in force. */
+    {const cap=mpCap(k);
+     n.mp=Math.min(cap,(n.mp||0)+mpRegen(k));
+     if(n.mp<0)n.mp=0;
+     if(n.mp>MP_COST.inf)n.mpWarned=0;}
     if(n.sabotage>0)n.sabotage--;
     if(n.spyNet>0)n.spyNet=Math.max(0,n.spyNet-0.08);
     n.warSup=Math.max(0,Math.min(100,(n.warSup??50)+(n.atWar.size?-0.035:0.05)));
@@ -2220,11 +2286,18 @@ function tick(){
     const cap=Math.ceil(ps.length*1.5*(1+law.cons*0.35)*(n.doctrine==="ma"?1.2:1)*(MODS.horde2?2:1))+2;
     const have=G.units.filter(u=>u.nat===k).length;
     if(n.mobTimer<=0){
-      n.mobTimer=90;
-      if(have<cap){
+      /* A country at war calls men up roughly four times as often as one at
+         peace. Left at a flat ninety days nobody ever consumed enough manpower
+         for the pool to matter, and conscription stayed a number on a screen
+         that no government ever had a reason to change. */
+      n.mobTimer=n.atWar.size>0?22:90;
+      if(have<cap&&spendMP(k,MP_COST.inf)){
         const where=G.prov[capOf(k)].owner===k?G.prov[capOf(k)]:ps[Math.floor(Math.random()*ps.length)];
         addUnit(k,where.id,"inf",3);
         if(k===G.player)logMsg(`Reserves mobilized — new infantry division at ${where.name}`,"good");
+      }else if(have<cap&&k===G.player&&!n.mpWarned){
+        n.mpWarned=1;
+        logMsg("\u{1F465} There are no men left to call up. Raise conscription under POLICY, or take the pressure off the front.","war");
       }
     }
   }
@@ -2395,10 +2468,10 @@ function tick(){
     }
   }
   garrisonRegen();
-  pactTick();lendTick();
+  pactTick();lendTick();wearinessTick();
   resistanceTick();
   if(G.day%3===0)bombRecover();
-  for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai&&n.autoCap)autoCapture(k);}
+  for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai)runGroups(k);}
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
   if(G.day%10===0){
     G.hist=G.hist||[];
@@ -2624,6 +2697,15 @@ function supplyTick(){
      battle" but "how many of theirs can no longer be fed". */
   if(G.day%9===0&&G.player){
     if((G.stats&&G.stats.sunk||0)>=15)unlockAch("wolfpack");
+    {const me2=G.nations[G.player];
+     if(me2){
+       if(((me2.law&&me2.law.cons)||0)>=4)unlockAch("last_levy");
+       if((G.stats&&G.stats.menLost||0)>=1000)unlockAch("blood_price");
+       G.stats.lowWarSup=(G.stats.lowWarSup||0)||((me2.warSup??50)<40?1:0);
+       if(G.stats.warDays>=1825&&!G.stats.lowWarSup)unlockAch("home_front");
+     }}
+    {let gn=0;for(const g in (G.groups||{}))if(G.groups[g].nat===G.player&&groupUnits(G.player,+g).length)gn++;
+     if(gn>=4)unlockAch("army_groups");}
     if((G.stats&&G.stats.shotDown||0)>=15)unlockAch("air_supremacy");
     {const have={};for(const f of G.fleets)if(f.nat===G.player)have[f.cls||"dd"]=1;
      if(Object.keys(SHIPS).every(c=>have[c]))unlockAch("balanced_fleet");}
@@ -2860,7 +2942,15 @@ function killUnit(u){
     if(u.nat===G.player)G.stats.lost++;
     else if(atWar(u.nat,G.player))G.stats.killed++;
   }
-  {const kn=G.nations[u.nat];if(kn)kn.warSup=Math.max(0,(kn.warSup??50)-0.6);}
+  {const kn=G.nations[u.nat];
+   if(kn){
+     /* Casualties cost war support in proportion to how much of the country
+        they represent. A great power shrugs off a division; a small one does
+        not, and neither does anybody who has already lost a great many. */
+     const scale=Math.min(3,MP_COST.inf/Math.max(6,mpRegen(u.nat)*4));
+     kn.warSup=Math.max(0,(kn.warSup??50)-0.6*scale);
+   }}
+  if(G.stats&&u.nat===G.player)G.stats.menLost=(G.stats.menLost||0)+(MP_COST[u.type]||20);
   G.units=G.units.filter(x=>x!==u);
   if(u===G.selUnit)G.selUnit=null;
   if(u.nat===G.player)logMsg(`A ${u.type==="inf"?"infantry":"armored"} division was destroyed`,"war");
@@ -3079,6 +3169,35 @@ function resistanceTick(){
       logMsg(`\u{1F525} Resistance in ${p.name} \u2014 nothing of ours is standing on it.`,"war");
   }
 }
+/* WAR WEARINESS. War support has always modified how hard your divisions hit
+   and otherwise done nothing at all -- a country could fight at 2% support
+   forever. A nation that has had enough now behaves like one: production falls
+   away, the government loses its grip, and eventually the people stop it
+   whether the government agrees or not. */
+function wearinessTick(){
+  if(G.day%7!==0)return;
+  for(const k in G.nations){
+    const n=G.nations[k];
+    if(!n.alive||!n.atWar.size)continue;
+    const ws=n.warSup??50;
+    if(ws>=35)continue;
+    const depth=(35-ws)/35;
+    n.stab-=depth*0.55;
+    n.pp=Math.max(0,n.pp-n.ppRate*depth*0.18);
+    if(k===G.player&&ws<20&&Math.random()<0.16)
+      logMsg("\u{1F4E2} Strikes and anti-war demonstrations \u2014 the country has had enough of this war.","war");
+    /* Below ten per cent the war ends over the government's head. */
+    if(ws<10&&Math.random()<0.05*depth){
+      const foes=[...n.atWar].filter(o=>G.nations[o]&&G.nations[o].alive&&!G.nations[o].puppet);
+      if(!foes.length)continue;
+      const o=foes[Math.floor(Math.random()*foes.length)];
+      n.atWar.delete(o);G.nations[o].atWar.delete(k);
+      n.warSup=Math.min(100,ws+28);n.stab-=6;
+      if(k===G.player||o===G.player)
+        logMsg(`\u{1F54A} ${NATIONS[k].f} ${NATIONS[k].n} has been forced out of its war with ${NATIONS[o].f} ${NATIONS[o].n} \u2014 the country would not fight on.`,k===G.player?"war":"good");
+    }
+  }
+}
 function targetScore(p,from,nat){
   // prefer weak, valuable, undefended, nearby provinces; capitals are juicy
   const dist=Math.sqrt((p.x-from.x)**2+(p.y-from.y)**2);
@@ -3093,14 +3212,47 @@ function targetScore(p,from,nat){
   const starving=(G.supply&&!supplied(p.owner,p.id))?7:0;
   return p.val*3+capBonus+starving - def*1.4*t.def - dist*0.04 - (1-w.move)*5 - (t.def-1)*4;
 }
-function autoCapture(nat){
-  const enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
+/* ==================== ARMY GROUPS ====================
+   AUTO CAPTURE was all or nothing: every division you owned threw itself at
+   the nearest enemy, everywhere, at once. With a hundred divisions across
+   three continents that is not a command system, it is a switch. Divisions can
+   now be assigned to numbered ARMY GROUPS, and each group is given a stance --
+   ADVANCE, HOLD, or RESERVE -- and optionally an enemy to concentrate against.
+   Unassigned divisions still answer to the old switch, so nothing anybody was
+   already doing stops working. */
+const STANCES={
+  advance:{n:"ADVANCE",i:"\u2694",d:"Take ground. Attacks the best target it can reach."},
+  hold   :{n:"HOLD",   i:"\u{1F6E1}",d:"Defends what you already have. Moves only to threatened ground."},
+  reserve:{n:"RESERVE",i:"\u25CB",d:"Stands fast. Stays where it is and repairs."}
+};
+function groupOf(u){return u&&u.grp?u.grp:0;}
+function groupUnits(nat,g){return G.units.filter(u=>u.nat===nat&&groupOf(u)===g);}
+function runGroups(nat){
+  const n=G.nations[nat];if(!n)return;
+  G.groups=G.groups||{};
+  for(const g in G.groups){
+    const grp=G.groups[g];
+    if(!grp||grp.nat!==nat)continue;
+    const roster=groupUnits(nat,+g).filter(u=>!u.to);
+    if(!roster.length)continue;
+    if(grp.stance==="reserve")continue;                 // stands fast on purpose
+    autoCapture(nat,roster,grp.stance==="hold",grp.target||null);
+  }
+  /* Everything not in a group is still run by the old switch. */
+  if(n.autoCap){
+    const loose=G.units.filter(u=>u.nat===nat&&!u.to&&!groupOf(u));
+    if(loose.length)autoCapture(nat,loose,false,null);
+  }
+}
+function autoCapture(nat,roster,defensive,onlyNat){
+  let enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
+  if(onlyNat)enemies=enemies.filter(p=>p.owner===onlyNat);
   if(!enemies.length)return;
   // defend threatened home provinces first: hold a third of forces near hot borders
-  const mine=G.units.filter(u=>u.nat===nat&&!u.to);
+  const mine=roster||G.units.filter(u=>u.nat===nat&&!u.to);
   const threatened=natProvs(nat).map(p=>[p,provThreat(p.id,nat)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   const defenders=new Set();
-  let defendBudget=Math.floor(mine.length*0.34);
+  let defendBudget=defensive?mine.length:Math.floor(mine.length*0.34);
   for(const[tp]of threatened){
     if(defendBudget<=0)break;
     // nearest idle unit garrisons the threatened province
@@ -3194,8 +3346,13 @@ function aiTurn(k){
   }
   n.law=n.law||{cons:0,eco:0};
   if(n.atWar.size>0&&n.law.eco===0&&n.pp>=25){n.pp-=25;n.law.eco=1;}
-  if(n.atWar.size>0&&n.law.cons<2&&n.stab>50&&n.pp>=25){n.pp-=25;n.law.cons++;}
-  if(n.atWar.size===0&&n.law.cons>0&&n.stab<35){n.law.cons=0;n.law.eco=0;}
+  /* The computer runs the same home front the player does: it digs deeper for
+     men when the pool is drying up and it can still stand the politics, and it
+     demobilises when the war is over or the country will not take any more. */
+  const short=(n.mp||0)<mpCap(k)*0.5;
+  if(n.atWar.size>0&&short&&n.law.cons<4&&n.stab>45&&n.pp>=25){n.pp-=25;n.law.cons++;}
+  if(n.atWar.size>0&&n.stab<25&&n.law.cons>1){n.law.cons--;}
+  if(n.atWar.size===0&&n.law.cons>1&&n.stab<45){n.law.cons=Math.max(1,n.law.cons-1);n.law.eco=0;}
   // atomic program
   if((n.res.ind>=3||n.atomicOk)&&n.pp>=100&&n.oil>=25&&Math.random()<0.15){n.pp-=100;n.oil-=25;n.nukes++;}
   // tensions boiling over: nuclear release
@@ -3344,6 +3501,43 @@ function hireGeneral(uid){if(!G||!G.nations)return;
   renderPanel();refreshHUD();
 }
 window.hireGeneral=hireGeneral;
+function ensureGroup(g){
+  G.groups=G.groups||{};
+  if(!G.groups[g])G.groups[g]={nat:G.player,stance:"hold",target:null,name:"Army Group "+g};
+  return G.groups[g];
+}
+window.assignGroup=(uid,g)=>{
+  if(!G||!G.units)return;
+  const u=G.units.find(x=>x.id===uid&&x.nat===G.player);
+  if(!u)return;
+  u.grp=g||0;
+  if(g)ensureGroup(g);
+  renderPanel();
+};
+window.assignHereToGroup=(pid,g)=>{
+  if(!G)return;
+  let n=0;
+  for(const u of G.units)if(u.nat===G.player&&u.at===pid){u.grp=g||0;n++;}
+  if(g)ensureGroup(g);
+  logMsg(n?`${n} division${n>1?"s":""} assigned to ${g?"Army Group "+g:"no group"}.`:"Nothing of yours is there.","good");
+  renderPanel();
+};
+window.setStance=(g,st)=>{
+  if(!STANCES[st])return;
+  ensureGroup(g).stance=st;
+  logMsg(`${STANCES[st].i} Army Group ${g} \u2014 ${STANCES[st].n}.`,"good");
+  renderPanel();
+};
+window.setGroupTarget=(g,nat)=>{
+  ensureGroup(g).target=nat||null;
+  renderPanel();
+};
+window.disbandGroup=g=>{
+  if(!G||!G.groups)return;
+  for(const u of G.units)if(u.grp===g)u.grp=0;
+  delete G.groups[g];
+  renderPanel();
+};
 /* A general used to be a flat +15% and another +10% a level, which made every
    commander in the game the same commander. A trait ties him to the map the
    army is actually standing on: a mountaineer is worth having in the Caucasus
@@ -3789,6 +3983,10 @@ const ACH=[
  {id:"first_blood",n:"First Blood",i:"\u2694",d:"Capture your first enemy province."},
  {id:"kesselschlacht",n:"Kesselschlacht",i:"\u26D3",d:"Have 8 enemy divisions cut off from supply at once."},
  {id:"wolfpack",n:"Wolfpack",i:"\u25BE",d:"Sink 15 enemy ships in one campaign."},
+ {id:"last_levy",n:"The Last Levy",i:"\u{1F465}",d:"Put your country under All Adults Serve."},
+ {id:"blood_price",n:"The Blood Price",i:"\u{1FA78}",d:"Lose a million men in one campaign."},
+ {id:"army_groups",n:"High Command",i:"\u{1F396}",d:"Command four army groups at once."},
+ {id:"home_front",n:"Held Together",i:"\u{1F3E1}",d:"Win a war of 5+ years without war support ever falling below 40%."},
  {id:"air_supremacy",n:"Air Supremacy",i:"\u2708",d:"Shoot down 15 enemy aircraft in one campaign."},
  {id:"balanced_fleet",n:"Balanced Fleet",i:"\u2693",d:"Have all four classes of warship at sea at once."},
  {id:"strategic_air",n:"Strategic Air Command",i:"\u{1F4A5}",d:"Bomb an enemy province to half production."},
@@ -9082,7 +9280,36 @@ function renderPanel(){
       const pct=Math.max(0,Math.round(u.hp/(u.str*10)*100));
       h+=`<button class="bbtn" onclick="jumpTo(${u.id})" style="${s.k<=1?"border-color:"+s.c:""}">
         <span style="color:${s.c}">${s.e} ${s.t}</span> \u2014 ${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)}${u.gen?" \u2605"+u.gen.lvl:""}
-        <small>${p.name} ${terOf(p).i}${weatherAt(p)===WEATHER.clear?"":" "+weatherAt(p).i}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
+        <small>${groupOf(u)?"AG"+groupOf(u)+" \u00b7 ":""}${p.name} ${terOf(p).i}${weatherAt(p)===WEATHER.clear?"":" "+weatherAt(p).i}${u.to&&G.prov[u.to]?" \u2192 "+G.prov[u.to].name:""} \u00b7 HP ${Math.max(0,u.hp).toFixed(0)}/${(u.str*10).toFixed(0)} (${pct}%)</small></button>`;
+    }
+    /* HIGH COMMAND. Four groups is enough to run a war on three fronts and
+       few enough to read at a glance. */
+    {
+      G.groups=G.groups||{};
+      h+=`<h3>\u{1F396} HIGH COMMAND</h3>
+      <div style="color:var(--dim);font-size:11px">Assign divisions to a group, give the group a stance, and it fights itself. Anything not in a group still answers to AUTO CAPTURE.</div>`;
+      const foes=Object.keys(G.nations).filter(k=>G.nations[k].alive&&atWar(G.player,k));
+      for(let g=1;g<=4;g++){
+        const grp=G.groups[g],roster=mine.filter(u=>groupOf(u)===g);
+        if(!grp&&!roster.length)continue;
+        const st=STANCES[(grp&&grp.stance)||"hold"];
+        h+=`<div class="row" style="margin-top:6px"><span><b>Army Group ${g}</b> \u00b7 ${roster.length} division${roster.length===1?"":"s"}</span>
+          <span style="color:var(--amber)">${st.i} ${st.n}</span></div>
+        <div class="row" style="gap:3px">${Object.keys(STANCES).map(k=>
+          `<button class="tbtn" style="flex:1;font-size:10px" ${((grp&&grp.stance)||"hold")===k?"disabled":""} onclick="setStance(${g},'${k}')">${STANCES[k].i} ${STANCES[k].n}</button>`).join("")}</div>
+        <div style="color:var(--dim);font-size:10px">${st.d}</div>`;
+        if(foes.length)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><button class="tbtn" style="font-size:10px" ${!(grp&&grp.target)?"disabled":""} onclick="setGroupTarget(${g},null)">Any enemy</button>${
+          foes.slice(0,5).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${NATIONS[k].f} ${NATIONS[k].n}</button>`).join("")}</div>`;
+        if(roster.length)h+=`<button class="tbtn" style="font-size:10px" onclick="disbandGroup(${g})">\u2715 Disband group ${g}</button>`;
+      }
+      const unassigned=mine.filter(u=>!groupOf(u)).length;
+      h+=`<div class="row"><span style="color:var(--dim)">Unassigned</span><span style="color:var(--dim)">${unassigned} division${unassigned===1?"":"s"}</span></div>`;
+      if(G.sel&&G.prov[G.sel]){
+        const hereN=mine.filter(u=>u.at===G.sel).length;
+        if(hereN)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><span style="width:100%;color:var(--dim);font-size:11px">Put all ${hereN} at ${G.prov[G.sel].name} into:</span>${
+          [1,2,3,4].map(g=>`<button class="tbtn" style="flex:1;font-size:10px" onclick="assignHereToGroup('${G.sel}',${g})">AG ${g}</button>`).join("")}
+          <button class="tbtn" style="flex:1;font-size:10px" onclick="assignHereToGroup('${G.sel}',0)">None</button></div>`;
+      }
     }
     const staff=mine.filter(u=>u.gen);
     if(staff.length){
@@ -9121,17 +9348,19 @@ function renderPanel(){
     const deployable=provOf(sel.id).owner===G.player;
     el.innerHTML=`<h2>RECRUIT</h2>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
-    <button class="bbtn" ${me.pp<20||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
+    <div class="row"><span>\u{1F465} Manpower</span><span style="color:${(me.mp||0)<MP_COST.inf?"var(--red)":""}">${Math.round(me.mp||0)}K of ${Math.round(mpCap(G.player))}K \u00b7 +${mpRegen(G.player).toFixed(1)}K/day</span></div>
+    ${(me.mp||0)<MP_COST.inf?`<div style="color:var(--red);font-size:11px">No men left to call up. Raise CONSCRIPTION under POLICY \u2014 or stop losing divisions.</div>`:""}
+    <button class="bbtn" ${me.pp<20||(me.mp||0)<MP_COST.inf||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + ${MP_COST.inf}K \u{1F465}<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
     <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
-    <button class="bbtn" ${me.pp<35||me.oil<armOil()||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
-    <button class="bbtn" ${me.pp<30||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
-    <button class="bbtn" ${me.pp<25||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
+    <button class="bbtn" ${me.pp<35||me.oil<armOil()||(me.mp||0)<MP_COST.arm||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""} + ${MP_COST.arm}K \u{1F465}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
+    <button class="bbtn" ${me.pp<30||(me.mp||0)<MP_COST.art||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP + ${MP_COST.art}K \u{1F465}<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
+    <button class="bbtn" ${me.pp<25||(me.mp||0)<MP_COST.aa||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP + ${MP_COST.aa}K \u{1F465}<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
     <h3>⚓ SHIPYARD${sel.coastal?"":" — needs a port"}</h3>
     ${Object.keys(SHIPS).map(c=>{const e=SHIPS[c],t="s_"+c;
-      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
     <h3>✈ AIRFIELD</h3>
     ${Object.keys(WINGTYPES).map(c=>{const e=WINGTYPES[c],t="a_"+c;
-      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
     ${(()=>{
       /* Say WHICH requirement is missing. Most of the roster owns no oil
          province and so has no oil income at all — those nations used to see
@@ -9346,13 +9575,15 @@ function renderPanel(){
     el.innerHTML=h;
   }
   if(curPanel==="policy"){
-    const cons=["Volunteer Army","Limited Conscription","Total Mobilization"];
+    const cons=CONSCRIPTION.map(c=>c.n);
     const eco=["Civilian Economy","War Economy"];
     me.law=me.law||{cons:0,eco:0};
     el.innerHTML=`<h2>NATIONAL POLICY</h2>
     <h3>CONSCRIPTION — ${cons[me.law.cons]}</h3>
-    <div style="color:var(--dim);font-size:11px">Higher levels mobilize reserves faster and raise the troop cap, but grind stability.</div>
-    ${cons.map((c,i)=>`<button class="bbtn" ${me.law.cons===i?"disabled":""} onclick="setLaw('cons',${i})">${me.law.cons===i?"▶ ":""}${c}<small>${["cap ×1, normal speed","cap ×1.3, +50% speed, −slow stability","cap ×1.7, double speed, −stability"][i]}${me.law.cons===i?"":" — costs 25 PP"}</small></button>`).join("")}
+    <div class="row"><span>\u{1F465} Manpower</span><span>${Math.round(me.mp||0)}K of ${Math.round(mpCap(G.player))}K</span></div>
+    <div class="row"><span>Recruits per day</span><span>${mpRegen(G.player).toFixed(1)}K</span></div>
+    <div style="color:var(--dim);font-size:11px">Every division comes out of this pool and does not come back. Occupied populations barely fill it \u2014 you conscript the people you govern, not the people you hold down.</div>
+    ${CONSCRIPTION.map((c,i)=>`<button class="bbtn" ${me.law.cons===i?"disabled":""} onclick="setLaw('cons',${i})">${me.law.cons===i?"\u25B6 ":""}${c.n}<small>${c.d} \u00b7 ${(popBase(G.player)*c.rate).toFixed(1)}K/day \u00b7 production \u00d7${c.pp.toFixed(2)} \u00b7 stability ${c.stab>=0?"+":""}${(c.stab*365).toFixed(0)}/yr</small></button>`).join("")}
     <h3>ECONOMY — ${eco[me.law.eco]}</h3>
     ${eco.map((c,i)=>`<button class="bbtn" ${me.law.eco===i?"disabled":""} onclick="setLaw('eco',${i})">${me.law.eco===i?"▶ ":""}${c}<small>${["normal production","+30% production, −stability over time"][i]}${me.law.eco===i?"":" — costs 25 PP"}</small></button>`).join("")}
     <h3>OIL MARKET</h3>
@@ -9550,6 +9781,7 @@ function renderPanel(){
       row("Provinces taken",st.taken,"#5d9a4e")+
       row("Provinces lost",st.lostProv,st.lostProv?"#ff8d7a":"")+
       row("Divisions lost",st.lost,st.lost?"#ff8d7a":"")+
+      (st.menLost?row("Men lost with them",(st.menLost>=1000?(st.menLost/1000).toFixed(2)+" million":st.menLost+",000"),"#ff8d7a"):"")+
       row("Enemy divisions destroyed",st.killed,"#5d9a4e")+
       (st.starved?row("\u2014 of yours, starved in pockets",st.starved,"#c4452f"):"")+
       row("Days spent in battle",st.battles)+
@@ -9629,7 +9861,9 @@ function buyFor(nat,t,pid){
   if(t.startsWith("a_")&&(!cap||cap.owner!==nat))return false;
   if(t==="nuke"&&!(me.res.ind>=3||me.atomicOk))return false;
   if(me.pp<c[0]||me.oil<c[1])return false;
-  me.pp-=c[0];me.oil-=c[1];
+  const mp=mpCostOf(t);
+  if((me.mp||0)<mp)return false;              // the production is there; the men are not
+  me.pp-=c[0];me.oil-=c[1];spendMP(nat,mp);
   const d=buildDays(nat,t);
   G.queue=G.queue||[];
   G.queue.push({oid:++G.uid,nat,t,at:t.startsWith("a_")?cap.id:sel.id,left:d,total:d});
@@ -9772,6 +10006,10 @@ function refreshHUD(){
   $("#hPPr").textContent="(+"+(me.ppRate||0).toFixed(1)+"/d)";
   $("#hRP").textContent=me.rp.toFixed(1);
   $("#hOil").textContent=Math.floor(me.oil);
+  {const el3=$("#hMP");
+   if(el3){const cap=mpCap(G.player),cur=Math.round(me.mp||0);
+     el3.textContent=cur;
+     el3.parentNode.style.color=cur<MP_COST.inf?"var(--red)":cur<cap*0.2?"var(--amber)":"";}}
   $("#hNuke").textContent=me.nukes;
   {const cp=G.prov[capOf(G.player)],el2=$("#hWxT");
    if(el2&&cp){const w=weatherAt(cp);
@@ -9838,6 +10076,17 @@ const MANUAL=[
   "AIR SUPERIORITY is the number everything else is multiplied by. Whoever wins the air over a province has their aircraft work at full effect there and the loser\u2019s at a third \u2014 and the side that loses it pays for it in aircraft shot down. A fighter that cannot bomb anything is still worth building, because it decides how well your bombers work.",
   "Weather grounds aircraft: almost nothing flies in a blizzard. Anti-air divisions on the ground shoot at whatever is overhead.",
   "Strategic bombing leaves a province burning \u2014 its production falls until the fires are out, which takes months \u2014 and destroys factories outright."]],
+ ["\u{1F465} MANPOWER AND THE HOME FRONT",[
+  "Every division is twenty thousand men, and they come out of a pool that does not refill from nowhere. Armour costs twenty-six, artillery sixteen, anti-air eleven; a ship or an air wing is its crew.",
+  "The pool is fed by the people you GOVERN. Occupied populations barely count \u2014 about a fifth \u2014 so conquering is not the same as growing, and a province you have bombed flat or irradiated feeds nobody at all. That is what strategic bombing and the bomb are really for: they take an enemy\u2019s ability to REPLACE what you destroy.",
+  "CONSCRIPTION, under POLICY, has five settings from Volunteers Only to All Adults Serve. Each one roughly doubles the recruits and costs you production and stability for as long as it is in force. The last levy fills the ranks and hollows out the country.",
+  "Casualties are permanent \u2014 the men in a division you lose are spent, not returned \u2014 and they cost war support in proportion to how much of your country they represent. A great power shrugs off a division; a small one does not.",
+  "\u{1F4E2} WAR WEARINESS. Below 35% war support production falls away and the government loses its grip. Below 10% the country will force you out of a war whether you agree or not. Propaganda and winning both help; long grinding wars do not."]],
+ ["\u{1F396} HIGH COMMAND",[
+  "AUTO CAPTURE is all or nothing \u2014 every division you own throws itself at the nearest enemy. With a hundred divisions on three continents that is a switch, not a command system.",
+  "Assign divisions to one of four ARMY GROUPS from the ARMY panel (select a province and put everything there into a group), then give the group a stance. \u2694 ADVANCE takes ground. \u{1F6E1} HOLD defends what you already have and moves only to threatened ground. \u25CB RESERVE stands fast and repairs.",
+  "A group can also be pointed at one particular enemy, so Army Group 1 can fight Russia while Army Group 2 holds the Atlantic wall and Army Group 3 sits in reserve.",
+  "Anything not in a group still answers to AUTO CAPTURE exactly as before."]],
  ["\u{1F3ED} RUNNING A COUNTRY",[
   "PP (production) pays for divisions, forts and factories. It comes from the provinces you hold \u2014 occupied land pays only 60%, and a blockaded port pays half.",
   "\u{1F6E2} Oil runs tanks, ships and aircraft. Without it your air wings and fleets simply stop. It comes from oil provinces, or off the market under GOVERNMENT.",
@@ -9869,7 +10118,15 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v20.1 \u2014 LANDINGS, TREATIES AND THE COST OF HOLDING GROUND (current)",[
+ ["v21.0 \u2014 THE HOME FRONT AND THE HIGH COMMAND (current)",[
+  "\u{1F465} A WAR NOW COSTS MEN. A division used to cost production and nothing else, so a war had no human cost at all \u2014 you could lose four hundred divisions and raise four hundred more, and the only thing that ever ran out was money. Every country has a MANPOWER pool drawn from the people it actually governs, and every man in every division comes out of it. A division is twenty thousand of them, armour twenty-six, artillery sixteen, and a ship or a wing is its crew.",
+  "\u{1F480} And they do not come back. Casualties are permanent, which is what finally gives the last two updates their teeth: an encirclement costs the enemy the pocket AND the men in it, attrition in the mountains costs real people, and a division starved in a supply pocket is twenty thousand men you will never conscript again.",
+  "\u{1F4DC} CONSCRIPTION IS A DECISION, not a number on a screen. Five laws from Volunteers Only to All Adults Serve, each roughly doubling the recruits and costing production and stability for as long as it is in force \u2014 the last levy fills the ranks at a quarter of your industry. The computer runs the same home front: it digs deeper when the pool dries up and it can still stand the politics, and it demobilises when it cannot. Across a forty-year run nations now sit spread across all five laws instead of all on one.",
+  "\u{1F3ED} YOU CONSCRIPT THE PEOPLE YOU GOVERN, not the people you hold down. Occupied populations count for about a fifth, so conquering is not the same as growing. And a province bombed flat or irradiated feeds nobody \u2014 which is finally a real purpose for strategic bombing and for the bomb: they take an enemy\u2019s ability to REPLACE what you destroy, which is the only thing that ends a war of attrition.",
+  "\u{1F4E2} WAR WEARINESS HAS TEETH. War support modified how hard your divisions hit and otherwise did nothing at all \u2014 a country could fight on at 2% support for ever. Below 35% production falls away and the government loses its grip; below 10% the country forces you out of a war whether the government agrees or not. Losing divisions costs support in proportion to how much of your country they represent, so a great power shrugs off what breaks a small one.",
+  "\u{1F396} HIGH COMMAND \u2014 four ARMY GROUPS, each with a stance. AUTO CAPTURE was all or nothing: every division you owned threw itself at the nearest enemy, everywhere, at once, which with a hundred divisions across three continents is a switch and not a command system. Put divisions into a group, give it \u2694 ADVANCE, \u{1F6E1} HOLD or \u25CB RESERVE, and point it at one particular enemy if you like \u2014 so Army Group 1 fights Russia while Army Group 2 holds the coast and Army Group 3 rebuilds. Anything not in a group still answers to the old switch, so nothing anybody was already doing stops working.",
+  "\u{1F3C5} Four new achievements: The Last Levy, The Blood Price, High Command and Held Together. Manpower, conscription, army groups and group assignments are all saved with the campaign, and the campaign record now counts the men as well as the divisions."]],
+ ["v20.1 \u2014 LANDINGS, TREATIES AND THE COST OF HOLDING GROUND",[
   "\u{1F30A} AN INVASION IS ESCORTED OR IT IS A MASSACRE. Owning a single warship anywhere on Earth used to let an army walk across any ocean on the map at full speed. A crossing now needs hulls AT the crossing. Escorted, it is an invasion \u2014 eighteen days across the Atlantic. Unescorted, it is a slow convoy at barely a quarter speed \u2014 sixty-two days for the same water. And if the enemy holds that water, the division is picked apart and never lands. The route itself is still allowed either way, so nothing about pathfinding or the computer\u2019s planning changed \u2014 only what the attempt costs. The navy finally has a say in who wins a war on land.",
   "\u{1F525} OCCUPIED LAND FIGHTS BACK. Conquered ground used to simply become yours and then never be thought about again. A province held against its own people now costs production and stability every few days, scaled by how much of it you are holding with nothing standing on it, and by whether its government is still in the field to be rallied to. Measured over two hundred days on six occupied provinces: 206 PP and 8 stability ungarrisoned, 20 PP and under 1 garrisoned. Garrisoning a conquest is a decision now instead of something the game never asked you about. Communist states and a security cabinet still suppress it, exactly as they always claimed to.",
   "\u{1F4DC} NON-AGGRESSION PACTS. 40 PP buys a quiet border WITHOUT the thing that made alliances expensive \u2014 being dragged into every war your ally picks. You can still break one; it just costs, and properly: stability at home, a lasting grudge from them, and a smaller one from every other country that has signed with you, because a state that tears up one treaty is assumed to be capable of tearing up theirs. The computer honours its own signature and will not open a war it has a pact against.",
@@ -11000,10 +11257,11 @@ function mpSerialize(){
       n.res.ind,n.res.land,n.res.nav,n.res.air,n.ai?1:0,NATIONS[k].n,NATIONS[k].f,NATIONS[k].c,n.autoCap?1:0,n.puppet||"",
       /* politics (v4.1+) */ n.ideo||"aut",Math.round(n.warSup??50),Object.keys(n.cab||{}).join(","),n.doctrine||"",
       n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,Math.round(n.grudge||0),[...(n.trade||[])].join(","),
-      JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(",")];}
+      JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(","),Math.round(n.mp||0)];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0]),
+    groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas"]),
     queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total])};
@@ -11020,6 +11278,7 @@ function mpApplyState(S){
   }
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
+  G.groups=S.groups||{};
   for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm]=S.prov[id];
     if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
     if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}
@@ -11058,9 +11317,10 @@ function mpApplyState(S){
          forgets who signed what reloads into a different diplomatic map. */
       n.pacts={};if(a[32]){try{n.pacts=JSON.parse(a[32])||{};}catch(e){}}
       n.lend={};if(a[33])for(const o of String(a[33]).split(","))if(o)n.lend[o]=1;
+      if(a[34]!==undefined)n.mp=+a[34]||0;
     }}
   const selId=G.selUnit&&G.selUnit.id;
-  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
+  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army"}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
