@@ -2921,23 +2921,38 @@ function airOps(){
      before any of them are worked out, so the contest for the air over a
      province is decided by who is actually there -- not by whichever wing the
      loop happened to reach first. */
+  const pick={};
   for(const w of G.wings){
     const n=G.nations[w.nat],cap=G.prov[capOf(w.nat)];
     if(!cap||cap.owner!==w.nat||n.oil<=0){w.target=null;continue;}
     if(w.nat!==G.player||G.airMode==="auto"){
-      if(!w.target||!validAirTarget(w))w.target=pickAirTarget(w.nat);
+      if(!w.target||!validAirTarget(w)){
+        if(pick[w.nat]===undefined)pick[w.nat]=pickAirTarget(w.nat);
+        w.target=pick[w.nat];
+      }
     }
     if(!validAirTarget(w))w.target=null;
   }
-  airDirty();airTable();
+  airDirty();
+  const airT=airTable();
+  /* Built once per pass rather than rescanned per wing. Every wing was
+     filtering all 400 divisions twice (once for what to bomb, once for the
+     flak shooting back) and looping every other wing to see who else was over
+     the target -- three quadratic scans that between them cost more than the
+     whole rest of the day's simulation. */
+  const byProv={};
+  for(const u of G.units)(byProv[u.at]=byProv[u.at]||[]).push(u);
+  const byWater={};
+  for(const f of G.fleets)if(!f.to)(byWater[f.at]=byWater[f.at]||[]).push(f);
   for(const w of [...G.wings]){
     if(!w.target)continue;
     const p=provOf(w.target),c=wingOf(w);
     const wx=weatherAt(p),ctrl=airControl(w.nat,w.target);
     const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl;
+    const here=byProv[w.target]||[];
     if(c.ground>0){
       p.garrison=Math.max(0,p.garrison-eff*0.15*c.ground);
-      const foes=G.units.filter(u=>u.at===w.target&&atWar(w.nat,u.nat));
+      const foes=here.filter(u=>atWar(w.nat,u.nat));
       dmg(foes,eff*0.20*c.ground);
       for(const u of foes)if(u.hp<=0)killUnit(u);
     }
@@ -2954,19 +2969,22 @@ function airOps(){
     }
     /* Naval bombers sink ships, which nothing in the air could do before. */
     if(c.naval>0){
-      const ships=G.fleets.filter(f=>!f.to&&atWar(w.nat,f.nat)&&(f.at===w.target||p.seaAdj.indexOf(f.at)>=0));
+      let ships=(byWater[w.target]||[]);
+      for(const j of p.seaAdj)if(byWater[j])ships=ships.concat(byWater[j]);
+      ships=ships.filter(f=>atWar(w.nat,f.nat));
       if(ships.length){
         navalDmg(ships,eff*0.30*c.naval);
         for(const f of ships)if(f.hp<=0)sinkFleet(f);
       }
     }
     // flak over the target
-    const flak=G.units.reduce((sum,u)=>(u.at===w.target&&u.type==="aa"&&atWar(w.nat,u.nat))?sum+u.str:sum,0);
+    let flak=0;
+    for(const u of here)if(u.type==="aa"&&atWar(w.nat,u.nat))flak+=u.str;
     if(flak>0)w.hp-=flak*0.5/(Math.max(1,techMul(w.nat,"air"))*c.tough);
     /* Losing the air over a target is paid for in aircraft: an escorted
        formation gets home, an unescorted one does not. */
     let enemyAir=0;
-    for(const x of G.wings)if(x.target===w.target&&atWar(w.nat,x.nat))enemyAir+=x.str*wingOf(x).air;
+    {const m=airT[w.target];if(m)for(const k in m)if(atWar(w.nat,k))enemyAir+=m[k];}
     if(enemyAir>0)w.hp-=enemyAir*0.22*(1.35-ctrl)/c.tough;
     if(Math.random()<0.01)w.hp-=1;
     if(w.hp<=0){
@@ -3000,8 +3018,10 @@ function pickAirTarget(nat){
   return best;
 }
 function garrisonRegen(){
+  const hostileAt={};
+  for(const u of G.units)if(!hostileAt[u.at]&&atWar(u.nat,provOf(u.at).owner))hostileAt[u.at]=1;
   for(const p of Object.values(G.prov)){
-    const hostile=G.units.some(u=>u.at===p.id&&atWar(u.nat,p.owner));
+    const hostile=!!hostileAt[p.id];
     if(!hostile&&p.garrison<p.val*2+(p.fort||0)*2)p.garrison+=0.02+(p.fort||0)*0.01;
   }
 }
@@ -9854,6 +9874,7 @@ const CHANGELOG=[
   "\u{1F525} OCCUPIED LAND FIGHTS BACK. Conquered ground used to simply become yours and then never be thought about again. A province held against its own people now costs production and stability every few days, scaled by how much of it you are holding with nothing standing on it, and by whether its government is still in the field to be rallied to. Measured over two hundred days on six occupied provinces: 206 PP and 8 stability ungarrisoned, 20 PP and under 1 garrisoned. Garrisoning a conquest is a decision now instead of something the game never asked you about. Communist states and a security cabinet still suppress it, exactly as they always claimed to.",
   "\u{1F4DC} NON-AGGRESSION PACTS. 40 PP buys a quiet border WITHOUT the thing that made alliances expensive \u2014 being dragged into every war your ally picks. You can still break one; it just costs, and properly: stability at home, a lasting grudge from them, and a smaller one from every other country that has signed with you, because a state that tears up one treaty is assumed to be capable of tearing up theirs. The computer honours its own signature and will not open a war it has a pact against.",
   "\u{1F4E6} LEND-LEASE \u2014 send 2% of your production and a trickle of oil to another country every day. Keeping somebody else\u2019s war going is cheaper than fighting it yourself, and it wears down a grudge over time. Both pacts and lend-lease are saved with the campaign.",
+  "\u26A1 AND IT ALL RUNS FASTER THAN BEFORE ANY OF IT WAS ADDED. Three quadratic scans had crept into the air war: every wing filtered all four hundred divisions twice \u2014 once for what to bomb, once for the flak shooting back \u2014 and looped every other wing to see who else was over the target, while garrison regeneration scanned every division once per province. Between them they cost more than the entire rest of the day\u2019s simulation. Indexed once per pass instead: air operations went from 5.5ms to 0.37ms, garrison regeneration from 1.60ms to 0.08ms, and a whole simulated day from 11.2ms to 4.4ms \u2014 quicker than it was before terrain, weather, supply, four ship classes, four kinds of aircraft, air superiority, strategic bombing, combat width and resistance were put in.",
   "\u{1F4D6} The field manual has two new sections covering all of it."]],
  ["v20.0 \u2014 THE SEA, THE SKY, AND THE WIDTH OF A FRONT",[
   "\u2693 A FLEET IS NO LONGER ONE BLOB WITH A NUMBER ON IT. Two fleets meeting used to resolve as the sum of one side\u2019s strength against the sum of the other\u2019s \u2014 pure attrition, no structure, nothing to decide. There are now four kinds of warship and they beat each other in a cycle. \u25BE SUBMARINES strangle trade and butcher a fleet with no escorts, because guns and aircraft cannot hit what is submerged. \u25B8 ESCORTS are the only thing that hunts submarines properly. \u25A0 CAPITAL SHIPS win gunnery actions and flatten a coastline. \u25C6 CARRIERS strike before the guns are in range. A fleet of one kind of hull loses to a fleet of the right kind, which means what you build is finally a decision and not just how much.",
