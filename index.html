@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">19.0.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">20.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">19.0.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">20.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -282,7 +282,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="19.0.0";
+const BUILD="20.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1154,16 +1154,16 @@ const NAT_BASE=JSON.parse(JSON.stringify(NATIONS));
    strength for ever. Encirclement did not exist as an idea, because there was
    nothing to encircle anyone FROM.                                          */
 const TERRAIN={
- plain: {n:"Plains",    i:"\u25AC", def:1.00, move:1.00, sup:1.00, wear:0.000, c:"#8fa05a"},
- steppe:{n:"Steppe",    i:"\u2261", def:0.92, move:1.12, sup:0.85, wear:0.004, c:"#c8b56a"},
- forest:{n:"Forest",    i:"\u2663", def:1.22, move:0.78, sup:0.88, wear:0.002, c:"#2f6b3a"},
- hills: {n:"Hills",     i:"\u25B3", def:1.30, move:0.74, sup:0.82, wear:0.003, c:"#9c7a4a"},
- mtn:   {n:"Mountains", i:"\u25B2", def:1.65, move:0.48, sup:0.60, wear:0.010, c:"#8f909c"},
- desert:{n:"Desert",    i:"\u2591", def:1.02, move:0.86, sup:0.52, wear:0.014, c:"#e0c070"},
- jungle:{n:"Jungle",    i:"\u2618", def:1.38, move:0.52, sup:0.58, wear:0.016, c:"#1f7a4a"},
- marsh: {n:"Marshland", i:"\u2248", def:1.26, move:0.52, sup:0.70, wear:0.010, c:"#5a7a6a"},
- tundra:{n:"Tundra",    i:"\u2744", def:1.14, move:0.58, sup:0.50, wear:0.014, c:"#bcd2dd"},
- urban: {n:"Urban",     i:"\u25A6", def:1.55, move:0.66, sup:1.15, wear:0.000, c:"#b0625f"}
+ plain: {n:"Plains",    i:"\u25AC", def:1.00, move:1.00, sup:1.00, wear:0.000, width:7, c:"#8fa05a"},
+ steppe:{n:"Steppe",    i:"\u2261", def:0.92, move:1.12, sup:0.85, wear:0.004, width:8, c:"#c8b56a"},
+ forest:{n:"Forest",    i:"\u2663", def:1.22, move:0.78, sup:0.88, wear:0.002, width:4, c:"#2f6b3a"},
+ hills: {n:"Hills",     i:"\u25B3", def:1.30, move:0.74, sup:0.82, wear:0.003, width:4, c:"#9c7a4a"},
+ mtn:   {n:"Mountains", i:"\u25B2", def:1.65, move:0.48, sup:0.60, wear:0.010, width:2, c:"#8f909c"},
+ desert:{n:"Desert",    i:"\u2591", def:1.02, move:0.86, sup:0.52, wear:0.014, width:8, c:"#e0c070"},
+ jungle:{n:"Jungle",    i:"\u2618", def:1.38, move:0.52, sup:0.58, wear:0.016, width:2, c:"#1f7a4a"},
+ marsh: {n:"Marshland", i:"\u2248", def:1.26, move:0.52, sup:0.70, wear:0.010, width:3, c:"#5a7a6a"},
+ tundra:{n:"Tundra",    i:"\u2744", def:1.14, move:0.58, sup:0.50, wear:0.014, width:5, c:"#bcd2dd"},
+ urban: {n:"Urban",     i:"\u25A6", def:1.55, move:0.66, sup:1.15, wear:0.000, width:3, c:"#b0625f"}
 };
 /* Assigned from real geography, not generated: the Alps, the Caucasus, the
    Urals, the Andes and the Atlas are mountains; the Pripet and the Flanders
@@ -1195,6 +1195,19 @@ const PTERRAIN={};
    "tok","wash",);
 })();
 function terOf(p){return TERRAIN[p&&p.ter]||TERRAIN.plain;}
+/* How many divisions can actually be brought to bear at once. A mountain pass
+   takes two; the open steppe takes eight. Forts widen the ground you can hold
+   but not the ground you can attack across. Without this, the answer to every
+   problem in the game was one more division on the same tile, and terrain
+   stopped mattering the moment you had enough of them. */
+function frontage(p,defending){
+  const t=terOf(p);
+  let w=t.width;
+  if(defending)w+=1+(p.fort||0)*0.5;
+  const wx=weatherAt(p);
+  if(wx.move<0.5)w-=1;                       // a blizzard narrows the front too
+  return Math.max(1,Math.round(w));
+}
 
 const WEATHER={
  clear:   {n:"Clear",     i:"\u2600",     move:1.00, atk:1.00, air:1.00, wear:0.000, c:"#9fb0c0"},
@@ -1661,10 +1674,16 @@ function newGame(playerNation){
       addUnit(k,where.id,t,t==="arm"?4:t==="aa"?2:3);
     }
     const ports=caps.filter(p=>p.coastal);
-    const nFleet=ports.length?Math.max(ports.length?1:0,Math.floor(s/3)):0;
-    for(let i=0;i<nFleet;i++)addFleet(k,ports[i%ports.length].id,2);
+    const nFleet=ports.length?Math.max(1,Math.round(s/2)):0;
+    /* A navy is a balanced force, not n copies of the same hull. Roughly the
+       shape a real one had: mostly escorts, a core of capital ships, a
+       submarine arm, and carriers only for the powers that could afford them. */
+    for(let i=0;i<nFleet;i++){
+      const cls=i===0?"cap":(i%4===1?"sub":(i%4===2?"dd":(i>=4&&s>=7?"cv":"dd")));
+      addFleet(k,ports[i%ports.length].id,cls==="cap"?4:cls==="cv"?3:2,cls);
+    }
     const nWing=Math.floor(s/4);
-    for(let i=0;i<nWing;i++)addWing(k,2);
+    for(let i=0;i<nWing;i++)addWing(k,i%3===0?3:2,i%3===0?"fig":i%3===1?"cas":(s>=7?"stb":"cas"));
   }
   fitCam();
   logMsg("The world holds its breath. Command your nation.","good");
@@ -1688,13 +1707,50 @@ function addUnit(nat,pid,type,str){
   if(G&&G.nations[nat]&&G.nations[nat].doctrine==="ma")u.hp*=1.15;
   G.units.push(u);return u;
 }
-function addFleet(nat,pid,str){
+/* ================= THE SEA AND THE SKY =================
+   A fleet used to be one undifferentiated blob with a strength number, and so
+   did an air wing. Two fleets meeting resolved as sum(str) against sum(str) --
+   pure attrition, no structure, nothing to think about. Meanwhile the land war
+   had four division types, terrain, weather and supply. These tables are the
+   sea and the air catching up: four hulls and four airframes that beat each
+   other in a cycle, so what you BUILD is a decision and not just how much.
+
+   evade is how hard a hull is to hit: a submarine slips away from a gunnery
+   action, a battleship is what everyone shoots at. */
+const SHIPS={
+ dd: {n:"Escort flotilla",    i:"\u25B8", cost:[22,4],  days:14, str:2, gun:0.80, asw:2.00, raid:0.35, shore:0.50, air:0.60, evade:0.90,
+      d:"Hunts submarines and screens the fleet. Nearly useless alone against capital ships."},
+ sub:{n:"Submarine flotilla", i:"\u25BE", cost:[26,5],  days:18, str:2, gun:0.35, asw:0.00, raid:2.20, shore:0.00, air:0.00, evade:2.20,
+      d:"Strangles trade and is murder to an unescorted fleet. Escorts hunt it down."},
+ cap:{n:"Capital squadron",   i:"\u25A0", cost:[58,14], days:36, str:4, gun:2.00, asw:0.15, raid:0.90, shore:2.00, air:0.50, evade:0.50,
+      d:"Wins gunnery actions and flattens a coastline. Everything in the ocean shoots at it."},
+ cv: {n:"Carrier group",      i:"\u25C6", cost:[72,18], days:48, str:3, gun:0.70, asw:1.20, raid:0.70, shore:1.00, air:2.40, evade:0.60,
+      d:"Strikes before the guns are in range. Fragile if a surface action ever reaches it."}
+};
+const shipOf=f=>SHIPS[f&&f.cls]||SHIPS.dd;
+/* Aircraft do four different jobs and used to do one. A fighter that cannot
+   bomb is worth having anyway, because whoever holds the air over a province
+   decides how well everyone else's aircraft work there. */
+const WINGTYPES={
+ fig:{n:"Fighter wing",     i:"\u2708", cost:[26,6],  days:18, str:2, air:2.20, ground:0.30, strat:0.00, naval:0.25, tough:1.20,
+      d:"Takes the air over a province. Cannot do much to the ground, and decides how well everything else does."},
+ cas:{n:"Tactical bomber",  i:"\u2708", cost:[30,8],  days:24, str:2, air:0.55, ground:1.80, strat:0.35, naval:0.60, tough:1.00,
+      d:"Close support: breaks garrisons and divisions in the province it flies over."},
+ stb:{n:"Strategic bomber", i:"\u2708", cost:[48,12], days:38, str:3, air:0.35, ground:0.50, strat:2.40, naval:0.30, tough:1.40,
+      d:"Burns factories and production instead of soldiers. Slow, and it needs the air held for it."},
+ nvb:{n:"Naval bomber",     i:"\u2708", cost:[34,9],  days:26, str:2, air:0.50, ground:0.35, strat:0.00, naval:2.40, tough:1.00,
+      d:"Sinks ships. A fleet caught in range of these without a carrier is in trouble."}
+};
+const wingOf=w=>WINGTYPES[w&&w.wt]||WINGTYPES.cas;
+function addFleet(nat,pid,str,cls){
   if(MODS.navaldom)str=+(str*1.4).toFixed(1);
-  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet"};
+  cls=SHIPS[cls]?cls:"dd";
+  const f={id:++G.uid,nat,at:pid,to:null,prog:0,str,hp:str*10,kind:"fleet",cls};
   G.fleets.push(f);return f;
 }
-function addWing(nat,str){
-  const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing"};
+function addWing(nat,str,wt){
+  wt=WINGTYPES[wt]?wt:"cas";airDirty();
+  const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing",wt};
   G.wings.push(w);return w;
 }
 
@@ -2034,7 +2090,21 @@ function tick(){
     for(const p of ps){
       let v=p.val;
       if(p.home!==k&&G.nations[p.home]&&G.nations[p.home].alive)v*=0.6; // occupied land resists
-      if(p.coastal&&G.fleets.some(f=>!f.to&&atWar(f.nat,k)&&(f.at===p.id||p.adj.includes(f.at)||p.seaAdj.includes(f.at))))v*=(MODS.navaldom?0.28:0.5); // blockaded
+      if(p.bombed)v*=(1-p.bombed);                       // the factories are still burning
+      if(p.coastal){
+        /* A blockade is now worth what the hulls enforcing it are worth: a
+           submarine arm strangles a coast, a lone escort barely inconveniences
+           it, and the owner's own warships in the same water push it off. */
+        let raid=0,guard=0;
+        for(const f of G.fleets){
+          if(f.to)continue;
+          if(!(f.at===p.id||p.adj.indexOf(f.at)>=0||p.seaAdj.indexOf(f.at)>=0))continue;
+          if(atWar(f.nat,k))raid+=f.str*shipOf(f).raid;
+          else if(f.nat===k||allied(k,f.nat))guard+=f.str*shipOf(f).asw*0.5+f.str*shipOf(f).gun*0.3;
+        }
+        const net=Math.max(0,raid-guard);
+        if(net>0)v*=Math.max(MODS.navaldom?0.22:0.35,1-net*0.09);
+      }
       pp+=v;oil+=p.oil;
     }
     const _law=n.law||{cons:0,eco:0};
@@ -2256,6 +2326,7 @@ function tick(){
     }
   }
   garrisonRegen();
+  if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai&&n.autoCap)autoCapture(k);}
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
   if(G.day%10===0){
@@ -2481,6 +2552,12 @@ function supplyTick(){
   /* Encirclement, counted from the enemy's point of view: not "did I win a
      battle" but "how many of theirs can no longer be fed". */
   if(G.day%9===0&&G.player){
+    if((G.stats&&G.stats.sunk||0)>=15)unlockAch("wolfpack");
+    if((G.stats&&G.stats.shotDown||0)>=15)unlockAch("air_supremacy");
+    {const have={};for(const f of G.fleets)if(f.nat===G.player)have[f.cls||"dd"]=1;
+     if(Object.keys(SHIPS).every(c=>have[c]))unlockAch("balanced_fleet");}
+    for(const id in G.prov){const q=G.prov[id];
+      if((q.bombed||0)>=0.5&&atWar(G.player,q.owner)){unlockAch("strategic_air");break;}}
     let pocket=0;
     for(const u of G.units)if(atWar(u.nat,G.player)&&!supplied(u.nat,u.at))pocket++;
     G.bigPocket=Math.max(G.bigPocket||0,pocket);
@@ -2570,8 +2647,15 @@ function battles(){
          uses its attack value when it is assaulting a province and its defence
          value when it is holding one, which is what makes artillery devastating
          in a bombardment and helpless caught on its own. */
-      let pa=fa.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*roleMul(u,p.owner===A),0)*techMul(A,"land")*natAtkMul(A);
-      let pb=fb.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*roleMul(u,p.owner===B),0)*techMul(B,"land")*natAtkMul(B);
+      /* Only the divisions that fit on the front actually fight. The rest are
+         in reserve: they contribute a trickle, they take almost nothing, and
+         they rotate in as the front line is chewed up -- which is what makes a
+         reserve worth having and a doom-stack on one tile worth much less than
+         the same divisions spread across three. */
+      const lineA=frontLine(fa,p,p.owner===A),lineB=frontLine(fb,p,p.owner===B);
+      const pw=(arr,side,def)=>arr.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*roleMul(u,def),0);
+      let pa=(pw(lineA.front,A,p.owner===A)+pw(lineA.rear,A,p.owner===A)*0.12)*techMul(A,"land")*natAtkMul(A);
+      let pb=(pw(lineB.front,B,p.owner===B)+pw(lineB.rear,B,p.owner===B)*0.12)*techMul(B,"land")*natAtkMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       /* Weather blunts both sides' offence; the ground itself only helps the
@@ -2583,7 +2667,10 @@ function battles(){
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
         if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
-      dmg(fb,pa*0.25);dmg(fa,pb*0.25);
+      /* Casualties fall on the men in contact. A reserve bleeds a little from
+         shelling and interdiction, not from the battle. */
+      dmg(lineB.front,pa*0.25*0.88);dmg(lineB.rear,pa*0.25*0.12);
+      dmg(lineA.front,pb*0.25*0.88);dmg(lineA.rear,pb*0.25*0.12);
       for(const u of[...fa,...fb]){
         u.xp=Math.min(150,(u.xp||0)+1);
         if(u.nat===G.player&&(u.xp===15||u.xp===45||u.xp===90))
@@ -2600,12 +2687,69 @@ function battles(){
     for(let i=0;i<nats.length;i++)for(let j=i+1;j<nats.length;j++){
       if(!atWar(nats[i],nats[j]))continue;
       const fa=here.filter(f=>f.nat===nats[i]),fb=here.filter(f=>f.nat===nats[j]);
-      const pa=fa.reduce((s,f)=>s+f.str,0)*techMul(nats[i],"nav");
-      const pb=fb.reduce((s,f)=>s+f.str,0)*techMul(nats[j],"nav");
-      dmg(fb,pa*0.3);dmg(fa,pb*0.3);
+      navalBattle(fa,fb,nats[i],nats[j],pid);
     }
-    for(const f of here)if(f.hp<=0){G.fleets=G.fleets.filter(x=>x!==f);if(f.nat===G.player)logMsg("A fleet was sunk!","war");}
+    for(const f of here)if(f.hp<=0)sinkFleet(f);
   }
+}
+/* A surface action, not an attrition sum. Gunnery and carrier aviation do the
+   open fighting; submarines bite separately and are neutralised by escorts,
+   which is the whole cycle -- subs beat an unescorted fleet, escorts beat subs,
+   capital ships and carriers beat escorts. Damage is spread by how hard each
+   hull is to hit, so a battleship soaks what a submarine slips. */
+function navalBattle(fa,fb,A,B,pid){
+  const side=arr=>{
+    const o={gun:0,air:0,asw:0,sub:0};
+    for(const f of arr){const c=shipOf(f);
+      o.gun+=f.str*c.gun;o.air+=f.str*c.air;o.asw+=f.str*c.asw;
+      if(f.cls==="sub")o.sub+=f.str;}
+    return o;
+  };
+  const a=side(fa),b=side(fb);
+  const wx=weatherAt(G.prov[pid]);
+  const tA=techMul(A,"nav"),tB=techMul(B,"nav");
+  const surfA=fa.filter(f=>f.cls!=="sub"),subA=fa.filter(f=>f.cls==="sub");
+  const surfB=fb.filter(f=>f.cls!=="sub"),subB=fb.filter(f=>f.cls==="sub");
+  /* Three separate fights, because they really are three separate fights.
+     GUNS AND AIRCRAFT can only hit what is on the surface -- a fleet of
+     submarines simply is not there to be shelled, which is the entire reason
+     a submarine arm beats an unescorted battle line. ASW is the only thing
+     that hunts submarines, and only escorts and carriers carry much of it.
+     TORPEDOES bite anything afloat, and are blunted by the escorts screening
+     it. That closes the cycle: subs beat an unescorted fleet, escorts beat
+     subs, capitals and carriers beat escorts. */
+  const gunA=(a.gun+a.air*1.3*wx.air)*tA*0.30, gunB=(b.gun+b.air*1.3*wx.air)*tB*0.30;
+  const aswA=a.asw*tA*0.55,                    aswB=b.asw*tB*0.55;
+  const torpA=a.sub*1.6*tA/(1+b.asw*0.6)*0.30, torpB=b.sub*1.6*tB/(1+a.asw*0.6)*0.30;
+  if(surfB.length)navalDmg(surfB,gunA);
+  if(subB.length) navalDmg(subB,aswA);
+  if(fb.length)   navalDmg(fb,torpA);
+  if(surfA.length)navalDmg(surfA,gunB);
+  if(subA.length) navalDmg(subA,aswB);
+  if(fa.length)   navalDmg(fa,torpB);
+}
+/* Spread by how hard each hull is to hit: a battleship soaks what a submarine
+   slips away from. */
+function navalDmg(arr,amt){
+  if(!arr.length||!(amt>0))return;
+  let tot=0;const w=[];
+  for(const f of arr){const x=1/Math.max(0.2,shipOf(f).evade);w.push(x);tot+=x;}
+  if(tot<=0)return;
+  for(let i=0;i<arr.length;i++)arr[i].hp-=amt*w[i]/tot;
+}
+function sinkFleet(f){
+  G.fleets=G.fleets.filter(x=>x!==f);
+  if(f===G.selUnit)G.selUnit=null;
+  if(f.nat===G.player)logMsg(`\u2693 ${shipOf(f).n} sunk!`,"war");
+  else if(G.stats&&atWar(f.nat,G.player))G.stats.sunk=(G.stats.sunk||0)+1;
+}
+/* Worst-first: the freshest divisions hold the line and the mauled ones fall
+   back into reserve, which is what a competent staff would do anyway. */
+function frontLine(arr,p,defending){
+  const w=frontage(p,defending);
+  if(arr.length<=w)return {front:arr,rear:[]};
+  const sorted=arr.slice().sort((a,b)=>(b.hp/(b.str*10))-(a.hp/(a.str*10)));
+  return {front:sorted.slice(0,w),rear:sorted.slice(w)};
 }
 function dmg(arr,amt){
   if(!arr.length)return;const per=amt/arr.length;
@@ -2621,47 +2765,124 @@ function killUnit(u){
   if(u===G.selUnit)G.selUnit=null;
   if(u.nat===G.player)logMsg(`A ${u.type==="inf"?"infantry":"armored"} division was destroyed`,"war");
 }
+/* Whoever holds the air over a province decides how well EVERYONE's aircraft
+   work there. This is the number the rest of the air war is multiplied by, and
+   it is why a fighter that cannot bomb anything is still worth building. */
+/* Tallied once per day rather than rescanned per wing. Every wing asks who
+   holds the air over its target, and every battle asks it twice more, so the
+   naive version was O(wings squared) and cost more than the entire rest of the
+   tick once the world had a few hundred aircraft in it. */
+let _airTbl=null,_airTblDay=-1,_airTblN=-1,_airDirty=true;
+/* Anything that changes who is flying where has to say so, or the panel shows
+   yesterday's air situation the moment the player retargets. */
+function airDirty(){_airDirty=true;}
+window.airDirty=airDirty;
+function airTable(){
+  if(!_airDirty&&_airTblDay===G.day&&_airTblN===G.wings.length&&_airTbl)return _airTbl;
+  const t={};
+  for(const w of G.wings){
+    if(!w.target)continue;
+    const m=t[w.target]||(t[w.target]={});
+    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air");
+  }
+  _airTblDay=G.day;_airTblN=G.wings.length;_airDirty=false;_airTbl=t;
+  return t;
+}
+function airControl(nat,pid){
+  const m=airTable()[pid];
+  if(!m)return 1;
+  let mine=0,theirs=0;
+  for(const k in m){
+    if(k===nat||allied(nat,k))mine+=m[k];
+    else if(atWar(nat,k))theirs+=m[k];
+  }
+  if(!mine&&!theirs)return 1;
+  /* Uncontested is full effect; badly outfought is a third. Nobody is ever
+     reduced to nothing, because aircraft still get through. */
+  return Math.max(0.33,Math.min(1,(mine+1.2)/(mine+theirs+1.2)*1.6));
+}
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
-  let s=0;for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str;
-  return Math.min(s,4)*weatherAt(G.prov[pid]).air;   // and grounded by the weather over the target
+  let s=0;
+  for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*wingOf(w).ground;
+  return Math.min(s,5)*weatherAt(G.prov[pid]).air*airControl(nat,pid);
 }
 function navalSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // fleets idle without fuel
   const p=provOf(pid);if(!p.coastal)return 0;
   let s=0;
-  for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.at===pid||provOf(f.at).adj.includes(pid)||provOf(f.at).seaAdj.includes(pid)))s+=f.str;
-  return Math.min(s,3);
+  /* Shore bombardment is what a battleship is for and what a submarine cannot
+     do at all -- it used to be the same number for every hull afloat. */
+  for(const f of G.fleets)if(f.nat===nat&&!f.to&&(f.at===pid||provOf(f.at).adj.includes(pid)||provOf(f.at).seaAdj.includes(pid)))s+=f.str*shipOf(f).shore;
+  return Math.min(s,4);
 }
 function airOps(){
+  /* Targeting first, resolution second. Every wing's orders are on the table
+     before any of them are worked out, so the contest for the air over a
+     province is decided by who is actually there -- not by whichever wing the
+     loop happened to reach first. */
   for(const w of G.wings){
-    const n=G.nations[w.nat];
-    const cap=G.prov[capOf(w.nat)];
-    if(cap.owner!==w.nat){w.target=null;continue;} // airbase lost: grounded
-    // auto mode for player handled in autoCapture; AI auto:
+    const n=G.nations[w.nat],cap=G.prov[capOf(w.nat)];
+    if(!cap||cap.owner!==w.nat||n.oil<=0){w.target=null;continue;}
     if(w.nat!==G.player||G.airMode==="auto"){
-      if(!w.target||!validAirTarget(w)){w.target=pickAirTarget(w.nat);}
+      if(!w.target||!validAirTarget(w))w.target=pickAirTarget(w.nat);
     }
-    if(w.target&&validAirTarget(w)){
-      const p=provOf(w.target);
-      // bomb garrison + enemy units there
-      p.garrison=Math.max(0,p.garrison-w.str*0.15*techMul(w.nat,"air"));
+    if(!validAirTarget(w))w.target=null;
+  }
+  airDirty();airTable();
+  for(const w of [...G.wings]){
+    if(!w.target)continue;
+    const p=provOf(w.target),c=wingOf(w);
+    const wx=weatherAt(p),ctrl=airControl(w.nat,w.target);
+    const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl;
+    if(c.ground>0){
+      p.garrison=Math.max(0,p.garrison-eff*0.15*c.ground);
       const foes=G.units.filter(u=>u.at===w.target&&atWar(w.nat,u.nat));
-      dmg(foes,w.str*0.2*techMul(w.nat,"air"));
+      dmg(foes,eff*0.20*c.ground);
       for(const u of foes)if(u.hp<=0)killUnit(u);
-      /* Anti-air was described as tearing into bombers overhead and did
-         nothing of the kind -- there was no code anywhere that let an AA
-         division touch an aircraft. Flak over the target now hurts, which is
-         the whole reason to own the things. */
-      const flak=G.units.reduce((sum,u)=>(u.at===w.target&&u.type==="aa"&&atWar(w.nat,u.nat))?sum+u.str:sum,0);
-      if(flak>0)w.hp-=flak*0.5/Math.max(1,techMul(w.nat,"air"));
-      // attrition / interception
-      const enemyAir=G.wings.filter(x=>atWar(w.nat,x.nat)&&x.target===w.target);
-      if(enemyAir.length)w.hp-=0.4*enemyAir.length;
-      if(Math.random()<0.01)w.hp-=1;
-      if(w.hp<=0){G.wings=G.wings.filter(x=>x!==w);if(w.nat===G.player)logMsg("An air wing was shot down!","war");}
-      // empty province air capture is not allowed: planes can't hold ground
     }
+    /* Strategic bombing hits what makes the divisions, not the divisions. It
+       wrecks factories outright and leaves the province burning -- production
+       there falls until the fires are put out, which takes months. */
+    if(c.strat>0&&atWar(w.nat,p.owner)){
+      p.bombed=Math.min(0.75,(p.bombed||0)+eff*0.010*c.strat);
+      if((p.fac||0)>0&&Math.random()<0.004*eff*c.strat){
+        p.fac--;p.val=Math.max(1,p.val-1);terDirty=true;
+        if(p.owner===G.player)logMsg(`\u{1F3ED} A factory at ${p.name} has been bombed flat.`,"war");
+        else if(w.nat===G.player)logMsg(`\u{1F4A5} Your bombers gutted a factory at ${p.name}.`,"good");
+      }
+    }
+    /* Naval bombers sink ships, which nothing in the air could do before. */
+    if(c.naval>0){
+      const ships=G.fleets.filter(f=>!f.to&&atWar(w.nat,f.nat)&&(f.at===w.target||p.seaAdj.indexOf(f.at)>=0));
+      if(ships.length){
+        navalDmg(ships,eff*0.30*c.naval);
+        for(const f of ships)if(f.hp<=0)sinkFleet(f);
+      }
+    }
+    // flak over the target
+    const flak=G.units.reduce((sum,u)=>(u.at===w.target&&u.type==="aa"&&atWar(w.nat,u.nat))?sum+u.str:sum,0);
+    if(flak>0)w.hp-=flak*0.5/(Math.max(1,techMul(w.nat,"air"))*c.tough);
+    /* Losing the air over a target is paid for in aircraft: an escorted
+       formation gets home, an unescorted one does not. */
+    let enemyAir=0;
+    for(const x of G.wings)if(x.target===w.target&&atWar(w.nat,x.nat))enemyAir+=x.str*wingOf(x).air;
+    if(enemyAir>0)w.hp-=enemyAir*0.22*(1.35-ctrl)/c.tough;
+    if(Math.random()<0.01)w.hp-=1;
+    if(w.hp<=0){
+      G.wings=G.wings.filter(x=>x!==w);
+      if(w.nat===G.player)logMsg(`\u2708 A ${c.n.toLowerCase()} was shot down!`,"war");
+      else if(G.stats&&atWar(w.nat,G.player))G.stats.shotDown=(G.stats.shotDown||0)+1;
+    }
+  }
+}
+/* Bombed-out provinces come back, slowly, if nobody is burning them any more. */
+function bombRecover(){
+  for(const id in G.prov){
+    const p=G.prov[id];
+    if(!p.bombed)continue;
+    p.bombed=Math.max(0,p.bombed-0.0035);
+    if(p.bombed<=0)delete p.bombed;
   }
 }
 function validAirTarget(w){
@@ -2692,6 +2913,23 @@ function provThreat(pid,nat){
     for(const u of G.units)if(u.at===a&&atWar(nat,u.nat))t+=u.str;
   }
   return t;
+}
+/* The shape of a force the computer aims at. Roughly what a real staff would
+   have argued for: a screen it can afford, a submarine arm, a battle line, and
+   carriers only once there is a fleet worth screening. */
+const NAVY_DOCTRINE={dd:0.42,sub:0.22,cap:0.26,cv:0.10};
+const AIR_DOCTRINE={fig:0.38,cas:0.34,stb:0.16,nvb:0.12};
+function aiShortfall(nat,table,doctrine,classOf,pool){
+  const have={},keys=Object.keys(table);
+  let total=0;
+  for(const x of pool)if(x.nat===nat){const c=classOf(x);have[c]=(have[c]||0)+1;total++;}
+  let best=keys[0],bestGap=-1e9;
+  for(const c of keys){
+    const share=total?(have[c]||0)/total:0;
+    const gap=doctrine[c]-share;
+    if(gap>bestGap){bestGap=gap;best=c;}
+  }
+  return best;
 }
 function targetScore(p,from,nat){
   // prefer weak, valuable, undefended, nearby provinces; capitals are juicy
@@ -2783,8 +3021,24 @@ function aiTurn(k){
       else{n.pp-=20;addUnit(k,where.id,"inf",3);}
     }
   }
-  if(n.pp>=30&&n.oil>=8&&Math.random()<0.2){const port=ps.find(p=>p.coastal);if(port){n.pp-=30;n.oil-=8;addFleet(k,port.id,2);}}
-  if(n.pp>=25&&n.oil>=6&&Math.random()<0.25&&G.prov[capOf(k)].owner===k){n.pp-=25;n.oil-=6;addWing(k,2);}
+  /* The computer builds a BALANCED force. Left picking one hull and one
+     airframe it fielded three hundred destroyers and not a single bomber, and
+     the whole submarine-escort-battleship cycle was invisible in actual play
+     because nothing it sailed ever took part in one. It now looks at what it
+     already owns and buys whatever it is furthest short of. */
+  if(Math.random()<0.22){
+    const port=ps.find(p=>p.coastal);
+    if(port){
+      const cls=aiShortfall(k,SHIPS,NAVY_DOCTRINE,f=>f.cls||"dd",G.fleets);
+      const e=SHIPS[cls];
+      if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]){n.pp-=e.cost[0];n.oil-=e.cost[1];addFleet(k,port.id,e.str,cls);}
+    }
+  }
+  if(Math.random()<0.26&&G.prov[capOf(k)].owner===k){
+    const wt=aiShortfall(k,WINGTYPES,AIR_DOCTRINE,w=>w.wt||"cas",G.wings);
+    const e=WINGTYPES[wt];
+    if(e&&n.pp>=e.cost[0]&&n.oil>=e.cost[1]){n.pp-=e.cost[0];n.oil-=e.cost[1];addWing(k,e.str,wt);}
+  }
   // forts on threatened border provinces (smart defense)
   if(n.pp>=25&&Math.random()<0.2){
     const hot=ps.filter(p=>(p.fort||0)<2&&provThreat(p.id,k)>0).sort((a,b)=>provThreat(b.id,k)-provThreat(a.id,k))[0];
@@ -2919,8 +3173,8 @@ function runHistory(catchup){
 const FOCUSES={
  ind:{n:"Industrial Effort",d:"Modernize the factories. Instantly gain an Industry research level.",fx:me=>{me.res.ind++;}},
  rearm:{n:"Rearmament",d:"Three fresh infantry divisions muster at the capital, free of charge.",fx:me=>{const c=G.prov[capOf(G.player)];for(let i=0;i<3;i++)addUnit(G.player,c.owner===G.player?c.id:natProvs(G.player)[0].id,"inf",3);}},
- navy:{n:"Naval Expansion",d:"The shipyards work day and night: two free task forces.",fx:me=>{const ps=natProvs(G.player).filter(p=>p.coastal);if(ps.length){addFleet(G.player,ps[0].id,2);addFleet(G.player,ps[ps.length-1].id,2);}}},
- air:{n:"Air Supremacy Program",d:"Two free air wings join the capital airbase.",fx:me=>{addWing(G.player,2);addWing(G.player,2);}},
+ navy:{n:"Naval Expansion",d:"The shipyards work day and night: a free capital squadron and an escort flotilla.",fx:me=>{const ps=natProvs(G.player).filter(p=>p.coastal);if(ps.length){addFleet(G.player,ps[0].id,4,"cap");addFleet(G.player,ps[ps.length-1].id,2,"dd");}}},
+ air:{n:"Air Supremacy Program",d:"A free fighter wing and a tactical bomber join the capital airbase.",fx:me=>{addWing(G.player,3,"fig");addWing(G.player,2,"cas");}},
  atom:{n:"Atomic Pioneers",d:"A secret program: build nuclear weapons WITHOUT Industry III.",fx:me=>{me.atomicOk=true;}},
  prop:{n:"National Propaganda",d:"Posters, parades, radio. +15 stability.",fx:me=>{me.stab=Math.min(100,me.stab+15);}},
  oil:{n:"Synthetic Fuel Plants",d:"Coal into oil: +40 to the stockpile.",fx:me=>{me.oil+=40;}}
@@ -3386,6 +3640,10 @@ function epochIdx(id){const i=EPOCHS.findIndex(e=>e.id===id);return i<0?EPOCHS.l
 const ACH=[
  {id:"first_blood",n:"First Blood",i:"\u2694",d:"Capture your first enemy province."},
  {id:"kesselschlacht",n:"Kesselschlacht",i:"\u26D3",d:"Have 8 enemy divisions cut off from supply at once."},
+ {id:"wolfpack",n:"Wolfpack",i:"\u25BE",d:"Sink 15 enemy ships in one campaign."},
+ {id:"air_supremacy",n:"Air Supremacy",i:"\u2708",d:"Shoot down 15 enemy aircraft in one campaign."},
+ {id:"balanced_fleet",n:"Balanced Fleet",i:"\u2693",d:"Have all four classes of warship at sea at once."},
+ {id:"strategic_air",n:"Strategic Air Command",i:"\u{1F4A5}",d:"Bomb an enemy province to half production."},
  {id:"general_winter",n:"General Winter",i:"\u2744",d:"Capture a province during a blizzard."},
  {id:"desert_fox",n:"Desert Fox",i:"\u{1F42A}",d:"Capture a desert province during a sandstorm."},
  {id:"alpinist",n:"Alpinist",i:"\u26F0",d:"Take a mountain province by assault."},
@@ -5538,7 +5796,7 @@ function _drawFrame(){
     ctx.beginPath();ctx.arc(p.x,p.y,10/Math.sqrt(z),0,7);ctx.stroke();
   }
   // fleets
-  for(const f of G.fleets)drawPiece(f,"⚓","#cfe7f2",z,true);
+  for(const f of G.fleets)drawPiece(f,shipOf(f).i,"#cfe7f2",z,true);
   // armies
   for(const u of G.units)drawPiece(u,uIcon(u.type),null,z,false);
   // air wings flying lines
@@ -8495,6 +8753,7 @@ function clickAt(sx,sy){
     if(p&&atWar(G.player,p.owner)){
       G.airTarget=p.id;
       for(const w of G.wings)if(w.nat===G.player)w.target=p.id;
+      airDirty();
       logMsg(`Air wings tasked: bomb ${p.name}`,"good");
     }else logMsg("Pick an enemy province for the strike.","war");
     G.pickAir=false;openPanel("air");return;
@@ -8687,14 +8946,25 @@ function renderPanel(){
       }
     }
     if(myFleets.length){
-      h+=`<h3>FLEETS</h3>`;
+      const cnt={};for(const f of myFleets)cnt[f.cls||"dd"]=(cnt[f.cls||"dd"]||0)+1;
+      const gun=myFleets.reduce((a,f)=>a+f.str*shipOf(f).gun,0),
+            asw=myFleets.reduce((a,f)=>a+f.str*shipOf(f).asw,0),
+            air=myFleets.reduce((a,f)=>a+f.str*shipOf(f).air,0),
+            rd =myFleets.reduce((a,f)=>a+f.str*shipOf(f).raid,0);
+      h+=`<h3>\u2693 THE FLEET</h3>
+      <div class="row"><span>Composition</span><span>${Object.keys(SHIPS).filter(c=>cnt[c]).map(c=>SHIPS[c].i+" "+cnt[c]).join(" \u00b7 ")||"\u2014"}</span></div>
+      <div class="row"><span>Gunnery</span><span>${gun.toFixed(1)}</span></div>
+      <div class="row"><span>Anti-submarine</span><span style="color:${asw<2?"#e8a33d":""}">${asw.toFixed(1)}${asw<2?" \u2014 your convoys are open to submarines":""}</span></div>
+      <div class="row"><span>Carrier aviation</span><span>${air.toFixed(1)}</span></div>
+      <div class="row"><span>Commerce raiding</span><span>${rd.toFixed(1)}</span></div>
+      <div style="color:var(--dim);font-size:11px">Submarines strangle trade and butcher an unescorted fleet; escorts hunt submarines; capital ships and carriers break escorts. A fleet of one kind of hull loses to a fleet of the right kind.</div>`;
       for(const f of myFleets){const p=G.prov[f.at];if(!p)continue;
-        h+=`<button class="bbtn" onclick="jumpTo(${f.id})">\u2693 Task force${vetStars(f)}<small>${p.name}${f.to&&G.prov[f.to]?" \u2192 "+G.prov[f.to].name:""} \u00b7 HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;}
+        h+=`<button class="bbtn" onclick="jumpTo(${f.id})">${shipOf(f).i} ${shipOf(f).n}${vetStars(f)}<small>${p.name}${f.to&&G.prov[f.to]?" \u2192 "+G.prov[f.to].name:""} \u00b7 HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;}
     }
     if(myWings.length){
       h+=`<h3>AIR WINGS</h3>`;
       for(const w of myWings)
-        h+=`<div class="row"><span>\u2708 Wing ${w.id}${vetStars(w)}</span><span>${w.target&&G.prov[w.target]?"\u2192 "+G.prov[w.target].name:"standby"} \u00b7 HP ${Math.max(0,w.hp).toFixed(0)}</span></div>`;
+        h+=`<div class="row"><span>${wingOf(w).i} ${wingOf(w).n}${vetStars(w)}</span><span>${w.target&&G.prov[w.target]?"\u2192 "+G.prov[w.target].name:"standby"} \u00b7 HP ${Math.max(0,w.hp).toFixed(0)}</span></div>`;
     }
     el.innerHTML=h;
   }
@@ -8708,8 +8978,12 @@ function renderPanel(){
     <button class="bbtn" ${me.pp<35||me.oil<armOil()||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
     <button class="bbtn" ${me.pp<30||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
     <button class="bbtn" ${me.pp<25||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
-    <button class="bbtn" ${me.pp<30||me.oil<8||!deployable||!sel.coastal?"disabled":""} onclick="buy('ship')">⚓ Task Force — 30 PP + 8 🛢<small>STR 2. Needs a port. Ready in ${buildDays(G.player,"ship")} days.</small></button>
-    <button class="bbtn" ${me.pp<25||me.oil<6||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('wing')">✈ Air Wing — 25 PP + 6 🛢<small>Based at your capital airbase (${G.prov[capOf(G.player)].name}). Ready in ${buildDays(G.player,"wing")} days.</small></button>
+    <h3>⚓ SHIPYARD${sel.coastal?"":" — needs a port"}</h3>
+    ${Object.keys(SHIPS).map(c=>{const e=SHIPS[c],t="s_"+c;
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
+    <h3>✈ AIRFIELD</h3>
+    ${Object.keys(WINGTYPES).map(c=>{const e=WINGTYPES[c],t="a_"+c;
+      return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||G.prov[capOf(G.player)].owner!==G.player?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
     ${(()=>{
       /* Say WHICH requirement is missing. Most of the roster owns no oil
          province and so has no oil income at all — those nations used to see
@@ -8729,7 +9003,7 @@ function renderPanel(){
         q.slice().sort((a,b)=>a.left-b.left).map(o=>{
           const pct=Math.round((1-o.left/o.total)*100),pv=G.prov[o.at];
           return `<div class="row" style="align-items:center;gap:6px">
-            <span style="flex:1;min-width:0">${BUILD_N[o.t]}<br><small style="color:var(--dim)">${o.t==="nuke"?"assembly":pv?pv.name:"—"} \u00b7 ${o.left} day${o.left>1?"s":""} left</small>
+            <span style="flex:1;min-width:0">${BUILD_N[o.t]||o.t}<br><small style="color:var(--dim)">${o.t==="nuke"?"assembly":pv?pv.name:"—"} \u00b7 ${o.left} day${o.left>1?"s":""} left</small>
             <div class="bar" style="margin-top:3px"><i style="width:${pct}%"></i></div></span>
             <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">\u2715</button></div>`;
         }).join("");})()}
@@ -8759,11 +9033,17 @@ function renderPanel(){
       h+=`<div style="color:var(--dim);font-size:11px;margin:6px 0">Manual: pick a target province; all wings fly the strike. Auto: wings pick the nearest enemy front themselves.</div>
       <button class="bbtn" ${wings.length?"":"disabled"} onclick="G.pickAir=true;$('#panel').style.display='none';logMsg('Click an enemy province to direct the strike.')">🎯 Direct strike — pick target on map</button>`;
       if(G.airTarget)h+=`<div class="row"><span>Current target</span><span style="color:#ff8d7a">${provOf(G.airTarget).name}</span></div>
-      <button class="bbtn" onclick="G.airTarget=null;for(const w of G.wings)if(w.nat===G.player)w.target=null;renderPanel()">Recall wings</button>`;
+      <button class="bbtn" onclick="G.airTarget=null;for(const w of G.wings)if(w.nat===G.player)w.target=null;airDirty();renderPanel()">Recall wings</button>`;
     }else h+=`<div style="color:var(--dim);font-size:11px;margin:6px 0">Wings auto-task against the nearest enemy province and shift as fronts move.</div>`;
+    if(G.airTarget&&G.prov[G.airTarget]){
+      const ctrl=airControl(G.player,G.airTarget);
+      const lbl=ctrl>=0.95?["AIR SUPREMACY","#5d9a4e"]:ctrl>=0.75?["AIR SUPERIORITY","#c9c05a"]:ctrl>=0.5?["CONTESTED","#e8a33d"]:["OUTFOUGHT","#c4452f"];
+      h+=`<div class="row"><span>Air over ${G.prov[G.airTarget].name}</span><span style="color:${lbl[1]}">${lbl[0]} · ×${ctrl.toFixed(2)}</span></div>
+      <div style="color:var(--dim);font-size:11px">Whoever holds the air multiplies everything their aircraft do there — and the side that loses it pays for it in aircraft. That is what fighters are for.</div>`;
+    }
     h+=`<h3>WINGS</h3>`;
-    if(!wings.length)h+=`<div style="color:var(--dim)">No air wings. Recruit them (25 PP) — they spawn at your capital airbase.</div>`;
-    for(const w of wings)h+=`<div class="row"><span>✈ Wing ${w.id}</span><span>STR ${w.str} · HP ${Math.max(0,w.hp).toFixed(0)} · ${w.target?("→ "+provOf(w.target).name):"on standby"}</span></div>`;
+    if(!wings.length)h+=`<div style="color:var(--dim)">No air wings. Build them in RECRUIT — they spawn at your capital airbase.</div>`;
+    for(const w of wings)h+=`<div class="row"><span>${wingOf(w).i} ${wingOf(w).n}</span><span>STR ${w.str} · HP ${Math.max(0,w.hp).toFixed(0)} · ${w.target?("→ "+provOf(w.target).name):"on standby"}</span></div>`;
     el.innerHTML=h;
   }
   if(curPanel==="focus"){
@@ -9144,29 +9424,45 @@ window.selU=id=>{if(!G||!G.nations)return;const u=[...G.units,...G.fleets].find(
    Production is charged the moment you order, and the unit arrives when it is
    built; industry research and factories are what make that wait shorter,
    which is the first time either has been worth anything you could feel. */
-const BUILD_TIME={inf:12,arm:20,art:16,aa:10,ship:30,wing:24,nuke:90};
-const BUILD_N={inf:"Infantry division",arm:"Armoured division",art:"Artillery division",aa:"Anti-air division",ship:"Task force",wing:"Air wing",nuke:"Nuclear weapon"};
+const BUILD_TIME=(()=>{const o={inf:12,arm:20,art:16,aa:10,nuke:90};
+  for(const k in SHIPS)o["s_"+k]=SHIPS[k].days;
+  for(const k in WINGTYPES)o["a_"+k]=WINGTYPES[k].days;
+  return o;})();
+const BUILD_N=(()=>{const o={inf:"Infantry division",arm:"Armoured division",art:"Artillery division",aa:"Anti-air division",nuke:"Nuclear weapon"};
+  for(const k in SHIPS)o["s_"+k]=SHIPS[k].n;
+  for(const k in WINGTYPES)o["a_"+k]=WINGTYPES[k].n;
+  return o;})();
 function buildDays(nat,t){
   const n=G.nations[nat];if(!n)return BUILD_TIME[t]||12;
   let fac=0;for(const id in G.prov){const q=G.prov[id];if(q.owner===nat)fac+=q.fac||0;}
   const speed=1+(((n.res&&n.res.ind)||0)*0.14)+fac*0.04+(MODS.industry?0.8:0)+(MODS.swift?1:0);
   return Math.max(2,Math.round((BUILD_TIME[t]||12)/speed));
 }
-function buyCost(t){return {inf:[20,0],arm:[35,armOil()],art:[30,0],aa:[25,0],ship:[30,8],wing:[25,6],nuke:[100,25]}[t];}
+function buyCost(t){
+  if(t&&t.charAt(1)==="_"){
+    const tab=t.charAt(0)==="s"?SHIPS:WINGTYPES,e=tab[t.slice(2)];
+    return e?e.cost:null;
+  }
+  return {inf:[20,0],arm:[35,armOil()],art:[30,0],aa:[25,0],nuke:[100,25]}[t];
+}
 function buyFor(nat,t,pid){
+  /* Saves and network orders written before the fleet and air rebuild still
+     say "ship" and "wing". Map them onto the workhorse of each arm rather
+     than silently dropping an order somebody already paid for. */
+  if(t==="ship")t="s_dd"; else if(t==="wing")t="a_cas";
   const me=G.nations[nat];if(!me||!me.alive)return false;
   const c=buyCost(t);if(!c)return false;
   const cap=G.prov[capOf(nat)];
   const sel=(pid&&G.prov[pid]&&provOf(pid).owner===nat)?provOf(pid):cap;
   if(!sel||sel.owner!==nat)return false;
-  if(t==="ship"&&!sel.coastal)return false;
-  if(t==="wing"&&(!cap||cap.owner!==nat))return false;
+  if(t.startsWith("s_")&&!sel.coastal)return false;
+  if(t.startsWith("a_")&&(!cap||cap.owner!==nat))return false;
   if(t==="nuke"&&!(me.res.ind>=3||me.atomicOk))return false;
   if(me.pp<c[0]||me.oil<c[1])return false;
   me.pp-=c[0];me.oil-=c[1];
   const d=buildDays(nat,t);
   G.queue=G.queue||[];
-  G.queue.push({oid:++G.uid,nat,t,at:t==="wing"?cap.id:sel.id,left:d,total:d});
+  G.queue.push({oid:++G.uid,nat,t,at:t.startsWith("a_")?cap.id:sel.id,left:d,total:d});
   return true;
 }
 function productionTick(){
@@ -9187,8 +9483,8 @@ function productionTick(){
     else if(o.t==="arm")addUnit(o.nat,at,"arm",4);
     else if(o.t==="art")addUnit(o.nat,at,"art",3);
     else if(o.t==="aa")addUnit(o.nat,at,"aa",2);
-    else if(o.t==="ship")addFleet(o.nat,at,2);
-    else if(o.t==="wing")addWing(o.nat,2);
+    else if(o.t.startsWith("s_")){const c=o.t.slice(2);addFleet(o.nat,at,SHIPS[c]?SHIPS[c].str:2,c);}
+    else if(o.t.startsWith("a_")){const c=o.t.slice(2);addWing(o.nat,WINGTYPES[c]?WINGTYPES[c].str:2,c);}
     else if(o.t==="nuke")n.nukes++;
     if(o.nat===G.player){
       logMsg(`${BUILD_N[o.t]} ready${o.t==="nuke"?"":" at "+G.prov[at].name}.`,"good");
@@ -9336,6 +9632,7 @@ const MANUAL=[
  ["\u2694 GIVING ORDERS",[
   "Click a province to select it, click one of your divisions in the panel to take command, then click any province to march there. Routes follow land links; sea crossings need a fleet in service.",
   "\u26D1 Command ALL divisions here sends the whole stack at once.",
+  "COMBAT WIDTH. Only so many divisions fit on a front: about seven across open plains, THREE in a city, TWO in mountains or jungle. The rest sit in reserve \u2014 they contribute a trickle, take almost nothing, and rotate forward as the front line is chewed up. Twelve divisions on one mountain tile fight with two. Spread them, or attack somewhere wider.",
   "FOUR KINDS OF DIVISION, and they are not interchangeable. Infantry and armour fight the same attacking or defending. \u25C6 Artillery hits at \u00d71.60 in an assault and only \u00d70.55 holding ground \u2014 send it in with infantry, never on its own. \u2733 Anti-air barely fights on the ground at all, and shoots down the bombers over the province it is standing in.",
   "AUTO CAPTURE hands your army to the staff: it picks its own targets, holds a third of its strength back to defend, and keeps going while you do something else.",
   "ARMY (the order of battle) lists every division you own, worst trouble first \u2014 cut off, then in battle, then mauled. Tap any line to fly to it and take command."]],
@@ -9360,6 +9657,16 @@ const MANUAL=[
   "Hiring a general costs 40 PP and you may have four. He adds 15% to his division and another 10% a level, and he learns by fighting.",
   "Every general also has a TRAIT, and traits are tied to the map: a Mountaineer is worth having in the Caucasus and worth nothing in Poland, a Winter Soldier earns his keep in January, a Logistician\u2019s division never fights below 85% supply, a Panzer Leader marches 30% faster.",
   "The general staff is listed in the ARMY panel, and it says in green when the man is standing somewhere his trait actually applies. Posting him is as much of a decision as hiring him."]],
+ ["\u2693 THE SEA",[
+  "Four kinds of warship, and they beat each other in a cycle. \u25BE SUBMARINES strangle enemy trade and butcher a fleet with no escorts \u2014 guns and aircraft cannot hit what is submerged. \u25B8 ESCORTS are the only thing that hunts submarines properly. \u25A0 CAPITAL SHIPS win gunnery actions and flatten a coastline for your landings. \u25C6 CARRIERS strike before the guns are in range.",
+  "So a fleet of one kind of hull loses to a fleet of the right kind. All battleships is beaten by submarines; all submarines is beaten by escorts; all escorts is beaten by battleships and carriers.",
+  "COMMERCE RAIDING is now worth doing on purpose. Warships near an enemy coastal province cut its production, and submarines cut it hardest \u2014 but the owner\u2019s escorts in the same water push the raiders off. If your anti-submarine strength is low, your own coasts are the ones bleeding.",
+  "Only capital ships and carriers do much shore bombardment, and it is what makes an assault across a beach survivable."]],
+ ["\u2708 THE SKY",[
+  "Four kinds of aircraft. \u2708 FIGHTERS take the air over a province; \u2708 TACTICAL BOMBERS break divisions and garrisons; \u2708 STRATEGIC BOMBERS burn factories and production instead of soldiers; \u2708 NAVAL BOMBERS sink ships.",
+  "AIR SUPERIORITY is the number everything else is multiplied by. Whoever wins the air over a province has their aircraft work at full effect there and the loser\u2019s at a third \u2014 and the side that loses it pays for it in aircraft shot down. A fighter that cannot bomb anything is still worth building, because it decides how well your bombers work.",
+  "Weather grounds aircraft: almost nothing flies in a blizzard. Anti-air divisions on the ground shoot at whatever is overhead.",
+  "Strategic bombing leaves a province burning \u2014 its production falls until the fires are out, which takes months \u2014 and destroys factories outright."]],
  ["\u{1F3ED} RUNNING A COUNTRY",[
   "PP (production) pays for divisions, forts and factories. It comes from the provinces you hold \u2014 occupied land pays only 60%, and a blockaded port pays half.",
   "\u{1F6E2} Oil runs tanks, ships and aircraft. Without it your air wings and fleets simply stop. It comes from oil provinces, or off the market under GOVERNMENT.",
@@ -9386,7 +9693,17 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v19.0 \u2014 GROUND, WEATHER, SUPPLY AND THE MEN WHO RUN THEM (current)",[
+ ["v20.0 \u2014 THE SEA, THE SKY, AND THE WIDTH OF A FRONT (current)",[
+  "\u2693 A FLEET IS NO LONGER ONE BLOB WITH A NUMBER ON IT. Two fleets meeting used to resolve as the sum of one side\u2019s strength against the sum of the other\u2019s \u2014 pure attrition, no structure, nothing to decide. There are now four kinds of warship and they beat each other in a cycle. \u25BE SUBMARINES strangle trade and butcher a fleet with no escorts, because guns and aircraft cannot hit what is submerged. \u25B8 ESCORTS are the only thing that hunts submarines properly. \u25A0 CAPITAL SHIPS win gunnery actions and flatten a coastline. \u25C6 CARRIERS strike before the guns are in range. A fleet of one kind of hull loses to a fleet of the right kind, which means what you build is finally a decision and not just how much.",
+  "\u{1F30A} AND THE FIGHT IS THREE FIGHTS, because it really is three. Guns and carrier aircraft can only touch what is on the surface. Anti-submarine work is the only thing that finds a submarine, and only escorts and carriers carry much of it. Torpedoes bite anything afloat and are blunted by the screen around it. That is what closes the cycle instead of faking it with a modifier.",
+  "\u{1F6A2} COMMERCE RAIDING IS WORTH DOING ON PURPOSE. A blockade used to be a flat half-production penalty for having any enemy ship nearby. It is now worth what the hulls enforcing it are worth \u2014 a submarine arm strangles a coast, a lone escort barely inconveniences it \u2014 and the owner\u2019s own warships in the same water push the raiders off. If your anti-submarine strength is low, the coast bleeding is yours.",
+  "\u2708 FOUR KINDS OF AIRCRAFT, and AIR SUPERIORITY decides how well all of them work. Fighters take the air over a province; tactical bombers break divisions; strategic bombers burn factories and production instead of soldiers; naval bombers sink ships. Whoever wins the air there works at full effect and the loser at a third \u2014 and the side that loses it pays in aircraft shot down. A fighter that cannot bomb anything is worth building, because it decides how well your bombers do.",
+  "\u{1F4A5} STRATEGIC BOMBING EXISTS. Bombers burn a province\u2019s production until the fires are out, which takes months, and destroy factories outright. Nothing in the air could touch a ship before either; naval bombers now sink them.",
+  "\u2694 COMBAT WIDTH \u2014 the land change that goes with it. Only so many divisions fit on a front: about seven across open plains, three in a city, TWO in mountains or jungle. The rest sit in reserve, contributing a trickle, taking almost nothing, and rotating forward as the line is chewed up. Twelve divisions on one mountain tile fight with two of them. Until now the answer to every problem in the game was one more division on the same tile, and terrain stopped mattering the moment you had enough of them.",
+  "\u{1F916} AND THE COMPUTER BUILDS A BALANCED FORCE. Left to the old code it fielded three hundred destroyers, one submarine and not a single bomber \u2014 the entire cycle would have been invisible in real play because nothing it sailed ever took part in one. It now looks at what it already owns and buys whatever it is furthest short of, and holds a real fleet and a real air force.",
+  "\u{1F3ED} Every hull and every airframe goes through the production queue with its own cost and build time, from a 12-day escort flotilla to a 42-day carrier group. The order of battle reports your fleet\u2019s gunnery, anti-submarine strength, carrier aviation and raiding power, and warns you when your escorts are too thin to protect your own trade.",
+  "\u{1F3C5} Four new achievements: Wolfpack, Air Supremacy, Balanced Fleet and Strategic Air Command. Old saves load: a fleet or wing written before the rebuild becomes an escort flotilla or a tactical bomber rather than being dropped."]],
+ ["v19.0 \u2014 GROUND, WEATHER, SUPPLY AND THE MEN WHO RUN THEM",[
   "\u26F0 THE GROUND IS REAL NOW. Every one of the 251 provinces has a terrain \u2014 ten kinds, assigned from actual geography rather than generated: the Alps, the Caucasus, the Urals, the Andes and the Atlas are mountains; the Pripet and the Flanders mud are marsh; the Sahara, the Arabian and the Karakum are desert; the Congo and the Amazon are jungle; the taiga is forest and the far north is tundra. It decides how fast you cross a place, how hard it is to take from whoever holds it, and how far supply reaches through it. Mountains defend at \u00d71.65 and halve your speed; a city defends at \u00d71.55. Before this, an attack into the Alps cost exactly what an attack across Poland cost.",
   "\u2744 AND THE WEATHER, ON A REAL CALENDAR. Eight kinds of weather over eight regional climates, and the seasons are hemisphere-correct \u2014 January is deep winter in Berlin and high summer in Sydney. A blizzard cuts movement to a third, attacks to under two thirds, and puts almost every aircraft on the ground; mud does nearly as much to a timetable, sandstorms do it to the desert war and the monsoon to the jungle. Weather is regional and a spell lasts about ten days, so it is something to wait out or to attack into on purpose, not noise \u2014 and it is a hash, not a dice roll, so the same storm is there when you reload.",
   "\u{1F69B} SUPPLY LINES, WHICH IS THE BIG ONE. Every division traces a line back to a depot: the capital, any city you hold, or a port with one of your fleets standing off it. Terrain and weather decide how far that line reaches, so a line across Poland runs much further than the same line into the Caucasus in February. A stretched line means the men at the end fight worse. NO line at all means CUT OFF: barely half strength, losing men every day, and surrendering where they stand after about ten weeks. Supply pushes two provinces past your own border so that attacking is possible, and no further, so that a spearhead driven deep with nothing held behind it dies.",
@@ -10492,7 +10809,7 @@ const MP={role:null,code:null,ref:null,
   send(o){if(this.ref)this.ref.child("orders").push(o);}
 };
 function mpSerialize(){
-  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0];}
+  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0,+(p.bombed||0).toFixed(3)];}
   const nat={};
   for(const k in G.nations){const n=G.nations[k];
     nat[k]=[+n.pp.toFixed(1),+n.rp.toFixed(1),+n.oil.toFixed(1),n.nukes,+n.stab.toFixed(1),
@@ -10503,8 +10820,8 @@ function mpSerialize(){
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0]),
-    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1)]),
-    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||""]),
+    fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
+    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas"]),
     queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total])};
 }
 function mpBroadcastMods(){if(MP.role==="host"&&MP.ref)MP.ref.child("state").set(mpSerialize());}
@@ -10519,9 +10836,10 @@ function mpApplyState(S){
   }
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
-  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp]=S.prov[id];
+  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm]=S.prov[id];
     if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
-    if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}}
+    if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}
+    if(bm)p.bombed=bm; else delete p.bombed;}
   /* A guest can be sent a country it has never heard of: one that ROSE out of a
      conquest after the guest joined, or a Shattered World shard. The old code
      skipped anything it did not recognise \u2014 and then the provinces it had just
@@ -10555,8 +10873,8 @@ function mpApplyState(S){
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,kind:"army"}));
-  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet"}));
-  G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing"}));
+  G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
+  G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
   refreshHUD();
 }
