@@ -9,14 +9,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.1/firebase-database-compat.min.js" crossorigin="anonymous"></script>
 <style>
 :root{
-  --sea:#0c151c; --sea2:#10202b; --ink:#e8e2d0; --dim:#8a9285;
+  --sea:#0d3555; --sea2:#123f63; --ink:#e8e2d0; --dim:#8a9285;
   --amber:#e8a33d; --red:#c4452f; --green:#5d7a4e; --panel:#141a16;
   --panel2:#1c241e; --line:#3a4438; --font:'Courier New',monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-family:var(--font);color:var(--ink);user-select:none;-webkit-user-select:none;overscroll-behavior:none;position:fixed;inset:0;touch-action:none}
 #auth,#start,#panel,#topbar,#sidebtns{touch-action:pan-y}
-canvas{display:block;position:absolute;top:0;left:0;touch-action:none;cursor:grab}
+/* The map canvas ONLY. As a bare canvas{} rule this also caught the flag icons
+   on the country cards and the history chart in the ledger, pinning each of
+   them absolutely to the top-left corner of its own box — which is why every
+   card had its flag sitting on top of the country's name. */
+#cv{display:block;position:absolute;top:0;left:0;touch-action:none;cursor:grab}
 .hud{position:absolute;z-index:10}
 #topbar{top:0;left:0;right:0;height:44px;background:linear-gradient(#1a2119,#11160f);border-bottom:2px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:13px;white-space:nowrap;overflow-x:auto}
 #topbar b{color:var(--amber)}
@@ -98,7 +102,7 @@ body.light #auth{background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%)
 .nat small{color:var(--dim);font-size:10px}
 #start .hint{margin-top:22px;color:var(--dim);font-size:11px;max-width:560px;text-align:center;line-height:1.7}
 ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:var(--line)}
-body.light{--sea:#b7cfd9;--ink:#1c2018;--dim:#5a6258;--panel:#ece7d6;--panel2:#ddd6c1;--line:#a39c87;--red:#a83a26;--amber:#a06a14}
+body.light{--sea:#a8cadd;--ink:#1c2018;--dim:#5a6258;--panel:#ece7d6;--panel2:#ddd6c1;--line:#a39c87;--red:#a83a26;--amber:#a06a14}
 body.light #topbar{background:linear-gradient(#e2dcc8,#d2ccb6)}
 body.light #tip{background:#f2eddccc}
 body.light #log .l{text-shadow:0 1px 2px #fff}
@@ -131,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">18.6.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">18.7.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -150,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">18.6.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">18.7.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -275,7 +279,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="18.6.0";
+const BUILD="18.7.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -567,28 +571,28 @@ ZOM:{n:"The Horde",f:"\U0001F9DF",c:"#6f8f3a",cap:null,play:0,desc:"It does not 
 GRC:{n:"Greece",f:"🇬🇷",c:"#8fd0ff",cap:"ath",play:1,desc:"Mountain defiance"},
 BUL:{n:"Bulgaria",f:"🇧🇬",c:"#7a4f6d",cap:"sof",play:1,desc:"Balkan crossroads"},
 ROM:{n:"Romania",f:"🇷🇴",c:"#d4a017",cap:"buc",play:1,desc:"Oil, and everyone wants it",eras:["ww1","ww2","coldwar","modern"]},
-ALB:{n:"Albania",f:"🇦🇱",c:"#9e2a2b",cap:"tir",play:0,eras:["ww1","ww2","coldwar","modern"]},
+ALB:{n:"Albania",f:"🇦🇱",c:"#9e2a2b",cap:"tir",play:1,desc:"A bunker in every field",eras:["ww1","ww2","coldwar","modern"]},
 LAT:{n:"Latin Empire",f:"✝️",c:"#7a3f8f",cap:"ist",play:1,desc:"Crusaders on the Bosphorus",eras:["mongol"]},
 AYY:{n:"Ayyubid Sultanate",f:"⚔️",c:"#986636",cap:"cai",play:1,desc:"Saladin's heirs",eras:["mongol"]},
 KOR:{n:"South Korea",f:"🇰🇷",c:"#4ad9c7",cap:"seo",play:1,desc:"Between the giants",eras:["coldwar","modern"]},
 PRK:{n:"North Korea",f:"🇰🇵",c:"#b8323c",cap:"pyo",play:1,desc:"North of the parallel",eras:["coldwar","modern"]},
 NVN:{n:"North Vietnam",f:"🇻🇳",c:"#c22a2a",cap:"han",play:1,desc:"Thirty years of war",eras:["coldwar","modern"]},
-HUN:{n:"Hungary",f:"🇭🇺",c:"#8e57a4",cap:"bud",play:0},
-CAN:{n:"Canada",f:"🇨🇦",c:"#cd7a5a",cap:"ott",play:0},
-GRE:{n:"Greenland",f:"🧊",c:"#7ae0b5",cap:"nuk",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-MEX:{n:"Mexico",f:"🇲🇽",c:"#557a35",cap:"mex",play:0},
-SAF:{n:"South Africa",f:"🇿🇦",c:"#8219a9",cap:"cpt",play:0},
-ALG:{n:"North Africa",f:"🏴",c:"#43d44d",cap:"alg",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-WAF:{n:"West Africa",f:"🏴",c:"#f0d71a",cap:"lag",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-CON:{n:"Congo",f:"🏴",c:"#6a4610",cap:"kin",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-EAF:{n:"East Africa",f:"🏴",c:"#70105e",cap:"add",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-PER:{n:"Persia",f:"🏴",c:"#3027bb",cap:"teh",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-SEA:{n:"Siam",f:"🏴",c:"#90e272",cap:"bkk",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
-SCA:{n:"Scandinavia",f:"🏴",c:"#2179a2",cap:"sto",play:0,eras:["civilwar","ww1","ww2","coldwar"]},
+HUN:{n:"Hungary",f:"🇭🇺",c:"#8e57a4",cap:"bud",play:1,desc:"Landlocked and surrounded"},
+CAN:{n:"Canada",f:"🇨🇦",c:"#cd7a5a",cap:"ott",play:1,desc:"A dominion the size of a continent"},
+GRE:{n:"Greenland",f:"🧊",c:"#7ae0b5",cap:"nuk",play:1,desc:"Ice, weather stations and nothing else",eras:["civilwar","ww1","ww2","coldwar"]},
+MEX:{n:"Mexico",f:"🇲🇽",c:"#557a35",cap:"mex",play:1,desc:"Two oceans and one long border"},
+SAF:{n:"South Africa",f:"🇿🇦",c:"#8219a9",cap:"cpt",play:1,desc:"Gold, diamonds and the Cape route"},
+ALG:{n:"North Africa",f:"🏴",c:"#43d44d",cap:"alg",play:1,desc:"The desert shore",eras:["civilwar","ww1","ww2","coldwar"]},
+WAF:{n:"West Africa",f:"🏴",c:"#f0d71a",cap:"lag",play:1,desc:"The Gold Coast and the delta",eras:["civilwar","ww1","ww2","coldwar"]},
+CON:{n:"Congo",f:"🏴",c:"#6a4610",cap:"kin",play:1,desc:"The river and everything it drains",eras:["civilwar","ww1","ww2","coldwar"]},
+EAF:{n:"East Africa",f:"🏴",c:"#70105e",cap:"add",play:1,desc:"The highlands and the Horn",eras:["civilwar","ww1","ww2","coldwar"]},
+PER:{n:"Persia",f:"🏴",c:"#3027bb",cap:"teh",play:1,desc:"Oil beneath an ancient throne",eras:["civilwar","ww1","ww2","coldwar"]},
+SEA:{n:"Siam",f:"🏴",c:"#90e272",cap:"bkk",play:1,desc:"Never colonised, and means to stay so",eras:["civilwar","ww1","ww2","coldwar"]},
+SCA:{n:"Scandinavia",f:"🏴",c:"#2179a2",cap:"sto",play:1,desc:"Iron ore and a long cold coast",eras:["civilwar","ww1","ww2","coldwar"]},
 /* modern-day successor / independent states (only appear in the Modern Day scenario) */
 UKR:{n:"Ukraine",f:"🇺🇦",c:"#957ee6",cap:"kie",play:1,desc:"The defiant front",era:"modern"},
-BLR:{n:"Belarus",f:"🇧🇾",c:"#97b774",cap:"min",play:0,era:"modern"},
-KAZ:{n:"Kazakhstan",f:"🇰🇿",c:"#15a3c4",cap:"alm",play:0,era:"modern"},
+BLR:{n:"Belarus",f:"🇧🇾",c:"#97b774",cap:"min",play:1,desc:"Forests and a long Russian shadow",era:"modern"},
+KAZ:{n:"Kazakhstan",f:"🇰🇿",c:"#15a3c4",cap:"alm",play:1,desc:"Steppe, uranium and the launch pads",era:"modern"},
 AUT:{n:"Austria",f:"🇦🇹",c:"#df9681",cap:"vie",play:1,desc:"The last stand of independence",eras:["civilwar","ww2","coldwar","modern"]},
 BAV:{n:"Bavaria",f:"\u{1F1E9}\u{1F1EA}",c:"#7fb3d5",cap:"mun",play:1,desc:"The largest of the southern kingdoms",eras:["civilwar"]},
 GCF:{n:"German Confederation",f:"\u{1F1E9}\u{1F1EA}",c:"#c8a12a",cap:"fra",play:1,desc:"Free cities and lesser states",eras:["civilwar"]},
@@ -596,10 +600,10 @@ SUI:{n:"Switzerland",f:"🇨🇭",c:"#d52b1e",cap:"brn",play:1,desc:"Armed neutr
 CZE:{n:"Czechia",f:"🇨🇿",c:"#635ce6",cap:"pra",play:1,desc:"Fortified democracy",eras:["ww2","coldwar","modern"]},
 SRB:{n:"Yugoslavia",f:"🇷🇸",c:"#d34938",cap:"bel",play:1,desc:"The spark, and the mountains after",eras:["ww1","ww2","coldwar","modern"]},
 IRN:{n:"Iran",f:"🇮🇷",c:"#98d435",cap:"teh",play:1,desc:"Persia reborn",era:"modern"},
-IRQ:{n:"Iraq",f:"🇮🇶",c:"#7a1318",cap:"bag",play:0,era:"modern"},
-SAU:{n:"Saudi Arabia",f:"🇸🇦",c:"#16c18a",cap:"ria",play:0,era:"modern"},
+IRQ:{n:"Iraq",f:"🇮🇶",c:"#7a1318",cap:"bag",play:1,desc:"Two rivers and the oil beneath them",era:"modern"},
+SAU:{n:"Saudi Arabia",f:"🇸🇦",c:"#16c18a",cap:"ria",play:1,desc:"The wells and the two holy cities",era:"modern"},
 PAK:{n:"Pakistan",f:"🇵🇰",c:"#146b3f",cap:"lah",play:1,desc:"Land of the pure",eras:["coldwar","modern"]},
-BAN:{n:"Bangladesh",f:"🇧🇩",c:"#43d3cd",cap:"dac",play:0,eras:["coldwar","modern"]},
+BAN:{n:"Bangladesh",f:"🇧🇩",c:"#43d3cd",cap:"dac",play:1,desc:"Delta country, crowded and rising",eras:["coldwar","modern"]},
 /* Countries that exist in 2026 but not in 1936. Until v14.1 the modern map
    still handed all of Africa, the Nordics and mainland Southeast Asia to the
    region-sized blocs the WW2 map was built from, so Nigeria, Ethiopia,
@@ -608,56 +612,56 @@ NOR:{n:"Norway",f:"🇳🇴",c:"#c74a5e",cap:"osl",play:1,desc:"North Atlantic f
 SWD:{n:"Sweden",f:"🇸🇪",c:"#3d7fc9",cap:"sto",play:1,desc:"Two centuries of neutrality, ended",era:"modern"},
 DEN:{n:"Denmark",f:"🇩🇰",c:"#e0645c",cap:"cph",play:1,desc:"The Sound, and Greenland",era:"modern"},
 FIN:{n:"Finland",f:"🇫🇮",c:"#8fb8e8",cap:"hel",play:1,desc:"1,340 km of border with Russia",era:"modern"},
-ISL:{n:"Iceland",f:"🇮🇸",c:"#4b6ea9",cap:"rey",play:0,era:"modern"},
+ISL:{n:"Iceland",f:"🇮🇸",c:"#4b6ea9",cap:"rey",play:1,desc:"A rock in the North Atlantic gap",era:"modern"},
 POR:{n:"Portugal",f:"🇵🇹",c:"#2f7d4f",cap:"lis",play:1,desc:"The Atlantic corner",era:"modern"},
-IRE:{n:"Ireland",f:"🇮🇪",c:"#4caf7d",cap:"dub",play:0,era:"modern"},
-CRO:{n:"Croatia",f:"🇭🇷",c:"#d8604f",cap:"zag",play:0,era:"modern"},
-BOS:{n:"Bosnia",f:"🇧🇦",c:"#3f5bb5",cap:"sarj",play:0,era:"modern"},
-SVK:{n:"Slovakia",f:"🇸🇰",c:"#7f6fd6",cap:"bra",play:0,era:"modern"},
+IRE:{n:"Ireland",f:"🇮🇪",c:"#4caf7d",cap:"dub",play:1,desc:"Small, green, and done being ruled",era:"modern"},
+CRO:{n:"Croatia",f:"🇭🇷",c:"#d8604f",cap:"zag",play:1,desc:"A coastline shaped like a scythe",era:"modern"},
+BOS:{n:"Bosnia",f:"🇧🇦",c:"#3f5bb5",cap:"sarj",play:1,desc:"Three peoples, one set of mountains",era:"modern"},
+SVK:{n:"Slovakia",f:"🇸🇰",c:"#7f6fd6",cap:"bra",play:1,desc:"The quiet half of a divorce",era:"modern"},
 MAR:{n:"Morocco",f:"🇲🇦",c:"#b8324a",cap:"cas",play:1,desc:"The western gate",era:"modern"},
 DZA:{n:"Algeria",f:"🇩🇿",c:"#2f8f63",cap:"alg",play:1,desc:"Gas, sand and a long coast",era:"modern"},
-TUN:{n:"Tunisia",f:"🇹🇳",c:"#e05a5a",cap:"tun",play:0,era:"modern"},
-LBY:{n:"Libya",f:"🇱🇾",c:"#7a9c3c",cap:"trp",play:0,desc:"Oil and open desert",era:"modern"},
-SDN:{n:"Sudan",f:"🇸🇩",c:"#c98a3a",cap:"khartoum",play:0,era:"modern"},
+TUN:{n:"Tunisia",f:"🇹🇳",c:"#e05a5a",cap:"tun",play:1,desc:"Where the Arab Spring began",era:"modern"},
+LBY:{n:"Libya",f:"🇱🇾",c:"#7a9c3c",cap:"trp",play:1,desc:"Oil and open desert",era:"modern"},
+SDN:{n:"Sudan",f:"🇸🇩",c:"#c98a3a",cap:"khartoum",play:1,desc:"The Nile before it is Egypt's",era:"modern"},
 NGA:{n:"Nigeria",f:"🇳🇬",c:"#2fa06a",cap:"lag",play:1,desc:"Africa's largest economy",era:"modern"},
-SEN:{n:"Senegal",f:"🇸🇳",c:"#6fbf5a",cap:"dak",play:0,era:"modern"},
-GHA:{n:"Ghana",f:"🇬🇭",c:"#d9a03a",cap:"acc",play:0,era:"modern"},
-CIV:{n:"Ivory Coast",f:"🇨🇮",c:"#e8873c",cap:"abi",play:0,era:"modern"},
+SEN:{n:"Senegal",f:"🇸🇳",c:"#6fbf5a",cap:"dak",play:1,desc:"The westernmost cape of Africa",era:"modern"},
+GHA:{n:"Ghana",f:"🇬🇭",c:"#d9a03a",cap:"acc",play:1,desc:"Cocoa, gold and the first to be free",era:"modern"},
+CIV:{n:"Ivory Coast",f:"🇨🇮",c:"#e8873c",cap:"abi",play:1,desc:"Cocoa, and the wars it paid for",era:"modern"},
 KEN:{n:"Kenya",f:"🇰🇪",c:"#357a4a",cap:"nai",play:1,desc:"The hinge of East Africa",era:"modern"},
 ETH:{n:"Ethiopia",f:"🇪🇹",c:"#4f9c3a",cap:"add",play:1,desc:"Never colonised",era:"modern"},
-SOM:{n:"Somalia",f:"🇸🇴",c:"#5aaee0",cap:"mog",play:0,era:"modern"},
-TZA:{n:"Tanzania",f:"🇹🇿",c:"#3f9c86",cap:"dsm",play:0,era:"modern"},
-UGA:{n:"Uganda",f:"🇺🇬",c:"#c9b03a",cap:"kmp",play:0,era:"modern"},
-ERI:{n:"Eritrea",f:"🇪🇷",c:"#b04a3a",cap:"asm",play:0,era:"modern"},
+SOM:{n:"Somalia",f:"🇸🇴",c:"#5aaee0",cap:"mog",play:1,desc:"A coastline longer than the state",era:"modern"},
+TZA:{n:"Tanzania",f:"🇹🇿",c:"#3f9c86",cap:"dsm",play:1,desc:"Kilimanjaro and the caravan roads",era:"modern"},
+UGA:{n:"Uganda",f:"🇺🇬",c:"#c9b03a",cap:"kmp",play:1,desc:"The source of the Nile",era:"modern"},
+ERI:{n:"Eritrea",f:"🇪🇷",c:"#b04a3a",cap:"asm",play:1,desc:"Thirty years of war for this coast",era:"modern"},
 COD:{n:"DR Congo",f:"🇨🇩",c:"#3a8fd4",cap:"kin",play:1,desc:"Cobalt, copper and no control",era:"modern"},
-AGO:{n:"Angola",f:"🇦🇴",c:"#9c2f3a",cap:"lua",play:0,era:"modern"},
-CAF:{n:"Central Africa",f:"🇨🇫",c:"#7f8fd6",cap:"bgi",play:0,era:"modern"},
-NAM:{n:"Namibia",f:"🇳🇦",c:"#4f8f9c",cap:"wind",play:0,era:"modern"},
-ZWE:{n:"Zimbabwe",f:"🇿🇼",c:"#6fae3a",cap:"har2",play:0,era:"modern"},
-MOZ:{n:"Mozambique",f:"🇲🇿",c:"#2f8f5a",cap:"mpt",play:0,era:"modern"},
-ZMB:{n:"Zambia",f:"🇿🇲",c:"#5a9c3a",cap:"lus",play:0,era:"modern"},
+AGO:{n:"Angola",f:"🇦🇴",c:"#9c2f3a",cap:"lua",play:1,desc:"Oil offshore, diamonds inland",era:"modern"},
+CAF:{n:"Central Africa",f:"🇨🇫",c:"#7f8fd6",cap:"bgi",play:1,desc:"The empty middle of the map",era:"modern"},
+NAM:{n:"Namibia",f:"🇳🇦",c:"#4f8f9c",cap:"wind",play:1,desc:"Desert one side, ocean the other",era:"modern"},
+ZWE:{n:"Zimbabwe",f:"🇿🇼",c:"#6fae3a",cap:"har2",play:1,desc:"The ruins it is named after",era:"modern"},
+MOZ:{n:"Mozambique",f:"🇲🇿",c:"#2f8f5a",cap:"mpt",play:1,desc:"A thousand miles of Indian Ocean",era:"modern"},
+ZMB:{n:"Zambia",f:"🇿🇲",c:"#5a9c3a",cap:"lus",play:1,desc:"Copper, and no sea at all",era:"modern"},
 THA:{n:"Thailand",f:"🇹🇭",c:"#3f5fb5",cap:"bkk",play:1,desc:"The unconquered kingdom",era:"modern"},
-MMR:{n:"Myanmar",f:"🇲🇲",c:"#c9a03a",cap:"rgn",play:0,era:"modern"},
-MYS:{n:"Malaysia",f:"🇲🇾",c:"#3a4f9c",cap:"kul",play:0,era:"modern"},
-SGP:{n:"Singapore",f:"🇸🇬",c:"#e0505a",cap:"sin",play:0,era:"modern"},
-CAM:{n:"Cambodia",f:"🇰🇭",c:"#3a5fd6",cap:"pnh",play:0,era:"modern"},
+MMR:{n:"Myanmar",f:"🇲🇲",c:"#c9a03a",cap:"rgn",play:1,desc:"The road to India, closed",era:"modern"},
+MYS:{n:"Malaysia",f:"🇲🇾",c:"#3a4f9c",cap:"kul",play:1,desc:"Astride the strait",era:"modern"},
+SGP:{n:"Singapore",f:"🇸🇬",c:"#e0505a",cap:"sin",play:1,desc:"One island, all the shipping",era:"modern"},
+CAM:{n:"Cambodia",f:"🇰🇭",c:"#3a5fd6",cap:"pnh",play:1,desc:"Angkor remembers being an empire",era:"modern"},
 COL:{n:"Colombia",f:"🇨🇴",c:"#e0c03a",cap:"bog",play:1,desc:"The northern gate of the continent",era:"modern"},
 PERU:{n:"Peru",f:"🇵🇪",c:"#d6504a",cap:"lim",play:1,desc:"The Pacific spine",era:"modern"},
 CHL:{n:"Chile",f:"🇨🇱",c:"#4a6fd6",cap:"scl",play:1,desc:"Copper, and the long coast",era:"modern"},
 /* The fifteen republics did not stay one country. Central Asia, the Caucasus
    and the Baltic were all still painted in Russian red on the 2026 map. */
 UZB:{n:"Uzbekistan",f:"🇺🇿",c:"#2fa8b5",cap:"tas",play:1,desc:"The heart of Central Asia",era:"modern"},
-TKM:{n:"Turkmenistan",f:"🇹🇲",c:"#3fb07a",cap:"ash",play:0,era:"modern"},
-KGZ:{n:"Kyrgyzstan",f:"🇰🇬",c:"#e04a4a",cap:"fru",play:0,era:"modern"},
-TJK:{n:"Tajikistan",f:"🇹🇯",c:"#c95a6a",cap:"dus",play:0,era:"modern"},
+TKM:{n:"Turkmenistan",f:"🇹🇲",c:"#3fb07a",cap:"ash",play:1,desc:"Gas fields under the Karakum",era:"modern"},
+KGZ:{n:"Kyrgyzstan",f:"🇰🇬",c:"#e04a4a",cap:"fru",play:1,desc:"Mountains, and not much else",era:"modern"},
+TJK:{n:"Tajikistan",f:"🇹🇯",c:"#c95a6a",cap:"dus",play:1,desc:"The roof of the world",era:"modern"},
 GEO:{n:"Georgia",f:"🇬🇪",c:"#d67a7a",cap:"tbi",play:1,desc:"The Caucasus corridor",era:"modern"},
-ARM:{n:"Armenia",f:"🇦🇲",c:"#e08a3c",cap:"yer",play:0,era:"modern"},
+ARM:{n:"Armenia",f:"🇦🇲",c:"#e08a3c",cap:"yer",play:1,desc:"Older than most of its neighbours",era:"modern"},
 AZE:{n:"Azerbaijan",f:"🇦🇿",c:"#3a9c9c",cap:"bak",play:1,desc:"Caspian oil",era:"modern"},
-MON:{n:"Mongolia",f:"🇲🇳",c:"#b5432f",cap:"uln",play:0,era:"modern"},
-LVA:{n:"Latvia",f:"🇱🇻",c:"#9c3f4f",cap:"rig",play:0,era:"modern"},
-EST:{n:"Estonia",f:"🇪🇪",c:"#5a8fd6",cap:"tal",play:0,era:"modern"},
-LTU:{n:"Lithuania",f:"🇱🇹",c:"#c9c03a",cap:"vil",play:0,era:"modern"},
-MDA:{n:"Moldova",f:"🇲🇩",c:"#7a5fb5",cap:"kish",play:0,era:"modern"},
+MON:{n:"Mongolia",f:"🇲🇳",c:"#b5432f",cap:"uln",play:1,desc:"The steppe that once took everything",era:"modern"},
+LVA:{n:"Latvia",f:"🇱🇻",c:"#9c3f4f",cap:"rig",play:1,desc:"A Baltic port and a hard border",era:"modern"},
+EST:{n:"Estonia",f:"🇪🇪",c:"#5a8fd6",cap:"tal",play:1,desc:"Wired, western-facing and small",era:"modern"},
+LTU:{n:"Lithuania",f:"🇱🇹",c:"#c9c03a",cap:"vil",play:1,desc:"Once the largest state in Europe",era:"modern"},
+MDA:{n:"Moldova",f:"🇲🇩",c:"#7a5fb5",cap:"kish",play:1,desc:"Squeezed between two bigger stories",era:"modern"},
 /* ===== NAPOLEONIC WARS (1803–1815) ===== */
 FEM:{n:"French Empire",f:"🇫🇷",c:"#5473f3",cap:"par",play:1,desc:"L'Empereur",eras:["napoleon"]},
 GBR:{n:"British Empire",f:"🇬🇧",c:"#d1313e",cap:"lon",play:1,desc:"Rule the waves",eras:["napoleon"]},
@@ -666,36 +670,36 @@ PRU:{n:"Prussia",f:"🦅",c:"#474784",cap:"ber",play:1,desc:"The drillmasters",e
 AUE:{n:"Austrian Empire",f:"🇦🇹",c:"#e7e18d",cap:"vie",play:1,desc:"The Habsburgs",eras:["napoleon"]},
 SPN:{n:"Spain",f:"🇪🇸",c:"#bb520c",cap:"mad",play:1,desc:"Peninsular fire",eras:["napoleon"]},
 USE:{n:"United States",f:"🇺🇸",c:"#797dc0",cap:"wash",play:1,desc:"The young republic",eras:["napoleon"]},
-OTE:{n:"Ottoman Empire",f:"☪️",c:"#2b503e",cap:"ist",play:0,eras:["napoleon"]},
-QAJ:{n:"Persia",f:"🦁",c:"#b89234",cap:"teh",play:0,eras:["napoleon"]},
-QIN:{n:"Qing China",f:"🐉",c:"#d3f360",cap:"bei",play:0,eras:["napoleon"]},
-TOK:{n:"Japan",f:"🎌",c:"#eaa38f",cap:"tok",play:0,eras:["napoleon"]},
-SWE:{n:"Scandinavia",f:"🇸🇪",c:"#ae5fde",cap:"sto",play:0,eras:["napoleon"]},
-BRZ:{n:"Portugal-Brazil",f:"🇵🇹",c:"#0f6d0d",cap:"rio",play:0,eras:["napoleon"]},
-DOW:{n:"Duchy of Warsaw",f:"🏰",c:"#d4547a",cap:"war",play:0,eras:["napoleon"]},
-AFR:{n:"African Kingdoms",f:"🌍",c:"#b0308c",cap:"lag",play:0,eras:["napoleon"]},
-SIA:{n:"Siam",f:"🐘",c:"#81eb40",cap:"bkk",play:0,eras:["napoleon"]},
+OTE:{n:"Ottoman Empire",f:"☪️",c:"#2b503e",cap:"ist",play:1,desc:"Three continents held by a tired throne",eras:["napoleon"]},
+QAJ:{n:"Persia",f:"🦁",c:"#b89234",cap:"teh",play:1,desc:"The Shah between two empires",eras:["napoleon"]},
+QIN:{n:"Qing China",f:"🐉",c:"#d3f360",cap:"bei",play:1,desc:"The Middle Kingdom at its height",eras:["napoleon"]},
+TOK:{n:"Japan",f:"🎌",c:"#eaa38f",cap:"tok",play:1,desc:"Closed to the world by decree",eras:["napoleon"]},
+SWE:{n:"Scandinavia",f:"🇸🇪",c:"#ae5fde",cap:"sto",play:1,desc:"The last of a Baltic empire",eras:["napoleon"]},
+BRZ:{n:"Portugal-Brazil",f:"🇵🇹",c:"#0f6d0d",cap:"rio",play:1,desc:"A court that fled across the Atlantic",eras:["napoleon"]},
+DOW:{n:"Duchy of Warsaw",f:"🏰",c:"#d4547a",cap:"war",play:1,desc:"A duchy that means to be Poland again",eras:["napoleon"]},
+AFR:{n:"African Kingdoms",f:"🌍",c:"#b0308c",cap:"lag",play:1,desc:"Sokoto, Ashanti and the Sahel",eras:["napoleon"]},
+SIA:{n:"Siam",f:"🐘",c:"#81eb40",cap:"bkk",play:1,desc:"The kingdom between the empires",eras:["napoleon"]},
 /* ===== MONGOL EMPIRE (1206–1294) ===== */
 MNG:{n:"Mongol Empire",f:"🏹",c:"#acba23",cap:"irk",play:1,desc:"The Great Khan",eras:["mongol"]},
 JIN:{n:"Jin Dynasty",f:"🐉",c:"#c98f2f",cap:"bei",play:1,desc:"North China, first to fall",eras:["mongol"]},
 KHW:{n:"Khwarezmian Empire",f:"⚔️",c:"#2f8fb0",cap:"alm",play:1,desc:"The shah who insulted the Khan",eras:["mongol"]},
 ABB:{n:"Abbasid Caliphate",f:"☪️",c:"#1f7a4a",cap:"bag",play:1,desc:"Baghdad, city of wisdom",eras:["mongol"]},
-RUM:{n:"Sultanate of Rum",f:"🏰",c:"#a34f2b",cap:"ank",play:0,eras:["mongol"]},
+RUM:{n:"Sultanate of Rum",f:"🏰",c:"#a34f2b",cap:"ank",play:1,desc:"Seljuk Anatolia, before the storm",eras:["mongol"]},
 SNG:{n:"Song China",f:"🐉",c:"#f6e753",cap:"sha",play:1,desc:"The last Song",eras:["mongol"]},
 DEL:{n:"Delhi Sultanate",f:"🕌",c:"#3bcbbc",cap:"del",play:1,desc:"Masters of Hindustan",eras:["mongol"]},
 MAM:{n:"Mamluk Sultanate",f:"⚔️",c:"#986636",cap:"cai",play:1,desc:"Stopped the horde",eras:["mongol"]},
 HRE:{n:"Holy Roman Empire",f:"🦅",c:"#bdc67e",cap:"vie",play:1,desc:"Neither holy nor Roman",eras:["mongol"]},
 FRK:{n:"Kingdom of France",f:"⚜️",c:"#2ba7d8",cap:"par",play:1,desc:"The Capetians",eras:["mongol"]},
-ENG:{n:"Kingdom of England",f:"🦁",c:"#b04858",cap:"lon",play:0,eras:["mongol"]},
-IBR:{n:"Iberian Kingdoms",f:"🏰",c:"#d9412a",cap:"mad",play:0,eras:["mongol"]},
-ITK:{n:"Papal States",f:"⛪",c:"#26d080",cap:"rom",play:0,eras:["mongol","napoleon","civilwar"]},
-BYZ:{n:"Byzantine Empire",f:"☦️",c:"#a535ce",cap:"ist",play:0,eras:["mongol"]},
-KAM:{n:"Kamakura Japan",f:"🎌",c:"#dcaa9d",cap:"tok",play:0,eras:["mongol"]},
-EEU:{n:"Christian Kingdoms",f:"✝️",c:"#245f5f",cap:"war",play:0,eras:["mongol"]},
-KHM:{n:"SE Asian Kingdoms",f:"🛕",c:"#981017",cap:"bkk",play:0,eras:["mongol"]},
-AFR2:{n:"African Sultanates",f:"🌍",c:"#543665",cap:"cas",play:0,eras:["mongol"]},
-AMR:{n:"Native Americas",f:"🌽",c:"#1b5f1f",cap:"mex",play:0,eras:["mongol"]},
-OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:0,eras:["mongol"]}
+ENG:{n:"Kingdom of England",f:"🦁",c:"#b04858",cap:"lon",play:1,desc:"Barons, Wales and a claim on France",eras:["mongol"]},
+IBR:{n:"Iberian Kingdoms",f:"🏰",c:"#d9412a",cap:"mad",play:1,desc:"The Reconquista, halfway done",eras:["mongol"]},
+ITK:{n:"Papal States",f:"⛪",c:"#26d080",cap:"rom",play:1,desc:"Rome, ruled from the altar",eras:["mongol","napoleon","civilwar"]},
+BYZ:{n:"Byzantine Empire",f:"☦️",c:"#a535ce",cap:"ist",play:1,desc:"An empire in exile at Nicaea",eras:["mongol"]},
+KAM:{n:"Kamakura Japan",f:"🎌",c:"#dcaa9d",cap:"tok",play:1,desc:"The shogun and the divine wind",eras:["mongol"]},
+EEU:{n:"Christian Kingdoms",f:"✝️",c:"#245f5f",cap:"war",play:1,desc:"Poland, the Rus and the northern kings",eras:["mongol"]},
+KHM:{n:"SE Asian Kingdoms",f:"🛕",c:"#981017",cap:"bkk",play:1,desc:"Angkor, Pagan and the Irrawaddy",eras:["mongol"]},
+AFR2:{n:"African Sultanates",f:"🌍",c:"#543665",cap:"cas",play:1,desc:"Mali's gold and the Maghreb",eras:["mongol"]},
+AMR:{n:"Native Americas",f:"🌽",c:"#1b5f1f",cap:"mex",play:1,desc:"Two continents the Old World has not found",eras:["mongol"]},
+OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:1,desc:"Sixty thousand years, uninterrupted",eras:["mongol"]}
 };
 
 /* Adjacency: land links + sea links (sea:1 requires crossing water) */
@@ -947,7 +951,7 @@ coldwar:{label:"COLD WAR",sub:"THE IRON CURTAIN",start:[0,1],
     SEA:["South Vietnam","🇻🇳"],KOR:["South Korea","🇰🇷"],
     CHN:["People's Republic","🇨🇳"],SPA:["Portugal & Spain","🇵🇹"],SRB:["Yugoslavia","🇷🇸"],
     CZE:["Czechoslovakia","🇨🇿"]}},
-mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],years:[1206,1211,1219,1227,1235,1241,1251,1259,1279,1294],
+mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],caps:{BYZ:"izm"},years:[1206,1211,1219,1227,1235,1241,1251,1259,1279,1294],
   yearOwners:{
     1211:{har:"MNG"},                                        // the Jin war opens in Manchuria
     1219:{bei:"MNG",alm:"MNG",xin:"MNG"},                    // Zhongdu sacked; the Khwarezm campaign
@@ -1204,8 +1208,8 @@ function natInEra(k){
   return ERA==="ww2"||ERA==="modern"||ERA==="coldwar"||ERA==="civilwar"; // ww2-tagged nations also exist later too
 }
 const THEMES={
- dark:{sea:"#0c151c",grid:"#16242e",land:"#2a2f26",coast:"#0a0f0c",label:"#e8e2d0",gar:"#9aaa9a"},
- light:{sea:"#b7cfd9",grid:"#a4bfc9",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
+ dark:{sea:"#0d3555",grid:"#174467",land:"#2a2f26",coast:"#0a0f0c",label:"#e8e2d0",gar:"#9aaa9a"},
+ light:{sea:"#a8cadd",grid:"#93b9cf",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
 };
 let THEME="dark";
 let MAPSTYLE="flags"; // "flags" = every country filled with its own flag (default); "terrain" = grey ocean, yellow land, black borders
@@ -2826,7 +2830,10 @@ let W=0,H=0,DPR=1;
 let _frameCv=null,_frameKey="";
 function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+"px";cv.style.height=H+"px";_frameCv=null;}
 addEventListener("resize",resize);resize();
-function fitCam(){const z=Math.min(W/MW,H/MH);G.cam.z=z;clampCam();}
+/* Fitting the whole world also has to CENTRE it. Setting the zoom alone left
+   the camera wherever it happened to be, so the globe sat against one corner
+   with a wedge of empty ocean beside it. */
+function fitCam(){const z=Math.min(W/MW,H/MH);G.cam.z=z;G.cam.x=(MW-W/z)/2;G.cam.y=(MH-H/z)/2;clampCam();}
 /* Put a world point in the middle of the screen. Pass a span to zoom so a box
    that big fits comfortably; omit it to keep the current zoom. */
 function centerOn(wx,wy,spanX,spanY){
@@ -5084,7 +5091,7 @@ function _drawFrame(){
     for(const L of LINKS){
       const a=G.prov[L[0]],b=G.prov[L[1]];if(!a||!b)continue;
       const sea=L.length>2&&L[2];
-      ctx.strokeStyle=sea?"#2a4a5a66":"#00000022";
+      ctx.strokeStyle=sea?"#8ec8e855":"#00000022";
       ctx.setLineDash(sea?[6/z*2,6/z*2]:[]);
       ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
     }
@@ -8794,7 +8801,13 @@ function refreshHUD(){
 window.__ifBoot("updatelog");
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v18.6 \u2014 THE CAMPAIGN WITH NO END (current)",[
+ ["v18.7 \u2014 A HUNDRED AND FORTY-FOUR COUNTRIES, AND A BLUE SEA (current)",[
+  "\u{1F30A} THE SEA IS BLUE. It had been \u0023\u0030\u0063\u0031\u0035\u0031\u0063 \u2014 a blue-black so dark it read as empty space rather than water, which is why the world looked like coloured shapes floating in a void instead of a map. Ocean, grid and sea lanes are all properly blue now, in both the dark and light themes, and the dashed shipping routes are light enough to actually see against it.",
+  "\u{1F5FA} SEVENTY-TWO MORE COUNTRIES TO PLAY \u2014 the roster goes from 72 to 144, which is every nation on the map except the Horde. They were all there already, holding real territory and fighting real wars; they simply could not be picked. The Ottoman Empire held thirty-six provinces across three continents in the Napoleonic era and was not on the list. Neither were Canada, Mexico, Scandinavia, Persia, Siam, South Africa, Qing China, Tokugawa Japan, medieval England, the Iberian kingdoms, Kamakura Japan, or the peoples of the Americas and Australia before contact. Every one of them now has a card, a description and a start.",
+  "\u2626 AND BYZANTIUM STARTS WHERE IT ACTUALLY WAS. Its capital was set to Constantinople, which the Latin Empire holds for the whole Mongol era \u2014 the Fourth Crusade had taken it in 1204 \u2014 so it would have begun every campaign without its own capital. In this era it is governed from Nicaea, in Anatolia, exactly as the empire in exile was.",
+  "\u{1F3F3} A STYLESHEET RULE FOR THE MAP WAS HITTING EVERY OTHER CANVAS ON THE PAGE. A bare canvas\u007B\u007D rule pinned each one absolutely to the top-left corner of whatever box it sat in. On the country cards that dropped the flag directly on top of the country\u2019s name \u2014 the United States read \u201Ced States\u201D \u2014 and it had also been slamming the EMPIRE OVER TIME graph onto the heading above it in the WARS panel. The rule now applies to the map, and only the map.",
+  "\u{1F30D} FITTING THE WHOLE WORLD ALSO CENTRES IT NOW. Zooming out set the scale but left the camera wherever it had been, so the globe sat jammed against one corner with a wedge of empty ocean beside it \u2014 invisible while that ocean was nearly black, obvious the moment it turned blue."]],
+ ["v18.6 \u2014 THE CAMPAIGN WITH NO END",[
   "\u{1F30D} CONQUERING THE WORLD NO LONGER ENDS IT. Victory used to put up one button that threw the whole campaign away and reloaded the page \u2014 every division, every border you had spent hours drawing, gone before you had finished reading the score. The victory screen now asks: KEEP PLAYING and the war simply goes on, with the map you won and no further interruption; MAIN MENU to return to the title screen and pick a different country or era; or RESTART to fight the same year again. Defeat offers the last two.",
   "\u{1F3E0} AND MAIN MENU ACTUALLY MEANS IT \u2014 it stops the game clock, drops out of first person, clears the campaign and rebuilds the title screen in place, rather than reloading. Starting a second campaign from it runs at exactly the same speed as the first: the old clock is shut down instead of being left running alongside the new one.",
   "\u{1F3AF} THE MAP OPENS ON YOUR COUNTRY. A campaign began fitted to the entire globe, so picking Germany meant spending the first minute hunting for it among a hundred and seventy-eight provinces. It now frames the ground you actually hold, and \u{1F3AF} HOME (or H) brings you back to your capital whenever you get lost.",
