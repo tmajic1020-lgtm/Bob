@@ -3368,7 +3368,56 @@ async function rasterizeCountries(features){
   }
   countryPix=pix;
 }
+/* ===== THE MAP, KEPT ON THE DEVICE =====
+   The real country shapes are fetched from a CDN, and without them the game
+   falls back to coarse hand-drawn coastlines. That makes the FIRST run need a
+   connection, and every run after it too. Once the shapes have arrived we now
+   keep the decoded outlines on the device, so from then on the detailed map is
+   there instantly and with no network at all — which is what actually makes
+   this playable on a plane.
+
+   The decoded GeoJSON is stored rather than the raw topojson so that reading it
+   back needs no decoder library: that library is itself a CDN script, and
+   caching data we could not decode offline would be pointless. Coordinates are
+   rounded to two decimals — about a kilometre, well under what 110m data
+   resolves — which roughly halves the stored size. */
+const ATLAS_KEY="if_atlas_v1";
+function _atlasRound(g){
+  const r=n=>Math.round(n*100)/100;
+  const walk=c=>(typeof c[0]==="number")?[r(c[0]),r(c[1])]:c.map(walk);
+  return {type:g.type,coordinates:walk(g.coordinates)};
+}
+function _atlasSave(features,meshLines){
+  try{
+    localStorage.setItem(ATLAS_KEY,JSON.stringify({
+      v:1,
+      f:features.map(f=>({n:(f.properties&&f.properties.name)||"",g:_atlasRound(f.geometry)})),
+      m:meshLines.map(l=>l.map(pt=>[Math.round(pt[0]*100)/100,Math.round(pt[1]*100)/100]))
+    }));
+  }catch(e){ try{localStorage.removeItem(ATLAS_KEY);}catch(_){} }   // quota: just go without
+}
+function _atlasApply(data){
+  if(!data||data.v!==1||!data.f||!data.m)return null;
+  const land=new Path2D(),ice=new Path2D();
+  const feats=data.f.map(x=>({properties:{name:x.n},geometry:x.g}));
+  for(const f of feats)geo2path(f.geometry,f.properties.name==="Antarctica"?ice:land);
+  const bp=new Path2D();
+  for(const l of data.m)addRing(bp,l,false);
+  landPath=land;icePath=ice;borderPath=bp;realMap=true;
+  buildLandMask();terDirty=true;
+  return feats;
+}
 async function loadRealMap(){
+  /* A copy kept from a previous run: instant, and needs nothing from the
+     network. Anything wrong with it and we fall through to fetching. */
+  try{
+    const raw=localStorage.getItem(ATLAS_KEY);
+    if(raw){
+      const feats=_atlasApply(JSON.parse(raw));
+      if(feats){ await rasterizeCountries(feats); terDirty=true; return; }
+      localStorage.removeItem(ATLAS_KEY);
+    }
+  }catch(e){ try{localStorage.removeItem(ATLAS_KEY);}catch(_){} }
   try{
     const SRC=["https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
                "https://unpkg.com/world-atlas@2/countries-110m.json",
@@ -3395,6 +3444,8 @@ async function loadRealMap(){
     buildLandMask();terDirty=true;
     await rasterizeCountries(fc.features);
     terDirty=true;
+    // keep it, so this is the last time a connection is needed for the map
+    _atlasSave(fc.features, mesh.type==="MultiLineString"?mesh.coordinates:[mesh.coordinates]);
   }catch(e){/* offline or blocked: keep built-in coastlines */}
 }
 window.__ifBoot("worlddata");try{buildLand();}catch(e){window.__ifFail("buildLand",e);throw e;}
@@ -8701,6 +8752,7 @@ const CHANGELOG=[
   "\u2694 A BATTLE COUNTER IN THE TOP BAR, and clicking it (or B) walks the camera through every front your divisions are fighting on, one press at a time. Wars were being decided off-screen: the log shows six lines and then the news of a collapsing front is gone for good.",
   "\u{1FA96} ORDER OF BATTLE \u2014 a new ARMY panel listing your whole force, sorted by what needs you most: in battle, mauled, worn, on the march, holding. Every line flies the camera to that division and takes command of it, so a unit under half strength on another continent is one tap away instead of invisible until it dies. Fleets and air wings are listed with it.",
   "\u{1F3ED} BULK RECRUITMENT \u2014 raise 3, 5 or 10 divisions in one order instead of clicking the same button ten times. It stops the moment production or oil runs out and tells you what it managed.",
+  "\u2708 IT PLAYS WITH NO CONNECTION AT ALL. It already did \u2014 a whole campaign, every panel, saving and continuing, all of it runs with the network switched off \u2014 but the real country shapes were fetched fresh every time, so without a signal you got the coarse hand-drawn coastlines instead. The outlines are now kept on the device once they have arrived, so after a single online run the detailed map is there instantly and offline forever. A corrupt or oversized copy is simply discarded and refetched. Accounts and multiplayer still need a connection, which they always will, and everything else keeps working without them.",
   "\u{1F9DF} AND A REAL BUG BEHIND THE HORDE: both paths that hand zombie-held ground back to its owner \u2014 the cure, and the world pushing the Horde back \u2014 returned provinces to countries that were already dead. Dying clears every war, so nobody could be at war with the owner, nobody could enter, and that ground was frozen out of the game permanently \u2014 five provinces at the cure, nine and climbing six hundred days later. Liberation now brings the country back with its land."]],
  ["v18.5 \u2014 A FROZEN PICTURE IS WORSE THAN THE ERROR",[
   "\u{1F5BC} THE FRAME LOOP NOW SURVIVES ANYTHING. The request for the next frame sat at the BOTTOM of the drawing function, so a throw anywhere above it killed the loop outright and the picture froze \u2014 which is a far worse failure than whatever caused it, and it is how one bad frame becomes a dead game. The next frame is now scheduled whatever happens, and the error is reported the first three times and then swallowed, because a broken frame repeats sixty times a second",
