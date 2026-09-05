@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.0.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.1.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.0.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.1.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.0.0";
+const BUILD="22.1.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -6266,6 +6266,7 @@ function _drawFrame(){
   for(const p of Object.values(G.prov)){
     const r=(3+p.val)/Math.sqrt(z)*1.1;
     const isCap=capOf(p.owner)===p.id&&p.home===p.owner;
+    if(VIEW3D&&z>3.5)draw3DGround(p,r,z);
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
     ctx.fillStyle=NATIONS[p.owner].c;ctx.fill();
     ctx.lineWidth=(G.sel===p.id?2.4:1.1)/Math.sqrt(z)*1.4;
@@ -6293,10 +6294,17 @@ function _drawFrame(){
     ctx.strokeStyle="#ff6a4a";ctx.lineWidth=1.6/Math.sqrt(z);
     ctx.beginPath();ctx.arc(p.x,p.y,10/Math.sqrt(z),0,7);ctx.stroke();
   }
-  // fleets
-  for(const f of G.fleets)drawPiece(f,shipOf(f).i,"#cfe7f2",z,true);
-  // armies
-  for(const u of G.units)drawPiece(u,uIcon(u.type),null,z,false);
+  /* Fleets and armies, painted back to front. Standing pieces have to be drawn
+     in depth order or a counter to the NORTH of another — that is, behind it —
+     paints straight over the one in front of it, which is exactly what the 3D
+     view is supposed to stop happening. Flat view does not care, so the sort
+     only runs where it matters. */
+  const pieces=[];
+  for(const f of G.fleets)pieces.push({u:f,fleet:true,p:piecePos(f,z,true)});
+  for(const u of G.units)pieces.push({u,fleet:false,p:piecePos(u,z,false)});
+  if(VIEW3D)pieces.sort((a,b)=>a.p[1]-b.p[1]);
+  for(const it of pieces)
+    drawPiece(it.u,it.fleet?shipOf(it.u).i:uIcon(it.u.type),it.fleet?"#cfe7f2":null,z,it.fleet,it.p);
   // air wings flying lines
   for(const w of G.wings){
     if(!w.target)continue;
@@ -6801,6 +6809,13 @@ addEventListener("keyup",e=>{
   else if(k==="a"||k==="arrowleft")FPKEY.a=0;else if(k==="d"||k==="arrowright")FPKEY.d=0;
   else if(k==="shift"){FPKEY.shift=0;FP.sprint=false;}
 });
+/* A key held down when the window loses focus never gets its keyup, so you came
+   back to the tab still walking forward at a dead sprint into the wire, with
+   nothing on screen explaining why. Let go of everything when focus goes. */
+addEventListener("blur",()=>{
+  FPKEY.w=FPKEY.s=FPKEY.a=FPKEY.d=FPKEY.shift=0;
+  FP.sprint=false;FP.mf=0;FP.ms=0;
+});
 function setFPV(v){
   /* Standing in the line is built ON the 3D view, and the 3D view arrives in
      v5.0. Without this you could wind the Time Machine back to v4.0 and still
@@ -6840,18 +6855,30 @@ function _frontProv(from){
 /* World is metres: x right, y up, z forward. The camera sits at the origin at
    eye height, yawed and pitched. Anything closer than a few centimetres in
    front of the lens is dropped rather than smeared across the screen. */
-function _fpProj(x,y,z){
-  /* World coordinates are absolute; the camera has a position in them now, so
-     everything is measured relative to where you are actually standing. */
+const FPNEAR=0.08;
+/* Camera space, before the divide. Kept separate from the screen projection so
+   that geometry crossing the lens can be CLIPPED rather than thrown away, and
+   so things can be depth-sorted by their true distance from the eye instead of
+   by a world coordinate that stops meaning "far away" the moment you turn. */
+function _fpCam(x,y,z){
   const x0=x-FP.px, z0=z-FP.pz;
   const cy=Math.cos(FP.yaw),sy=Math.sin(FP.yaw);
   const X=x0*cy-z0*sy, Zy=x0*sy+z0*cy;
   const Yy=y-FP.eye;
   const cp=Math.cos(FP.pitch),sp=Math.sin(FP.pitch);
-  const Y=Yy*cp-Zy*sp, Z=Yy*sp+Zy*cp;
-  if(Z<0.08)return null;
+  return {x:X, y:Yy*cp-Zy*sp, z:Yy*sp+Zy*cp};
+}
+function _fpScreen(c){
   const f=(H*0.5)/Math.tan(FP.fov/2);
-  return {x:W/2+f*X/Z, y:H/2-f*Y/Z, z:Z, s:f/Z};
+  return {x:W/2+f*c.x/c.z, y:H/2-f*c.y/c.z, z:c.z, s:f/c.z};
+}
+/* How far in front of you a point is, for sorting. Cheap, and correct however
+   you are facing. */
+function _fpDepth(x,y,z){return _fpCam(x,y,z).z;}
+function _fpProj(x,y,z){
+  const c=_fpCam(x,y,z);
+  if(c.z<FPNEAR)return null;
+  return _fpScreen(c);
 }
 function _fpHorizon(){
   const f=(H*0.5)/Math.tan(FP.fov/2);
@@ -6899,18 +6926,36 @@ function _fpSetLight(){
   const m=Math.hypot(_sun.x,_sun.y,_sun.z)||1;
   _sun.x/=m;_sun.y/=m;_sun.z/=m;
 }
+/* Colour in, colour out — WITH its alpha. Both of these used to parse
+   "rgba(r,g,b,a)" for its first three numbers and hand back an opaque
+   "rgb(...)", so every translucent surface in the first-person view came out
+   solid the moment GRAPHICS was on rich: the churned gouges in the mud, the
+   contact shadows and the smoke all turned into flat opaque paint over the
+   ground instead of tinting it. */
 let _litCache={};
+function _fpRGBA(col){
+  if(typeof col!=="string")return null;
+  if(col[0]==="#"){const c=hex2rgb(col);return[c[0],c[1],c[2],1];}
+  const i=col.indexOf("("), j=col.lastIndexOf(")");
+  if(i<0||j<0)return null;
+  const n=col.slice(i+1,j).split(",").map(x=>parseFloat(x));
+  if(n.length<3||n.some(v=>!isFinite(v)))return null;
+  return[n[0]||0,n[1]||0,n[2]||0,n.length>3&&isFinite(n[3])?n[3]:1];
+}
+function _fpOut(r,g,b,a){
+  const c=[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))));
+  return a>=1?"rgb("+c.join(",")+")":"rgba("+c.join(",")+","+(+a.toFixed(3))+")";
+}
 function _fpLit(col,k){
   if(GFX!=="rich")return col;
   const q=Math.max(0,Math.min(1.35,k));
   const key=col+"|"+(q*16|0);
   let v=_litCache[key];
   if(v)return v;
-  const c=(typeof col==="string"&&col[0]!=="#")
-    ? col.slice(col.indexOf("(")+1,col.indexOf(")")).split(",").map(x=>parseFloat(x)||0)
-    : hex2rgb(col);
+  const c=_fpRGBA(col);
+  if(!c)return col;
   const f=(q*16|0)/16;
-  v=_litCache[key]="rgb("+[0,1,2].map(i=>Math.max(0,Math.min(255,Math.round(c[i]*f)))).join(",")+")";
+  v=_litCache[key]=_fpOut(c[0]*f,c[1]*f,c[2]*f,c[3]);
   return v;
 }
 
@@ -6930,19 +6975,40 @@ function _fpFog(col,z){
   const key=col+"|"+(f*24|0);
   let v=_fogCache[key];
   if(v)return v;
-  const c=(typeof col==="string"&&col[0]!=="#")
-    ? col.slice(col.indexOf("(")+1,col.indexOf(")")).split(",").map(x=>parseFloat(x)||0)
-    : hex2rgb(col);
+  const c=_fpRGBA(col);
+  if(!c)return col;
   const q=(f*24|0)/24;
-  v=_fogCache[key]="rgb("+[0,1,2].map(i=>Math.round(c[i]+(_fogHaze[i]-c[i])*q)).join(",")+")";
+  v=_fogCache[key]=_fpOut(c[0]+(_fogHaze[0]-c[0])*q,c[1]+(_fogHaze[1]-c[1])*q,c[2]+(_fogHaze[2]-c[2])*q,c[3]);
   return v;
 }
+/* Sutherland-Hodgman against the single near plane. A polygon with even one
+   vertex behind the lens used to be dropped outright, which is why your own
+   parapet, the revetting and the tank\u2019s own hull VANISHED the moment you
+   walked up to them: the nearest and largest thing in the picture was the first
+   thing to disappear. It is now cut off at the lens and the rest is drawn. */
+function _fpClipNear(cam){
+  const out=[];
+  for(let i=0;i<cam.length;i++){
+    const a=cam[i], b=cam[(i+1)%cam.length];
+    const ain=a.z>=FPNEAR, bin=b.z>=FPNEAR;
+    if(ain)out.push(a);
+    if(ain!==bin){
+      const t=(FPNEAR-a.z)/(b.z-a.z);
+      out.push({x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:FPNEAR});
+    }
+  }
+  return out;
+}
 function _fpPoly(pts,fill,stroke,lw){
+  const cam=pts.map(p=>_fpCam(p[0],p[1],p[2]));
+  /* Fewer than three points is a line, which there is nothing to clip against
+     — it is either wholly in front of the lens or it is not drawn. */
+  const clipped=cam.length>2?_fpClipNear(cam):(cam.every(c=>c.z>=FPNEAR)?cam:[]);
+  if(clipped.length<Math.min(cam.length,3))return false;
   let started=false, zs=0, n=0, yTop=1e9, yBot=-1e9;
   ctx.beginPath();
-  for(const p of pts){
-    const q=_fpProj(p[0],p[1],p[2]);
-    if(!q)return false;
+  for(const c of clipped){
+    const q=_fpScreen(c);
     zs+=q.z;n++;
     if(q.y<yTop)yTop=q.y;
     if(q.y>yBot)yBot=q.y;
@@ -7015,7 +7081,12 @@ function _fpShadow(x,z,rx,rz){
    you are standing next to. */
 let FPBTN=[];                       // hit boxes, rebuilt every frame
 let FPWARLIST=false, FPKIT=false, FPMAP=false;
-FP.cool=0;                          // gun cooldown, in game days
+/* THE GUN RELOADS ON THE WALL CLOCK, NOT ON THE CALENDAR. It used to be set to
+   G.day+2 and tested against G.day — so the moment you paused the campaign the
+   day counter stopped, the cooldown never expired, and the gun read RELOADING
+   for as long as you stood there. Pausing to look around jammed your rifle. */
+FP.cool=0;                          // gun cooldown: a wall-clock timestamp
+const FPRELOAD=900;                 // ms
 
 /* Where you choose to be. Standing in the line means picking the place you are
    going to hold, and living with it: if the sector falls while you are in it,
@@ -7211,12 +7282,12 @@ function _fpFire(){
     else toast("NOTHING TO SHOOT AT");
     return;
   }
-  if(FP.cool>G.day){toast("RELOADING");return;}
+  if(FP.cool>Date.now()){toast("RELOADING");return;}
   const mine=G.units.filter(u=>u.at===FP.at&&u.nat===G.player);
   if(!mine.length){toast("NO DIVISION HERE TO FIRE");return;}
   if(!aim){
     /* Nothing under the sights. The round still goes: you have fired it. */
-    FP.cool=G.day+2;
+    FP.cool=Date.now()+FPRELOAD;
     FP.shot={x:W/2+(Math.random()-0.5)*Math.min(W,H)*0.05,y:H*0.5+(Math.random()-0.5)*Math.min(W,H)*0.04,t:Date.now(),miss:true};
     sfx("war");
     G.nations[G.player].oil=Math.max(0,G.nations[G.player].oil-0.2);
@@ -7225,7 +7296,7 @@ function _fpFire(){
   }
   {
     /* a round at the thing in the sights */
-    FP.cool=G.day+2;
+    FP.cool=Date.now()+FPRELOAD;
     FP.shot={x:aim.x,y:aim.y,t:Date.now()};
     const power=mine.reduce((n,u)=>n+u.str*((u.type==="arm"&&armourEra())?1.9:u.type==="art"?2.4:1.4),0)*techMul(G.player,"land");
     aim.u.hp-=power;
@@ -7268,7 +7339,7 @@ function _fpBtn(label,x,y,w,h,on,hot){
    the gun is out, and grey when there is nothing in front of you to shoot. */
 function _fpFireBtn(tgt){
   const r=Math.min(W,H)*0.115, cx=W/2, cy=H-r-Math.min(W,H)*0.035;
-  const ready=!!tgt&&FP.cool<=G.day;
+  const ready=!!tgt&&FP.cool<=Date.now();
   FPBTN.push({x:cx-r,y:cy-r,w:r*2,h:r*2,fn:_fpFire});
   /* a glow when it is live, so it reads as armed rather than as decoration */
   if(ready){
@@ -7282,13 +7353,13 @@ function _fpFireBtn(tgt){
   ctx.lineWidth=Math.max(2,r*0.06);ctx.stroke();
   const g=ctx.createRadialGradient(cx-r*0.35,cy-r*0.40,r*0.12,cx,cy,r);
   if(ready){g.addColorStop(0,"#ff7a5c");g.addColorStop(0.55,"#d1281c");g.addColorStop(1,"#7e130c");}
-  else if(FP.cool>G.day){g.addColorStop(0,"#6a3028");g.addColorStop(1,"#3a1a14");}
+  else if(FP.cool>Date.now()){g.addColorStop(0,"#6a3028");g.addColorStop(1,"#3a1a14");}
   else {g.addColorStop(0,"#4a4a44");g.addColorStop(1,"#262622");}
   ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();
   ctx.fillStyle=ready?"#fff0e6":"rgba(235,228,210,0.55)";
-  ctx.font=`bold ${Math.max(11,r*(FP.cool>G.day?0.26:0.40))}px Courier New`;
+  ctx.font=`bold ${Math.max(11,r*(FP.cool>Date.now()?0.26:0.40))}px Courier New`;
   ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.fillText(FP.cool>G.day?"RELOADING":"FIRE",cx,cy);
+  ctx.fillText(FP.cool>Date.now()?"RELOADING":"FIRE",cx,cy);
 }
 
 /* The stick. Bottom left, under your left thumb: push it and you walk, drive or
@@ -7661,7 +7732,7 @@ function _fpEat(){
   logMsg("\u{1F962} Rations up the line. War support rises a little.","good");
 }
 function _fpReload(){
-  if(FP.cool<=G.day){toast("THE GUN IS ALREADY LOADED");return;}
+  if(FP.cool<=Date.now()){toast("THE GUN IS ALREADY LOADED");return;}
   if(FP.kit.amm<=0){toast("NO ROUNDS IN THE BOX");return;}
   FP.kit.amm--;FP.cool=0;sfx("click");toast("LOADED");
 }
@@ -7905,11 +7976,21 @@ function drawFirstPerson(){
        from eye height at sixty metres is a hair on the screen; the ground only
        reads as churned where the marks are big enough to have a lit side and a
        dark side that you can actually see. */
-    for(let i=0;i<210;i++){
-      const gz=4.5+gr()*40, gx=(gr()-0.5)*gz*2.3;
-      marks.push({x:gx,z:gz,a:gr()*Math.PI,l:0.9+gr()*3.2,w:0.28+gr()*0.75,t:gr()});
+    /* Laid over the whole sector, not over a patch in front of where you
+       happened to start. The scatter was generated in a 40 m cone at the world
+       origin, so walking sixty metres up the line left you standing on bare
+       untouched gradient with all the churned ground behind you. */
+    for(let i=0;i<1600;i++){
+      const gz=-45+gr()*200, gx=(gr()-0.5)*310;
+      const a=gr()*Math.PI,l=0.9+gr()*3.2,w=0.28+gr()*0.75,t=gr();
+      const d=_fpDepth(gx,0,gz);
+      if(d<FPNEAR||d>70)continue;              // cull before sorting, not after
+      marks.push({x:gx,z:gz,a,l,w,t,d});
     }
-    marks.sort((a,b)=>b.z-a.z);
+    /* Sorted by how far away it is FROM YOU, not by its world coordinate. Sorted
+       on world z, the order was only ever right while you faced due north:
+       turn ninety degrees and near marks painted under far ones. */
+    marks.sort((a,b)=>b.d-a.d);
     for(const m of marks){
       const ca=Math.cos(m.a)*m.l, sa=Math.sin(m.a)*m.l;
       const nx=-Math.sin(m.a)*m.w, nz=Math.cos(m.a)*m.w;
@@ -7986,11 +8067,16 @@ function drawFirstPerson(){
   }
   /* Ground clutter, back to front so nearer things cover farther ones. */
   const props=[];
-  for(let i=0;i<150;i++){
-    const z=9+rnd()*78, x=(rnd()-0.5)*z*1.9;
-    props.push({x,z,k:rnd(),r:rnd()});
+  for(let i=0;i<1600;i++){
+    const z=-50+rnd()*230, x=(rnd()-0.5)*340, k=rnd(), r=rnd();
+    const d=_fpDepth(x,0,z);
+    if(d<FPNEAR||d>95)continue;
+    props.push({x,z,k,r,d});
   }
-  props.sort((a,b)=>b.z-a.z);
+  /* Back to front by distance from the eye, and only what is actually near
+     enough to see — sorting on world z put near clutter behind far clutter the
+     moment you turned to look along the line. */
+  props.sort((a,b)=>b.d-a.d);
   for(const pr of props){
     const g0=_fpProj(pr.x,0,pr.z);
     if(!g0||g0.y<hz)continue;
@@ -8038,6 +8124,10 @@ function drawFirstPerson(){
        infantry sways along it \u2014 purely what you SEE, on a clock rather than on
        the campaign, so watching them does not change what they do. */
     const clk=Date.now()/1000;
+    /* Every figure was drawn in list order, so a man at fifty-four metres could
+       be painted straight over a tank at twenty-six. They go into one list and
+       come out back to front, like everything else in the picture. */
+    const stand=[];
     const draw=(list,z0,ownSide)=>{
       const n=Math.min(list.length,10);
       for(let i=0;i<n;i++){
@@ -8052,11 +8142,13 @@ function drawFirstPerson(){
         const lane=ownSide?((i%2?1:-1)*(7.5+Math.floor(i/2)*5.0)):((i-(n-1)/2)*4.2);
         const x=lane+(((i*53)%7)-3)*0.4+sway;
         const z=z0+((i*31)%5)*2.2+(ownSide?creep:-creep);
-        _fpFigure(u,x,z,ownSide);
+        stand.push({u,x,z,own:ownSide,d:_fpDepth(x,0,z)});
       }
     };
     draw(foes,54,false);
     draw(here,26,true);
+    stand.sort((a,b)=>b.d-a.d);
+    for(const it of stand)_fpFigure(it.u,it.x,it.z,it.own);
   }
   /* Your own line, right under your nose \u2014 unless you are inside something,
      in which case the vehicle frame is the foreground instead. */
@@ -8903,15 +8995,20 @@ function drawViewFrame(){
    over every capital, a small bunker over fortified provinces, and a real
    scorched crater instead of a plain radiation glyph on nuked ground. Only
    drawn once zoomed in close, same threshold as the unit scenes. */
+/* Scorched ground is GROUND: it is drawn before the province marker, not over
+   it. Painted afterwards, the crater's black disc swallowed the marker, its
+   owner colour and its garrison count outright — a nuked province simply
+   disappeared off the board. */
+function draw3DGround(p,r,z){
+  if(!p.nuked)return;
+  ctx.fillStyle="#1a1410";
+  ctx.beginPath();ctx.arc(p.x,p.y,r*1.6,0,7);ctx.fill();
+  ctx.strokeStyle="#c4452f88";ctx.lineWidth=1.4/Math.sqrt(z);
+  ctx.beginPath();ctx.arc(p.x,p.y,r*2.1,0,7);ctx.stroke();
+  ctx.beginPath();ctx.arc(p.x,p.y,r*1.6,0,7);ctx.stroke();
+}
 function draw3DLandmarks(p,r,z,isCap){
   const col=NATIONS[p.owner].c,dark=shade(col,-0.5);
-  if(p.nuked){
-    ctx.fillStyle="#1a1410";
-    ctx.beginPath();ctx.arc(p.x,p.y,r*1.6,0,7);ctx.fill();
-    ctx.strokeStyle="#c4452f88";ctx.lineWidth=1.4/Math.sqrt(z);
-    ctx.beginPath();ctx.arc(p.x,p.y,r*2.1,0,7);ctx.stroke();
-    ctx.beginPath();ctx.arc(p.x,p.y,r*1.6,0,7);ctx.stroke();
-  }
   if(p.fort>0){
     const fh=Math.min(5,p.fort)*(2.2/Math.sqrt(z));
     const fx=p.x-r*1.5,fy=p.y;
@@ -8966,7 +9063,11 @@ function draw3DScene(u,s,z){
     // the rifle, raised at an angle out of the trench
     ctx.strokeStyle=dark;ctx.lineWidth=Math.max(1,s*0.05)/Math.sqrt(z);
     ctx.beginPath();ctx.moveTo(s*0.02,-s*0.02);ctx.lineTo(s*0.34,-s*0.42);ctx.stroke();
-  } else if(u.type==="arm"){
+  } else if(u.type==="arm"&&armourEra()){
+    /* Only where tanks exist. This branch was tested BEFORE the era, so every
+       "armoured" division drew a modern tank — which put Shermans on the
+       steppe in 1206 and at Austerlitz. In those eras an armoured division is
+       cavalry, and it now falls through to the era's own figure. */
     // a shaded tank: gradient armour, road wheels on the tracks, a tapered barrel
     ctx.strokeStyle=u===G.selUnit?"#e8a33d":"#0a0f0c";
     ctx.fillStyle="#0e0e0e";
@@ -9036,7 +9137,24 @@ function draw3DScene(u,s,z){
   }
   return true;
 }
-function drawPiece(u,glyph,color,z,fleet){
+/* WHERE A PIECE ACTUALLY SITS. The stack spread, the fleet offset and (in 3D)
+   the lift off the ground are all part of the drawing, so the pointer maths has
+   to use the very same numbers. It did not: unitAt() tested the bare province
+   centre, so in any province holding more than one division you clicked the
+   counter you could see and selected a different one — and a fleet, drawn eight
+   pixels south of its port, could not be picked at all at high zoom. */
+function piecePos(u,z,fleet){
+  const a=provOf(u.at);
+  if(!a)return[0,0];
+  if(u.to){const b=provOf(u.to);if(b)return[a.x+(b.x-a.x)*u.prog,a.y+(b.y-a.y)*u.prog];return[a.x,a.y];}
+  const stack=(fleet?G.fleets:G.units).filter(v=>v.at===u.at&&!v.to);
+  const idx=stack.indexOf(u);
+  const ang=idx*2.4, off=(idx>0?6:0)/Math.sqrt(z)*1.5;
+  const lift=VIEW3D?(8/Math.sqrt(z)*1.35)*0.15:0;
+  return[a.x+Math.cos(ang)*off,
+         a.y+Math.sin(ang)*off+(fleet?8/Math.sqrt(z):0)-lift];
+}
+function drawPiece(u,glyph,color,z,fleet,pos){
   if(MODS.fog&&G&&u.nat!==G.player&&!allied(u.nat,G.player)){
     const p=G.prov[u.at];
     const seen=p&&(p.owner===G.player
@@ -9044,17 +9162,7 @@ function drawPiece(u,glyph,color,z,fleet){
       ||G.units.some(v=>v.nat===G.player&&(v.at===u.at||p.adj.includes(v.at))));
     if(!seen)return;
   }
-  let x,y;
-  const a=provOf(u.at);
-  if(u.to){const b=provOf(u.to);x=a.x+(b.x-a.x)*u.prog;y=a.y+(b.y-a.y)*u.prog;}
-  else{
-    // spread stacked units
-    const stack=(fleet?G.fleets:G.units).filter(v=>v.at===u.at&&!v.to);
-    const idx=stack.indexOf(u);
-    const ang=idx*2.4;
-    x=a.x+Math.cos(ang)*(idx?6:0)/Math.sqrt(z)*1.5;
-    y=a.y+Math.sin(ang)*(idx?6:0)/Math.sqrt(z)*1.5+(fleet?8/Math.sqrt(z):0);
-  }
+  const[x,y]=pos||piecePos(u,z,fleet);
   const s=8/Math.sqrt(z)*1.35;
   ctx.save();
   ctx.translate(x,y);
@@ -9062,10 +9170,10 @@ function drawPiece(u,glyph,color,z,fleet){
     // a soft ground shadow gives the piece a standing, 3D feel — the map
     // beneath it stays perfectly flat, so no tilt-cancelling math is needed
     ctx.save();
+    ctx.translate(0,s*0.15);                         // the ground, which the piece is lifted off
     ctx.scale(1,0.45);
     ctx.beginPath();ctx.arc(0,s*0.5,s*0.5,0,7);ctx.fillStyle="rgba(0,0,0,0.42)";ctx.fill();
     ctx.restore();
-    ctx.translate(0,-s*0.15);                        // lift it slightly off the ground
     if(!fleet){                                       // extruded base so it reads as a block
       ctx.fillStyle=shade(NATIONS[u.nat].c,-0.45);
       ctx.fillRect(-s/2,s*0.16,s,s*0.3);
@@ -9084,9 +9192,13 @@ function drawPiece(u,glyph,color,z,fleet){
       ctx.fillText(u.type==="arm"?"▲":u.type==="art"?"◆":u.type==="aa"?"✳":"X",0,-s*0.13);
     }
     // hp pip
+    /* A division reduced to no strength at all made this NaN, and canvas
+       silently keeps the PREVIOUS fill when handed an invalid colour — so the
+       bar came out in whatever colour the last piece happened to use. */
+    const frac=u.str>0?Math.max(0,Math.min(1,u.hp/(u.str*10))):0;
     ctx.fillStyle="#000a";ctx.fillRect(-s/2,s*0.26,s,s*0.14);
-    ctx.fillStyle=u.hp/( u.str*10)>0.5?"#8ec07c":"#e07a4a";
-    ctx.fillRect(-s/2,s*0.26,s*Math.max(0,u.hp/(u.str*10)),s*0.14);
+    ctx.fillStyle=frac>0.5?"#8ec07c":"#e07a4a";
+    ctx.fillRect(-s/2,s*0.26,s*frac,s*0.14);
   }else{
     if(VIEW3D&&z>3.5){
       // a real hull, superstructure and mast instead of a flat anchor glyph
@@ -9233,11 +9345,15 @@ function provAt(sx,sy){
 function unitAt(sx,sy){
   const[wx,wy]=S2W(sx,sy);
   let best=null,bd=1e9;
-  const all=[...G.units,...G.fleets];
-  for(const u of all){
+  const z=G.cam.z;
+  for(const u of G.units){
     if(u.nat!==G.player)continue;
-    const a=provOf(u.at);let x=a.x,y=a.y;
-    if(u.to){const b=provOf(u.to);x=a.x+(b.x-a.x)*u.prog;y=a.y+(b.y-a.y)*u.prog;}
+    const[x,y]=piecePos(u,z,false);
+    const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;}
+  }
+  for(const u of G.fleets){
+    if(u.nat!==G.player)continue;
+    const[x,y]=piecePos(u,z,true);
     const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;}
   }
   const lim=(14/Math.sqrt(G.cam.z)*1.5)**2;
@@ -10355,7 +10471,17 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.0 \u2014 WHAT ARMIES ARE MADE OF (current)",[
+ ["v22.1 \u2014 THE 3D VIEW, FIXED (current)",[
+  "\u{1F5FF} STACKED DIVISIONS ARE CLICKABLE AGAIN. The counters in a province are fanned out around it so you can see them all, and a fleet is drawn a little south of its port \u2014 but the pointer maths ignored every one of those offsets and tested the bare province centre. So in any province holding more than one division, whichever counter you clicked, you got the same one: the first in the list. Measured on a six-division stack, one click in six selected the division you were pointing at. It is six in six now, because the drawing and the hit test finally use the same numbers.",
+  "\u{1F0CF} THE PIECES ARE PAINTED BACK TO FRONT. Standing counters were drawn in list order, so a division to the NORTH of another \u2014 that is, standing behind it \u2014 painted straight over the one in front of it. That is precisely the thing a tabletop view exists to stop. Fleets and armies now go down in depth order.",
+  "\u{1F3AF} NO MORE TANKS AT AUSTERLITZ. The armour branch was tested before the era, so every \u201Carmoured\u201D division drew a modern gradient-shaded tank \u2014 in 1206 on the steppe and under Napoleon alike. Those eras draw their own cavalry and line infantry now, and the tank is kept to the eras that had one.",
+  "\u2622 A NUKED PROVINCE STOPPED VANISHING OFF THE BOARD. The crater was painted AFTER the province marker, and its black disc is wider than the marker \u2014 so it swallowed the dot, the owner\u2019s colour and the garrison count whole. Scorched ground is ground: it goes down first, and the province sits on it.",
+  "\u{1F441} YOU CAN WALK UP TO THINGS WITHOUT THEM DISAPPEARING. Any surface with even one corner behind the lens was dropped entirely rather than cut off at it \u2014 so the nearest and largest thing in the picture, your own parapet, the revetting, the tank\u2019s own hull, was the first thing to go. Geometry is clipped at the lens now and the rest of it is drawn.",
+  "\u{1F5FA} AND THE GROUND GOES ON PAST WHERE YOU STARTED. The churned mud and the shell holes were scattered in a forty-metre cone at one fixed point, so walking up the line left you standing on bare empty gradient with the entire battlefield behind you. The scatter covers the sector you can actually walk, and it is sorted by distance FROM YOU rather than by a world coordinate \u2014 which is why, before, turning ninety degrees painted near craters underneath far ones.",
+  "\u{1F3A8} TRANSLUCENT THINGS ARE TRANSLUCENT AGAIN. The light and haze pass read \u201Crgba(r,g,b,a)\u201D for its first three numbers and handed back an opaque colour, so on rich graphics every gouge in the mud, every contact shadow and every wisp of smoke came out as flat solid paint laid over the ground instead of tinting it.",
+  "\u{1F52B} PAUSING NO LONGER JAMS YOUR RIFLE. The gun reloaded on the CALENDAR \u2014 two game days \u2014 and tested against the day counter, which stops dead when the campaign is paused. Pause to look around and the gun read RELOADING for as long as you stood there. It reloads on the clock on the wall.",
+  "\u{1F3C3} AND YOU STOP RUNNING WHEN YOU LEAVE THE TAB. A key held down when the window loses focus never gets its keyup, so you came back still walking forward at a dead sprint into your own wire with nothing on screen saying why."]],
+ ["v22.0 \u2014 WHAT ARMIES ARE MADE OF",[
   "\u26D3 THE ECONOMY WAS ONE ABSTRACT NUMBER AND A BARREL OF OIL. Everything from an infantry rifle to a fleet carrier came out of the same pot of \u201Cproduction\u201D, so no province was worth taking for any reason except its size, a blockade only ever cost you money, and trade was a button that turned money into oil. There are now four strategic resources, placed where they actually are in the ground: \u26D3 STEEL in the Ruhr, Lorraine, Sweden, the Urals and the Donbas; \u25CD RUBBER in Malaya, Indochina, the Congo and the Amazon; \u25A4 ALUMINIUM in West African and Hungarian bauxite; \u25C6 TUNGSTEN in China, Iberia, Burma and the Andes.",
   "\u{1F30D} AND NO COUNTRY HAS ALL FOUR. Germany holds the Ruhr and has neither rubber nor bauxite anywhere in its ground \u2014 exactly the problem the real one had. Malaya has the rubber and no steel worth the name. Every unit type has a bill of materials, the recruit panel greys out and tells you which one you are missing, and suddenly there are provinces worth invading for what is under them rather than what is on them.",
   "\u{1F3ED} AN ARMY EATS THEM, TOO. Divisions wear out barrels and track, fleets eat plate, air wings eat aluminium. A force bigger than your industry can feed runs its own reserves down \u2014 and then feels it in exactly the arm that needed the thing: no steel and the whole army fights at 82%, no aluminium and air support is halved, no rubber and everything moves a fifth slower. Without upkeep the stockpiles just climbed for forty years and constrained nothing; measured, a median of eleven hundred steel by 1979, which is a hundred divisions\u2019 worth sitting idle.",
