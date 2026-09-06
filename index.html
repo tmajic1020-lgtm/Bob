@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.2.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.2.1</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.2.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.2.1</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.2.0";
+const BUILD="23.2.1";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1589,8 +1589,16 @@ function applyEra(era){
      nation's name \u2014 both are edits to the shared table, and without restoring
      all four a campaign inherits the previous one's. */
   for(const k in NATIONS){
-    NATIONS[k].n=NAT_BASE[k].n;NATIONS[k].f=NAT_BASE[k].f;NATIONS[k].c=NAT_BASE[k].c;
-    NATIONS[k].cap=NAT_BASE[k].cap;
+    /* A nation with no baseline is one that came into existence after the
+       table was snapshotted — risen from the ruins, shattered off another
+       country, or rebuilt out of a save file. There is nothing to restore it
+       TO, so it keeps what it has. Reading through the missing entry threw,
+       and because this runs at the start of every campaign, one such nation
+       left in the table made the game unable to start another one at all. */
+    const b=NAT_BASE[k];
+    if(!b){NAT_BASE[k]={n:NATIONS[k].n,f:NATIONS[k].f,c:NATIONS[k].c,cap:NATIONS[k].cap};continue;}
+    NATIONS[k].n=b.n;NATIONS[k].f=b.f;NATIONS[k].c=b.c;
+    if(b.cap!==undefined)NATIONS[k].cap=b.cap;
   }
   for(const k in ERAS[era].rename){NATIONS[k].n=ERAS[era].rename[k][0];NATIONS[k].f=ERAS[era].rename[k][1];}
 }
@@ -1740,7 +1748,10 @@ function riseNewNation(pid){
   const h=_shHash("rise:"+pid), col=_shColor(h);
   const name=_rebirthName(p);
   NATIONS[key]={n:name,f:"\u{1F3F4}",c:col,cap:pid,play:0,desc:"Risen from the ruins",eras:[ERA]};
-  NAT_BASE[key]={n:name,f:NATIONS[key].f,c:col};
+  /* cap included: applyEra copies NAT_BASE.cap back over NATIONS.cap, so
+     leaving it out quietly set a risen nation's capital to undefined the next
+     time an era was applied. */
+  NAT_BASE[key]={n:name,f:NATIONS[key].f,c:col,cap:pid};
   FLAG[key]=_shFlag(h,col);
   const took=[p];
   for(const j of (p.adj||[])){
@@ -11165,8 +11176,12 @@ function renderPanel(){
   if(!G&&curPanel!=="settings"&&curPanel!=="mods")return;   // settings and mods work before a campaign
   const el=$("#panel");const me=G?G.nations[G.player]:null;
   if(curPanel==="prov"){
-    if(!G.sel){el.innerHTML="<h2>PROVINCE</h2><div style='color:var(--dim)'>Click a province on the map.</div>";return;}
-    const p=provOf(G.sel);
+    /* A selection can outlive the province it points at: each era has its own
+       province set, so a save made in one era and opened in another leaves
+       G.sel dangling. Treat that exactly like no selection rather than
+       dereferencing undefined. */
+    const p=G.sel?provOf(G.sel):null;
+    if(!p){G.sel=null;el.innerHTML="<h2>PROVINCE</h2><div style='color:var(--dim)'>Click a province on the map.</div>";return;}
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
@@ -11322,8 +11337,10 @@ function renderPanel(){
     el.innerHTML=h;
   }
   if(curPanel==="build"){
-    const sel=G.sel&&provOf(G.sel).owner===G.player?provOf(G.sel):G.prov[capOf(G.player)];
-    const deployable=provOf(sel.id).owner===G.player;
+    const selP=G.sel?provOf(G.sel):null;                       // may be stale — see the province panel
+    const sel=selP&&selP.owner===G.player?selP:G.prov[capOf(G.player)];
+    if(!sel){el.innerHTML="<h2>RECRUIT</h2><div style='color:var(--dim)'>You hold no province to recruit in.</div>";return;}
+    const deployable=sel.owner===G.player;
     el.innerHTML=`<h2>RECRUIT</h2>
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <div class="row" style="flex-wrap:wrap;gap:8px">${RESKEYS.map(r=>`<span title="${RESOURCES[r].n}">${RESOURCES[r].i} <b>${Math.floor(me.stock[r]||0)}</b> <small style="color:var(--dim)">+${(me.income[r]||0).toFixed(1)}</small></span>`).join("")}</div>
@@ -13491,6 +13508,10 @@ function mpApplyState(S){
       for(const id in S.prov)if(S.prov[id][0]===k){cap=id;break;}
       if(!cap)continue;                       // no name, no ground: nothing to build
       NATIONS[k]={n:a[15]||k,f:a[16]||"\u{1F3F4}",c:a[17]||"#8a8a8a",cap,play:0,era:ERA};
+      /* And its baseline, or the next campaign cannot start: applyEra restores
+         every nation in the table from NAT_BASE, and this one would not be in
+         it. A save carrying a successor state bricked the new-game button. */
+      NAT_BASE[k]={n:NATIONS[k].n,f:NATIONS[k].f,c:NATIONS[k].c,cap};
     }
     if(!G.nations[k])G.nations[k]=makeNation(k,1,!!a[14]);
   }
@@ -13616,6 +13637,13 @@ function slotLine(m){
 window.saveGame=saveGame;window.loadGame=loadGame;window.deleteSave=deleteSave;
 let HOSTPUSH=null;       // the single host state-push interval
 function mpHostStart(){
+  /* DB is null whenever Firebase never initialised — offline, an ad blocker,
+     a school network, or no config pasted in. mpMenu checks this before it
+     opens, but the pendingHost path runs later, from inside startGame, by
+     which point the connection may be gone. Dereferencing null here threw out
+     of startGame, and a caller that catches reloads the page, so choosing to
+     host without a connection threw the player back to the menu. */
+  if(!DB){logMsg("Multiplayer is unavailable — no connection to the game server. Playing single-player.","bad");return;}
   MP.role="host";MP.code=(""+(1000+Math.floor(Math.random()*9000)));
   MP.ref=DB.ref("ifrooms/"+MP.code);
   MP.ref.set({meta:{era:ERA,year:YEAR,host:G.player,t:Date.now()},state:mpSerialize()});
@@ -13628,6 +13656,7 @@ function mpHostStart(){
   logMsg(`MULTIPLAYER HOSTING — room code ${MP.code}. Friends: MULTIPLAYER → JOIN → ${MP.code}.`,"good");
 }
 async function mpJoin(code){
+  if(!DB){alert("Multiplayer is unavailable — no connection to the game server.");return;}
   const ref=DB.ref("ifrooms/"+code);
   const meta=(await ref.child("meta").get()).val();
   if(!meta){alert("Room "+code+" not found.");return;}
@@ -14072,6 +14101,16 @@ function renderStart(){
 }
 let GAMECLOCK=null;      // the single daily-tick interval; see startGame
 function startGame(k){
+  /* Refuse an unknown nation outright. The name is not read until the very
+     last line of this function, so an unrecognised key used to build the whole
+     world and only then throw, leaving a game whose player belongs to no
+     nation — every panel then failed on it. */
+  /* hasOwnProperty, not a truth test: NATIONS["__proto__"] is Object.prototype,
+     which is truthy, so a plain check let that one key through. */
+  if(!k||typeof k!=="string"||!Object.prototype.hasOwnProperty.call(NATIONS,k)){
+    /* No logMsg here: it writes into G.log, and G is null until a campaign
+       exists, which is precisely the state this guard fires in. */
+    console.warn("startGame: unknown nation",k);return;}
   /* A campaign never inherits a modal from the screen before it. Random events
      only fire while #eventBox is hidden, so a box left open on the title screen
      silently killed EVERY event for the whole campaign — measured: 1500 days,
@@ -14192,9 +14231,16 @@ function startGame(k){
      40. */
   if(GAMECLOCK){clearInterval(GAMECLOCK);GAMECLOCK=null;}
   if(MP.role!=="guest")GAMECLOCK=setInterval(()=>{if(G&&!G.paused)for(let i=0;i<G.speed;i++)tick();},500);
-  if(MP.pendingHost){MP.pendingHost=false;mpHostStart();
-    if(MP.pendingInvite&&AUTH_USER){const tk=MP.pendingInvite,tn=MP.pendingInviteName||"your friend";
-      MP.pendingInvite=null;MP.pendingInviteName=null;_sendInvite(tk,tn);}
+  /* Nothing about multiplayer may prevent a single-player game from starting.
+     This is the last statement of startGame, so anything thrown here escapes to
+     the caller with the world already built — and one caller answers by
+     reloading the page, discarding it. */
+  if(MP.pendingHost){MP.pendingHost=false;
+    try{
+      mpHostStart();
+      if(MP.pendingInvite&&AUTH_USER){const tk=MP.pendingInvite,tn=MP.pendingInviteName||"your friend";
+        MP.pendingInvite=null;MP.pendingInviteName=null;_sendInvite(tk,tn);}
+    }catch(e){MP.role=null;MP.ref=null;logMsg("Could not start the multiplayer room — playing single-player.","bad");}
   }
 }
 window.__ifBoot("wiring");
