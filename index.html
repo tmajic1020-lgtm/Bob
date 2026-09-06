@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.7.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.8.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.7.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.8.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.7.0";
+const BUILD="22.8.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4794,6 +4794,21 @@ function buildSea(base){
      water underneath it is a flat colour, so the two can simply be the same
      picture, and an opaque blit is most of a free one. */
   g.fillStyle=base;g.fillRect(0,0,w,h);
+  /* THE SEA IS NOT ONE COLOUR. A flat fill reads as paper; open water seen from
+     this height has slow variation in it, and it is what makes the ocean look
+     like a surface rather than like the gap between the continents. Baked in,
+     so it costs nothing to draw. */
+  try{
+    const im=g.getImageData(0,0,w,h), d=im.data;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const v=(_fbm(x*0.012,y*0.012,211,4)-0.5)*26+(_fbm(x*0.06,y*0.06,223,2)-0.5)*10;
+      const i=(y*w+x)*4;
+      d[i]=Math.max(0,Math.min(255,d[i]+v*0.7));
+      d[i+1]=Math.max(0,Math.min(255,d[i+1]+v*0.85));
+      d[i+2]=Math.max(0,Math.min(255,d[i+2]+v));
+    }
+    g.putImageData(im,0,0);
+  }catch(e){}
   g.setTransform(w/MW,0,0,h/MH,0,0);
   g.lineJoin="round";
   for(const[wd,a]of [[26,0.05],[15,0.06],[8,0.08],[3.4,0.11]]){
@@ -6867,7 +6882,11 @@ function renderTerritory(){
     /* Pale, and paler than the photograph suggested. In the capture the ground
        shows through EVERY country, Belgium and Italy included — the national
        colour is a thin, low-saturation wash, not a coat of paint. */
-    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.42)*0.70+84))));
+    /* Pale, but still each its own colour. Forty-two per cent of the way to
+       grey made every nation a variation on beige and you could not tell one
+       from the next at a glance — which is the single thing a political map
+       has to do. Twenty-two keeps them apart while staying a wash. */
+    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.22)*0.72+76))));
   }
   /* Where a flag sits is a property of the LANDMASS, not of the pixel, so it is
      worked out once per landmass rather than recomputed for every pixel \u2014 which
@@ -7016,7 +7035,14 @@ function renderTerritory(){
           const t=new Uint32Array(256);
           const cl=Math.max(1,(c[0]*77+c[1]*150+c[2]*29)>>8);
           for(let L=0;L<256;L++){
-            const k=L/cl;
+            /* Not PURE ground lightness. Baked at exactly the ground's
+               luminance a country over forest is as dark as the forest, and on
+               the real map a pale nation visibly lifts the ground it sits on —
+               Italy reads as pale yellow over dark hills, not as dark hills.
+               A fifth of the country's own lightness mixed in does it, and the
+               terrain still carries all of the variation. */
+            const Lt=L*0.80+cl*0.20;
+            const k=Lt/cl;
             t[L]=_pack(Math.min(255,c[0]*k)|0,Math.min(255,c[1]*k)|0,Math.min(255,c[2]*k)|0,ea);
           }
           return (_lut[oi]=t);
@@ -7134,13 +7160,18 @@ function _drawFrame(){
     const seaBase=terr?"#000000":T.sea;
     if(seaCv!==1&&_seaKey!==seaBase)try{buildSea(seaBase);}catch(e){seaCv=1;}
     if(seaCv&&seaCv!==1)ctx.drawImage(seaCv,0,0,MW,MH);
-    /* the faintest graticule, for orientation only — it should be something you
-       can find when you look for it and never something you notice */
-    ctx.strokeStyle=terr?"#16181a":"rgba(190,214,224,0.055)";ctx.lineWidth=1/z;
-    ctx.beginPath();
-    for(let x=0;x<=MW;x+=MW/24){ctx.moveTo(x,0);ctx.lineTo(x,MH);}
-    for(let y=0;y<=MH;y+=MH/12){ctx.moveTo(0,y);ctx.lineTo(MW,y);}
-    ctx.stroke();
+    /* NO GRATICULE. Even at five per cent it was a set of ruled lines across
+       every ocean on Earth, and the real map has nothing of the kind — it was
+       the one element on this map that could never be mistaken for it. What
+       ocean actually has is texture, which is baked into the water itself
+       below. In TERRAIN mode the grid stays: that view is a chart. */
+    if(terr){
+      ctx.strokeStyle="#16181a";ctx.lineWidth=1/z;
+      ctx.beginPath();
+      for(let x=0;x<=MW;x+=MW/24){ctx.moveTo(x,0);ctx.lineTo(x,MH);}
+      for(let y=0;y<=MH;y+=MH/12){ctx.moveTo(0,y);ctx.lineTo(MW,y);}
+      ctx.stroke();
+    }
   }
   const FR=realMap?"evenodd":"nonzero";
   /* NO LAND FILL AND NO LAND CLIP. With the real atlas in, landPath is not a
@@ -7296,7 +7327,9 @@ function _drawFrame(){
   /* THE ICE WAS THE BRIGHTEST THING ON THE MAP. A near-white slab across the
      whole bottom edge pulled the eye straight off Europe and onto the one
      place nothing ever happens. It is pale ground, not a light source. */
-  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#7d8a8c":"#cfccc0");ctx.fill(icePath,FR);
+  /* The ice, finally dark enough not to be the loudest thing on the map. It is
+     a frozen waste at the bottom of the world, not a light box. */
+  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#55636a":"#b6b5ac");ctx.fill(icePath,FR);
   ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(icePath);
   // links (faint, when zoomed)
   if(z>1.6){
@@ -11734,7 +11767,12 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.7 \u2014 CALIBRATED AGAINST THE THING ITSELF (current)",[
+ ["v22.8 \u2014 THE OCEAN, AND TELLING COUNTRIES APART (current)",[
+  "\u{1F30A} THE GRID IS OFF THE OCEAN. Even at five per cent it was a set of ruled lines across every sea on Earth, and the map it is being measured against has nothing of the kind \u2014 it was the one element here that could never be mistaken for it. What water actually has is TEXTURE, so the sea carries slow variation baked into it instead: open ocean seen from this height is a surface, not the gap between the continents. (The chart view keeps its grid. That one IS a chart.)",
+  "\u{1F3F3} COUNTRIES CAN BE TOLD APART AGAIN. Pulling them nearly half-way to grey made every nation a variation on beige, which defeats the one thing a political map exists to do. They are still a pale wash \u2014 the ground shows through all of them \u2014 but each is recognisably its own colour now.",
+  "\u{1F4A1} AND A PALE COUNTRY LIFTS THE GROUND IT SITS ON. The national colour is baked at the lightness of the terrain underneath, which is what lets every ridge and treeline show through it \u2014 but baked at EXACTLY that lightness, a country over forest came out as dark as the forest. On the real map Italy reads as pale yellow over dark hills, not as dark hills. A fifth of the nation's own lightness now mixes in, and the terrain keeps all of its variation.",
+  "\u2744 The ice is dark enough to stop being the loudest thing on the map. It is a frozen waste at the bottom of the world, not a light box."]],
+ ["v22.7 \u2014 CALIBRATED AGAINST THE THING ITSELF",[
   "\u{1F4F7} THE LAST ROUND WAS TUNED AGAINST A PHOTOGRAPH OF A SCREEN TAKEN AT NIGHT, and a photograph of a monitor is a measurement of the CAMERA: it auto-exposed to a bright display in a dark room and saturated everything it saw. Every number taken off it pointed the wrong way. Against a real screen capture the water is a dark desaturated slate rather than a bright blue, the ground is deep olive and brown rather than lifted and chalky, and the whole picture is considerably LESS colourful, not more. All of it is set back the other way.",
   "\u{1F3AF} AND THE TINT HAD NEVER ACTUALLY BEEN APPLIED. The national colour is baked against the lightness of the painted ground \u2014 that is what lets the terrain show through it \u2014 but the colour layer was being built BEFORE the ground it reads from existed. On the first frame it found nothing there, quietly fell back to flat colour, and never rebuilt, because nothing marks it stale until a border moves. Every version of that tint anyone has seen was the fallback. The ground is built first now, and rebuilding it rebuilds the colour with it.",
   "\u{1F30A} THE ICE IS NOT A LIGHT SOURCE. Antarctica was near-white across the whole bottom edge and was comfortably the brightest thing on the map \u2014 it pulled the eye off Europe and onto the one place nothing ever happens.",
