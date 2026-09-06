@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.3.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.4.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.3.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.4.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.3.0";
+const BUILD="22.4.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4821,6 +4821,144 @@ function buildNatEdges(owner,w,h){
   }
   c.putImageData(natEdgeImg,0,0);
 }
+let provEdgeCv=null, provTiles=null;
+const PT_S=180;                    // world units per boundary tile
+let PT_W=0, PT_H=0;
+/* THE MOSAIC. Drawing the game's own province boundaries turned out to change
+   almost nothing, and the reason is worth writing down: this game has two
+   hundred and fifty provinces for the whole world, where the game it is being
+   compared against has some thirteen thousand. At that count a province edge
+   sits almost exactly on a national border, so the map stayed a set of smooth
+   country shapes — and that smoothness, not the colours, was why it did not
+   look like the thing.
+
+   So the land is subdivided again, finely, PURELY FOR THE LOOK. A few thousand
+   deterministic points scattered over the world on a jittered grid, each cell
+   of ground belonging to its nearest one, and a hairline wherever two cells
+   disagree. It touches nothing the game plays with: provinces, ownership,
+   movement and combat are all exactly as they were, and a division still
+   stands in the same province it always did. It is the texture of the map and
+   nothing else. */
+function buildProvEdges(pidx,land,w,h){
+  if(!provEdgeCv)provEdgeCv=document.createElement("canvas");
+  provEdgeCv.width=w;provEdgeCv.height=h;
+  const c=provEdgeCv.getContext("2d");
+  const im=c.createImageData(w,h);
+  const d=new Uint32Array(im.data.buffer);
+  let landCount=0;
+  for(let i=0;i<w*h;i++)if(land[i])landCount++;
+  /* About four thousand cells over the world's land, which is the density that
+     reads as a mosaic without turning into noise at the zoom you play at. */
+  const S=Math.max(4,Math.round(Math.sqrt(landCount/4000)));
+  const gw=Math.ceil(w/S)+1, gh=Math.ceil(h/S)+1;
+  const px=new Float32Array(gw*gh), py=new Float32Array(gw*gh);
+  const rnd=_fpRnd?_fpRnd(1337):null;
+  let seed=1337;
+  const nx=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    const g=gy*gw+gx;
+    /* Jittered across nearly the whole cell. At two thirds the points stayed
+       close enough to the grid that the Voronoi came out as squares, and a
+       chequerboard is not a mosaic. */
+    px[g]=gx*S+0.04*S+nx()*S*0.92;
+    py[g]=gy*S+0.04*S+nx()*S*0.92;
+  }
+  const sub=new Int32Array(w*h).fill(-1);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;
+    if(!land[i])continue;
+    const gx0=(x/S)|0, gy0=(y/S)|0;
+    let bd=1e9,bi=-1;
+    /* two rings, because a point jittered to the far corner of its own cell
+       can be beaten by one jittered to the near corner of the cell beyond */
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+      const ax=gx0+dx, ay=gy0+dy;
+      if(ax<0||ay<0||ax>=gw||ay>=gh)continue;
+      const g=ay*gw+ax;
+      const ddx=px[g]-x, ddy=py[g]-y, dd=ddx*ddx+ddy*ddy;
+      if(dd<bd){bd=dd;bi=g;}
+    }
+    sub[i]=bi;
+  }
+  /* AS LINES, NOT AS PIXELS. Baked into a raster the mosaic smeared the moment
+     you zoomed in — a one-texel line magnified six times is a six-pixel grey
+     smudge, which is what turned the map into mush rather than into a map. As
+     a path it is stroked at a constant width on screen and stays a hairline at
+     every zoom, which is what a boundary on a map is.
+
+     Runs of collinear edge are merged into single segments, because forty
+     thousand two-unit stubs and eleven thousand real lines draw the same
+     picture at a quarter of the cost. */
+  /* Rounded off first. A Voronoi read off a grid comes out as staircases, and
+     a regular two-unit stair reads as pixelation rather than as a border — a
+     majority filter over the cell ids knocks the corners off and leaves edges
+     that look drawn instead of sampled. */
+  for(let pass=0;pass<2;pass++){
+    const src=sub.slice();
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+      const i=y*w+x;if(!land[i])continue;
+      const cnt={};let best=src[i],bc=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy)continue;
+        const j=i+dy*w+dx;if(!land[j])continue;
+        const v=src[j];const n2=(cnt[v]=(cnt[v]||0)+1);
+        if(n2>bc){bc=n2;best=v;}
+      }
+      if(bc>=5)sub[i]=best;
+    }
+  }
+  /* TWO FORMS OF THE SAME LINES, because neither one is right at both ends of
+     the zoom. A raster smears the moment it is magnified — a one-texel line
+     blown up six times is a grey smudge, which is what turned the map to mush.
+     Vector stays a hairline at any zoom, but stroking every boundary in the
+     world is twenty thousand segments a frame and cost two thirds of the
+     frame rate at world zoom, where the mosaic is too small to see anyway.
+
+     So: the raster is used zoomed out, where it is being SHRUNK and looks
+     perfect, and vector is used zoomed in — cut into tiles so that only the
+     handful under the viewport is ever stroked. */
+  const LIGHT=_LE?((104<<24)|(30<<16)|(34<<8)|38)>>>0:((38<<24)|(34<<16)|(30<<8)|104)>>>0;
+  const HEAVY=_LE?((188<<24)|(22<<16)|(25<<8)|28)>>>0:((28<<24)|(25<<16)|(22<<8)|188)>>>0;
+  const segC=[],segL=[];
+  for(let x=0;x<w-1;x++){                        // vertical boundaries, merged down
+    let runC=-1,runL=-1;
+    for(let y=0;y<=h;y++){
+      const i=y*w+x, j=i+1;
+      const ok=y<h&&land[i]&&land[j];
+      const dl=ok&&pidx[j]!==pidx[i];
+      const dc=ok&&!dl&&sub[j]!==sub[i];
+      if(ok&&(dl||dc))d[i]=dl?HEAVY:LIGHT;
+      if(dc&&runC<0)runC=y; else if(!dc&&runC>=0){segC.push((x+1)*TS,runC*TS,(x+1)*TS,y*TS);runC=-1;}
+      if(dl&&runL<0)runL=y; else if(!dl&&runL>=0){segL.push((x+1)*TS,runL*TS,(x+1)*TS,y*TS);runL=-1;}
+    }
+  }
+  for(let y=0;y<h-1;y++){                        // horizontal boundaries, merged across
+    let runC=-1,runL=-1;
+    for(let x=0;x<=w;x++){
+      const i=y*w+x, j=i+w;
+      const ok=x<w&&land[i]&&land[j];
+      const dl=ok&&pidx[j]!==pidx[i];
+      const dc=ok&&!dl&&sub[j]!==sub[i];
+      if(ok&&(dl||dc)&&!d[i])d[i]=dl?HEAVY:LIGHT;
+      if(dc&&runC<0)runC=x; else if(!dc&&runC>=0){segC.push(runC*TS,(y+1)*TS,x*TS,(y+1)*TS);runC=-1;}
+      if(dl&&runL<0)runL=x; else if(!dl&&runL>=0){segL.push(runL*TS,(y+1)*TS,x*TS,(y+1)*TS);runL=-1;}
+    }
+  }
+  PT_W=Math.ceil(MW/PT_S);PT_H=Math.ceil(MH/PT_S);
+  provTiles=new Array(PT_W*PT_H);
+  const bin=(arr,key)=>{
+    for(let k=0;k<arr.length;k+=4){
+      const mx=(arr[k]+arr[k+2])*0.5, my=(arr[k+1]+arr[k+3])*0.5;
+      const tx=Math.min(PT_W-1,Math.max(0,(mx/PT_S)|0)), ty=Math.min(PT_H-1,Math.max(0,(my/PT_S)|0));
+      const t=ty*PT_W+tx;
+      let e=provTiles[t];
+      if(!e)e=provTiles[t]={cells:new Path2D(),lines:new Path2D()};
+      e[key].moveTo(arr[k],arr[k+1]);e[key].lineTo(arr[k+2],arr[k+3]);
+    }
+  };
+  bin(segC,"cells");bin(segL,"lines");
+  c.putImageData(im,0,0);
+}
 function buildGround(){
   const w=Math.round(MW/TS), h=Math.round(MH/TS);
   if(!landMask)return;
@@ -4839,21 +4977,23 @@ function buildGround(){
   }
   const land=new Uint8Array(w*h);
   const kind=new Uint8Array(w*h);
+  const pidx=new Int16Array(w*h).fill(-1);   // which province owns each cell
   const KEYS=Object.keys(TERPAINT), KIDX={};KEYS.forEach((k,i)=>KIDX[k]=i);
   const H=new Float32Array(w*h);
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const i=y*w+x;
     if(landMask[i*4+3]<10)continue;
     land[i]=1;
-    let bd=1e9,bt="plain";
+    let bd=1e9,bt="plain",bi=-1;
     const cx0=(x/CS)|0, cy0=(y/CS)|0;
     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
       const ax=cx0+dx,ay=cy0+dy;
       if(ax<0||ay<0||ax>=cw||ay>=ch)continue;
-      const p=pts[coarse[ay*cw+ax]];
+      const pi=coarse[ay*cw+ax], p=pts[pi];
       const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);
-      if(d<bd){bd=d;bt=p.t;}
+      if(d<bd){bd=d;bt=p.t;bi=pi;}
     }
+    pidx[i]=bi;
     kind[i]=KIDX[bt]!==undefined?KIDX[bt]:KIDX.plain;
     H[i]=TERHEIGHT[bt]!==undefined?TERHEIGHT[bt]:0.1;
   }
@@ -4975,6 +5115,16 @@ function buildGround(){
     gc.strokeStyle="rgba(244,234,204,0.40)";gc.lineWidth=1.4;gc.stroke(landPath);
     gc.restore();
   }catch(e){}
+  /* THE PROVINCE MOSAIC. This is what a map like this actually LOOKS like at a
+     glance and the thing the game had none of: the land is not smooth country
+     shapes, it is thousands of small cells with a thin line between each of
+     them, and that texture is most of the character of the picture. The game
+     did have province borders, but only from a download, and only if you went
+     and pressed the button — so by default the map was blank country blobs.
+     They are generated here instead, out of the nearest-province test this
+     function has already done, which makes them free and makes them work with
+     no network at all. */
+  buildProvEdges(pidx,land,w,h);
   if(!groundSm)groundSm=document.createElement("canvas");
   groundSm.width=w;groundSm.height=h;
   {const g=groundSm.getContext("2d");g.imageSmoothingEnabled=true;
@@ -6676,12 +6826,37 @@ function _drawFrame(){
   /* NATIONAL BORDERS ARE THE HEAVIEST LINE ON THE MAP, because a border is the
      one thing on it you are always looking for. Drawn from the political layer
      itself: where the colour changes, there is a frontier. */
+  /* THE LINES GO OVER THE PAINT, NOT UNDER IT. Drawn beneath the national
+     colour a hairline at forty per cent came through a seventy per cent wash
+     at about twelve, which is to say not at all — the mosaic was being built
+     correctly and then buried. On a printed map the boundaries are inked last. */
+  if(provTiles&&z>=2.4){
+    /* Only the tiles under the viewport, and a width divided by the zoom so
+       the line stays a hairline on screen however far in you are.
+       No clip: the segments are generated from land cells only, so there is
+       nothing to clip away, and clipping to the world's coastline is one of
+       the more expensive things you can ask a canvas to do. */
+    const x0=Math.max(0,((G.cam.x)/PT_S|0)), x1=Math.min(PT_W-1,((G.cam.x+W/z)/PT_S|0));
+    const y0=Math.max(0,((G.cam.y)/PT_S|0)), y1=Math.min(PT_H-1,((G.cam.y+H/z)/PT_S|0));
+    ctx.strokeStyle="rgba(26,30,34,0.30)";ctx.lineWidth=0.9/z;
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+      const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.cells);
+    }
+    ctx.strokeStyle="rgba(18,20,24,0.60)";ctx.lineWidth=1.6/z;
+    for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+      const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.lines);
+    }
+  } else if(provEdgeCv){
+    ctx.globalAlpha=Math.min(0.70,0.30+z*0.14);
+    ctx.drawImage(provEdgeCv,0,0,MW,MH);
+    ctx.globalAlpha=1;
+  }
   if(natEdgeCv){
-    ctx.save();ctx.clip(landPath,FR);
-    ctx.imageSmoothingEnabled=true;
+    /* Also unclipped: ownership only exists on land, so the layer is already
+       land-shaped and the clip was pure cost. */
     ctx.globalAlpha=Math.min(0.92,0.55+z*0.10);
     ctx.drawImage(natEdgeCv,0,0,MW,MH);
-    ctx.globalAlpha=1;ctx.restore();
+    ctx.globalAlpha=1;
   }
   // internal state/province borders (Nevada, Alberta, ...) when toggled
   if(SHOWPROV){
@@ -6728,15 +6903,27 @@ function _drawFrame(){
   drawNationNames(z,T);
   // provinces
   for(const p of Object.values(G.prov)){
-    const r=(3+p.val)/Math.sqrt(z)*1.1;
+    /* A VICTORY POINT, not a poker chip. These were the loudest thing on the
+       map — a fat disc of national colour on every province, so the country
+       colour was being stated twice and the ground could not be seen past
+       them. They are markers: small, dark, ringed, sized by what the place is
+       worth, with a pale core on a capital. Everything they did — click
+       target, selection, the capital ring, the port ring — they still do. */
+    const r=(3+p.val)/Math.sqrt(z)*0.62;
     const isCap=capOf(p.owner)===p.id&&p.home===p.owner;
-    if(VIEW3D&&z>3.5)draw3DGround(p,r,z);
+    if(VIEW3D&&z>3.5)draw3DGround(p,r/0.62,z);
+    const sel=G.sel===p.id;
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
-    ctx.fillStyle=NATIONS[p.owner].c;ctx.fill();
-    ctx.lineWidth=(G.sel===p.id?2.4:1.1)/Math.sqrt(z)*1.4;
-    ctx.strokeStyle=G.sel===p.id?"#e8a33d":(isCap?"#e8e2d0":"#0a0f0c");
+    ctx.fillStyle=sel?"#e8a33d":(isCap?"#efe8d4":"rgba(16,18,20,0.86)");
+    ctx.fill();
+    ctx.lineWidth=(sel?2.2:1.0)/Math.sqrt(z)*1.2;
+    ctx.strokeStyle=sel?"#ffd28a":(isCap?"#14171a":"rgba(238,232,214,0.72)");
     ctx.stroke();
-    if(p.coastal){ctx.beginPath();ctx.arc(p.x,p.y,r+2.2/Math.sqrt(z),0,7);ctx.strokeStyle="#7ab2c855";ctx.lineWidth=1/Math.sqrt(z);ctx.stroke();}
+    if(!isCap&&!sel&&p.val>=3){                       // a place worth taking
+      ctx.beginPath();ctx.arc(p.x,p.y,r*0.42,0,7);
+      ctx.fillStyle="rgba(238,232,214,0.80)";ctx.fill();
+    }
+    if(p.coastal){ctx.beginPath();ctx.arc(p.x,p.y,r+2.0/Math.sqrt(z),0,7);ctx.strokeStyle="#7ab2c844";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke();}
     const isMain=p.val>=3||capOf(p.owner)===p.id;
     if(z>1.8||SHOWPROV){
       const fs=z>1.8?10/z*1.6:(isMain?10:7.5)/Math.sqrt(z)*1.1;
@@ -9476,7 +9663,10 @@ function drawNationNames(z,T){
        SWITZERLAND came out wider than Switzerland. */
     let fs=Math.min(along*0.78/Math.max(1,name.length*0.92), across*0.30);
     const px=fs*z;                              // how big that lands on screen
-    if(px<9||px>190)continue;                   // unreadable, or shouting
+    /* Too small to read, or shouting. At close zoom a country name has done
+       its job long ago — you know where you are — so it bows out rather than
+       laying six-inch letters across the ground you are fighting over. */
+    if(px<9||px>112)continue;
     /* Not over the top of another name. A box test in screen space against the
        names already down, biggest first — measured on the text itself, so a
        long name does not fence off a neighbour it never actually touches. */
@@ -11106,7 +11296,13 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.3 \u2014 THE NAME OF THE COUNTRY (current)",[
+ ["v22.4 \u2014 THE MOSAIC (current)",[
+  "\u{1F5FA} THE LAND IS MADE OF CELLS NOW, and this is the thing that was actually missing. A map like this is not smooth country shapes with colour poured into them \u2014 it is thousands of small cells with a hairline between each of them, and that texture is most of what you are looking at. The game did have province borders, but only if you pressed a button AND a download succeeded, so by default the world was blank blobs.",
+  "\u{1F4CF} And its own provinces could not have supplied it: there are two hundred and fifty of them for the whole world, against some thirteen thousand in the game being copied. At that count a province edge sits almost exactly on a national border and changes nothing. So the ground is subdivided again, finely, PURELY FOR THE LOOK \u2014 a few thousand deterministic cells generated on-device, no download, with a heavier line where a real province ends. It touches nothing the game plays with: provinces, ownership, movement and combat are exactly as they were.",
+  "\u{1F3AF} PROVINCE MARKERS ARE VICTORY POINTS, not poker chips. A fat disc of national colour on every province was the loudest thing on the map \u2014 it stated the country's colour a second time and buried the ground under it. They are markers now: small, dark, ringed, sized by what the place is worth, pale on a capital. Everything they did they still do.",
+  "\u{1F50D} The boundaries are drawn as LINES rather than baked into a picture, so they stay a hairline at every zoom instead of smearing into grey mush the moment you go in \u2014 cut into tiles so only the handful under your viewport is ever drawn, and swapped for the flat version when you are far enough out that it is being shrunk anyway.",
+  "\u2712 And a country's name bows out once you are close enough to have stopped needing it, rather than laying six-inch letters across the ground you are fighting over."]],
+ ["v22.3 \u2014 THE NAME OF THE COUNTRY",[
   "\u{1F5FA} EVERY NATION'S NAME IS NOW WRITTEN ACROSS ITS OWN GROUND, in big spaced capitals with a heavy dark outline, sized to the landmass it sits on \u2014 so a large country carries a large name and a small one a small name, and it is skipped where it would come out unreadably small or absurdly big. It goes on UNDER the province markers and the counters, because it is printed on the map rather than captioned over it: a division is never hidden behind a letter. Before this you could look at the whole of Europe and never once be told whose it was.",
   "\u{1F3A8} AND THE NATIONAL COLOUR NOW BANDS THE FRONTIER AND FADES INLAND. This is the thing that makes a big country read as GROUND instead of as a slab of paint: the colour is strongest along the border \u2014 with another nation or with the sea \u2014 and thins over about fifty miles to a little under half strength. It is why the Soviet Union shows its forests and its deserts while Poland is simply pink: Poland is nowhere more than a few dozen miles from a border. Done in the layer's own alpha channel, so it costs one pass over the ownership grid when a border moves and nothing at all per frame.",
   "\u{1F3D6} The beach is now part of the painted ground rather than a layer of its own, and the continental shelf IS the sea rather than a wash laid over it \u2014 both were full-map draws every frame for bands that never move. Six strokes of the world's entire coastline a frame became none.",
