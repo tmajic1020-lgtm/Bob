@@ -56,6 +56,75 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 #chatbox.open #chatrow{display:flex}
 #chatin{flex:1;background:transparent;border:0;color:var(--ink);padding:6px 8px;font-family:inherit;font-size:11px;outline:none}
 @media(max-width:700px){#chatbox{bottom:48px;right:4px;width:190px}}
+/* ===== A NEWS EVENT IS A NEWSPAPER ==========================================
+   The old one was a small box with a coloured border and two buttons in it:
+   functional, and it told you nothing about the WEIGHT of what had happened.
+   The front page of a paper is how a country finds out it is at war, and it is
+   also how you find out — headline, photograph, the copy underneath, and the
+   decisions set out along the bottom as though the cabinet were taking them. */
+/* The same box serves the manual, the changelog and the end-of-campaign
+   summary, none of which are news. The newspaper is a MODE it is put into. */
+#eventBox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:55;
+  width:min(340px,90vw);max-height:88vh;overflow-y:auto;background:var(--panel);
+  border:2px solid var(--amber);padding:16px;box-shadow:0 0 40px #000c}
+#eventBox>h2{color:var(--amber);font-size:15px;letter-spacing:1px;margin-bottom:8px}
+#eventBox>#evDesc{font-size:12px;line-height:1.5;color:var(--ink);margin-bottom:12px}
+#eventBox>.newshdr,#eventBox>#evPhoto{display:none}
+#eventBox.news>.newshdr{display:flex}
+#eventBox.news>#evPhoto{display:block}
+#eventBox.news{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:55;
+  width:min(660px,94vw);max-height:92vh;overflow-y:auto;
+  background:linear-gradient(#20261e,#161b14);
+  border:1px solid #6b5a34;outline:3px solid #0d100c;
+  box-shadow:0 0 0 1px #8a7442 inset,0 18px 60px #000d;padding:0}
+#eventBox.news .newshdr{display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 16px 7px;border-bottom:2px solid #6b5a34;
+  background:linear-gradient(#2b3226,#1d2419);
+  font-size:11px;letter-spacing:3px;color:#c9b47a;text-transform:uppercase}
+#eventBox.news .newshdr span:last-child{letter-spacing:1px;color:#8a9285}
+#eventBox.news canvas{display:block;width:100%;height:auto;border-bottom:2px solid #6b5a34;
+  filter:sepia(0.28) contrast(1.06)}
+#eventBox.news>h2{font-size:clamp(18px,3.4vw,27px);line-height:1.12;letter-spacing:1px;
+  color:#f2ead2;text-transform:uppercase;padding:14px 18px 0;text-shadow:0 2px 0 #0008}
+#eventBox.news>#evDesc{font-size:13px;line-height:1.6;color:#c8c6b4;padding:9px 18px 14px;
+  border-bottom:1px solid #3a4438}
+#eventBox.news #evChoices{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px}
+#eventBox.news #evChoices .bbtn{margin:0;background:linear-gradient(#2a3226,#1e2419);
+  border:1px solid #6b5a34;padding:10px 12px;font-size:12.5px;letter-spacing:.5px}
+#eventBox.news #evChoices .bbtn:hover{border-color:var(--amber);background:linear-gradient(#343d2c,#242b1e)}
+@media(max-width:520px){#eventBox.news>h2{font-size:19px}}
+/* ===== THE RESEARCH TREE ==================================================
+   A branch per column, a rung per level, and the state of each one legible
+   without reading it: what is done, what the laboratory is on, what you may
+   start now, and what is still up the road. */
+/* A TECH TREE NEEDS THE ROOM A TECH TREE NEEDS. Every other panel is a column
+   of rows and fits the sidebar; four branches side by side do not, and at 300px
+   two of them were simply off the edge of the screen. The panel widens for this
+   one view and goes back afterwards. */
+#panel.wide{width:min(600px,94vw)}
+.resslot{display:flex;align-items:center;gap:10px;padding:9px 10px;margin:8px 0 12px;
+  background:linear-gradient(#232b20,#181e16);border:1px solid #4a5340;border-left:3px solid #6b5a34}
+.resslot.busy{border-left-color:var(--amber)}
+.resslot .resicon{font-size:22px;width:30px;text-align:center;filter:saturate(.7)}
+.restree{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.rescol{background:#11160f;border:1px solid var(--line);padding:6px}
+.reshead{font-size:10px;letter-spacing:1px;color:var(--amber);padding:2px 2px 6px;
+  border-bottom:1px solid var(--line);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.restech{display:flex;align-items:center;gap:5px;padding:4px 5px;margin-bottom:3px;
+  border:1px solid #2b3327;background:#181e16;font-size:10.5px;line-height:1.25}
+.restech .rlv{min-width:20px;color:var(--dim);font-size:9px;letter-spacing:1px}
+.restech .rnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.restech .rct{color:var(--dim);font-size:9.5px;white-space:nowrap}
+.restech.done{border-color:#3f5a38;background:#1b2618;color:#9fc08c}
+.restech.done .rct{color:#7ea86a}
+.restech.running{border-color:var(--amber);background:#2a2415;color:#ffd791;
+  animation:resPulse 1.8s ease-in-out infinite}
+.restech.next{border-color:#5d6a52;cursor:pointer}
+.restech.next:hover{border-color:var(--amber);background:#242b1e}
+.restech.locked{opacity:.42}
+.resfoot{color:var(--dim);font-size:9.5px;line-height:1.35;padding:4px 2px 1px;border-top:1px solid var(--line);margin-top:4px}
+@keyframes resPulse{0%,100%{box-shadow:0 0 0 0 #e8a33d00}50%{box-shadow:0 0 8px 0 #e8a33d55}}
+@media(max-width:640px){.restree{grid-template-columns:1fr}}
 #tip{position:absolute;pointer-events:none;background:#0e130fcc;border:1px solid var(--line);padding:5px 8px;font-size:11px;display:none;z-index:20;max-width:220px}
 #speedbox{position:absolute;bottom:8px;right:8px;display:flex;gap:5px;align-items:center;background:#11160fd0;border:1px solid var(--line);padding:5px 8px}
 #auth{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%);z-index:60;display:flex;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -135,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.1.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.2.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.1.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.2.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -218,9 +287,12 @@ body.light #speedbox{background:#ece7d6d0}
     <button class="tbtn" style="border:0;border-left:1px solid var(--line);padding:6px 10px" onclick="chatSend()">SEND</button>
   </div>
 </div>
-<div id="eventBox" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:55;width:min(340px,90vw);background:var(--panel);border:2px solid var(--amber);padding:16px;box-shadow:0 0 40px #000c">
-  <h2 id="evTitle" style="color:var(--amber);font-size:15px;letter-spacing:1px;margin-bottom:8px"></h2>
-  <div id="evDesc" style="font-size:12px;line-height:1.5;color:var(--ink);margin-bottom:12px"></div>
+<div id="evShade" style="display:none;position:absolute;inset:0;z-index:54;background:rgba(4,6,8,0.55)"></div>
+<div id="eventBox" style="display:none">
+  <div class="newshdr"><span id="evPaper">THE NATIONAL HERALD</span><span id="evDate"></span></div>
+  <canvas id="evPhoto" width="640" height="260"></canvas>
+  <h2 id="evTitle"></h2>
+  <div id="evDesc"></div>
   <div id="evChoices"></div>
 </div>
 <div id="tip"></div>
@@ -283,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.1.0";
+const BUILD="23.2.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -2753,7 +2825,7 @@ function endScreen(win,reason){
   const mk=(label,fn)=>{const b=document.createElement("button");b.className="bbtn";b.textContent=label;b.onclick=fn;ch.appendChild(b);};
   if(win&&me&&me.alive){
     mk("▶ KEEP PLAYING — the campaign has no end",()=>{
-      $("#eventBox").style.display="none";
+      $("#eventBox").style.display="none";$("#evShade").style.display="none";
       /* G.over stays true on purpose: it is what stops checkVictory raising
          this popup again every five days for the rest of the game. */
       G.over=true;G._evOpen=false;G.paused=false;
@@ -2763,11 +2835,13 @@ function endScreen(win,reason){
   }
   mk("🏠 MAIN MENU",()=>toMainMenu());
   mk("↺ RESTART — "+ERAS[ERA].label+" · "+YEAR,()=>{
-    $("#eventBox").style.display="none";
+    $("#eventBox").style.display="none";$("#evShade").style.display="none";
     const again=(G&&G.player)||PICK;
     try{ startGame(again); }catch(e){ location.reload(); }
   });
   G.paused=true;                       // the dialog waits for a real choice
+  $("#eventBox").classList.remove("news");   // not a news story: the plain box
+  $("#evShade").style.display="none";
   $("#eventBox").style.display="block";
   sfx(win?"good":"war");
 }
@@ -2776,7 +2850,7 @@ function endScreen(win,reason){
    finished campaign is let go here — the clock above all, which would
    otherwise keep ticking a world nobody is looking at. */
 function toMainMenu(){
-  $("#eventBox").style.display="none";
+  $("#eventBox").style.display="none";$("#evShade").style.display="none";
   if(GAMECLOCK){clearInterval(GAMECLOCK);GAMECLOCK=null;}
   try{ if(typeof setFPV==="function")setFPV(false); }catch(e){}
   try{ if(typeof _fpReset==="function")_fpReset(); }catch(e){}
@@ -3928,6 +4002,118 @@ EVENTS.push(
  {t:"Royal Jubilee",d:n=>"The crown marks another year. The treasury asks how grand the celebration should be.",ideo:["mon"],
   c:[["A parade for the ages (−20 PP, +8 stability, +6 war support)",me=>{if(me.pp>=20){me.pp-=20;me.stab=Math.min(100,me.stab+8);me.warSup=Math.min(100,(me.warSup??50)+6);}}],
      ["Modest observances",me=>{me.stab=Math.min(100,me.stab+2);}]]});
+
+/* ===================== THE PRESS PHOTOGRAPH =================================
+   Every news story carries a picture, because a headline without one is a memo.
+   There are no image files here and there is not going to be a download, so the
+   photograph is DRAWN: a period press shot built out of silhouettes — a crowd
+   under banners, a factory floor, a line of infantry, a fleet at sea, a chamber
+   of government. Grain, a vignette and a little sepia over the top, which is
+   what makes a flat vector scene read as something taken on film in 1936 rather
+   than as a diagram. */
+function drawNewsPhoto(kind,seed){
+  const cv2=document.getElementById("evPhoto");
+  if(!cv2)return;
+  const g=cv2.getContext("2d"), W2=cv2.width, H2=cv2.height;
+  const rnd=_fpRnd(seed||7);
+  const sky=g.createLinearGradient(0,0,0,H2);
+  sky.addColorStop(0,"#6d7568");sky.addColorStop(0.62,"#8e937f");sky.addColorStop(1,"#5c6154");
+  g.fillStyle=sky;g.fillRect(0,0,W2,H2);
+  const hz=H2*0.66;
+  if(kind==="crowd"){
+    for(let b=0;b<7;b++){
+      const x=20+b*(W2-40)/7+rnd()*18, h=60+rnd()*50;
+      g.fillStyle="#3c4238";g.fillRect(x,hz-h-70,5,h+70);
+      g.fillStyle="#4a3b32";g.fillRect(x+5,hz-h-70,44,30);
+    }
+    for(let r=5;r>=0;r--){
+      const y=hz+r*10, sc=1-r*0.11, tone=48+r*13;
+      g.fillStyle="rgb("+tone+","+(tone+4)+","+(tone-4)+")";
+      for(let i=-2;i<W2/(16*sc)+2;i++){
+        const x=i*16*sc+rnd()*5;
+        g.beginPath();g.arc(x,y,6*sc,Math.PI,0);g.fill();
+        g.fillRect(x-5*sc,y,10*sc,26*sc);
+      }
+    }
+  } else if(kind==="factory"){
+    g.fillStyle="#4e5348";g.fillRect(0,hz-120,W2,180);
+    for(let i=0;i<5;i++){const x=40+i*W2/5;
+      g.fillStyle="#3a3f36";g.fillRect(x,hz-190,26,190);
+      g.fillStyle="rgba(210,210,200,0.20)";
+      g.beginPath();g.ellipse(x+13,hz-210,34+rnd()*20,18,0,0,7);g.fill();}
+    for(let i=0;i<9;i++){const x=18+i*(W2-36)/9;
+      g.fillStyle="#2c3129";g.fillRect(x,hz-46,44,46);
+      g.fillStyle="#8d9280";g.fillRect(x+6,hz-38,32,14);}
+  } else if(kind==="troops"){
+    g.fillStyle="#5a5f50";g.fillRect(0,hz,W2,H2-hz);
+    for(let r=3;r>=0;r--){
+      const y=hz+8+r*22, sc=1-r*0.16, tone=40+r*16;
+      for(let i=-1;i<W2/(30*sc)+1;i++){
+        const x=i*30*sc+(r%2?14:0)+rnd()*4;
+        g.fillStyle="rgb("+tone+","+(tone+3)+","+(tone-6)+")";
+        g.beginPath();g.arc(x,y-30*sc,7*sc,Math.PI*0.9,Math.PI*2.1);g.fill();
+        g.fillRect(x-7*sc,y-24*sc,14*sc,30*sc);
+        g.save();g.translate(x+7*sc,y-26*sc);g.rotate(-0.42);
+        g.fillRect(0,-30*sc,3*sc,40*sc);g.restore();
+      }
+    }
+  } else if(kind==="fleet"){
+    const sea=g.createLinearGradient(0,hz-30,0,H2);
+    sea.addColorStop(0,"#666b62");sea.addColorStop(1,"#3d423b");
+    g.fillStyle=sea;g.fillRect(0,hz-30,W2,H2-hz+30);
+    for(let i=0;i<4;i++){
+      const x=40+i*W2/4.2, sc=1-i*0.16, y=hz+6+i*14;
+      g.fillStyle="rgb("+(40+i*12)+","+(44+i*12)+","+(40+i*10)+")";
+      g.beginPath();
+      g.moveTo(x-70*sc,y);g.lineTo(x+70*sc,y);g.lineTo(x+56*sc,y+16*sc);g.lineTo(x-58*sc,y+16*sc);
+      g.closePath();g.fill();
+      g.fillRect(x-16*sc,y-26*sc,30*sc,26*sc);
+      g.fillRect(x-3*sc,y-52*sc,6*sc,28*sc);
+      g.fillStyle="rgba(220,220,210,0.16)";
+      g.beginPath();g.ellipse(x+8*sc,y-58*sc,26*sc,13*sc,0,0,7);g.fill();
+    }
+  } else {
+    g.fillStyle="#4a4f44";g.fillRect(0,0,W2,H2);
+    for(let i=0;i<6;i++){const x=30+i*(W2-60)/6;
+      g.fillStyle="#5d6355";g.fillRect(x,26,34,hz-10);
+      g.fillStyle="#6d7364";g.fillRect(x-6,14,46,14);}
+    g.fillStyle="#33382f";g.fillRect(0,hz+6,W2,H2-hz);
+    for(let r=2;r>=0;r--)for(let i=0;i<12;i++){
+      const x=20+i*(W2-40)/12+rnd()*6, y=hz+20+r*26, sc=1-r*0.1;
+      g.fillStyle="rgb("+(44+r*14)+","+(47+r*14)+","+(40+r*12)+")";
+      g.beginPath();g.arc(x,y,7*sc,Math.PI,0);g.fill();
+      g.fillRect(x-6*sc,y,12*sc,22*sc);
+    }
+  }
+  try{
+    const im=g.getImageData(0,0,W2,H2), d=im.data;
+    for(let i=0;i<d.length;i+=4){
+      const n=(Math.random()-0.5)*26;
+      d[i]=Math.max(0,Math.min(255,d[i]+n));
+      d[i+1]=Math.max(0,Math.min(255,d[i+1]+n));
+      d[i+2]=Math.max(0,Math.min(255,d[i+2]+n));
+    }
+    g.putImageData(im,0,0);
+  }catch(e){}
+  const vg=g.createRadialGradient(W2/2,H2/2,Math.min(W2,H2)*0.3,W2/2,H2/2,Math.max(W2,H2)*0.72);
+  vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(10,10,8,0.55)");
+  g.fillStyle=vg;g.fillRect(0,0,W2,H2);
+}
+/* Which picture a story gets, chosen off its own text — so a new event needs
+   nothing added here to come out with a sensible photograph. */
+function newsPhotoKind(ev){
+  if(ev&&ev.photo)return ev.photo;
+  const t=((ev&&ev.t)||"").toLowerCase();
+  if(/parade|rally|unrest|strike|jubilee|protest|crowd/.test(t))return "crowd";
+  if(/oil|bond|industr|factor|plan|quota|survey|scientist/.test(t))return "factory";
+  if(/border|incident|war|intelligen|army|front|mobil/.test(t))return "troops";
+  if(/fleet|naval|sea|blockade|convoy/.test(t))return "fleet";
+  return "chamber";
+}
+function newsDate(){
+  try{return G&&G.date?G.date.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}):"";}
+  catch(e){return "";}
+}
 function fireEvent(){
   const me=G.nations[G.player];if(!me.alive)return;
   // pick a neighbor for events that need one
@@ -3936,22 +4122,52 @@ function fireEvent(){
   const pool=EVENTS.filter(e=>(!e.needNeighbor||nb.size)&&(!e.ideo||e.ideo.includes(me.ideo)));
   const ev=pool[Math.floor(Math.random()*pool.length)];
   const bn=nb.size?NATIONS[[...nb][Math.floor(Math.random()*nb.size)]].n:"";
-  $("#evTitle").textContent="📜 "+ev.t.toUpperCase();
+  /* The masthead is the player's own country, so the paper carrying the story
+     is theirs — which is the difference between reading the news and being in
+     it. */
+  /* "GERMANY HERALD" is a string with a word after it, not a newspaper. A
+     paper has a NAME, and which name it has says something about who is
+     allowed to print it — which is exactly the sort of thing this game is
+     about. */
+  const meN=NATIONS[G.player], ideo=(me.ideo||"dem");
+  const PAPERS={dem:"THE DAILY CHRONICLE",fas:"THE NATIONAL OBSERVER",
+                com:"THE PEOPLE'S DAILY",mon:"THE COURT GAZETTE",
+                aut:"THE STATE BULLETIN",rev:"THE FREE PRESS"};
+  $("#evPaper").textContent=(meN&&meN.f?meN.f+"  ":"")+(PAPERS[ideo]||PAPERS.dem);
+  $("#evDate").textContent=newsDate();
+  try{drawNewsPhoto(newsPhotoKind(ev),((ev.t||"x").length*97+G.day)|0);}catch(e){}
+  $("#evTitle").textContent=ev.t.toUpperCase();
   $("#evDesc").textContent=ev.d({bn});
   const ch=$("#evChoices");ch.innerHTML="";
   for(const[label,fx]of ev.c){
     const b=document.createElement("button");b.className="bbtn";b.textContent=label;
-    b.onclick=()=>{fx(me);$("#eventBox").style.display="none";G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();};
+    b.onclick=()=>{fx(me);$("#eventBox").style.display="none";$("#evShade").style.display="none";G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();};
     ch.appendChild(b);
   }
   /* same guard as the other panels: only the first open records the pause state */
   if(!G._evOpen){G._evPaused=G.paused;G._evOpen=true;}
   G.paused=true;
+  $("#eventBox").classList.add("news");
+  $("#evShade").style.display="block";
   $("#eventBox").style.display="block";
   sfx("event");
 }
 /* ============================== RESEARCH ============================== */
 const RESNAMES={ind:"Industry",land:"Land Doctrine",nav:"Naval Engineering",air:"Aviation"};
+const RESICON={ind:"\u{1F3ED}",land:"\u2694",nav:"\u2693",air:"\u2708"};
+/* How fast the laboratories actually work, and how fast progress on the thing
+   in the slot actually accumulates. Both are read straight off the tick that
+   does it, so "twelve days remaining" is a real answer and not a guess that
+   drifts as soon as a province changes hands or a mod is switched on. */
+function rpPerDay(k){
+  const n=G&&G.nations[k];if(!n)return 0;
+  return natProvs(k).length*0.012*techMul(k,"ind")
+        *(MODS.swift?3:1)*(MODS.industry?1.5:1)*(MODS.rockets?2:1);
+}
+function resProgPerDay(k){
+  const n=G&&G.nations[k];if(!n)return 0;
+  return natProvs(k).length*0.012*techMul(k,"ind")*2;
+}
 const RESDESC={ind:"+25% production & research per level",land:"+25% army attack & speed per level",nav:"+25% fleet power & speed per level",air:"+25% air wing effect per level"};
 function resCost(n,k){return 10+n.res[k]*14;}
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
@@ -10944,6 +11160,7 @@ function openPanel(name){
   renderPanel();
 }
 function renderPanel(){
+  {const _p=$("#panel");if(_p&&curPanel!=="research")_p.classList.remove("wide");}
   if(!curPanel)return;
   if(!G&&curPanel!=="settings"&&curPanel!=="mods")return;   // settings and mods work before a campaign
   const el=$("#panel");const me=G?G.nations[G.player]:null;
@@ -11149,14 +11366,62 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
   if(curPanel==="research"){
-    let h=`<h2>RESEARCH</h2><div class="row"><span>Points</span><span>🔬 ${me.rp.toFixed(1)} RP</span></div>`;
+    el.classList.add("wide");
+    /* ===================== THE RESEARCH SCREEN ============================
+       Four progress bars in a column told you what you were researching and
+       nothing else — not what came before it, not what it leads to, not how
+       far along the road you are. A research screen is a TREE: a column per
+       branch, a card per level, each one showing its own state at a glance —
+       done, running, next, or still out of reach — and a slot at the top
+       carrying whatever the laboratories are actually working on with the days
+       left on it.
+
+       One laboratory, as before. Handing out extra research slots would change
+       the balance of the game rather than the look of it, and that is not what
+       was asked for. */
+    const cur=me.researching, curCost=cur?resCost(me,cur):0;
+    const pct=cur?Math.min(100,me.resProg/curCost*100):0;
+    /* Two different rates, and using the wrong one would put a plausible but
+       wrong number on the screen: research POINTS accrue at one rate, and
+       progress on the thing in the slot at twice that. The countdown is the
+       second; the income shown beside it is the first. */
+    const progDay=Math.max(0.0001,resProgPerDay(G.player));
+    const rpDay=rpPerDay(G.player);
+    const daysLeft=cur?Math.max(1,Math.ceil((curCost-me.resProg)/progDay)):0;
+    let h=`<h2>RESEARCH</h2>
+    <div class="resslot ${cur?"busy":""}">
+      <div class="resicon">${cur?RESICON[cur]:"\u2699"}</div>
+      <div style="flex:1;min-width:0">
+        ${cur?`<b style="white-space:nowrap">${RESNAMES[cur]} ${roman(me.res[cur]+1)}</b>
+          <div class="bar" style="margin:4px 0 3px"><i style="width:${pct}%"></i></div>
+          <small style="color:var(--dim);white-space:nowrap">${Math.round(pct)}% \u00b7 ${daysLeft} day${daysLeft===1?"":"s"} remaining</small>`
+        :`<b style="color:var(--dim);white-space:nowrap">RESEARCH SLOT IDLE</b>
+          <div class="bar" style="margin:4px 0 3px"><i style="width:0%"></i></div>
+          <small style="color:var(--dim);white-space:nowrap">Choose a technology below</small>`}
+      </div>
+      <div style="text-align:right"><b style="color:var(--amber)">${me.rp.toFixed(1)}</b>
+        <small style="color:var(--dim);display:block">RP \u00b7 +${rpDay.toFixed(2)}/day</small></div>
+    </div>
+    <div class="restree">`;
     for(const k of["ind","land","nav","air"]){
-      const lvl=me.res[k],cost=resCost(me,k),cur=me.researching===k;
-      h+=`<h3>${RESNAMES[k].toUpperCase()} ${roman(lvl)}</h3>
-      <div style="color:var(--dim);font-size:11px">${RESDESC[k]}</div>`;
-      if(cur)h+=`<div class="row"><div class="bar"><i style="width:${Math.min(100,me.resProg/cost*100)}%"></i></div><span>${Math.round(me.resProg/cost*100)}%</span></div>`;
-      else h+=`<button class="bbtn" ${me.researching?"disabled":""} onclick="startRes('${k}')">${me.researching?"Lab busy":"Research level "+roman(lvl+1)} <small>${cost} RP of progress</small></button>`;
+      const lvl=me.res[k];
+      h+=`<div class="rescol"><div class="reshead">${RESICON[k]} ${RESNAMES[k].toUpperCase()}</div>`;
+      /* Five rungs of the ladder: the two you have climbed, the one you are on,
+         and the two ahead — enough to see where the branch is going without
+         turning the panel into a wall. */
+      for(let L=Math.max(1,lvl-1);L<=lvl+3;L++){
+        const done=L<=lvl, running=cur===k&&L===lvl+1, next=!done&&L===lvl+1;
+        const cost=10+(L-1)*14;
+        const st=done?"done":running?"running":next?"next":"locked";
+        h+=`<div class="restech ${st}" ${next&&!cur?`onclick="startRes('${k}')"`:""}>
+          <span class="rlv">${roman(L)}</span>
+          <span class="rnm">${RESNAMES[k]} ${roman(L)}</span>
+          <span class="rct">${done?"\u2713":running?Math.round(pct)+"%":cost+" RP"}</span>
+        </div>`;
+      }
+      h+=`<div class="resfoot">${RESDESC[k]}</div></div>`;
     }
+    h+=`</div>`;
     el.innerHTML=h;
   }
   if(curPanel==="air"){
@@ -11964,7 +12229,12 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v23.1 \u2014 ACCURATE FRONTIERS, AND A MAP YOU CAN SEE (current)",[
+ ["v23.2 \u2014 THE NEWS, AND THE LABORATORY (current)",[
+  "\u{1F4F0} A NEWS EVENT IS A FRONT PAGE NOW. It used to be a small box with a coloured border and two buttons in it \u2014 functional, and it told you nothing about the WEIGHT of what had happened. A country finds out it is at war from a newspaper, and now so do you: a masthead, a photograph, the headline across the top, the copy underneath and the decisions set out along the bottom as though the cabinet were taking them. The paper is your own, and WHICH paper says something about who is allowed to print it \u2014 a Chronicle under a democracy, a People's Daily under a commissar, a Court Gazette under a king.",
+  "\u{1F4F7} AND EVERY STORY CARRIES A PICTURE, because a headline without one is a memo. There are no image files here and there is not going to be a download, so the photograph is DRAWN: a crowd under banners, a factory floor, a line of infantry, a fleet at sea, a chamber of government \u2014 with grain, a vignette and a little sepia over the top, which is what makes it read as something taken on film in 1936. The picture is chosen off the story's own words, so a new event needs nothing added to come out with the right one.",
+  "\u{1F52C} THE RESEARCH SCREEN IS A TREE. Four progress bars in a column told you what you were researching and nothing else \u2014 not what came before it, not what it leads to, not how far along the road you are. There is a branch per column and a rung per level now, each one legible at a glance: what is done, what the laboratory is on, what you may start today, and what is still up the road. Above them sits the slot, carrying whatever is being worked on with the DAYS REMAINING on it \u2014 read off the tick that actually does the work, so it is a real answer rather than one that drifts as soon as a province changes hands.",
+  "\u{1F4D0} The panel widens for that one view, because four branches side by side do not fit in a sidebar, and goes back to its usual width the moment you leave. Still ONE laboratory: handing out extra research slots would change the balance of the game rather than the look of it."]],
+ ["v23.1 \u2014 ACCURATE FRONTIERS, AND A MAP YOU CAN SEE",[
   "\u{1F0CF} COUNTERS ARE FOR WHEN YOU ARE LOOKING AT A FRONT. Zoomed out to a hemisphere they were a carpet of a hundred and fifty little squares laid over the world, none of them meaning anything at that distance and all of them covering the ground you were trying to read. They now fade in as you come down to the scale where a division is a thing you might give an order to \u2014 your own first, everyone's once you are properly in. Clicking follows the same rule: above that zoom a click is a click on the GROUND, so the map stops selecting invisible pieces out from under the province you were aiming at.",
   "\u{1F4CF} AND THE FRONTIERS ARE THE REAL ONES. Every border on the map was being drawn off the ownership grid \u2014 forty kilometres to a cell \u2014 so at any zoom worth playing at, France stopped in forty-kilometre steps. The atlas knows where France stops to within a kilometre; that outline is now stroked as real geometry and stays a hairline however far in you go. The COLOUR is snapped to it too, at the resolution the map is actually painted at, so the fill ends exactly where the country does rather than where the grid does.",
   "\u{1F5FA} What the old layer is still good for is the frontier the atlas does NOT know about \u2014 the line a conquest puts through the middle of a country. That is a front, and it belongs to the game rather than to geography, so it is the only thing drawn there now.",
@@ -12858,7 +13128,7 @@ function _openBox(){
   const ch=$("#evChoices");ch.innerHTML="";
   const b=document.createElement("button");b.className="bbtn";b.textContent="CLOSE";
   b.onclick=()=>{
-    $("#eventBox").style.display="none";
+    $("#eventBox").style.display="none";$("#evShade").style.display="none";
     if(G){G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();}
   };
   ch.appendChild(b);
@@ -12870,6 +13140,8 @@ function _openBox(){
     if(!G._evOpen){G._evPaused=G.paused;G._evOpen=true;}
     G.paused=true;
   }
+  $("#eventBox").classList.remove("news");   // not a news story: the plain box
+  $("#evShade").style.display="none";
   $("#eventBox").style.display="block";
 }
 function showChangelog(){
