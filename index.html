@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.1.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.2.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.1.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.2.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.1.0";
+const BUILD="22.2.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1525,7 +1525,13 @@ const THEMES={
  light:{sea:"#a8cadd",grid:"#93b9cf",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
 };
 let THEME="dark";
-let MAPSTYLE="flags"; // "flags" = every country filled with its own flag (default); "terrain" = grey ocean, yellow land, black borders
+/* SOLID NATIONAL COLOUR IS THE DEFAULT NOW. A flag stretched across a country
+   is a striking thing to look at once and an unreadable thing to play on: it
+   is four colours where the map wants one, and it hides the ground the game is
+   fought over completely. POLITICAL gives every nation one colour, laid over
+   the painted terrain and thinning as you zoom in. FLAGS is still there in
+   Settings for anyone who preferred it. */
+let MAPSTYLE="political";
 let SHOWPROV=false; // show major provinces at any zoom
 /* Province-by-province conquest: land does not change hands the instant a
    division walks in \u2014 it must be held under occupation for days, and the
@@ -1547,7 +1553,7 @@ const MAPSTYLE_IDS=["flags","terrain","political","plain","states","ideology","d
 function setMapStyle(m){
   if(!MAPSTYLE_IDS.includes(m))return;
   MAPSTYLE=m;terDirty=true;try{localStorage.setItem("if_mapstyle",m);}catch(e){}}
-try{const _ms=localStorage.getItem("if_mapstyle");if(_ms==="flags"||_ms==="terrain"||_ms==="political")MAPSTYLE=_ms;}catch(e){}
+try{const _ms=localStorage.getItem("if_mapstyle");if(MAPSTYLE_IDS.includes(_ms))MAPSTYLE=_ms;}catch(e){}
 function setTheme(t){if(t!=="dark"&&t!=="light")return;THEME=t;document.body.classList.toggle("light",t==="light");try{localStorage.setItem("if_theme",t);}catch(e){}}
 try{if(localStorage.getItem("if_theme")==="light")setTheme("light");}catch(e){}
 
@@ -4670,6 +4676,262 @@ function buildLandMask(){
   const mc=m.getContext("2d");mc.scale(1/TS,1/TS);mc.fillStyle="#fff";mc.fill(landPath,realMap?"evenodd":"nonzero");
   landMask=mc.getImageData(0,0,m.width,m.height).data;
 }
+
+/* ======================= THE PAINTED GROUND =================================
+   A Paradox map is not a chart with flat colours on it. It is PAINTED GROUND
+   — grass, sand, rock, forest, with real relief shading — and the political
+   colour is laid over the top and thins out as you zoom in, so that far out
+   you read borders and close in you read the country you are fighting over.
+   Everything below builds that ground once.
+
+   It is built once because mountains do not move when a border does. The
+   political layer (terCv) is rebuilt every time a province changes hands; this
+   one is rebuilt only when the coastline itself changes. */
+let groundCv=null, groundDirty=true;
+/* GROUND DETAIL. The painted layer is one texel per world unit, so by the time
+   you are down at a front line one texel covers seven screen pixels and the
+   whole map goes soft — a brown smear where there should be ground. A raster
+   cannot fix that without costing four times the memory for every zoom level
+   nobody is looking at. So the fine grain is a small tileable texture laid over
+   the land in WORLD space instead: it costs one pattern fill, it is pin sharp
+   at every zoom because it is re-rasterised each frame, and it only fades in
+   once you are close enough for the raster underneath to start to blur. */
+let grainTile=null;
+function buildGrain(){
+  const N=96;
+  const c=document.createElement("canvas");c.width=N;c.height=N;
+  const g=c.getContext("2d");
+  const im=g.createImageData(N,N);
+  const d=im.data;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    /* Tileable: the noise is sampled on a torus, so opposite edges agree and
+       the repeat does not show as a grid of seams across the map. */
+    /* Sampled on a torus so opposite edges agree and the repeat does not show
+       as a grid of seams. The RADIUS is the frequency: at 2.6 the whole tile
+       held about one blob, which drew the map as a field of soft green
+       cloud rather than as ground. It wants many cycles per tile. */
+    const a=Math.PI*2*x/N, b=Math.PI*2*y/N;
+    let v=0,amp=1,r0=17;
+    for(let o=0;o<3;o++){
+      v+=amp*_vnSmooth(40+Math.cos(a)*r0+Math.sin(b)*r0*0.6,
+                       40+Math.sin(b)*r0+Math.cos(a)*r0*0.6, 5+o*13);
+      amp*=0.5;r0*=2.1;
+    }
+    const t=Math.max(0,Math.min(1,(v/1.75-0.32)*2.6));
+    const i=(y*N+x)*4;
+    d[i]=d[i+1]=d[i+2]=Math.round(t*255);
+    d[i+3]=64;
+  }
+  g.putImageData(im,0,0);
+  grainTile=c;
+}
+/* How high each kind of ground stands. This is what the relief is generated
+   from, so it is the difference between the Alps reading as the Alps and the
+   whole map reading as a bedsheet. */
+const TERHEIGHT={plain:0.10,steppe:0.13,forest:0.22,hills:0.55,mtn:0.96,
+                 desert:0.09,jungle:0.19,marsh:0.02,tundra:0.15,urban:0.12};
+/* Painted colours, not the icon colours the panels use. A satellite picture of
+   the Sahara is not "#e0c070" and the taiga is not a pure green: real ground is
+   desaturated and warm, and it is the desaturation that keeps a saturated
+   national colour readable on top of it. */
+const TERPAINT={
+  plain: [118,133, 74], steppe:[172,158, 92], forest:[ 54, 78, 47],
+  hills: [124,118, 74], mtn:   [116,110,101], desert:[206,182,126],
+  jungle:[ 42, 84, 46], marsh: [ 84,100, 78], tundra:[186,192,190],
+  urban: [110,104, 94]
+};
+/* Value noise. Deterministic, so the ground is the same ground every time the
+   map is rebuilt and does not crawl when a border moves. */
+function _vn(x,y,seed){
+  const n=Math.sin(x*127.1+y*311.7+seed*74.7)*43758.5453;
+  return n-Math.floor(n);
+}
+function _vnSmooth(x,y,seed){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=_vn(xi,yi,seed),b=_vn(xi+1,yi,seed),c=_vn(xi,yi+1,seed),d=_vn(xi+1,yi+1,seed);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function _fbm(x,y,seed,oct){
+  let v=0,amp=0.5,fr=1;
+  for(let i=0;i<oct;i++){v+=_vnSmooth(x*fr,y*fr,seed+i*17)*amp;amp*=0.5;fr*=2;}
+  return v;
+}
+let natEdgeCv=null,natEdgeImg=null;
+function buildNatEdges(owner,w,h){
+  if(!natEdgeCv){natEdgeCv=document.createElement("canvas");natEdgeCv.width=w;natEdgeCv.height=h;}
+  if(natEdgeCv.width!==w||natEdgeCv.height!==h){natEdgeCv.width=w;natEdgeCv.height=h;}
+  const c=natEdgeCv.getContext("2d");
+  if(!natEdgeImg||natEdgeImg.width!==w||natEdgeImg.height!==h)natEdgeImg=c.createImageData(w,h);
+  const d=new Uint32Array(natEdgeImg.data.buffer);
+  d.fill(0);
+  /* A dark line, not a black one: pure black on a painted map reads as a hole
+     cut in it. Two weights — the border cell itself, and a softer shoulder on
+     the cell behind it, which is what stops a one-pixel line from shimmering
+     when the map is drawn at half scale. */
+  const HARD=_LE?((205<<24)|(14<<16)|(16<<8)|20)>>>0:((20<<24)|(16<<16)|(14<<8)|205)>>>0;
+  const SOFT=_LE?((80<<24)|(20<<16)|(22<<8)|28)>>>0:((28<<24)|(22<<16)|(20<<8)|80)>>>0;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x,o=owner[i];
+    if(!o)continue;
+    const r=x<w-1?owner[i+1]:o, dn=y<h-1?owner[i+w]:o;
+    if((r&&r!==o)||(dn&&dn!==o)){
+      /* Two cells wide, not one. A single-cell line in a half-scale texture is
+         a half-pixel on the map: it shimmers when you pan and disappears
+         altogether when you zoom out, which is the one moment you most want to
+         see whose land is whose. */
+      d[i]=HARD;
+      if(r&&r!==o&&x<w-1)d[i+1]=HARD;
+      if(dn&&dn!==o&&y<h-1)d[i+w]=HARD;
+      if(x>0&&!d[i-1])d[i-1]=SOFT;
+      if(y>0&&!d[i-w])d[i-w]=SOFT;
+      if(x<w-2&&!d[i+2])d[i+2]=SOFT;
+      if(y<h-2&&!d[i+2*w])d[i+2*w]=SOFT;
+    }
+  }
+  c.putImageData(natEdgeImg,0,0);
+}
+function buildGround(){
+  const w=Math.round(MW/TS), h=Math.round(MH/TS);
+  if(!landMask)return;
+  /* Which ground is this cell? The nearest province decides, exactly as
+     ownership does — accelerated through the same coarse grid, because the
+     naive test is a quarter of a billion distance checks. */
+  const pts=Object.values(G?G.prov:{}).map(p=>({x:p.x/TS,y:p.y/TS,t:p.ter||"plain"}));
+  if(!pts.length)return;
+  const CS=8,cw=Math.ceil(w/CS),ch=Math.ceil(h/CS);
+  const coarse=new Int32Array(cw*ch);
+  for(let cy=0;cy<ch;cy++)for(let cx=0;cx<cw;cx++){
+    const px=cx*CS+CS/2,py=cy*CS+CS/2;
+    let bd=1e9,bi=0;
+    for(let i=0;i<pts.length;i++){const p=pts[i],d=(p.x-px)*(p.x-px)+(p.y-py)*(p.y-py);if(d<bd){bd=d;bi=i;}}
+    coarse[cy*cw+cx]=bi;
+  }
+  const land=new Uint8Array(w*h);
+  const kind=new Uint8Array(w*h);
+  const KEYS=Object.keys(TERPAINT), KIDX={};KEYS.forEach((k,i)=>KIDX[k]=i);
+  const H=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;
+    if(landMask[i*4+3]<10)continue;
+    land[i]=1;
+    let bd=1e9,bt="plain";
+    const cx0=(x/CS)|0, cy0=(y/CS)|0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const ax=cx0+dx,ay=cy0+dy;
+      if(ax<0||ay<0||ax>=cw||ay>=ch)continue;
+      const p=pts[coarse[ay*cw+ax]];
+      const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);
+      if(d<bd){bd=d;bt=p.t;}
+    }
+    kind[i]=KIDX[bt]!==undefined?KIDX[bt]:KIDX.plain;
+    H[i]=TERHEIGHT[bt]!==undefined?TERHEIGHT[bt]:0.1;
+  }
+  /* Smooth the height so a mountain province becomes a RANGE with foothills
+     rather than a block, then break it up again with fractal noise scaled by
+     how high the ground is — rock is rugged, a plain is not. */
+  for(let pass=0;pass<3;pass++){
+    const src=H.slice();
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+      const i=y*w+x;if(!land[i])continue;
+      let sum=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const j=i+dy*w+dx;if(!land[j])continue;sum+=src[j];n++;
+      }
+      if(n)H[i]=sum/n;
+    }
+  }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;if(!land[i])continue;
+    const rough=0.06+H[i]*0.55;
+    H[i]+=(_fbm(x*0.09,y*0.09,3,4)-0.5)*rough
+         +(_fbm(x*0.34,y*0.34,11,2)-0.5)*rough*0.5;
+  }
+  /* THE COLOUR OF THE GROUND IS BLURRED; THE RELIEF IS NOT. Terrain came
+     straight off the nearest-province test, so every change of ground was a
+     hard Voronoi edge — a forest stopped and a desert started along a straight
+     line drawn between two province markers, which is the one thing on a map
+     that never happens. Blurring the COLOUR softens those joins into the
+     gradual transitions real country has, while the hillshade is still taken
+     from the unblurred height field, so ridges stay crisp. */
+  const CR=new Float32Array(w*h),CG=new Float32Array(w*h),CB=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){
+    if(!land[i])continue;
+    const c=TERPAINT[KEYS[kind[i]]];
+    CR[i]=c[0];CG[i]=c[1];CB[i]=c[2];
+  }
+  for(let pass=0;pass<3;pass++){
+    const sr=CR.slice(),sg=CG.slice(),sb=CB.slice();
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+      const i=y*w+x;if(!land[i])continue;
+      let r=0,g=0,b2=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const j=i+dy*w+dx;if(!land[j])continue;
+        const wt=(dx&&dy)?1:2;
+        r+=sr[j]*wt;g+=sg[j]*wt;b2+=sb[j]*wt;n+=wt;
+      }
+      if(n){CR[i]=r/n;CG[i]=g/n;CB[i]=b2/n;}
+    }
+  }
+  /* HILLSHADE. The light comes from the north-west, which is where it comes
+     from on every printed relief map ever made, because the eye reads a
+     north-west lit surface as standing up and a south-east lit one as a hole. */
+  const LX=-0.62,LY=-0.62,LZ=0.48;
+  const LN=Math.sqrt(LX*LX+LY*LY+LZ*LZ);
+  const SCALE=26;                       // vertical exaggeration of the relief
+  /* The relief is generated on the coarse grid, because rolling ground is
+     smooth by nature and the smoothing passes are what cost. The PICTURE is
+     painted at one texel per world unit — four times the pixels — sampling
+     that height field bilinearly and laying the fine grain on at full
+     resolution. Built the other way round the ground was a soft brown smear
+     the moment you zoomed in past a region: at the front line a single terrain
+     texel was covering fourteen screen pixels. */
+  const OW=w*2, OH=h*2;
+  const img=new ImageData(OW,OH);
+  const d32=new Uint32Array(img.data.buffer);
+  const LE=_LE;
+  const Hat=(fx,fy)=>{                  // bilinear sample of the height field
+    const x0=Math.max(0,Math.min(w-1,Math.floor(fx))), y0=Math.max(0,Math.min(h-1,Math.floor(fy)));
+    const x1=Math.min(w-1,x0+1), y1=Math.min(h-1,y0+1);
+    const tx=Math.max(0,Math.min(1,fx-x0)), ty=Math.max(0,Math.min(1,fy-y0));
+    const p0=H[y0*w+x0],p1=H[y0*w+x1],p2=H[y1*w+x0],p3=H[y1*w+x1];
+    return p0+(p1-p0)*tx+(p2-p0)*ty+(p0-p1-p2+p3)*tx*ty;
+  };
+  for(let oy=0;oy<OH;oy++){
+    const fy=(oy+0.5)*0.5-0.5, gy=Math.min(h-1,oy>>1);
+    for(let ox=0;ox<OW;ox++){
+      const oi=oy*OW+ox, gi=gy*w+Math.min(w-1,ox>>1);
+      if(!land[gi]){d32[oi]=0;continue;}
+      const fx=(ox+0.5)*0.5-0.5;
+      const hv=Hat(fx,fy);
+      const dzx=(Hat(fx+0.5,fy)-Hat(fx-0.5,fy))*SCALE;
+      const dzy=(Hat(fx,fy+0.5)-Hat(fx,fy-0.5))*SCALE;
+      /* surface normal (-dzx,-dzy,1), normalised, dotted with the light */
+      const inv=1/Math.sqrt(dzx*dzx+dzy*dzy+1);
+      let lit=(-dzx*LX-dzy*LY+LZ)*inv/LN;
+      lit=0.64+Math.max(-1,Math.min(1,lit))*0.52;
+      /* Snow and bare rock on the tops, grass in the valleys — the height does
+         the colouring, not only the province's label, so a mountain province
+         comes out as a ridge with green sides rather than one flat grey blob. */
+      let r=CR[gi],g=CG[gi],b=CB[gi];
+      if(hv>0.66){const t=Math.min(1,(hv-0.66)/0.42);r+=(226-r)*t*0.82;g+=(230-g)*t*0.82;b+=(234-b)*t*0.82;}   // snowline
+      else if(hv>0.38){const t=(hv-0.38)/0.28;r+=(112-r)*t*0.52;g+=(106-g)*t*0.52;b+=( 96-b)*t*0.52;}          // bare rock
+      /* Grain at the resolution it is DRAWN at, not at the height field's.
+         This is what the eye reads as ground rather than as a gradient. */
+      const gn=(_vn(ox*1.7,oy*1.7,7)-0.5)*13
+              +(_fbm(ox*0.28,oy*0.28,23,3)-0.5)*26
+              +(_fbm(ox*0.9,oy*0.9,51,2)-0.5)*12;
+      r=Math.max(0,Math.min(255,(r+gn)*lit));
+      g=Math.max(0,Math.min(255,(g+gn)*lit));
+      b=Math.max(0,Math.min(255,(b+gn)*lit));
+      d32[oi]=LE?(255<<24)|(b<<16)|(g<<8)|r:(r<<24)|(g<<16)|(b<<8)|255;
+    }
+  }
+  if(!groundCv){groundCv=document.createElement("canvas");}
+  groundCv.width=OW;groundCv.height=OH;
+  groundCv.getContext("2d").putImageData(img,0,0);
+  groundDirty=false;
+}
 window.__ifBoot("landmask");try{buildLandMask();}catch(e){window.__ifFail("buildLandMask",e);throw e;}
 try{loadRealMap();}catch(e){window.__ifFail("loadRealMap",e);}window.__ifBoot("map-ok");
 window.__ifBoot("flags");
@@ -6169,6 +6431,12 @@ function renderTerritory(){
     }
   }
   terCtx.putImageData(img,0,0);
+  /* NATIONAL FRONTIERS, taken straight off the ownership grid: a cell whose
+     neighbour belongs to somebody else is a border cell. Painted into its own
+     layer so the line can be drawn at full strength OVER the political wash
+     rather than being faded out with it — a frontier is the one thing on the
+     map you always want to be able to find. */
+  buildNatEdges(owner,w,h);
   terDirty=false;
 }
 /* If anything at all goes wrong inside a frame, the next frame must still be
@@ -6198,15 +6466,57 @@ function _drawFrame(){
   ctx.scale(z,z);ctx.translate(-G.cam.x,-G.cam.y);   // the map itself always stays flat, top-down
   ctx.beginPath();ctx.rect(0,0,MW,MH);ctx.clip();
   const terr=MAPSTYLE==="terrain";
-  // sea grid
-  ctx.strokeStyle=terr?"#1a1c1e":T.grid;ctx.lineWidth=1/z;
-  ctx.beginPath();
-  for(let x=0;x<=MW;x+=MW/24){ctx.moveTo(x,0);ctx.lineTo(x,MH);}
-  for(let y=0;y<=MH;y+=MH/12){ctx.moveTo(0,y);ctx.lineTo(MW,y);}
-  ctx.stroke();
+  /* THE SEA. A bright cyan grid across the whole ocean was the loudest thing on
+     the map and it meant nothing. Water is quiet: a deep, desaturated blue with
+     a CONTINENTAL SHELF — a band of lighter water hugging every coast, which is
+     what makes a coastline read as a coastline seen from above rather than as a
+     line where one colour stops. Drawn as the land outline stroked a few times
+     at falling width and rising opacity, so it costs three strokes. */
+  {
+    const shelf=[[26,0.05],[15,0.07],[8,0.10],[3.4,0.13]];
+    ctx.save();
+    for(const[wd,a]of shelf){
+      ctx.strokeStyle="rgba(150,196,214,"+a+")";
+      ctx.lineWidth=wd;ctx.lineJoin="round";
+      ctx.stroke(landPath);
+    }
+    ctx.restore();
+    /* the faintest graticule, for orientation only — it should be something you
+       can find when you look for it and never something you notice */
+    ctx.strokeStyle=terr?"#16181a":"rgba(190,214,224,0.055)";ctx.lineWidth=1/z;
+    ctx.beginPath();
+    for(let x=0;x<=MW;x+=MW/24){ctx.moveTo(x,0);ctx.lineTo(x,MH);}
+    for(let y=0;y<=MH;y+=MH/12){ctx.moveTo(0,y);ctx.lineTo(MW,y);}
+    ctx.stroke();
+  }
   // base land
   const FR=realMap?"evenodd":"nonzero";
   ctx.fillStyle=terr?"#2e3033":T.land;ctx.fill(landPath,FR);
+  /* THE PAINTED GROUND, under everything political. */
+  if(groundDirty)try{buildGround();}catch(e){groundDirty=false;}
+  if(groundCv){
+    ctx.save();ctx.clip(landPath,FR);
+    ctx.imageSmoothingEnabled=true;
+    ctx.globalAlpha=terr?1:0.95;
+    ctx.drawImage(groundCv,0,0,MW,MH);
+    ctx.globalAlpha=1;
+    /* the sharp grain, fading in exactly where the raster starts to go soft */
+    if(z>1.8){
+      if(!grainTile)try{buildGrain();}catch(e){grainTile=1;}
+      if(grainTile&&grainTile!==1){
+        const pat=ctx.createPattern(grainTile,"repeat");
+        if(pat){
+          const sc=6/z;                                   // ~6 screen px per grain cell
+          pat.setTransform&&pat.setTransform(new DOMMatrix([sc,0,0,sc,0,0]));
+          ctx.globalCompositeOperation="overlay";
+          ctx.globalAlpha=Math.min(0.40,(z-1.8)*0.085);
+          ctx.fillStyle=pat;ctx.fillRect(0,0,MW,MH);
+          ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";
+        }
+      }
+    }
+    ctx.restore();
+  }
   // national colors (terrain) or flags (flag style), clipped to land
   ctx.save();ctx.clip(landPath,FR);
   /* One texel per world unit: the layer is only ever magnified past 1:1 on
@@ -6217,12 +6527,54 @@ function _drawFrame(){
   /* An overlay is a different question about the same map, so the flags step
      back while one is up. Left at full strength the terrain and supply
      colours simply disappear under the national colours they sit on. */
-  ctx.globalAlpha=(terr?0.78:0.82)*(MAPOVER!=="none"?0.34:1);
+  /* HOW MUCH COUNTRY, HOW MUCH GROUND. This is the whole trick of a Paradox
+     map and the game did not do it: the political layer was pinned at 82% at
+     every zoom, so the ground underneath might as well not have been painted.
+     Zoomed out to the world you want to read BORDERS, so the colour is nearly
+     solid; zoomed in to a front you want to read the GROUND you are fighting
+     over, so it thins to a wash and the terrain comes through it. */
+  const polA=(()=>{
+    const t=Math.max(0,Math.min(1,(z-1.1)/5.2));      // 1.1 -> 6.3
+    return 0.94+(0.44-0.94)*t*t*(3-2*t);              // smoothstep
+  })();
+  ctx.globalAlpha=(terr?0.42:polA)*(MAPOVER!=="none"?0.34:1);
   ctx.drawImage(terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
+  /* AND THE GROUND COMES BACK THROUGH IT. Laying a flat national colour over
+     the terrain at any opacity flattens it toward that one colour: half the
+     relief and all of the grain go with it, and the map ends up a pastel wash
+     with mountains you can only just make out. Drawing the ground a second
+     time in OVERLAY puts the light and shade back without touching the hue, so
+     the country stays the colour it is and the ridges, forests and deserts
+     under it stay legible. It is the difference between a coloured-in chart
+     and ground somebody has to fight across. */
+  if(groundCv&&MAPOVER==="none"){
+    ctx.globalCompositeOperation="overlay";
+    ctx.globalAlpha=0.30+polA*0.34;
+    ctx.drawImage(groundCv,0,0,MW,MH);
+    ctx.globalCompositeOperation="source-over";
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+  /* A BEACH. Land does not simply stop at the water: there is a pale strand
+     all the way round it, and it is that bright rim against the dark shelf
+     that makes a coastline read at a glance. */
+  ctx.save();ctx.clip(landPath,FR);
+  ctx.strokeStyle="rgba(226,214,180,0.42)";ctx.lineWidth=3.4;ctx.stroke(landPath);
+  ctx.strokeStyle="rgba(238,228,196,0.34)";ctx.lineWidth=1.4;ctx.stroke(landPath);
   ctx.restore();
   // coastline
   ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);ctx.stroke(landPath);
+  /* NATIONAL BORDERS ARE THE HEAVIEST LINE ON THE MAP, because a border is the
+     one thing on it you are always looking for. Drawn from the political layer
+     itself: where the colour changes, there is a frontier. */
+  if(natEdgeCv){
+    ctx.save();ctx.clip(landPath,FR);
+    ctx.imageSmoothingEnabled=true;
+    ctx.globalAlpha=Math.min(0.92,0.55+z*0.10);
+    ctx.drawImage(natEdgeCv,0,0,MW,MH);
+    ctx.globalAlpha=1;ctx.restore();
+  }
   // internal state/province borders (Nevada, Alberta, ...) when toggled
   if(SHOWPROV){
     const sp=statePath||provCellPath;
@@ -9154,6 +9506,114 @@ function piecePos(u,z,fleet){
   return[a.x+Math.cos(ang)*off,
          a.y+Math.sin(ang)*off+(fleet?8/Math.sqrt(z):0)-lift];
 }
+
+/* ========================= NATO COUNTERS ====================================
+   The single most recognisable thing on a Hearts of Iron map, and the thing
+   this game had least of: a division was a coloured square with a letter in it.
+   A real counter is APP-6: a rectangle in the owner's colour carrying the
+   standard symbol for what the unit IS — crossed diagonals for infantry, a
+   track oval for armour, a filled dot for artillery, a dome for air defence,
+   a single slash for cavalry — with two bars under it, GREEN for organisation
+   (how willing it is to fight) and AMBER for strength (how much of it is left).
+   You read the whole state of a division without clicking on it. */
+function _rrect(c,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  c.beginPath();
+  c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);
+  c.closePath();
+}
+/* The symbol itself, drawn inside a box. Ink only — the counter behind it
+   carries the colour, exactly as a real counter does. */
+function natoSymbol(kind,bw,bh,lw,ink){
+  ctx.strokeStyle=ink;ctx.fillStyle=ink;
+  ctx.lineWidth=lw;ctx.lineCap="butt";
+  const x0=-bw/2,y0=-bh/2,x1=bw/2,y1=bh/2;
+  const X=()=>{ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.moveTo(x1,y0);ctx.lineTo(x0,y1);ctx.stroke();};
+  const oval=()=>{ctx.beginPath();ctx.ellipse(0,0,bw*0.40,bh*0.30,0,0,Math.PI*2);ctx.stroke();};
+  switch(kind){
+    case "inf":  X();break;
+    case "arm":  oval();break;                               // armour: the track oval
+    case "mech": X();oval();break;
+    case "cav":  ctx.beginPath();ctx.moveTo(x0,y1);ctx.lineTo(x1,y0);ctx.stroke();break;
+    case "art":  ctx.beginPath();ctx.arc(0,0,Math.min(bw,bh)*0.22,0,7);ctx.fill();break;
+    case "aa":   /* air defence: the artillery dot under a dome */
+                 ctx.beginPath();ctx.arc(0,bh*0.18,Math.min(bw,bh)*0.17,0,7);ctx.fill();
+                 ctx.beginPath();ctx.arc(0,bh*0.18,bw*0.40,Math.PI,0);ctx.stroke();break;
+    case "hq":   X();break;
+    default:     X();
+  }
+}
+/* Which symbol a division actually wears. An "armoured" division in 1206 is
+   horse, and it gets the cavalry slash rather than a tank's track oval. */
+function natoKind(u){
+  if(u.type==="arm")return armourEra()?"arm":"cav";
+  if(u.type==="art")return "art";
+  if(u.type==="aa") return "aa";
+  return "inf";
+}
+/* A warship silhouette rather than a land symbol: hull, superstructure, and
+   the one feature that tells the classes apart at a glance — a flight deck on
+   a carrier, a conning tower on a submarine, heavy turrets on a capital ship. */
+function navalSymbol(cls,bw,bh,lw,ink){
+  ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineWidth=lw;
+  if(cls==="sub"){
+    ctx.beginPath();ctx.ellipse(0,bh*0.10,bw*0.46,bh*0.20,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.rect(-bw*0.07,-bh*0.28,bw*0.14,bh*0.30);ctx.fill();     // the tower
+    return;
+  }
+  ctx.beginPath();                                            // a hull, bow to the right
+  ctx.moveTo(-bw*0.46,-bh*0.04);ctx.lineTo(bw*0.32,-bh*0.04);
+  ctx.lineTo(bw*0.48,bh*0.10);ctx.lineTo(bw*0.30,bh*0.24);
+  ctx.lineTo(-bw*0.42,bh*0.24);ctx.closePath();ctx.fill();
+  if(cls==="cv"){                                             // flight deck
+    ctx.beginPath();ctx.rect(-bw*0.48,-bh*0.20,bw*0.96,bh*0.14);ctx.fill();
+  } else if(cls==="cap"){                                     // two heavy turrets
+    ctx.beginPath();ctx.rect(-bw*0.26,-bh*0.24,bw*0.16,bh*0.20);ctx.fill();
+    ctx.beginPath();ctx.rect(bw*0.04,-bh*0.24,bw*0.16,bh*0.20);ctx.fill();
+  } else {                                                    // escort: bridge and stack
+    ctx.beginPath();ctx.rect(-bw*0.10,-bh*0.26,bw*0.20,bh*0.22);ctx.fill();
+  }
+}
+/* The counter. Drawn in the piece's own local space with the ground at y=0, so
+   the same routine serves the flat map and a counter standing up in 3D. */
+function drawCounter(u,s,z,fleet,sel){
+  const cw=s*1.44, ch=s*0.92;
+  const x=-cw/2, y=-ch*0.62;
+  const col=NATIONS[u.nat].c;
+  const line=Math.max(0.5,(sel?2.0:1.0)/Math.sqrt(z)*1.15);
+  /* the face: a little lighter at the top, the way a physical counter catches
+     the light, which is what stops a flat rectangle reading as a sticker */
+  const g=ctx.createLinearGradient(0,y,0,y+ch);
+  g.addColorStop(0,shade(col,0.20));g.addColorStop(0.55,col);g.addColorStop(1,shade(col,-0.22));
+  _rrect(ctx,x,y,cw,ch,ch*0.14);
+  ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle=sel?"#f0b74a":"rgba(12,10,8,0.85)";ctx.lineWidth=line;ctx.stroke();
+  /* The ink is chosen against the counter, not fixed: a dark national colour
+     with black symbols on it is a black rectangle. */
+  const rgb=hex2rgb(col[0]==="#"?col:"#808080");
+  const lum=(rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114)/255;
+  const ink=lum>0.52?"rgba(14,12,9,0.92)":"rgba(240,236,224,0.95)";
+  ctx.save();
+  ctx.translate(0,y+ch*0.46);
+  if(fleet)navalSymbol(u.cls||"dd",cw*0.66,ch*0.62,Math.max(0.5,line*0.9),ink);
+  else natoSymbol(natoKind(u),cw*0.52,ch*0.52,Math.max(0.6,line*1.15),ink);
+  ctx.restore();
+  /* THE TWO BARS. Green is organisation, amber is strength — the same reading
+     as the game they come from, and between them they say at a glance whether
+     a division can attack, can only hold, or is finished. */
+  const bh=ch*0.155, by=y+ch+bh*0.30;
+  const str=u.str>0?Math.max(0,Math.min(1,u.hp/(u.str*10))):0;
+  const org=Math.max(0,Math.min(1,u.org!==undefined?u.org:(0.35+str*0.65)));
+  ctx.fillStyle="rgba(8,10,8,0.80)";
+  ctx.fillRect(x,by,cw,bh*2.1);
+  ctx.fillStyle=org>0.28?"#6fae4a":"#b8622e";
+  ctx.fillRect(x+line*0.5,by+bh*0.10,(cw-line)*org,bh*0.86);
+  ctx.fillStyle=str>0.45?"#d9a53c":str>0.2?"#c07a30":"#a3402c";
+  ctx.fillRect(x+line*0.5,by+bh*1.12,(cw-line)*str,bh*0.86);
+}
 function drawPiece(u,glyph,color,z,fleet,pos){
   if(MODS.fog&&G&&u.nat!==G.player&&!allied(u.nat,G.player)){
     const p=G.prov[u.at];
@@ -9171,34 +9631,21 @@ function drawPiece(u,glyph,color,z,fleet,pos){
     // beneath it stays perfectly flat, so no tilt-cancelling math is needed
     ctx.save();
     ctx.translate(0,s*0.15);                         // the ground, which the piece is lifted off
-    ctx.scale(1,0.45);
-    ctx.beginPath();ctx.arc(0,s*0.5,s*0.5,0,7);ctx.fillStyle="rgba(0,0,0,0.42)";ctx.fill();
+    ctx.scale(1,0.42);
+    ctx.beginPath();ctx.ellipse(0,s*0.62,s*0.86,s*0.62,0,0,7);
+    ctx.fillStyle="rgba(0,0,0,0.42)";ctx.fill();
     ctx.restore();
-    if(!fleet){                                       // extruded base so it reads as a block
+    if(!fleet){                                       // extruded base so the counter reads as a block
       ctx.fillStyle=shade(NATIONS[u.nat].c,-0.45);
-      ctx.fillRect(-s/2,s*0.16,s,s*0.3);
+      ctx.fillRect(-s*0.81,s*0.30,s*1.62,s*0.22);
     }
   }
   if(!fleet){
     if(VIEW3D&&z>3.5&&draw3DScene(u,s,z)){    // detailed tanks/trenches/riflemen only once you zoom in close
       // era scene drawn in place of the plain block; HP bar still shown for function
     } else {
-      ctx.fillStyle=NATIONS[u.nat].c;
-      ctx.strokeStyle=u===G.selUnit?"#e8a33d":"#0a0f0c";
-      ctx.lineWidth=(u===G.selUnit?2:1)/Math.sqrt(z);
-      ctx.beginPath();ctx.rect(-s/2,-s/2,s,s*0.72);ctx.fill();ctx.stroke();
-      ctx.fillStyle="#0e120e";
-      ctx.font=`bold ${s*0.5}px Courier New`;ctx.textAlign="center";ctx.textBaseline="middle";
-      ctx.fillText(u.type==="arm"?"▲":u.type==="art"?"◆":u.type==="aa"?"✳":"X",0,-s*0.13);
+      drawCounter(u,s,z,false,u===G.selUnit);
     }
-    // hp pip
-    /* A division reduced to no strength at all made this NaN, and canvas
-       silently keeps the PREVIOUS fill when handed an invalid colour — so the
-       bar came out in whatever colour the last piece happened to use. */
-    const frac=u.str>0?Math.max(0,Math.min(1,u.hp/(u.str*10))):0;
-    ctx.fillStyle="#000a";ctx.fillRect(-s/2,s*0.26,s,s*0.14);
-    ctx.fillStyle=frac>0.5?"#8ec07c":"#e07a4a";
-    ctx.fillRect(-s/2,s*0.26,s*frac,s*0.14);
   }else{
     if(VIEW3D&&z>3.5){
       // a real hull, superstructure and mast instead of a flat anchor glyph
@@ -9225,11 +9672,7 @@ function drawPiece(u,glyph,color,z,fleet,pos){
       ctx.strokeStyle=dark;ctx.lineWidth=Math.max(1,s*0.04)/Math.sqrt(z);
       ctx.beginPath();ctx.moveTo(s*0.14,-s*0.14);ctx.lineTo(s*0.14,-s*0.5);ctx.stroke(); // the mast
     } else {
-      ctx.fillStyle=u===G.selUnit?"#e8a33d":(u.nat===G.player?"#cfe7f2":"#9fb6c2");
-      ctx.font=`${s}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
-      ctx.fillText("⚓",0,0);
-      ctx.fillStyle=NATIONS[u.nat].c;
-      ctx.fillRect(-s*0.5,s*0.5,s,s*0.16);
+      drawCounter(u,s,z,true,u===G.selUnit);
     }
   }
   ctx.restore();
@@ -10471,7 +10914,15 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.1 \u2014 THE 3D VIEW, FIXED (current)",[
+ ["v22.2 \u2014 THE MAP IS PAINTED GROUND NOW (current)",[
+  "\u{1F5FA} THE MAP WAS A CHART. Flat colour on flat land, a bright cyan grid across every ocean, and terrain that existed in the rules but was nowhere on the screen. It is PAINTED GROUND now, the way a Paradox map is: grass, rock, sand and forest, with a real height field under it and a hillshade taken off that field, lit from the north-west the way every printed relief map ever made is lit. The Alps, the Carpathians, the Rockies, the Andes and the Atlas are ridges you can see, with snow on the tops and bare rock below it.",
+  "\u{1F3A8} AND THE NATIONAL COLOUR THINS AS YOU ZOOM IN. This is the whole trick of a map like this and the game did not do it: the political layer sat at 82% at every zoom, so painting the ground would have been pointless. Zoomed out to the world it is nearly solid, because what you want out there is BORDERS. Zoomed down to a front it falls away to a wash and the ground comes through, because what you want in there is the country you are fighting over. The ground is then drawn a second time in overlay, which puts the light and shade back without touching the hue \u2014 so a nation stays its own colour and its mountains stay mountains.",
+  "\u{1F0CF} NATO COUNTERS. A division was a coloured square with a letter in it. It is a proper counter now: crossed diagonals for infantry, the track oval for armour, a filled dot for artillery, a dome for air defence, a single slash for cavalry \u2014 and for a fleet, the silhouette of the class, with a flight deck on a carrier, a conning tower on a submarine and heavy turrets on a capital ship. Under each one are two bars, GREEN for organisation and AMBER for strength, so you can read whether a division can attack, can only hold, or is finished without clicking on it.",
+  "\u{1F30A} THE SEA IS WATER. The cyan grid was the loudest thing on the map and it meant nothing; it is a whisper now. Instead every coast has a CONTINENTAL SHELF \u2014 a band of lighter water hugging the land \u2014 and a pale beach on the land side of it. That contrast is what makes a coastline read as a coast seen from above rather than as a line where one colour stops.",
+  "\u{1F5FA} SOLID NATIONAL COLOUR IS THE DEFAULT. A flag stretched across a country is striking to look at once and unreadable to play on: four colours where the map wants one, and the ground hidden completely. FLAGS is still in Settings for anyone who preferred it.",
+  "\u{1F4CF} FRONTIERS ARE THE HEAVIEST LINE ON THE MAP, taken straight off the ownership grid and drawn at full strength over the political wash instead of fading with it \u2014 a border being the one thing you are always looking for. And terrain no longer changes along a straight line ruled between two province markers: the colour of the ground is blurred where the relief is not, so a forest gives way to a plain the way it does in the world.",
+  "\u26A1 None of it costs anything to play: the ground is built once, in about half a second, because mountains do not move when a border does, and the map still runs at sixty frames a second."]],
+ ["v22.1 \u2014 THE 3D VIEW, FIXED",[
   "\u{1F5FF} STACKED DIVISIONS ARE CLICKABLE AGAIN. The counters in a province are fanned out around it so you can see them all, and a fleet is drawn a little south of its port \u2014 but the pointer maths ignored every one of those offsets and tested the bare province centre. So in any province holding more than one division, whichever counter you clicked, you got the same one: the first in the list. Measured on a six-division stack, one click in six selected the division you were pointing at. It is six in six now, because the drawing and the hit test finally use the same numbers.",
   "\u{1F0CF} THE PIECES ARE PAINTED BACK TO FRONT. Standing counters were drawn in list order, so a division to the NORTH of another \u2014 that is, standing behind it \u2014 painted straight over the one in front of it. That is precisely the thing a tabletop view exists to stop. Fleets and armies now go down in depth order.",
   "\u{1F3AF} NO MORE TANKS AT AUSTERLITZ. The armour branch was tested before the era, so every \u201Carmoured\u201D division drew a modern gradient-shaded tank \u2014 in 1206 on the steppe and under Napoleon alike. Those eras draw their own cavalry and line infantry now, and the tank is kept to the eras that had one.",
