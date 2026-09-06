@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.0.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.1.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.0.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.1.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.0.0";
+const BUILD="23.1.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4585,6 +4585,14 @@ function natOfCountry(name){
 }
 /* per-pixel real-country raster at territory resolution */
 let countryPix=null,countryNames=null;
+/* THE SAME MASK AT THE RESOLUTION THE MAP IS PAINTED AT. Ownership is worked
+   out on a coarse grid — two world units a cell, about forty kilometres — which
+   is fine for deciding WHO holds a place and hopeless for drawing the line
+   around it: at a front, forty kilometres is a staircase eight pixels high, and
+   every border on the map was visibly built out of blocks. The country shapes
+   themselves are known to a thirty-second of a degree, so the fill is snapped
+   to THEM instead, and a frontier comes out as the shape it really is. */
+let countryFine=null;
 async function rasterizeCountries(features){
   const w=Math.round(MW/TS),h=Math.round(MH/TS);
   const c=document.createElement("canvas");c.width=w;c.height=h;
@@ -4606,6 +4614,27 @@ async function rasterizeCountries(features){
     if(i%24===23)await new Promise(r=>setTimeout(r,0)); // keep the UI alive
   }
   countryPix=pix;
+  /* And again at full resolution — but all of them into ONE canvas with the
+     index carried in the red channel, so it costs a single read of the buffer
+     rather than two hundred and twenty-seven of them. The one-pixel seam where
+     two countries are drawn over each other is left to the coarse grid to
+     resolve, which is exactly what it is good at. */
+  try{
+    const fw=Math.round(MW/TS*TSUP), fh=Math.round(MH/TS*TSUP);
+    const fc=document.createElement("canvas");fc.width=fw;fc.height=fh;
+    const fg=fc.getContext("2d",{willReadFrequently:true});
+    fg.setTransform(fw/MW,0,0,fh/MH,0,0);
+    for(let i=0;i<features.length;i++){
+      const nm=(features[i].properties&&features[i].properties.name)||"";
+      if(nm==="Antarctica"||i>=255)continue;
+      const p=new Path2D();geo2path(features[i].geometry,p);
+      fg.fillStyle="rgb("+(i+1)+",0,0)";fg.fill(p,"evenodd");
+    }
+    const fd=fg.getImageData(0,0,fw,fh).data;
+    const fine=new Uint8Array(fw*fh);
+    for(let j=0;j<fw*fh;j++)if(fd[j*4+3]>200)fine[j]=fd[j*4];
+    countryFine=fine;
+  }catch(e){countryFine=null;}
 }
 /* ===== THE MAP, KEPT ON THE DEVICE =====
    The real country shapes are fetched from a CDN, and without them the game
@@ -4957,11 +4986,21 @@ function buildNatEdges(owner,w,h){
      when the map is drawn at half scale. */
   const HARD=_LE?((205<<24)|(14<<16)|(16<<8)|20)>>>0:((20<<24)|(16<<16)|(14<<8)|205)>>>0;
   const SOFT=_LE?((80<<24)|(20<<16)|(22<<8)|28)>>>0:((28<<24)|(22<<16)|(20<<8)|80)>>>0;
+  /* WHERE A REAL BORDER ALREADY RUNS, DO NOT DRAW A BLOCKY ONE OVER IT. This
+     layer is built on the coarse ownership grid — forty kilometres a cell — so
+     every frontier it drew was a staircase, and it was drawn on top of the
+     accurate outline rather than instead of it. The atlas knows where France
+     stops to a kilometre; that line is stroked as vector geometry and stays a
+     hairline at any zoom. What is left for this layer is the frontier the atlas
+     does NOT know about: the line a conquest puts through the middle of a
+     country, which is a front and belongs to the game, not to geography. */
+  const cp=countryPix;
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const i=y*w+x,o=owner[i];
     if(!o)continue;
     const r=x<w-1?owner[i+1]:o, dn=y<h-1?owner[i+w]:o;
-    if((r&&r!==o)||(dn&&dn!==o)){
+    const realR=cp&&x<w-1&&cp[i+1]!==cp[i], realD=cp&&y<h-1&&cp[i+w]!==cp[i];
+    if(((r&&r!==o)&&!realR)||((dn&&dn!==o)&&!realD)){
       /* Two cells wide, not one. A single-cell line in a half-scale texture is
          a half-pixel on the map: it shimmers when you pan and disappears
          altogether when you zoom out, which is the one moment you most want to
@@ -7049,6 +7088,37 @@ function renderTerritory(){
       edgeA[i]=Math.round(255*(1-(1-FLOOR)*sm));
     }
   } else edgeA.fill(255);
+  /* OWNERSHIP AT PAINTING RESOLUTION. Every output pixel takes the owner of
+     the coarse cell it sits in — unless the fine country mask says it is really
+     inside a DIFFERENT country, in which case it takes the owner from whichever
+     neighbouring cell is in that country. The colour then stops where the
+     country stops, instead of where the grid does. */
+  const ownerFine=new Uint8Array(ow*oh);
+  {
+    const cf=countryFine, cc=countryPix;
+    const useFine=cf&&cc&&cf.length===ow*oh;
+    for(let oy=0;oy<oh;oy++){
+      const gy=(oy/TSUP)|0, rowO=oy*ow, rowG=gy*w;
+      for(let ox=0;ox<ow;ox++){
+        const gx=(ox/TSUP)|0, idx=rowG+gx;
+        let o=owner[idx];
+        if(useFine){
+          const want=cf[rowO+ox];
+          if(want&&want!==cc[idx]){
+            let alt=0;
+            for(let dy=-1;dy<=1&&!alt;dy++)for(let dx=-1;dx<=1;dx++){
+              const ax=gx+dx, ay=gy+dy;
+              if(ax<0||ay<0||ax>=w||ay>=h)continue;
+              const j=ay*w+ax;
+              if(cc[j]===want&&owner[j]){alt=owner[j];break;}
+            }
+            if(alt)o=alt; else if(o&&cc[idx])o=0;   // truly someone else's ground
+          }
+        }
+        ownerFine[rowO+ox]=o;
+      }
+    }
+  }
   const inv=1/TSUP;
   const img32=new Uint32Array(img.data.buffer);
   /* Packing order depends on the machine, not on us: every browser this runs in
@@ -7085,6 +7155,32 @@ function renderTerritory(){
   for(let i=1;i<_flat.length;i++)if(_flat[i]){
     const c=_flat[i];flat32[i]=_pack(c[0],c[1],c[2]);
   }
+  /* THE TINT IS BAKED IN, NOT BLENDED EVERY FRAME. Compositing the colour
+     layer in "color" blend mode gave exactly the right picture — country hue,
+     ground lightness — and cost a colour-space conversion per pixel per frame:
+     six frames a second. The same answer is worked out once, here, where the
+     layer is built and where it only changes when a border moves.
+
+     Scaling the nation's colour to the ground's lightness preserves its hue and
+     saturation exactly, which is all the blend mode was doing. One lookup table
+     per nation, so painting is a table read. */
+  const _mkLut=(oiK,c)=>{
+    const t=new Uint32Array(256);
+    const cl=Math.max(1,(c[0]*77+c[1]*150+c[2]*29)>>8);
+    for(let L=0;L<256;L++){
+      /* Not PURE ground lightness — a country over forest would be as dark as
+         the forest, and a pale nation visibly lifts the ground it sits on. But
+         only a tenth of the country's own lightness: at a fifth it flattened
+         the very range it exists to preserve. And the range is EXPANDED rather
+         than passed through, because the tint has to carry the whole difference
+         between a rainforest and a desert on its own. */
+      const Lc=Math.max(0,Math.min(255,(L-118)*1.34+118));
+      const Lt=Lc*0.90+cl*0.10;
+      const k=Lt/cl;
+      t[L]=_pack(Math.min(255,c[0]*k)|0,Math.min(255,c[1]*k)|0,Math.min(255,c[2]*k)|0,255);
+    }
+    return (_lut[oiK]=t);
+  };
   for(let gy=0;gy<h;gy++){
     const rowG=gy*w;
     for(let gx=0;gx<w;gx++){
@@ -7111,32 +7207,22 @@ function renderTerritory(){
            Scaling the nation's colour to the ground's lightness preserves its
            hue and saturation exactly, which is all the blend mode was doing.
            One lookup table per nation, so it is a table read per pixel. */
-        const lut=_lut[oi]||(()=>{
-          const t=new Uint32Array(256);
-          const cl=Math.max(1,(c[0]*77+c[1]*150+c[2]*29)>>8);
-          for(let L=0;L<256;L++){
-            /* Not PURE ground lightness — a country over forest would be as
-               dark as the forest, and on the real map a pale nation visibly
-               lifts the ground it sits on. But only a tenth of the country's
-               own lightness: at a fifth it was flattening the very range it
-               exists to preserve.
-
-               And the range is EXPANDED rather than merely passed through. The
-               tint has to carry the whole difference between a rainforest and
-               a desert on its own, because it is what you are actually looking
-               at; run flat, that difference arrives at the eye halved. */
-            const Lc=Math.max(0,Math.min(255,(L-118)*1.34+118));
-            const Lt=Lc*0.90+cl*0.10;
-            const k=Lt/cl;
-            t[L]=_pack(Math.min(255,c[0]*k)|0,Math.min(255,c[1]*k)|0,Math.min(255,c[2]*k)|0,ea);
-          }
-          return (_lut[oi]=t);
-        })();
+        const lut=_lut[oi]||_mkLut(oi,c);
         for(let dy=0;dy<TSUP;dy++){
           let o=(oy0+dy)*ow+ox0;
           for(let dx=0;dx<TSUP;dx++,o++){
+            const of=ownerFine[o];
+            if(!of)continue;                       // the real border runs through here
             const L=groundLum?groundLum[o]:0;
-            img32[o]=L?((lut[L]&0x00ffffff)|(ea<<24))>>>0:_pack(c[0],c[1],c[2],ea);
+            if(of===oi){
+              img32[o]=L?((lut[L]&0x00ffffff)|(ea<<24))>>>0:_pack(c[0],c[1],c[2],ea);
+            }else{
+              /* a sliver of the neighbour that the coarse grid put on our side */
+              const c2=_flat[of];
+              if(!c2)continue;
+              const l2=_lut[of]||_mkLut(of,c2);
+              img32[o]=L?((l2[L]&0x00ffffff)|(ea<<24))>>>0:_pack(c2[0],c2[1],c2[2],ea);
+            }
           }
         }
         continue;
@@ -7406,7 +7492,15 @@ function _drawFrame(){
     if(sp){ctx.strokeStyle="#000000";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke(sp);}
   }
   // real country borders
-  if(realMap&&borderTiles){ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"#00000055":"#00000040");ctx.lineWidth=(terr?1.1:0.8)/Math.sqrt(z);strokeTiles(borderTiles,z);}
+  /* THE NATIONAL FRONTIERS, FROM THE ATLAS. These are the accurate ones — real
+     geometry, so they stay a hairline however far you zoom in, where the old
+     raster line broke into forty-kilometre steps. Drawn at the weight a border
+     deserves rather than as a faint hint. */
+  if(realMap&&borderTiles){
+    ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"rgba(14,16,20,0.82)":"rgba(30,28,22,0.62)");
+    ctx.lineWidth=terr?1.1/Math.sqrt(z):Math.max(0.5,1.7/z);
+    strokeTiles(borderTiles,z);
+  }
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
   /* THE ICE WAS THE BRIGHTEST THING ON THE MAP. A near-white slab across the
@@ -7502,9 +7596,19 @@ function _drawFrame(){
      paints straight over the one in front of it, which is exactly what the 3D
      view is supposed to stop happening. Flat view does not care, so the sort
      only runs where it matters. */
+  /* COUNTERS ARE FOR WHEN YOU ARE LOOKING AT A FRONT. Zoomed out to a
+     hemisphere they are a carpet of little squares laid over the world — a
+     hundred and fifty of them covering the ground you are trying to read, and
+     none of them individually meaning anything at that distance. They fade in
+     as you come down to the scale where a division is a thing you might give
+     an order to, and the ones you are actually commanding arrive first. */
+  const CTRZ=2.1, CTRFULL=3.2;
   const pieces=[];
-  for(const f of G.fleets)pieces.push({u:f,fleet:true,p:piecePos(f,z,true)});
-  for(const u of G.units)pieces.push({u,fleet:false,p:piecePos(u,z,false)});
+  if(z>CTRZ){
+    const mineOnly=z<CTRFULL;
+    for(const f of G.fleets){if(mineOnly&&f.nat!==G.player)continue;pieces.push({u:f,fleet:true,p:piecePos(f,z,true)});}
+    for(const u of G.units){if(mineOnly&&u.nat!==G.player)continue;pieces.push({u,fleet:false,p:piecePos(u,z,false)});}
+  }
   if(VIEW3D)pieces.sort((a,b)=>a.p[1]-b.p[1]);
   for(const it of pieces)
     drawPiece(it.u,it.fleet?shipOf(it.u).i:uIcon(it.u.type),it.fleet?"#cfe7f2":null,z,it.fleet,it.p);
@@ -10727,9 +10831,14 @@ function provAt(sx,sy){
   return bd<lim?best:null;
 }
 function unitAt(sx,sy){
+  /* You cannot pick up what you cannot see. Counters fade in as you zoom to
+     the scale where a division is a thing you would give an order to, so above
+     that a click is a click on the GROUND — otherwise the map would keep
+     selecting invisible pieces out from under the province you were aiming at. */
+  const z=G.cam.z;
+  if(z<=2.1)return null;
   const[wx,wy]=S2W(sx,sy);
   let best=null,bd=1e9;
-  const z=G.cam.z;
   for(const u of G.units){
     if(u.nat!==G.player)continue;
     const[x,y]=piecePos(u,z,false);
@@ -11855,7 +11964,12 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v23.0 \u2014 THE REAL COUNTRY COLOURS (current)",[
+ ["v23.1 \u2014 ACCURATE FRONTIERS, AND A MAP YOU CAN SEE (current)",[
+  "\u{1F0CF} COUNTERS ARE FOR WHEN YOU ARE LOOKING AT A FRONT. Zoomed out to a hemisphere they were a carpet of a hundred and fifty little squares laid over the world, none of them meaning anything at that distance and all of them covering the ground you were trying to read. They now fade in as you come down to the scale where a division is a thing you might give an order to \u2014 your own first, everyone's once you are properly in. Clicking follows the same rule: above that zoom a click is a click on the GROUND, so the map stops selecting invisible pieces out from under the province you were aiming at.",
+  "\u{1F4CF} AND THE FRONTIERS ARE THE REAL ONES. Every border on the map was being drawn off the ownership grid \u2014 forty kilometres to a cell \u2014 so at any zoom worth playing at, France stopped in forty-kilometre steps. The atlas knows where France stops to within a kilometre; that outline is now stroked as real geometry and stays a hairline however far in you go. The COLOUR is snapped to it too, at the resolution the map is actually painted at, so the fill ends exactly where the country does rather than where the grid does.",
+  "\u{1F5FA} What the old layer is still good for is the frontier the atlas does NOT know about \u2014 the line a conquest puts through the middle of a country. That is a front, and it belongs to the game rather than to geography, so it is the only thing drawn there now.",
+  "\u26A1 And the map got faster for it: not drawing a hundred and fifty counters nobody can read is worth about half again the frame rate at world zoom."]],
+ ["v23.0 \u2014 THE REAL COUNTRY COLOURS",[
   "\u{1F3A8} EIGHTY-ONE NATIONS NOW WEAR THEIR ACTUAL COLOURS, taken verbatim out of Hearts of Iron IV's own country colour table \u2014 the same file that game paints its map from \u2014 rather than matched by eye. Germany's field grey, the Soviet oxblood, Britain's rose, France's cornflower, Italy's green, Japan's blush, the Raj's deep red, Romania's gold, Poland's pink, Hungary's peach. The entries that file stores as HSV are converted the way the game converts them.",
   "\u{1F5FA} ONLY WHERE THE TWO GAMES MEAN THE SAME COUNTRY. Nations with no counterpart there \u2014 the Horde, the Confederacy, the whole medieval and Napoleonic rosters, the post-war Koreas \u2014 keep the colours they already had, and no attempt is made to invent an official-looking value for them.",
   "\u26A0 Two traps in that mapping, both of which produce a plausible-looking wrong answer if you are not careful: their GRE is Greece and this game's GRE is Greenland, and their PRU is Peru while this game's PRU is Prussia."]],
