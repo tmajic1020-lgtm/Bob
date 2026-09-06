@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.8.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.9.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.8.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.9.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.8.0";
+const BUILD="22.9.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4879,11 +4879,17 @@ const TERHEIGHT={plain:0.10,steppe:0.13,forest:0.22,hills:0.55,mtn:0.96,
    war map, lit like late afternoon, not a school atlas. The lightness of the
    whole map comes from here, because the national colour is baked to the
    ground's luminance; so this table IS the map's exposure. */
+/* WHAT SEPARATES THESE IS THE POINT. On the real map the Sahara is nearly
+   cream and the Siberian taiga is nearly black, and it is that SPREAD — not
+   the average — that makes the land read as different countries of ground
+   rather than as one olive field with borders drawn on it. Everything here had
+   drifted into the same middle. Sand is the brightest thing on land; forest
+   and jungle are the darkest; the rest sits between them. */
 const TERPAINT={
-  plain: [124,126, 84], steppe:[168,152, 96], forest:[ 92, 98, 66],
-  hills: [128,116, 80], mtn:   [116,110,100], desert:[204,176,118],
-  jungle:[ 84,102, 60], marsh: [ 94,102, 76], tundra:[170,176,174],
-  urban: [112,104, 92]
+  plain: [118,122, 80], steppe:[178,160,102], forest:[ 74, 80, 56],
+  hills: [126,114, 78], mtn:   [110,104, 96], desert:[228,206,156],
+  jungle:[ 62, 82, 48], marsh: [ 88, 96, 72], tundra:[186,190,186],
+  urban: [108,100, 88]
 };
 /* HOW MUCH OF IT IS UNDER TREES. The thing that actually makes that map read
    as ground is that woodland is not a shade of the field next to it — it is a
@@ -4895,7 +4901,7 @@ const TERTREES={
   plain:0.38, steppe:0.10, forest:0.88, hills:0.40, mtn:0.24,
   desert:0.00, jungle:0.95, marsh:0.34, tundra:0.08, urban:0.20
 };
-const FORESTC=[50,60,46], FORESTC2=[42,52,54];
+const FORESTC=[40,50,38], FORESTC2=[34,44,46];
 /* Value noise. Deterministic, so the ground is the same ground every time the
    map is rebuilt and does not crawl when a border moves. */
 function _vn(x,y,seed){
@@ -5192,11 +5198,66 @@ function buildGround(){
      from the unblurred height field, so ridges stay crisp. */
   const CR=new Float32Array(w*h),CG=new Float32Array(w*h),CB=new Float32Array(w*h);
   const TC=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++){
-    if(!land[i])continue;
-    const k=KEYS[kind[i]], c=TERPAINT[k];
-    CR[i]=c[0];CG[i]=c[1];CB[i]=c[2];
-    TC[i]=TERTREES[k]||0;
+  /* CLIMATE, BECAUSE THE PROVINCE DATA CANNOT REACH. There are two hundred and
+     fifty provinces for the whole world: the entire Sahara contains seven, none
+     of them in its western half, so most of the largest desert on Earth was
+     being painted as generic plain. The map it is being compared to uses real
+     terrain data and shows the Sahara as the brightest thing on land.
+
+     So latitude fills in what the provinces cannot say. The desert belts sit
+     either side of the tropics, the rainforest on the equator, the taiga and
+     the tundra in the north — the same bands they occupy in the world, broken
+     up with noise so they are not stripes, and suppressed on high ground,
+     which has its own rules. Where a province DOES state its terrain that
+     still leads; climate only fills the silence.
+
+     None of this touches gameplay. It sets the colour of the paint and the
+     density of the trees, and nothing else: p.ter, movement, combat width,
+     supply and attrition are all exactly as they were. */
+  const CLIM={
+    desert:TERPAINT.desert, jungle:TERPAINT.jungle, tundra:TERPAINT.tundra,
+    taiga: TERPAINT.forest,  plain: TERPAINT.plain
+  };
+  for(let y=0;y<h;y++){
+    const lat=90-(y+0.5)/h*180, al=Math.abs(lat);
+    for(let x=0;x<w;x++){
+      const i=y*w+x;
+      if(!land[i])continue;
+      const k=KEYS[kind[i]], c=TERPAINT[k];
+      let r=c[0],g=c[1],b=c[2],t=TERTREES[k]||0;
+      /* the bands, wobbled so they read as geography and not as latitude lines */
+      const n1=(_fbm(x*0.02,y*0.02,301,3)-0.5)*11;
+      const n2=(_fbm(x*0.025+9,y*0.025+9,311,3)-0.5)*0.55;
+      const alw=al+n1;
+      const arid =Math.max(0,Math.min(1,Math.exp(-Math.pow((alw-24)/10.5,2))*1.45+n2*0.5));
+      const wet  =Math.max(0,Math.min(1,Math.exp(-Math.pow(alw/9.5,2))*1.40+n2*0.5));
+      const boreal=Math.max(0,Math.min(1,(alw-45)/13))*(1-Math.max(0,Math.min(1,(alw-64)/9)));
+      const polar =Math.max(0,Math.min(1,(alw-64)/10));
+      /* High ground makes its own weather; leave the mountains to the relief. */
+      const hi=Math.max(0,Math.min(1,(H[i]-0.42)/0.30));
+      /* A province that states its terrain outranks the latitude it sits at.
+         Only "plain" and "steppe" are really the absence of an answer. */
+      /* How much the province is really SAYING. "Plain" is the absence of an
+         answer, so climate leads there; a province that says forest or marsh
+         has stated something and keeps most of its say. Anything in between
+         gets a real share of the latitude it sits at — at a third it barely
+         registered, and central Australia stayed a meadow. */
+      const generic=(k==="plain"||k==="steppe")?1:(k==="hills"||k==="urban")?0.72:0.42;
+      const put=(dst,amt)=>{
+        const a=Math.max(0,Math.min(1,amt*generic*(1-hi*0.55)));
+        if(a<=0.002)return;
+        r+=(dst[0]-r)*a; g+=(dst[1]-g)*a; b+=(dst[2]-b)*a;
+        return a;
+      };
+      let ta=0,tv=0;
+      let a;
+      a=put(CLIM.desert,arid);   if(a){ta+=a;tv+=0.00*a;}
+      a=put(CLIM.jungle,wet);    if(a){ta+=a;tv+=0.95*a;}
+      a=put(CLIM.taiga,boreal);  if(a){ta+=a;tv+=0.80*a;}
+      a=put(CLIM.tundra,polar);  if(a){ta+=a;tv+=0.06*a;}
+      if(ta>0){const m=Math.min(1,ta);t=t*(1-m)+(tv/ta)*m;}
+      CR[i]=r;CG[i]=g;CB[i]=b;TC[i]=t;
+    }
   }
   /* A SERIOUS BLUR, because a three-by-three one was never going to do it.
      There are two hundred and fifty provinces for the whole world, so a single
@@ -6886,7 +6947,7 @@ function renderTerritory(){
        grey made every nation a variation on beige and you could not tell one
        from the next at a glance — which is the single thing a political map
        has to do. Twenty-two keeps them apart while staying a wash. */
-    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.22)*0.72+76))));
+    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.16)*0.72+74))));
   }
   /* Where a flag sits is a property of the LANDMASS, not of the pixel, so it is
      worked out once per landmass rather than recomputed for every pixel \u2014 which
@@ -7035,13 +7096,18 @@ function renderTerritory(){
           const t=new Uint32Array(256);
           const cl=Math.max(1,(c[0]*77+c[1]*150+c[2]*29)>>8);
           for(let L=0;L<256;L++){
-            /* Not PURE ground lightness. Baked at exactly the ground's
-               luminance a country over forest is as dark as the forest, and on
-               the real map a pale nation visibly lifts the ground it sits on —
-               Italy reads as pale yellow over dark hills, not as dark hills.
-               A fifth of the country's own lightness mixed in does it, and the
-               terrain still carries all of the variation. */
-            const Lt=L*0.80+cl*0.20;
+            /* Not PURE ground lightness — a country over forest would be as
+               dark as the forest, and on the real map a pale nation visibly
+               lifts the ground it sits on. But only a tenth of the country's
+               own lightness: at a fifth it was flattening the very range it
+               exists to preserve.
+
+               And the range is EXPANDED rather than merely passed through. The
+               tint has to carry the whole difference between a rainforest and
+               a desert on its own, because it is what you are actually looking
+               at; run flat, that difference arrives at the eye halved. */
+            const Lc=Math.max(0,Math.min(255,(L-118)*1.34+118));
+            const Lt=Lc*0.90+cl*0.10;
             const k=Lt/cl;
             t[L]=_pack(Math.min(255,c[0]*k)|0,Math.min(255,c[1]*k)|0,Math.min(255,c[2]*k)|0,ea);
           }
@@ -7250,7 +7316,7 @@ function _drawFrame(){
        down at a front, which put a nearly opaque wash over everything at every
        zoom anyone actually plays at. */
     const t=Math.max(0,Math.min(1,(z-0.7)/3.0));      // 0.7 -> 3.7
-    return 0.72+(0.30-0.72)*t*t*(3-2*t);              // smoothstep
+    return 0.80+(0.34-0.80)*t*t*(3-2*t);              // smoothstep
   })();
   /* A COUNTRY COLOUR IS A TINT, NOT A COAT OF PAINT. This is the last thing
      that was wrong and much the most important. Laid on as ordinary paint at
@@ -10152,9 +10218,12 @@ function drawNationNames(z,T){
        thought they had room and both got drawn on top of each other. The real
        advance of the real glyphs decides both the size and the collision. */
     const unit=adv.reduce((n,a2)=>n+a2,0)+0.30*(name.length-1);   // width at 1px
-    let fs=Math.min(along*0.80/unit, across*0.30);
+    /* Sized to the country, the way the real ones are: SOVIET UNION runs most
+       of the way across the Soviet Union. Four fifths of the landmass and a
+       third of its depth was a size too shy to read as a title. */
+    let fs=Math.min(along*0.90/unit, across*0.36);
     const px=fs*z;
-    if(px<10||px>72)continue;                   // unreadable, or shouting
+    if(px<10||px>96)continue;                   // unreadable, or shouting
     const[sx,sy]=W2S(L.x,L.y);
     const wpx=unit*px, hpx=px*0.82;
     const bx=tall?hpx:wpx, by=tall?wpx:hpx;
@@ -11767,7 +11836,13 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.8 \u2014 THE OCEAN, AND TELLING COUNTRIES APART (current)",[
+ ["v22.9 \u2014 THE WORLD HAS CLIMATE NOW (current)",[
+  "\u{1F30D} THE SAHARA WAS A MEADOW, and that turned out to be the real reason the ground never looked right. There are two hundred and fifty provinces for the whole world: the entire Sahara contains SEVEN of them, none in its western half, so most of the largest desert on Earth was being painted as generic plain. The same was true of the Australian interior, the Gobi, the Kalahari and the Atacama. No amount of adjusting colours could fix a map that did not know where the deserts were.",
+  "\u{1F324} So latitude now fills in what the provinces cannot say. The desert belts sit either side of the tropics, the rainforest on the equator, the taiga and then the tundra to the north \u2014 the same bands they occupy in the world, broken up with noise so they read as geography rather than as stripes, and stepped aside for high ground, which has its own rules. Where a province DOES state its terrain, that still leads; climate only fills the silence. THIS CHANGES NOTHING YOU PLAY: it sets the colour of the paint and the density of the trees. Terrain type, movement, combat width, supply and attrition are all exactly as they were.",
+  "\u{1F3DC} AND THE BIOMES ARE ALLOWED TO DIFFER. Sand is now the brightest thing on land and rainforest the darkest, with everything else between them \u2014 it is that SPREAD, not the average, that makes land read as different countries of ground rather than as one olive field with borders drawn on it.",
+  "\u{1F50D} The national colour carries that spread instead of flattening it. It is painted at the lightness of the ground beneath, but the range is now stretched rather than merely passed along: the tint has to carry the whole difference between a rainforest and a desert on its own, because it is what you are actually looking at, and run flat that difference reached the eye halved.",
+  "\u{1F3F7} Country names are set to the size the real ones are \u2014 spanning the country rather than sitting politely in the middle of it."]],
+ ["v22.8 \u2014 THE OCEAN, AND TELLING COUNTRIES APART",[
   "\u{1F30A} THE GRID IS OFF THE OCEAN. Even at five per cent it was a set of ruled lines across every sea on Earth, and the map it is being measured against has nothing of the kind \u2014 it was the one element here that could never be mistaken for it. What water actually has is TEXTURE, so the sea carries slow variation baked into it instead: open ocean seen from this height is a surface, not the gap between the continents. (The chart view keeps its grid. That one IS a chart.)",
   "\u{1F3F3} COUNTRIES CAN BE TOLD APART AGAIN. Pulling them nearly half-way to grey made every nation a variation on beige, which defeats the one thing a political map exists to do. They are still a pale wash \u2014 the ground shows through all of them \u2014 but each is recognisably its own colour now.",
   "\u{1F4A1} AND A PALE COUNTRY LIFTS THE GROUND IT SITS ON. The national colour is baked at the lightness of the terrain underneath, which is what lets every ridge and treeline show through it \u2014 but baked at EXACTLY that lightness, a country over forest came out as dark as the forest. On the real map Italy reads as pale yellow over dark hills, not as dark hills. A fifth of the nation's own lightness now mixes in, and the terrain keeps all of its variation.",
