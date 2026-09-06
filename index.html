@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.2.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.3.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.2.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.3.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.2.0";
+const BUILD="22.3.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4687,7 +4687,32 @@ function buildLandMask(){
    It is built once because mountains do not move when a border does. The
    political layer (terCv) is rebuilt every time a province changes hands; this
    one is rebuilt only when the coastline itself changes. */
-let groundCv=null, groundDirty=true;
+let groundCv=null, groundSm=null, groundDirty=true;
+/* THE COAST, RENDERED ONCE. The shelf and the beach are six strokes of the
+   world's entire coastline, and landPath is the real thing — every fjord and
+   every island. Stroked live they cost fifteen frames a second at world zoom,
+   for a picture that cannot change unless the coastline does. Baked into two
+   half-scale layers they cost two blits. Half scale is right for what they
+   are: both are soft bands, and the hard edge is still the live coastline
+   stroke drawn over the top of them. */
+let seaCv=null, _seaKey="";
+function buildSea(base){
+  const w=Math.round(MW/2), h=Math.round(MH/2);
+  if(!seaCv){seaCv=document.createElement("canvas");seaCv.width=w;seaCv.height=h;}
+  const g=seaCv.getContext("2d");
+  g.setTransform(1,0,0,1,0,0);
+  /* OPAQUE, and it IS the sea rather than a wash laid over it. An alpha layer
+     of this size costs six frames a second at world zoom for no reason: the
+     water underneath it is a flat colour, so the two can simply be the same
+     picture, and an opaque blit is most of a free one. */
+  g.fillStyle=base;g.fillRect(0,0,w,h);
+  g.setTransform(w/MW,0,0,h/MH,0,0);
+  g.lineJoin="round";
+  for(const[wd,a]of [[26,0.05],[15,0.07],[8,0.10],[3.4,0.13]]){
+    g.strokeStyle="rgba(150,196,214,"+a+")";g.lineWidth=wd;g.stroke(landPath);
+  }
+  _seaKey=base;
+}
 /* GROUND DETAIL. The painted layer is one texel per world unit, so by the time
    you are down at a front line one texel covers seven screen pixels and the
    whole map goes soft — a brown smear where there should be ground. A raster
@@ -4757,6 +4782,11 @@ function _fbm(x,y,seed,oct){
   for(let i=0;i<oct;i++){v+=_vnSmooth(x*fr,y*fr,seed+i*17)*amp;amp*=0.5;fr*=2;}
   return v;
 }
+/* Where each nation's name is written on the map, worked out once per repaint
+   from the ownership grid: {x,y} the centroid of its largest landmass, {w,h}
+   that landmass's extent in world units. */
+const NATLABEL={};
+const _NAMEADV={};        // name -> per-glyph advance at 1px, measured once
 let natEdgeCv=null,natEdgeImg=null;
 function buildNatEdges(owner,w,h){
   if(!natEdgeCv){natEdgeCv=document.createElement("canvas");natEdgeCv.width=w;natEdgeCv.height=h;}
@@ -4930,6 +4960,25 @@ function buildGround(){
   if(!groundCv){groundCv=document.createElement("canvas");}
   groundCv.width=OW;groundCv.height=OH;
   groundCv.getContext("2d").putImageData(img,0,0);
+  /* A HALF-SIZE COPY, for when the whole world is on screen. Rescaling two
+     million texels down to a thumbnail every frame is most of what the map
+     costs at world zoom, and none of that detail survives the shrink. One
+     mipmap, chosen by zoom, and the picture is identical. */
+  /* THE BEACH IS PART OF THE GROUND. Drawn as its own layer it was a second
+     full-map blit every frame for a band that never moves; baked into the
+     ground raster it costs nothing, and being under the national colour rather
+     than over it is if anything the more honest way round. */
+  try{
+    const gc=groundCv.getContext("2d");
+    gc.save();gc.clip(landPath,realMap?"evenodd":"nonzero");
+    gc.strokeStyle="rgba(232,220,186,0.50)";gc.lineWidth=3.4;gc.stroke(landPath);
+    gc.strokeStyle="rgba(244,234,204,0.40)";gc.lineWidth=1.4;gc.stroke(landPath);
+    gc.restore();
+  }catch(e){}
+  if(!groundSm)groundSm=document.createElement("canvas");
+  groundSm.width=w;groundSm.height=h;
+  {const g=groundSm.getContext("2d");g.imageSmoothingEnabled=true;
+   g.clearRect(0,0,w,h);g.drawImage(groundCv,0,0,w,h);}
   groundDirty=false;
 }
 window.__ifBoot("landmask");try{buildLandMask();}catch(e){window.__ifFail("buildLandMask",e);throw e;}
@@ -6289,6 +6338,7 @@ function renderTerritory(){
      connected landmass instead and give every one of them a complete flag. */
   const comp=new Int32Array(w*h);
   const cbb=[null];
+  for(const k in NATLABEL)delete NATLABEL[k];
   {
     const stack=new Int32Array(w*h);
     let cid=0;
@@ -6297,10 +6347,11 @@ function renderTerritory(){
       if(!oid||comp[i0])continue;
       cid++;
       let sp=0;stack[sp++]=i0;comp[i0]=cid;
-      let x0=1e9,y0=1e9,x1=-1,y1=-1;
+      let x0=1e9,y0=1e9,x1=-1,y1=-1,area=0,sx=0,sy=0;
       while(sp){
         const j=stack[--sp];
         const jx=j%w,jy=(j/w)|0;
+        area++;sx+=jx;sy+=jy;
         if(jx<x0)x0=jx;if(jx>x1)x1=jx;
         if(jy<y0)y0=jy;if(jy>y1)y1=jy;
         let n2;
@@ -6310,6 +6361,18 @@ function renderTerritory(){
         if(jy<h-1){n2=j+w;if(!comp[n2]&&owner[n2]===oid){comp[n2]=cid;stack[sp++]=n2;}}
       }
       cbb[cid]={x0,y0,x1,y1};
+      /* THE NAME OF THE COUNTRY, WRITTEN ACROSS THE COUNTRY. Every nation gets
+         one, on its LARGEST landmass — so France is labelled in France and not
+         across New Caledonia. The centroid rather than the middle of the
+         bounding box, because the middle of a bounding box round Norway is in
+         Sweden. */
+      const bnm=natKeys[oid-1];
+      if(bnm){
+        const cur=NATLABEL[bnm];
+        if(!cur||area>cur.area)
+          NATLABEL[bnm]={x:(sx/area)*TS,y:(sy/area)*TS,
+                         w:(x1-x0+1)*TS,h:(y1-y0+1)*TS,area};
+      }
     }
   }
   // pass 2: every landmass flies a complete flag
@@ -6380,13 +6443,53 @@ function renderTerritory(){
      colours are cached as packed pixels rather than [r,g,b] triples, so a flag
      that returns the same handful of colour strings \u2014 which is all of them \u2014
      costs one Map hit and no arithmetic. */
+  /* HOW A PARADOX MAP IS ACTUALLY COLOURED, and the thing that makes a big
+     country read as ground rather than as a slab of paint: the national colour
+     is STRONGEST ALONG THE FRONTIER and falls away toward the interior. It is
+     why the Soviet Union shows its forests and its deserts while Poland is
+     simply pink — Poland is nowhere more than a few dozen miles from a border.
+     Measured off the real thing: a hard band at the edge, thinning over about
+     fifty miles to a little under half strength.
+
+     Done in the layer's own ALPHA CHANNEL rather than by drawing it twice, so
+     it costs one breadth-first pass over the ownership grid and nothing at all
+     per frame. */
+  const edgeA=new Uint8Array(w*h);
+  if(MAPSTYLE!=="flags"){
+    const dist=new Int32Array(w*h).fill(-1);
+    const q=new Int32Array(w*h);let qh=0,qt=0;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=y*w+x,o=owner[i];
+      if(!o)continue;
+      /* a frontier with another nation, or with the sea — a coastline bands
+         exactly as a border does, which is what colours an island at all */
+      const l=x>0?owner[i-1]:0, r2=x<w-1?owner[i+1]:0, u=y>0?owner[i-w]:0, d2=y<h-1?owner[i+w]:0;
+      if(l!==o||r2!==o||u!==o||d2!==o){dist[i]=0;q[qt++]=i;}
+    }
+    while(qh<qt){
+      const i=q[qh++],dv=dist[i]+1;
+      const x=i%w,y=(i/w)|0,o=owner[i];
+      if(x>0){const j=i-1;if(owner[j]===o&&dist[j]<0){dist[j]=dv;q[qt++]=j;}}
+      if(x<w-1){const j=i+1;if(owner[j]===o&&dist[j]<0){dist[j]=dv;q[qt++]=j;}}
+      if(y>0){const j=i-w;if(owner[j]===o&&dist[j]<0){dist[j]=dv;q[qt++]=j;}}
+      if(y<h-1){const j=i+w;if(owner[j]===o&&dist[j]<0){dist[j]=dv;q[qt++]=j;}}
+    }
+    const FALL=30, FLOOR=0.40;
+    for(let i=0;i<w*h;i++){
+      if(!owner[i]){edgeA[i]=0;continue;}
+      const dv=dist[i];
+      if(dv<0){edgeA[i]=255;continue;}
+      const t=Math.min(1,dv/FALL), sm=t*t*(3-2*t);
+      edgeA[i]=Math.round(255*(1-(1-FLOOR)*sm));
+    }
+  } else edgeA.fill(255);
   const inv=1/TSUP;
   const img32=new Uint32Array(img.data.buffer);
   /* Packing order depends on the machine, not on us: every browser this runs in
      is little-endian, but assuming it costs nothing to check. */
   const _pack=_LE
-    ? (r,g,b)=>((255<<24)|(b<<16)|(g<<8)|r)>>>0
-    : (r,g,b)=>((r<<24)|(g<<16)|(b<<8)|255)>>>0;
+    ? (r,g,b,a)=>(((a===undefined?255:a)<<24)|(b<<16)|(g<<8)|r)>>>0
+    : (r,g,b,a)=>((r<<24)|(g<<16)|(b<<8)|(a===undefined?255:a))>>>0;
   const _pk={};                                    // "#rrggbb" -> packed pixel
   const pack=hex=>{
     let p=_pk[hex];
@@ -6408,9 +6511,12 @@ function renderTerritory(){
       if(!f)continue;
       const pf=_paint[oi];
       const ox0=gx*TSUP, oy0=gy*TSUP;
+      const ea=edgeA[idx];
+      if(!ea)continue;
       if(!pf){
-        const c32=flat32[oi];
-        if(c32===undefined)continue;
+        const c=_flat[oi];
+        if(!c)continue;
+        const c32=_pack(c[0],c[1],c[2],ea);
         for(let dy=0;dy<TSUP;dy++){
           let o=(oy0+dy)*ow+ox0;
           for(let dx=0;dx<TSUP;dx++)img32[o++]=c32;
@@ -6425,7 +6531,7 @@ function renderTerritory(){
         for(let dx=0;dx<TSUP;dx++){
           const px2=(ox0+dx+0.5)*inv;
           let uu=(px2-f.x0)*ifw; uu=uu<0?0:uu>1?1:uu;
-          img32[o++]=pack(pf(uu,vv));
+          img32[o++]=ea===255?pack(pf(uu,vv)):(pack(pf(uu,vv))&0x00ffffff|(ea<<24))>>>0;
         }
       }
     }
@@ -6473,14 +6579,9 @@ function _drawFrame(){
      line where one colour stops. Drawn as the land outline stroked a few times
      at falling width and rising opacity, so it costs three strokes. */
   {
-    const shelf=[[26,0.05],[15,0.07],[8,0.10],[3.4,0.13]];
-    ctx.save();
-    for(const[wd,a]of shelf){
-      ctx.strokeStyle="rgba(150,196,214,"+a+")";
-      ctx.lineWidth=wd;ctx.lineJoin="round";
-      ctx.stroke(landPath);
-    }
-    ctx.restore();
+    const seaBase=terr?"#000000":T.sea;
+    if(seaCv!==1&&_seaKey!==seaBase)try{buildSea(seaBase);}catch(e){seaCv=1;}
+    if(seaCv&&seaCv!==1)ctx.drawImage(seaCv,0,0,MW,MH);
     /* the faintest graticule, for orientation only — it should be something you
        can find when you look for it and never something you notice */
     ctx.strokeStyle=terr?"#16181a":"rgba(190,214,224,0.055)";ctx.lineWidth=1/z;
@@ -6498,10 +6599,13 @@ function _drawFrame(){
     ctx.save();ctx.clip(landPath,FR);
     ctx.imageSmoothingEnabled=true;
     ctx.globalAlpha=terr?1:0.95;
-    ctx.drawImage(groundCv,0,0,MW,MH);
+    ctx.drawImage(z<2.2&&groundSm?groundSm:groundCv,0,0,MW,MH);
     ctx.globalAlpha=1;
-    /* the sharp grain, fading in exactly where the raster starts to go soft */
-    if(z>1.8){
+    /* The sharp grain, fading in exactly where the raster starts to go soft.
+       A full-map pattern fill at four per cent opacity is invisible and costs
+       exactly as much as one at forty, so it does not start until it is worth
+       something. GRAPHICS: PLAIN skips it, and the overlay pass with it. */
+    if(z>2.6&&GFX==="rich"&&Math.min(0.40,(z-2.6)*0.10)>0.06){
       if(!grainTile)try{buildGrain();}catch(e){grainTile=1;}
       if(grainTile&&grainTile!==1){
         const pat=ctx.createPattern(grainTile,"repeat");
@@ -6509,7 +6613,7 @@ function _drawFrame(){
           const sc=6/z;                                   // ~6 screen px per grain cell
           pat.setTransform&&pat.setTransform(new DOMMatrix([sc,0,0,sc,0,0]));
           ctx.globalCompositeOperation="overlay";
-          ctx.globalAlpha=Math.min(0.40,(z-1.8)*0.085);
+          ctx.globalAlpha=Math.min(0.40,(z-2.6)*0.10);
           ctx.fillStyle=pat;ctx.fillRect(0,0,MW,MH);
           ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";
         }
@@ -6548,10 +6652,17 @@ function _drawFrame(){
      the country stays the colour it is and the ridges, forests and deserts
      under it stay legible. It is the difference between a coloured-in chart
      and ground somebody has to fight across. */
-  if(groundCv&&MAPOVER==="none"){
+  /* Only once the ground is actually worth seeing. At world zoom the national
+     colour is nearly solid anyway, so a full-map blend costs four frames a
+     second to restore detail nobody can resolve. */
+  if(groundCv&&MAPOVER==="none"&&z>1.3&&GFX==="rich"){
     ctx.globalCompositeOperation="overlay";
+    /* The overlay pass is a broad tonal correction, not a detail pass — the
+       sharp relief comes from the base draw and the grain on top of it. So it
+       reads the half-size copy until you are close enough for the difference
+       to be visible at all, which is where the blend was costing most. */
     ctx.globalAlpha=0.30+polA*0.34;
-    ctx.drawImage(groundCv,0,0,MW,MH);
+    ctx.drawImage(z<4.5&&groundSm?groundSm:groundCv,0,0,MW,MH);
     ctx.globalCompositeOperation="source-over";
     ctx.globalAlpha=1;
   }
@@ -6559,10 +6670,7 @@ function _drawFrame(){
   /* A BEACH. Land does not simply stop at the water: there is a pale strand
      all the way round it, and it is that bright rim against the dark shelf
      that makes a coastline read at a glance. */
-  ctx.save();ctx.clip(landPath,FR);
-  ctx.strokeStyle="rgba(226,214,180,0.42)";ctx.lineWidth=3.4;ctx.stroke(landPath);
-  ctx.strokeStyle="rgba(238,228,196,0.34)";ctx.lineWidth=1.4;ctx.stroke(landPath);
-  ctx.restore();
+
   // coastline
   ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);ctx.stroke(landPath);
   /* NATIONAL BORDERS ARE THE HEAVIEST LINE ON THE MAP, because a border is the
@@ -6614,6 +6722,10 @@ function _drawFrame(){
       ctx.beginPath();ctx.arc(p.x,p.y,rr,0,7);ctx.fillStyle=g2;ctx.fill();
     }
   }
+  /* The country's name goes on BEFORE the province markers and the counters,
+     because it is printed on the map, not captioned over it: a division must
+     never be hidden behind a letter. */
+  drawNationNames(z,T);
   // provinces
   for(const p of Object.values(G.prov)){
     const r=(3+p.val)/Math.sqrt(z)*1.1;
@@ -9331,6 +9443,86 @@ function _fpHud(p,enemyNear){
   ctx.fillText("DRAG TO LOOK \u00b7 PINCH TO NARROW YOUR EYES",W/2,H-pad*4.2);
 }
 
+/* ===================== THE NAME OF THE COUNTRY =============================
+   Written across the country itself in big spaced capitals with a heavy dark
+   outline — the single most recognisable thing about a map like this, and the
+   thing the game had none of. It had province names and nothing else, so you
+   could look at the whole of Europe and not be told once whose it was.
+
+   The name is scaled to the landmass it sits on, so a big country carries a
+   big name and a small one a small name, and it is skipped entirely when it
+   would come out too small to read or too big to fit — which is what stops
+   the map from silting up with forty overlapping words. */
+function drawNationNames(z,T){
+  if(MAPSTYLE==="terrain"||MAPOVER!=="none")return;
+  const seen=[];
+  const ents=[];
+  for(const k in NATLABEL){
+    const n=G.nations[k];
+    if(!n||!n.alive||!NATIONS[k])continue;
+    ents.push([k,NATLABEL[k]]);
+  }
+  ents.sort((a,b)=>b[1].area-a[1].area);        // the big countries get first refusal
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  for(const[k,L]of ents){
+    const name=(NATIONS[k].n||k).toUpperCase();
+    /* Fit the name to the landmass: it may take four fifths of the width and a
+       fifth of the height, whichever runs out first. */
+    const tall=L.h>L.w*1.45;                    // Norway, Chile, Italy: write it downwards
+    const along=tall?L.h:L.w, across=tall?L.w:L.h;
+    /* A spaced capital costs about 0.62 of the point size in glyph and another
+       0.30 in tracking. Sized on the glyph alone the tracking pushed every
+       name a third wider than the country it was written across — which is why
+       SWITZERLAND came out wider than Switzerland. */
+    let fs=Math.min(along*0.78/Math.max(1,name.length*0.92), across*0.30);
+    const px=fs*z;                              // how big that lands on screen
+    if(px<9||px>190)continue;                   // unreadable, or shouting
+    /* Not over the top of another name. A box test in screen space against the
+       names already down, biggest first — measured on the text itself, so a
+       long name does not fence off a neighbour it never actually touches. */
+    const[sx,sy]=W2S(L.x,L.y);
+    const wpx=name.length*px*0.92, hpx=px*0.86;
+    const bx=tall?hpx:wpx, by=tall?wpx:hpx;
+    if(sx+bx/2<0||sx-bx/2>W||sy+by/2<0||sy-by/2>H)continue;
+    let clash=false;
+    for(const r of seen)
+      if(Math.abs(sx-r.x)<(bx+r.w)*0.44&&Math.abs(sy-r.y)<(by+r.h)*0.44){clash=true;break;}
+    if(clash)continue;
+    seen.push({x:sx,y:sy,w:bx,h:by});
+    ctx.save();
+    ctx.translate(L.x,L.y);
+    if(tall)ctx.rotate(-Math.PI/2);
+    ctx.font=`bold ${fs}px Georgia, "Times New Roman", serif`;
+    /* Spaced capitals, drawn letter by letter so the tracking is exact rather
+       than whatever the browser happens to support. */
+    /* Glyph widths are measured ONCE per name, at a reference size, and scaled.
+       measureText is not free and the zoom changes the point size every frame,
+       so measuring per character per country per frame meant several hundred
+       text measurements a frame for a picture that never changes shape. */
+    let adv=_NAMEADV[name];
+    if(!adv){
+      ctx.font='bold 100px Georgia, "Times New Roman", serif';
+      adv=_NAMEADV[name]=Array.from(name,ch=>ctx.measureText(ch).width/100);
+      ctx.font=`bold ${fs}px Georgia, "Times New Roman", serif`;
+    }
+    const track=fs*0.30;
+    let total=-track;
+    for(const a of adv)total+=a*fs+track;
+    let cx=-total/2;
+    ctx.lineJoin="round";ctx.miterLimit=2;
+    ctx.strokeStyle="rgba(10,12,14,0.78)";
+    ctx.lineWidth=Math.max(fs*0.16,1.2/z);
+    ctx.fillStyle=THEME==="light"?"rgba(252,250,244,0.86)":"rgba(244,241,231,0.82)";
+    ctx.textAlign="left";
+    for(let i=0;i<name.length;i++){
+      ctx.strokeText(name[i],cx,0);
+      ctx.fillText(name[i],cx,0);
+      cx+=adv[i]*fs+track;
+    }
+    ctx.restore();
+  }
+  ctx.textAlign="center";
+}
 function drawViewFrame(){
   if(!VIEW3D||activeFrame()==="none")return;
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -10914,7 +11106,12 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.2 \u2014 THE MAP IS PAINTED GROUND NOW (current)",[
+ ["v22.3 \u2014 THE NAME OF THE COUNTRY (current)",[
+  "\u{1F5FA} EVERY NATION'S NAME IS NOW WRITTEN ACROSS ITS OWN GROUND, in big spaced capitals with a heavy dark outline, sized to the landmass it sits on \u2014 so a large country carries a large name and a small one a small name, and it is skipped where it would come out unreadably small or absurdly big. It goes on UNDER the province markers and the counters, because it is printed on the map rather than captioned over it: a division is never hidden behind a letter. Before this you could look at the whole of Europe and never once be told whose it was.",
+  "\u{1F3A8} AND THE NATIONAL COLOUR NOW BANDS THE FRONTIER AND FADES INLAND. This is the thing that makes a big country read as GROUND instead of as a slab of paint: the colour is strongest along the border \u2014 with another nation or with the sea \u2014 and thins over about fifty miles to a little under half strength. It is why the Soviet Union shows its forests and its deserts while Poland is simply pink: Poland is nowhere more than a few dozen miles from a border. Done in the layer's own alpha channel, so it costs one pass over the ownership grid when a border moves and nothing at all per frame.",
+  "\u{1F3D6} The beach is now part of the painted ground rather than a layer of its own, and the continental shelf IS the sea rather than a wash laid over it \u2014 both were full-map draws every frame for bands that never move. Six strokes of the world's entire coastline a frame became none.",
+  "\u26A1 GRAPHICS: PLAIN now applies to the map as well as to standing in the line. It drops the two costly passes \u2014 the overlay that puts the terrain's light and shade back through the national colour, and the fine ground grain \u2014 for anyone who would rather have the frames."]],
+ ["v22.2 \u2014 THE MAP IS PAINTED GROUND",[
   "\u{1F5FA} THE MAP WAS A CHART. Flat colour on flat land, a bright cyan grid across every ocean, and terrain that existed in the rules but was nowhere on the screen. It is PAINTED GROUND now, the way a Paradox map is: grass, rock, sand and forest, with a real height field under it and a hillshade taken off that field, lit from the north-west the way every printed relief map ever made is lit. The Alps, the Carpathians, the Rockies, the Andes and the Atlas are ridges you can see, with snow on the tops and bare rock below it.",
   "\u{1F3A8} AND THE NATIONAL COLOUR THINS AS YOU ZOOM IN. This is the whole trick of a map like this and the game did not do it: the political layer sat at 82% at every zoom, so painting the ground would have been pointless. Zoomed out to the world it is nearly solid, because what you want out there is BORDERS. Zoomed down to a front it falls away to a wash and the ground comes through, because what you want in there is the country you are fighting over. The ground is then drawn a second time in overlay, which puts the light and shade back without touching the hue \u2014 so a nation stays its own colour and its mountains stay mountains.",
   "\u{1F0CF} NATO COUNTERS. A division was a coloured square with a letter in it. It is a proper counter now: crossed diagonals for infantry, the track oval for armour, a filled dot for artillery, a dome for air defence, a single slash for cavalry \u2014 and for a fleet, the silhouette of the class, with a flight deck on a carrier, a conning tower on a submarine and heavy turrets on a capital ship. Under each one are two bars, GREEN for organisation and AMBER for strength, so you can read whether a division can attack, can only hold, or is finished without clicking on it.",
