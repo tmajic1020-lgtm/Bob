@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.6.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.7.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.6.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.7.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.6.0";
+const BUILD="22.7.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1527,7 +1527,15 @@ const THEMES={
  /* The ocean measured 84 in luminance against the reference's 137, and the
     ocean is half the picture — it was most of why the whole map read as dark.
     Water on a map like this is a bright mid blue. */
- dark:{sea:"#4d8cbb",grid:"#6ba3cc",land:"#2a2f26",coast:"#12303f",label:"#f2ecda",gar:"#9aaa9a"},
+ /* A CORRECTION, AND A LESSON ABOUT WHERE A MEASUREMENT COMES FROM. The last
+    pass brightened the ocean to a mid blue on the strength of measuring it at
+    L=137 in the reference. That reference was a PHOTOGRAPH OF A SCREEN TAKEN AT
+    NIGHT: the camera auto-exposed to a bright display in a dark room and
+    saturated everything it saw. A real screen capture shows the water is a
+    dark, desaturated slate — close to where this started. A measurement is only
+    as good as what it was taken off, and a photograph of a monitor is a
+    measurement of the camera. */
+ dark:{sea:"#2c4055",grid:"#3a5570",land:"#2a2f26",coast:"#0d1c26",label:"#f2ecda",gar:"#9aaa9a"},
  light:{sea:"#a8cadd",grid:"#93b9cf",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
 };
 let THEME="dark";
@@ -4788,8 +4796,8 @@ function buildSea(base){
   g.fillStyle=base;g.fillRect(0,0,w,h);
   g.setTransform(w/MW,0,0,h/MH,0,0);
   g.lineJoin="round";
-  for(const[wd,a]of [[26,0.06],[15,0.08],[8,0.11],[3.4,0.15]]){
-    g.strokeStyle="rgba(186,226,240,"+a+")";g.lineWidth=wd;g.stroke(landPath);
+  for(const[wd,a]of [[26,0.05],[15,0.06],[8,0.08],[3.4,0.11]]){
+    g.strokeStyle="rgba(140,178,206,"+a+")";g.lineWidth=wd;g.stroke(landPath);
   }
   _seaKey=base;
 }
@@ -4851,11 +4859,16 @@ const TERHEIGHT={plain:0.10,steppe:0.13,forest:0.22,hills:0.55,mtn:0.96,
    wrong hue, it was half the brightness. Everything below is lifted to land in
    that range, except the woodland, which stays dark on purpose: it is the gap
    between the near-black wood and the bright field that makes ground read. */
+/* Darker than the photograph led me to make it. On a real capture the ground
+   at world zoom is deep olive and brown, with only the sand bright — it is a
+   war map, lit like late afternoon, not a school atlas. The lightness of the
+   whole map comes from here, because the national colour is baked to the
+   ground's luminance; so this table IS the map's exposure. */
 const TERPAINT={
-  plain: [168,168,116], steppe:[214,196,126], forest:[128,134, 92],
-  hills: [172,158,110], mtn:   [156,148,136], desert:[236,206,142],
-  jungle:[118,140, 84], marsh: [128,138,104], tundra:[214,218,214],
-  urban: [152,142,126]
+  plain: [124,126, 84], steppe:[168,152, 96], forest:[ 92, 98, 66],
+  hills: [128,116, 80], mtn:   [116,110,100], desert:[204,176,118],
+  jungle:[ 84,102, 60], marsh: [ 94,102, 76], tundra:[170,176,174],
+  urban: [112,104, 92]
 };
 /* HOW MUCH OF IT IS UNDER TREES. The thing that actually makes that map read
    as ground is that woodland is not a shade of the field next to it — it is a
@@ -5327,15 +5340,17 @@ function buildGround(){
          means when you put a number on it. A gentle S-curve opens the tonal
          range at both ends and the colour is pushed away from its own grey. */
       const L0=(r*0.299+g*0.587+b*0.114);
-      const SAT=1.45;
+      /* The photograph said a third MORE colour; the capture says the opposite.
+         Real ground here is muted — olive, sand, slate — and that restraint is
+         what lets a pale national colour sit on it and still read as a colour. */
+      const SAT=1.06;
       r=L0+(r-L0)*SAT; g=L0+(g-L0)*SAT; b=L0+(b-L0)*SAT;
       const t0=Math.max(0,Math.min(1,L0/255));
-      const curve=Math.pow(t0,0.86);                   // lift the lights
-      /* No flat lift. The dark end of the picture was the OCEAN, not the land,
-         and adding a constant to everything to fix it simply took the black out
-         of the woodland — which is the one thing on the ground that has to stay
-         dark. The water is brighter now, so the land can keep its shadows. */
-      const k=L0>1?(curve*255+4)/L0:1;
+      /* Very nearly linear. The lift came from a photograph that had been
+         auto-exposed by a phone; the screen capture shows ground that is
+         muted and mid-dark, and lifting it only made it chalky. */
+      const curve=Math.pow(t0,0.98);
+      const k=L0>1?(curve*255+2)/L0:1;
       r=Math.max(0,Math.min(255,r*k));
       g=Math.max(0,Math.min(255,g*k));
       b=Math.max(0,Math.min(255,b*k));
@@ -5413,6 +5428,7 @@ function buildGround(){
   {const g=groundSm.getContext("2d");g.imageSmoothingEnabled=true;
    g.clearRect(0,0,w,h);g.drawImage(groundCv,0,0,w,h);}
   groundDirty=false;
+  terDirty=true;                 // the colour is baked against this: rebuild it
 }
 window.__ifBoot("landmask");try{buildLandMask();}catch(e){window.__ifFail("buildLandMask",e);throw e;}
 try{loadRealMap();}catch(e){window.__ifFail("loadRealMap",e);}window.__ifBoot("map-ok");
@@ -6848,7 +6864,10 @@ function renderTerritory(){
     /* A third of the saturation taken out was too much: measured, the real
        map is HALF AGAIN as colourful as this was. Fifteen per cent softens the
        list-colours into map-colours without draining them. */
-    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.15)*0.74+68))));
+    /* Pale, and paler than the photograph suggested. In the capture the ground
+       shows through EVERY country, Belgium and Italy included — the national
+       colour is a thin, low-saturation wash, not a coat of paint. */
+    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.42)*0.70+84))));
   }
   /* Where a flag sits is a property of the LANDMASS, not of the pixel, so it is
      worked out once per landmass rather than recomputed for every pixel \u2014 which
@@ -7092,6 +7111,13 @@ function _drawFrame(){
   /* First person does not draw the map at all \u2014 no territory, no counters, no
      camera transform. The whole picture is the view from where you are. */
   if(FPV){drawFirstPerson();drawViewFrame();requestAnimationFrame(draw);return;}
+  /* THE GROUND MUST EXIST BEFORE THE COLOUR THAT IS BAKED AGAINST IT. The
+     political layer takes its lightness from the painted ground, and this ran
+     FIRST — so on the very first frame it baked itself against a ground that
+     had not been built yet, fell back to flat colour, and then never rebuilt,
+     because nothing marks it dirty until a border moves. Every tint I have
+     been looking at was the fallback. */
+  if(groundDirty)try{buildGround();}catch(e){groundDirty=false;}
   if(terDirty)renderTerritory();
   const z=G.cam.z;
   ctx.save();
@@ -7129,7 +7155,6 @@ function _drawFrame(){
      one thing landPath is still used for is the coastline itself, which is a
      single stroke. */
   /* THE PAINTED GROUND, under everything political. */
-  if(groundDirty)try{buildGround();}catch(e){groundDirty=false;}
   if(groundCv){
     ctx.save();
     ctx.imageSmoothingEnabled=true;
@@ -7193,8 +7218,8 @@ function _drawFrame(){
        curve was starting at 94% and only reaching 44% by the time you were
        down at a front, which put a nearly opaque wash over everything at every
        zoom anyone actually plays at. */
-    const t=Math.max(0,Math.min(1,(z-0.9)/3.4));      // 0.9 -> 4.3
-    return 0.86+(0.36-0.86)*t*t*(3-2*t);              // smoothstep
+    const t=Math.max(0,Math.min(1,(z-0.7)/3.0));      // 0.7 -> 3.7
+    return 0.72+(0.30-0.72)*t*t*(3-2*t);              // smoothstep
   })();
   /* A COUNTRY COLOUR IS A TINT, NOT A COAT OF PAINT. This is the last thing
      that was wrong and much the most important. Laid on as ordinary paint at
@@ -7268,7 +7293,10 @@ function _drawFrame(){
   if(realMap&&borderTiles){ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"#00000055":"#00000040");ctx.lineWidth=(terr?1.1:0.8)/Math.sqrt(z);strokeTiles(borderTiles,z);}
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
-  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#cfd4cc":"#f4f2ea");ctx.fill(icePath,FR);
+  /* THE ICE WAS THE BRIGHTEST THING ON THE MAP. A near-white slab across the
+     whole bottom edge pulled the eye straight off Europe and onto the one
+     place nothing ever happens. It is pale ground, not a light source. */
+  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#7d8a8c":"#cfccc0");ctx.fill(icePath,FR);
   ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(icePath);
   // links (faint, when zoomed)
   if(z>1.6){
@@ -7396,9 +7424,24 @@ function _drawFrame(){
     }
   }
   ctx.restore();
+  /* A FALL-OFF AT THE EDGES. The real thing darkens toward the corners, and it
+     is what stops a flat rectangle of map from reading as a screenshot of a
+     spreadsheet: the eye is pulled to the middle, where you are working. */
+  if(MAPQ>=2){
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    if(!_vig||_vigW!==W||_vigH!==H){
+      _vigW=W;_vigH=H;
+      _vig=ctx.createRadialGradient(W*0.5,H*0.48,Math.min(W,H)*0.36,W*0.5,H*0.48,Math.max(W,H)*0.76);
+      _vig.addColorStop(0,"rgba(6,10,16,0)");
+      _vig.addColorStop(0.55,"rgba(6,10,16,0.18)");
+      _vig.addColorStop(1,"rgba(3,6,11,0.62)");
+    }
+    ctx.fillStyle=_vig;ctx.fillRect(0,0,W,H);
+  }
   drawViewFrame();
   requestAnimationFrame(draw);
 }
+let _vig=null,_vigW=0,_vigH=0;
 /* ---- The view frame: standing in a trench, or buttoned up inside a tank -----
    3D Tabletop stands the pieces up on the map; this puts YOU somewhere while
    you look at it. Purely a frame drawn over the finished picture in screen
@@ -11691,7 +11734,12 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.6 \u2014 CALIBRATED (current)",[
+ ["v22.7 \u2014 CALIBRATED AGAINST THE THING ITSELF (current)",[
+  "\u{1F4F7} THE LAST ROUND WAS TUNED AGAINST A PHOTOGRAPH OF A SCREEN TAKEN AT NIGHT, and a photograph of a monitor is a measurement of the CAMERA: it auto-exposed to a bright display in a dark room and saturated everything it saw. Every number taken off it pointed the wrong way. Against a real screen capture the water is a dark desaturated slate rather than a bright blue, the ground is deep olive and brown rather than lifted and chalky, and the whole picture is considerably LESS colourful, not more. All of it is set back the other way.",
+  "\u{1F3AF} AND THE TINT HAD NEVER ACTUALLY BEEN APPLIED. The national colour is baked against the lightness of the painted ground \u2014 that is what lets the terrain show through it \u2014 but the colour layer was being built BEFORE the ground it reads from existed. On the first frame it found nothing there, quietly fell back to flat colour, and never rebuilt, because nothing marks it stale until a border moves. Every version of that tint anyone has seen was the fallback. The ground is built first now, and rebuilding it rebuilds the colour with it.",
+  "\u{1F30A} THE ICE IS NOT A LIGHT SOURCE. Antarctica was near-white across the whole bottom edge and was comfortably the brightest thing on the map \u2014 it pulled the eye off Europe and onto the one place nothing ever happens.",
+  "\u{1F311} A FALL-OFF AT THE EDGES, as the real thing has. It is what stops a flat rectangle of map from reading as a screenshot of a spreadsheet: the picture darkens toward the corners and the eye is drawn to the middle, where you are working."]],
+ ["v22.6 \u2014 CALIBRATED",[
   "\u{1F4CF} THE MAP WAS COMPARED TO THE REAL THING AS NUMBERS RATHER THAN AS A PICTURE, which finally said what \u201Cwashed out\u201D actually meant: the real one runs a tenth-percentile of 79 and a ninetieth of 193 at a mean saturation of 0.30, and this ran 56, 165 and 0.20. Darker in the shadows, dimmer in the lights and a third less colourful. All three are now matched: a gentle curve opens the tonal range, the ground is pushed away from its own grey, and countries keep half again as much of their own colour as they did.",
   "\u{1F30A} AND THE DARK END OF THE PICTURE WAS THE OCEAN. It measured 84 in luminance against the real map's 137, and the ocean is half of what you are looking at \u2014 which is most of why the whole thing read as night. The water is a bright mid blue now, and because it is, the LAND can keep its shadows: the near-black woodland no longer has to be lifted to compensate for the sea.",
   "\u{1F5FA} NOTHING IS NAMED UNTIL IT IS WORTH NAMING. Every province on Earth carried a label from a fairly wide zoom, so the map came out as a field of small type with a map somewhere behind it. Cities and capitals appear as you come in, everything else only when you are close. The country names are set in a heavy condensed face rather than a book serif, which is what a war map uses and an atlas plate does not.",
