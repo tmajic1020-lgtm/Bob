@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.9.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.9.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.9.0";
+const BUILD="23.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -705,6 +705,25 @@ AFR2:{n:"African Sultanates",f:"🌍",c:"#543665",cap:"cas",play:1,desc:"Mali's 
 AMR:{n:"Native Americas",f:"🌽",c:"#1b5f1f",cap:"mex",play:1,desc:"Two continents the Old World has not found",eras:["mongol"]},
 OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:1,desc:"Sixty thousand years, uninterrupted",eras:["mongol"]}
 };
+/* ===================== THE REAL COUNTRY COLOURS =============================
+   Taken verbatim out of Hearts of Iron IV's own common/countries/colors.txt —
+   the same table the game itself paints its map from — rather than matched by
+   eye. Eighty-one of this game's nations are the same country as one of theirs
+   and get its exact value: Germany's field grey, the Soviet oxblood, Britain's
+   rose, France's cornflower, Italy's green, Japan's blush, the Raj's deep red.
+   HSV entries in that file are converted the way the game converts them.
+
+   Only where the two games mean the SAME country. Nations with no counterpart
+   — the Horde, the Confederacy, the medieval and Napoleonic rosters, the
+   post-war Koreas — keep the colours they were given here, and no attempt is
+   made to invent an official-looking value for them.
+
+   Two traps in the mapping, both of which produce a plausible-looking wrong
+   answer: their GRE is Greece and this game's GRE is Greenland, and their PRU
+   is Peru while this game's PRU is Prussia. */
+const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#3287af",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#dbdb77",LVA:"#4b4dba",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#277446",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
+for(const k in HOI4COL)if(NATIONS[k])NATIONS[k].c=HOI4COL[k];
+
 
 /* Adjacency: land links + sea links (sea:1 requires crossing water) */
 /* A link marked 1 is a SEA link, and fleets move along it — so both ends have
@@ -11836,7 +11855,11 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.9 \u2014 THE WORLD HAS CLIMATE NOW (current)",[
+ ["v23.0 \u2014 THE REAL COUNTRY COLOURS (current)",[
+  "\u{1F3A8} EIGHTY-ONE NATIONS NOW WEAR THEIR ACTUAL COLOURS, taken verbatim out of Hearts of Iron IV's own country colour table \u2014 the same file that game paints its map from \u2014 rather than matched by eye. Germany's field grey, the Soviet oxblood, Britain's rose, France's cornflower, Italy's green, Japan's blush, the Raj's deep red, Romania's gold, Poland's pink, Hungary's peach. The entries that file stores as HSV are converted the way the game converts them.",
+  "\u{1F5FA} ONLY WHERE THE TWO GAMES MEAN THE SAME COUNTRY. Nations with no counterpart there \u2014 the Horde, the Confederacy, the whole medieval and Napoleonic rosters, the post-war Koreas \u2014 keep the colours they already had, and no attempt is made to invent an official-looking value for them.",
+  "\u26A0 Two traps in that mapping, both of which produce a plausible-looking wrong answer if you are not careful: their GRE is Greece and this game's GRE is Greenland, and their PRU is Peru while this game's PRU is Prussia."]],
+ ["v22.9 \u2014 THE WORLD HAS CLIMATE NOW",[
   "\u{1F30D} THE SAHARA WAS A MEADOW, and that turned out to be the real reason the ground never looked right. There are two hundred and fifty provinces for the whole world: the entire Sahara contains SEVEN of them, none in its western half, so most of the largest desert on Earth was being painted as generic plain. The same was true of the Australian interior, the Gobi, the Kalahari and the Atacama. No amount of adjusting colours could fix a map that did not know where the deserts were.",
   "\u{1F324} So latitude now fills in what the provinces cannot say. The desert belts sit either side of the tropics, the rainforest on the equator, the taiga and then the tundra to the north \u2014 the same bands they occupy in the world, broken up with noise so they read as geography rather than as stripes, and stepped aside for high ground, which has its own rules. Where a province DOES state its terrain, that still leads; climate only fills the silence. THIS CHANGES NOTHING YOU PLAY: it sets the colour of the paint and the density of the trees. Terrain type, movement, combat width, supply and attrition are all exactly as they were.",
   "\u{1F3DC} AND THE BIOMES ARE ALLOWED TO DIFFER. Sand is now the brightest thing on land and rainforest the darkest, with everything else between them \u2014 it is that SPREAD, not the average, that makes land read as different countries of ground rather than as one olive field with borders drawn on it.",
