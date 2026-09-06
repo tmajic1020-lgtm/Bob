@@ -135,7 +135,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.5.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">22.6.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -154,7 +154,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.5.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">22.6.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -283,7 +283,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="22.5.0";
+const BUILD="22.6.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1524,7 +1524,10 @@ const THEMES={
  /* The ocean was very nearly black — #0d3555 — which made every coast a cliff
     edge and the whole map read as night. Water on a map like this is a real
     mid blue you could put a fleet on. */
- dark:{sea:"#2a5f86",grid:"#3d7099",land:"#2a2f26",coast:"#0a0f0c",label:"#e8e2d0",gar:"#9aaa9a"},
+ /* The ocean measured 84 in luminance against the reference's 137, and the
+    ocean is half the picture — it was most of why the whole map read as dark.
+    Water on a map like this is a bright mid blue. */
+ dark:{sea:"#4d8cbb",grid:"#6ba3cc",land:"#2a2f26",coast:"#12303f",label:"#f2ecda",gar:"#9aaa9a"},
  light:{sea:"#a8cadd",grid:"#93b9cf",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
 };
 let THEME="dark";
@@ -4785,8 +4788,8 @@ function buildSea(base){
   g.fillStyle=base;g.fillRect(0,0,w,h);
   g.setTransform(w/MW,0,0,h/MH,0,0);
   g.lineJoin="round";
-  for(const[wd,a]of [[26,0.05],[15,0.07],[8,0.10],[3.4,0.13]]){
-    g.strokeStyle="rgba(150,196,214,"+a+")";g.lineWidth=wd;g.stroke(landPath);
+  for(const[wd,a]of [[26,0.06],[15,0.08],[8,0.11],[3.4,0.15]]){
+    g.strokeStyle="rgba(186,226,240,"+a+")";g.lineWidth=wd;g.stroke(landPath);
   }
   _seaKey=base;
 }
@@ -4864,7 +4867,7 @@ const TERTREES={
   plain:0.38, steppe:0.10, forest:0.88, hills:0.40, mtn:0.24,
   desert:0.00, jungle:0.95, marsh:0.34, tundra:0.08, urban:0.20
 };
-const FORESTC=[46,52,46], FORESTC2=[38,44,50];
+const FORESTC=[50,60,46], FORESTC2=[42,52,54];
 /* Value noise. Deterministic, so the ground is the same ground every time the
    map is rebuilt and does not crawl when a border moves. */
 function _vn(x,y,seed){
@@ -5315,9 +5318,27 @@ function buildGround(){
       const gn=(_vn(ox*1.7,oy*1.7,7)-0.5)*13
               +(_fbm(ox*0.28,oy*0.28,23,3)-0.5)*26
               +(_fbm(ox*0.9,oy*0.9,51,2)-0.5)*12;
-      r=Math.max(0,Math.min(255,(r+gn)*lit));
-      g=Math.max(0,Math.min(255,(g+gn)*lit));
-      b=Math.max(0,Math.min(255,(b+gn)*lit));
+      r=(r+gn)*lit; g=(g+gn)*lit; b=(b+gn)*lit;
+      /* MEASURED AGAINST THE REFERENCE, not judged by eye. Comparing the two
+         pictures as distributions rather than as pictures: the real thing runs
+         a tenth-percentile of 79 and a ninetieth of 193 at a mean saturation of
+         0.30; this was 56, 165 and 0.20. Darker in the shadows, dimmer in the
+         lights and a third less colourful — which is exactly what "washed out"
+         means when you put a number on it. A gentle S-curve opens the tonal
+         range at both ends and the colour is pushed away from its own grey. */
+      const L0=(r*0.299+g*0.587+b*0.114);
+      const SAT=1.45;
+      r=L0+(r-L0)*SAT; g=L0+(g-L0)*SAT; b=L0+(b-L0)*SAT;
+      const t0=Math.max(0,Math.min(1,L0/255));
+      const curve=Math.pow(t0,0.86);                   // lift the lights
+      /* No flat lift. The dark end of the picture was the OCEAN, not the land,
+         and adding a constant to everything to fix it simply took the black out
+         of the woodland — which is the one thing on the ground that has to stay
+         dark. The water is brighter now, so the land can keep its shadows. */
+      const k=L0>1?(curve*255+4)/L0:1;
+      r=Math.max(0,Math.min(255,r*k));
+      g=Math.max(0,Math.min(255,g*k));
+      b=Math.max(0,Math.min(255,b*k));
       d32[oi]=LE?(255<<24)|(b<<16)|(g<<8)|r:(r<<24)|(g<<16)|(b<<8)|255;
     }
   }
@@ -6824,7 +6845,10 @@ function renderTerritory(){
        apart in a list; on a map they want to be the pastels the real thing
        uses — Poland pink, Hungary peach, Lithuania pale yellow — so a third of
        the saturation comes out and the whole thing moves up into the light. */
-    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.32)*0.72+72))));
+    /* A third of the saturation taken out was too much: measured, the real
+       map is HALF AGAIN as colourful as this was. Fifteen per cent softens the
+       list-colours into map-colours without draining them. */
+    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.15)*0.74+68))));
   }
   /* Where a flag sits is a property of the LANDMASS, not of the pixel, so it is
      worked out once per landmass rather than recomputed for every pixel \u2014 which
@@ -7034,8 +7058,17 @@ let _drawFails=0;
    then the fine mosaic, then the rivers and the coastline's detail. It climbs
    back up the moment it can. Nothing that carries information is ever dropped
    — borders, counters, names and the political colour are not negotiable. */
-let MAPQ=3, _ftAvg=16, _qHold=0;
+let MAPQ=3, _ftAvg=16, _qHold=0, MAPQPIN=false;
+/* Pinnable, because "the map decides for itself" is exactly the wrong
+   behaviour when you are trying to look at the map: on a slow machine it will
+   quietly turn the ground grain, the mosaic and the rivers off, and a
+   screenshot taken there is of a different picture from the one being worked
+   on. setMapQuality(3) holds it at full. */
+window.setMapQuality=v=>{MAPQ=Math.max(0,Math.min(3,v|0));MAPQPIN=true;};
+window.autoMapQuality=()=>{MAPQPIN=false;};
+Object.defineProperty(window,"MAPQ",{get:()=>MAPQ});
 function _mapQuality(dt){
+  if(MAPQPIN)return;
   _ftAvg+=(Math.min(80,dt)-_ftAvg)*0.06;
   if(_qHold>0){_qHold--;return;}
   if(_ftAvg>26&&MAPQ>0){MAPQ--;_qHold=90;_ftAvg=16;}
@@ -7117,7 +7150,11 @@ function _drawFrame(){
        A full-map pattern fill at four per cent opacity is invisible and costs
        exactly as much as one at forty, so it does not start until it is worth
        something. GRAPHICS: PLAIN skips it, and the overlay pass with it. */
-    if(z>2.6&&GFX==="rich"&&MAPQ>=3&&Math.min(0.40,(z-2.6)*0.10)>0.06){
+    /* The grain was gated so late and ramped so slowly that at the zoom you
+       actually look at a theatre from, it was switched off — which is why the
+       ground kept coming out smooth however the colours were mixed. It is the
+       fine texture that says "ground" rather than "area". */
+    if(z>1.4&&GFX==="rich"&&MAPQ>=3){
       if(!grainTile)try{buildGrain();}catch(e){grainTile=1;}
       if(grainTile&&grainTile!==1){
         const pat=ctx.createPattern(grainTile,"repeat");
@@ -7125,7 +7162,7 @@ function _drawFrame(){
           const sc=6/z;                                   // ~6 screen px per grain cell
           pat.setTransform&&pat.setTransform(new DOMMatrix([sc,0,0,sc,0,0]));
           ctx.globalCompositeOperation="overlay";
-          ctx.globalAlpha=Math.min(0.40,(z-2.6)*0.10);
+          ctx.globalAlpha=Math.min(0.52,0.10+(z-1.4)*0.13);
           ctx.fillStyle=pat;ctx.fillRect(0,0,MW,MH);
           ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";
         }
@@ -7288,8 +7325,13 @@ function _drawFrame(){
       ctx.fillStyle="rgba(238,232,214,0.80)";ctx.fill();
     }
     if(p.coastal){ctx.beginPath();ctx.arc(p.x,p.y,r+2.0/Math.sqrt(z),0,7);ctx.strokeStyle="#7ab2c844";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke();}
+    /* NAMES OF PLACES ARE FOR WHEN YOU ARE LOOKING AT A PLACE. Every province
+       on Earth was labelled from a fairly wide zoom, so the map came out as a
+       field of small type with a map somewhere behind it — the real thing
+       names nothing at all until you are well in, and then only what matters.
+       Capitals and cities first, everything else once you are closer still. */
     const isMain=p.val>=3||capOf(p.owner)===p.id;
-    if(z>1.8||SHOWPROV){
+    if((isMain?z>2.6:z>4.4)||SHOWPROV){
       const fs=z>1.8?10/z*1.6:(isMain?10:7.5)/Math.sqrt(z)*1.1;
       ctx.fillStyle=terr?"#ffd34a":T.label;ctx.font=`${fs}px Courier New`;ctx.textAlign="center";
       ctx.fillText(p.name,p.x,p.y-r-fs*0.45);
@@ -10004,6 +10046,10 @@ function _fpHud(p,enemyNear){
    big name and a small one a small name, and it is skipped entirely when it
    would come out too small to read or too big to fit — which is what stops
    the map from silting up with forty overlapping words. */
+/* The name of a country on a map like this is set in a heavy, slightly
+   condensed grotesque with a hard dark outline — not a book face. Georgia read
+   as an atlas plate from 1900 rather than as a war map. */
+const NAMEFONT=px=>`700 ${px}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`;
 function drawNationNames(z,T){
   if(MAPSTYLE==="terrain"||MAPOVER!=="none")return;
   const seen=[];
@@ -10021,7 +10067,7 @@ function drawNationNames(z,T){
     const along=tall?L.h:L.w, across=tall?L.w:L.h;
     let adv=_NAMEADV[name];
     if(!adv){
-      ctx.font='bold 100px Georgia, "Times New Roman", serif';
+      ctx.font=NAMEFONT(100);
       adv=_NAMEADV[name]=Array.from(name,ch=>ctx.measureText(ch).width/100);
     }
     /* Measured before it is placed, not after. The clash test used to run on an
@@ -10045,7 +10091,7 @@ function drawNationNames(z,T){
     ctx.save();
     ctx.translate(L.x,L.y);
     if(tall)ctx.rotate(-Math.PI/2);
-    ctx.font=`bold ${fs}px Georgia, "Times New Roman", serif`;
+    ctx.font=NAMEFONT(fs);
     const track=fs*0.30;
     let cx=-(unit*fs)/2;
     ctx.lineJoin="round";ctx.miterLimit=2;
@@ -10311,7 +10357,7 @@ function navalSymbol(cls,bw,bh,lw,ink){
 /* The counter. Drawn in the piece's own local space with the ground at y=0, so
    the same routine serves the flat map and a counter standing up in 3D. */
 function drawCounter(u,s,z,fleet,sel){
-  const cw=s*1.44, ch=s*0.92;
+  const cw=s*1.30, ch=s*0.84;
   const x=-cw/2, y=-ch*0.62;
   const col=NATIONS[u.nat].c;
   const line=Math.max(0.5,(sel?2.0:1.0)/Math.sqrt(z)*1.15);
@@ -11645,7 +11691,13 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v22.5 \u2014 THE REAL COASTLINE, AND REAL GROUND (current)",[
+ ["v22.6 \u2014 CALIBRATED (current)",[
+  "\u{1F4CF} THE MAP WAS COMPARED TO THE REAL THING AS NUMBERS RATHER THAN AS A PICTURE, which finally said what \u201Cwashed out\u201D actually meant: the real one runs a tenth-percentile of 79 and a ninetieth of 193 at a mean saturation of 0.30, and this ran 56, 165 and 0.20. Darker in the shadows, dimmer in the lights and a third less colourful. All three are now matched: a gentle curve opens the tonal range, the ground is pushed away from its own grey, and countries keep half again as much of their own colour as they did.",
+  "\u{1F30A} AND THE DARK END OF THE PICTURE WAS THE OCEAN. It measured 84 in luminance against the real map's 137, and the ocean is half of what you are looking at \u2014 which is most of why the whole thing read as night. The water is a bright mid blue now, and because it is, the LAND can keep its shadows: the near-black woodland no longer has to be lifted to compensate for the sea.",
+  "\u{1F5FA} NOTHING IS NAMED UNTIL IT IS WORTH NAMING. Every province on Earth carried a label from a fairly wide zoom, so the map came out as a field of small type with a map somewhere behind it. Cities and capitals appear as you come in, everything else only when you are close. The country names are set in a heavy condensed face rather than a book serif, which is what a war map uses and an atlas plate does not.",
+  "\u2699 THE GROUND GRAIN COMES IN EARLIER. It was gated so late and ramped so slowly that at the zoom you look at a whole theatre from it was simply switched off \u2014 which is why the ground kept coming out smooth however the colours were mixed. Fine texture is the difference between ground and area.",
+  "\u{1F4CC} AND THE QUALITY SETTING CAN BE PINNED. \u201CThe map decides for itself\u201D is the wrong behaviour when you are trying to LOOK at the map: on a slow machine it quietly turns the grain, the mosaic and the rivers off. setMapQuality(0\u20133) holds it wherever you want it, autoMapQuality() hands it back."]],
+ ["v22.5 \u2014 THE REAL COASTLINE, AND REAL GROUND",[
   "\u{1F30D} THE WORLD MAP IS IN THE FILE NOW. It used to be fetched: a library from one CDN, Natural Earth country shapes from another, and a hand-drawn fallback if either failed \u2014 a few hundred straight segments with the Gulf of Mexico as four lines. Anyone offline, behind a filter, or on a network that simply lost the request played on that and never knew. The coastline now ships inside the file: Natural Earth 1:50m, SEVEN TIMES the detail the CDN was serving, quantised to a fifth of a map pixel and delta-encoded, for about a sixth of a megabyte. Florida, the Great Lakes, the Aegean and the Indonesian archipelago are the shapes they actually are, on the first frame, with no connection.",
   "\u{1F332} THE GROUND IS PAINTED FROM A PHOTOGRAPH of the real thing rather than guessed at. Woodland is not a darker shade of the field beside it \u2014 it is a near-black patch with a hard edge, in irregular blobs that pay no attention to borders, about two and a half times darker than the open ground around it. Desert is a warm bright gold. And the terrain no longer changes along a straight line ruled between two province markers: the colour is blurred wide, the lookup is warped by a noise field, and a forest gives way to a plain the way it does in the world.",
   "\u{1F3D4} MOUNTAINS ARE RANGES, not polygons. The relief was generated from the same hard cell test and barely smoothed, so the Andes came out as a chain of grey pentagons; and the roughness that gives a ridge its texture was being added before the smoothing that was supposed to shape it, and so was wiped out entirely. Ranges now wander, have foothills, carry bare rock on their flanks and snow only on the very tops.",
