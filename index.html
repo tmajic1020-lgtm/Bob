@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.4.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.5.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.4.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.5.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.4.0";
+const BUILD="23.5.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5067,6 +5067,10 @@ function buildLandMask(){
 let groundCv=null, groundSm=null, groundDirty=true;
 /* The lightness of the painted ground, one byte per map texel. The political
    layer needs it: see the note on tinting in renderTerritory. */
+/* A downsampled copy earns its place only while it is still being downsampled.
+   The moment the map is drawn wider than the copy, the copy is costing detail
+   and saving nothing worth having. */
+function _useSmall(sm,z){return !!sm&&sm.width>0&&MW*z<=sm.width*1.05;}
 let groundLum=null, groundBare=null;
 /* What the painted map actually says the ground is, province by province. */
 let PAINTED_TER=null, CLIMPROBE=null;
@@ -5103,7 +5107,7 @@ function buildSea(base){
      The distance is a two-pass chamfer transform over a downsampled land
      raster: about a million operations, once, at build time. */
   try{
-    const INF=1e9, SH=Math.max(10,w*0.018);
+    const INF=1e9, SH=Math.max(8,w*0.013);
     const tmp=document.createElement("canvas");tmp.width=w;tmp.height=h;
     const tg=tmp.getContext("2d");
     tg.setTransform(w/MW,0,0,h/MH,0,0);
@@ -5157,7 +5161,16 @@ function buildSea(base){
          below the size anything can be seen at. */
       const jit=(_vn(x*0.9,y*0.9,331)-0.5)*2.6;
       const t=Math.min(1,Math.max(0,(dist[i]/3+jit)/SH));  // 0 at the coast, 1 off the shelf
-      const e=t*t*(3-2*t);                           // smoothstep, so the shelf has an edge
+      /* A SHELF, NOT A HALO. Smoothstep is FLAT near zero, so the shelf colour
+         held as a plateau for the first few pixels and only then fell away —
+         which draws a bright ring standing off every coast rather than shallows
+         attached to one, and turns every islet in the Pacific into a white
+         blob. Measured against the reference: its water is brightest AT the
+         shore and falls monotonically from there (60.5, 54.7, 51.0, 49.4, 47.5),
+         while this rose from 63.4 to a peak of 67.1 four pixels out.
+         An exponential falls fastest where it starts, which is the shape the
+         reference actually has. */
+      const e=1-Math.exp(-3.0*t);
       /* basins: a slow, large-scale wander so the deep water is not one tone
          either, plus the old fine ripple that gives it a surface. */
       const basin=(_fbm(x*0.004,y*0.004,197,3)-0.5)*1.60;
@@ -5940,6 +5953,23 @@ function buildGround(){
       else if(hv>0.52){const t=Math.min(1,(hv-0.52)/0.40);r+=(126-r)*t*0.52;g+=(114-g)*t*0.52;b+=( 96-b)*t*0.52;} // bare rock, brown not white
       /* Grain at the resolution it is DRAWN at, not at the height field's.
          This is what the eye reads as ground rather than as a gradient. */
+      /* MORE OF THE TEXTURE, LESS OF THE EDGE. Against the reference the two
+         maps carry the same MEAN local gradient, but the shape underneath it is
+         different: its ninetieth percentile is 4.8 times its median, mine was
+         7.7 times. That is a map whose detail lives in its lines — borders,
+         coastlines, the edge of a wood — sitting on ground that is comparatively
+         smooth, against one that has texture in every square inch. Raising the
+         ground's own grain is what moves the median without touching a line. */
+      /* LEFT WHERE IT WAS, AND THE REASON IS A LESSON ABOUT THE MEASUREMENT.
+         Compared with the reference, this map appeared to carry far too little
+         fine detail — a median local gradient of 7.95 against 11.79 — and the
+         obvious reading was that the ground was too smooth. It was not. The
+         sample was selecting "land" by brightness, and the bright halo the sea
+         shelf used to draw around every coast was pushing sixty thousand
+         perfectly smooth WATER pixels into it. Once the halo was fixed those
+         pixels left the sample and the median went to 13.07, slightly ABOVE the
+         reference. The ground had never been too smooth; the water had been too
+         bright, and it was answering a question about the land. */
       const gn=(_vn(ox*1.7,oy*1.7,7)-0.5)*13
               +(_fbm(ox*0.28,oy*0.28,23,3)-0.5)*26
               +(_fbm(ox*0.9,oy*0.9,51,2)-0.5)*12;
@@ -7938,7 +7968,15 @@ function _drawFrame(){
     ctx.save();
     ctx.imageSmoothingEnabled=true;
     ctx.globalAlpha=terr?1:0.95;
-    ctx.drawImage(z<2.2&&groundSm?groundSm:groundCv,0,0,MW,MH);
+    /* THE SMOOTHED COPY IS FOR SHRINKING, NOT FOR STRETCHING. groundSm is half
+       the linear resolution of groundCv, and it was chosen by ZOOM — anything
+       below 2.2 — which at world zoom means painting 2000 world units across
+       1500 screen pixels from a 1000-pixel texture. That is magnification, and
+       it is where the map's fine detail went: measured against the reference,
+       the same mean local gradient but a median of 7.95 against 11.79, which is
+       flat ground with hard lines on it. The right question is not how far in
+       you are, it is whether the copy is being shrunk or blown up. */
+    ctx.drawImage(_useSmall(groundSm,z)?groundSm:groundCv,0,0,MW,MH);
     ctx.globalAlpha=1;
     /* THE RIVERS, on the ground and under the national colour — a river is part
        of the country, not a line ruled over the top of it. */
@@ -7958,6 +7996,21 @@ function _drawFrame(){
        actually look at a theatre from, it was switched off — which is why the
        ground kept coming out smooth however the colours were mixed. It is the
        fine texture that says "ground" rather than "area". */
+    /* AND IT WAS STILL GATED TOO LATE. Below 1.4 there was no grain at all, so
+       the whole world view had none — and measured against the reference as a
+       distribution of local gradient, that shows up exactly where you would
+       expect: the two maps carry the same MEAN detail (20.9 against 21.5) but
+       the median of mine was 7.95 against 11.79, which is a map made of flat
+       washes with hard lines ruled over it rather than one with ground
+       everywhere. The grain cell is sized in screen pixels, not world units, so
+       it costs the same and reads the same at any zoom; there was never a
+       reason for it to stop. */
+    /* AND IT STAYS WHERE IT WAS. Extending this down to world zoom was an
+       answer to a measurement that turned out to be wrong — see the grain in
+       buildGround — and an overlay-blended pattern fill across the whole map is
+       one of the most expensive things a frame can contain: 28fps to 19 at
+       world zoom, 21 to 12 at a theatre. It buys nothing that the ground raster
+       is not already carrying at those distances. */
     if(z>1.4&&GFX==="rich"&&MAPQ>=3){
       if(!grainTile)try{buildGrain();}catch(e){grainTile=1;}
       if(grainTile&&grainTile!==1){
@@ -8027,7 +8080,7 @@ function _drawFrame(){
   /* Body first, and kept deliberately thin: this pass is ordinary paint, so
      every point of it is contrast taken out of the ground. */
   ctx.globalAlpha=(terr?0.30:polA)*mo;
-  ctx.drawImage(z<2.2&&terSm?terSm:terCv,0,0,MW,MH);
+  ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
   ctx.restore();
   /* A BEACH. Land does not simply stop at the water: there is a pale strand
@@ -8105,7 +8158,44 @@ function _drawFrame(){
      thing on the map, and a flat slab of it across the bottom of every world
      view. The reference simply frames Antarctica out; this map cannot, so it
      puts it back where the eye expects the far south to be. */
-  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#3c464e":"#b6b5ac");ctx.fill(icePath,FR);
+  /* AND IT IS GROUND, NOT PAPER. The ice was a single flat fill, drawn after
+     the pass that lays grain over the ground, so it never got any: with the UI
+     off it reads as a grey rectangle ruled across the bottom of the world while
+     every other landmass has texture. A shallow gradient from the pole to the
+     coast and the same grain everything else gets is enough to make it a
+     surface. */
+  {
+    /* AND NONE OF IT IF THE ICE IS NOT ON SCREEN. Antarctica sits in the last
+       sixth of the world and is invisible at any zoom you fight at, but the
+       gradient and the pattern fill were being run over its whole path every
+       frame regardless — which is where the frame rate at a front line went,
+       from 22 to 13. A path fill costs what the path costs, on screen or not. */
+    const iceVisible=(G.cam.y+H/z)>MH*0.80;
+    const y0=MH*0.84, g0=ctx.createLinearGradient(0,y0,0,MH);
+    const base=terr?"#2e3033":(THEME==="dark"?"#3c464e":"#b6b5ac");
+    const lift=(hex,d)=>{const n=parseInt(hex.slice(1),16);
+      const r=Math.max(0,Math.min(255,((n>>16)&255)+d)),g2=Math.max(0,Math.min(255,((n>>8)&255)+d)),
+            b2=Math.max(0,Math.min(255,(n&255)+d));
+      return "rgb("+r+","+g2+","+b2+")";};
+    g0.addColorStop(0,lift(base,-7));      // the coast, where the shelf breaks up
+    g0.addColorStop(1,lift(base, 9));      // the high interior
+    ctx.fillStyle=g0;ctx.fill(icePath,FR);
+    /* FILL THE PATH WITH THE PATTERN; DO NOT CLIP TO IT. Clipping to the ice
+       and then filling a rectangle through it cost more than half the frame
+       rate — 45fps to 19 at world zoom — which is the same trap the coastline
+       clip was removed for. Filling the path directly with the pattern as its
+       style paints exactly the same pixels for a fraction of the work. */
+    if(iceVisible&&grainTile&&grainTile!==1&&GFX==="rich"&&MAPQ>=3){
+      const pat=ctx.createPattern(grainTile,"repeat");
+      if(pat){
+        const sc=6/z;
+        pat.setTransform&&pat.setTransform(new DOMMatrix([sc,0,0,sc,0,0]));
+        ctx.globalCompositeOperation="overlay";ctx.globalAlpha=0.34;
+        ctx.fillStyle=pat;ctx.fill(icePath,FR);
+        ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";
+      }
+    }
+  }
   ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(icePath);
   // links (faint, when zoomed)
   if(z>3.2){
