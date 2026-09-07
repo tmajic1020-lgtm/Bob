@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.2.1</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.3.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.2.1</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.3.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.2.1";
+const BUILD="23.3.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1634,7 +1634,11 @@ const THEMES={
     dark, desaturated slate — close to where this started. A measurement is only
     as good as what it was taken off, and a photograph of a monitor is a
     measurement of the camera. */
- dark:{sea:"#2c4055",grid:"#3a5570",land:"#2a2f26",coast:"#0d1c26",label:"#f2ecda",gar:"#9aaa9a"},
+ /* And a last calibration against that same capture, now that the water is
+    shaded by depth rather than flat: with the shelf and the basins in, the
+    ocean measured 53 against the reference's 58, so the base water — which is
+    now the MID water, not the whole of it — comes up by that much. */
+ dark:{sea:"#30465d",grid:"#3a5570",land:"#2a2f26",coast:"#0d1c26",label:"#f2ecda",gar:"#9aaa9a"},
  light:{sea:"#a8cadd",grid:"#93b9cf",land:"#d9d3bd",coast:"#56564a",label:"#1c2018",gar:"#444c44"}
 };
 let THEME="dark";
@@ -5050,7 +5054,7 @@ function buildLandMask(){
 let groundCv=null, groundSm=null, groundDirty=true;
 /* The lightness of the painted ground, one byte per map texel. The political
    layer needs it: see the note on tinting in renderTerritory. */
-let groundLum=null;
+let groundLum=null, groundBare=null;
 /* THE COAST, RENDERED ONCE. The shelf and the beach are six strokes of the
    world's entire coastline, and landPath is the real thing — every fjord and
    every island. Stroked live they cost fifteen frames a second at world zoom,
@@ -5069,25 +5073,99 @@ function buildSea(base){
      water underneath it is a flat colour, so the two can simply be the same
      picture, and an opaque blit is most of a free one. */
   g.fillStyle=base;g.fillRect(0,0,w,h);
-  /* THE SEA IS NOT ONE COLOUR. A flat fill reads as paper; open water seen from
-     this height has slow variation in it, and it is what makes the ocean look
-     like a surface rather than like the gap between the continents. Baked in,
-     so it costs nothing to draw. */
+  /* THE SEA IS NOT ONE COLOUR, AND THE VARIATION IN IT IS DEPTH.
+     A flat fill reads as paper. Measured against a real screen capture of the
+     game this is modelled on, the single largest difference was not colour or
+     brightness — those were already close — but the SPREAD of tone: 57% of
+     every pixel here fell in one narrow luminance bucket, one uniform slab of
+     water, where the reference spread smoothly across the whole range. Open
+     ocean is most of the picture, so a flat ocean is a flat map.
+
+     So the water is shaded by how far it is from land. A continental shelf
+     runs pale and slightly green around every coast, the floor drops away
+     through the mid water, and the deep basins go dark — which is both what
+     the reference does and what the sea actually looks like from this height.
+     The distance is a two-pass chamfer transform over a downsampled land
+     raster: about a million operations, once, at build time. */
   try{
+    const INF=1e9, SH=Math.max(10,w*0.018);
+    const tmp=document.createElement("canvas");tmp.width=w;tmp.height=h;
+    const tg=tmp.getContext("2d");
+    tg.setTransform(w/MW,0,0,h/MH,0,0);
+    tg.fillStyle="#fff";tg.fill(landPath);
+    tg.setTransform(1,0,0,1,0,0);
+    const lm=tg.getImageData(0,0,w,h).data;
+    const dist=new Float32Array(w*h);
+    for(let i=0,j=3;i<w*h;i++,j+=4)dist[i]=lm[j]>40?0:INF;
+    /* chamfer 3-4: forward over the top-left neighbours, backward over the
+       bottom-right, which is exact enough for a gradient nobody measures. */
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=y*w+x;let d0=dist[i];if(d0===0)continue;
+      if(x>0)      d0=Math.min(d0,dist[i-1]+3);
+      if(y>0)      d0=Math.min(d0,dist[i-w]+3);
+      if(x>0&&y>0) d0=Math.min(d0,dist[i-w-1]+4);
+      if(x<w-1&&y>0)d0=Math.min(d0,dist[i-w+1]+4);
+      dist[i]=d0;
+    }
+    for(let y=h-1;y>=0;y--)for(let x=w-1;x>=0;x--){
+      const i=y*w+x;let d0=dist[i];if(d0===0)continue;
+      if(x<w-1)      d0=Math.min(d0,dist[i+1]+3);
+      if(y<h-1)      d0=Math.min(d0,dist[i+w]+3);
+      if(x<w-1&&y<h-1)d0=Math.min(d0,dist[i+w+1]+4);
+      if(x>0&&y<h-1) d0=Math.min(d0,dist[i+w-1]+4);
+      dist[i]=d0;
+    }
+    const bc=(function(hex){const n=parseInt(hex.slice(1),16);
+      return [(n>>16)&255,(n>>8)&255,n&255];})(base.length===7?base:"#2c4055");
+    /* shelf sits above the base colour and a little greener; the abyss below it
+       and bluer. The base stays the mid water, so the theme still drives it. */
+    /* Enough of a shelf to see, not enough to ring every islet in the Pacific
+       with a lamp: at +26 the small islands read as bright blobs in open water
+       rather than as land with shallows around it. */
+    const SHELF=[Math.min(255,bc[0]+18),Math.min(255,bc[1]+21),Math.min(255,bc[2]+20)];
+    /* The deep goes DEEP. Compared bucket by bucket against the reference, the
+       one band still out of place was 32-48: it holds 28% of that map and only
+       19% of this one, while the band above it was correspondingly overfull.
+       That is the abyss — the reference's open ocean is markedly darker than
+       its shelf, and this was drawing most of the world's water at one middling
+       depth. */
+    const DEEP =[Math.max(0,bc[0]-25),Math.max(0,bc[1]-32),Math.max(0,bc[2]-31)];
     const im=g.getImageData(0,0,w,h), d=im.data;
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-      const v=(_fbm(x*0.012,y*0.012,211,4)-0.5)*26+(_fbm(x*0.06,y*0.06,223,2)-0.5)*10;
-      const i=(y*w+x)*4;
-      d[i]=Math.max(0,Math.min(255,d[i]+v*0.7));
-      d[i+1]=Math.max(0,Math.min(255,d[i+1]+v*0.85));
-      d[i+2]=Math.max(0,Math.min(255,d[i+2]+v));
+      const i=y*w+x, o=i*4;
+      if(dist[i]===0)continue;                       // land is painted over later
+      /* Dithered, because a chamfer transform measures distance in whole steps
+         and those steps are contour lines: smooth on their own, but this canvas
+         is half the map's resolution and at a front line one of its pixels
+         covers a dozen, which turned the shelf into concentric rings in the
+         North Sea. A little noise in the distance itself breaks the contours up
+         below the size anything can be seen at. */
+      const jit=(_vn(x*0.9,y*0.9,331)-0.5)*2.6;
+      const t=Math.min(1,Math.max(0,(dist[i]/3+jit)/SH));  // 0 at the coast, 1 off the shelf
+      const e=t*t*(3-2*t);                           // smoothstep, so the shelf has an edge
+      /* basins: a slow, large-scale wander so the deep water is not one tone
+         either, plus the old fine ripple that gives it a surface. */
+      const basin=(_fbm(x*0.004,y*0.004,197,3)-0.5)*1.60;
+      const ripple=(_fbm(x*0.012,y*0.012,211,4)-0.5)*22+(_fbm(x*0.06,y*0.06,223,2)-0.5)*9;
+      const dp=Math.max(0,Math.min(1,e+basin*e));    // basins only bite in open water
+      for(let c=0;c<3;c++){
+        const shore=SHELF[c]+(bc[c]-SHELF[c])*Math.min(1,dp*2);
+        const deep =bc[c]+(DEEP[c]-bc[c])*Math.max(0,dp*2-1);
+        const v=dp<0.5?shore:deep;
+        d[o+c]=Math.max(0,Math.min(255,v+ripple*(c===2?1:c===1?0.85:0.7)));
+      }
     }
     g.putImageData(im,0,0);
   }catch(e){}
   g.setTransform(w/MW,0,0,h/MH,0,0);
   g.lineJoin="round";
-  for(const[wd,a]of [[26,0.05],[15,0.06],[8,0.08],[3.4,0.11]]){
-    g.strokeStyle="rgba(140,178,206,"+a+")";g.lineWidth=wd;g.stroke(landPath);
+  /* a last bright line right against the coast, which the distance field alone
+     is too coarse to give at this resolution */
+  /* Side by side with the reference this was the last thing still shouting:
+     a bright white rim round every coast. The reference has a shelf too, and it
+     is a shade of the water rather than a light drawn on top of it. */
+  for(const[wd,a]of [[3.0,0.055],[1.4,0.075]]){
+    g.strokeStyle="rgba(146,182,208,"+a+")";g.lineWidth=wd;g.stroke(landPath);
   }
   _seaKey=base;
 }
@@ -5099,6 +5177,16 @@ function buildSea(base){
    the land in WORLD space instead: it costs one pattern fill, it is pin sharp
    at every zoom because it is re-rasterised each frame, and it only fades in
    once you are close enough for the raster underneath to start to blur. */
+/* Value noise on a lattice that wraps at period p, so a tile built from it
+   repeats seamlessly without the sampling path having to curve. */
+function _vnWrap(x,y,seed,p){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const w=k=>((k%p)+p)%p;
+  const x0=w(xi),y0=w(yi),x1=w(xi+1),y1=w(yi+1);
+  const a=_vn(x0,y0,seed),b=_vn(x1,y0,seed),c=_vn(x0,y1,seed),d=_vn(x1,y1,seed);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
 let grainTile=null;
 function buildGrain(){
   const N=96;
@@ -5113,12 +5201,20 @@ function buildGrain(){
        as a grid of seams. The RADIUS is the frequency: at 2.6 the whole tile
        held about one blob, which drew the map as a field of soft green
        cloud rather than as ground. It wants many cycles per tile. */
-    const a=Math.PI*2*x/N, b=Math.PI*2*y/N;
-    let v=0,amp=1,r0=17;
+    /* WRAPPED, NOT WOUND ROUND A CIRCLE. Sampling the noise along
+       (cos a, sin b) does make the tile join up, but it also walks a CIRCLE
+       through the noise, and circles are what it wrote into the tile: fine
+       over ground, where real texture hides them, and unmistakable over open
+       water — concentric rings across the North Sea, repeating every 96 world
+       units because that is how big the tile is.
+       Wrapping the integer lattice instead gives a tile that joins on all four
+       edges with no path traced through it at all, so there is nothing for the
+       eye to find but grain. The frequencies double and divide the tile
+       exactly, which is what makes the wrap seamless. */
+    let v=0,amp=1,fq=6;
     for(let o=0;o<3;o++){
-      v+=amp*_vnSmooth(40+Math.cos(a)*r0+Math.sin(b)*r0*0.6,
-                       40+Math.sin(b)*r0+Math.cos(a)*r0*0.6, 5+o*13);
-      amp*=0.5;r0*=2.1;
+      v+=amp*_vnWrap(x/N*fq,y/N*fq,5+o*13,fq);
+      amp*=0.5;fq*=2;
     }
     const t=Math.max(0,Math.min(1,(v/1.75-0.32)*2.6));
     const i=(y*N+x)*4;
@@ -5160,10 +5256,15 @@ const TERHEIGHT={plain:0.10,steppe:0.13,forest:0.22,hills:0.55,mtn:0.96,
    rather than as one olive field with borders drawn on it. Everything here had
    drifted into the same middle. Sand is the brightest thing on land; forest
    and jungle are the darkest; the rest sits between them. */
+/* NEUTRAL ENOUGH TO TAKE A COLOUR. Every one of these leaned yellow-green, so
+   the whole land mass read as one olive wash and a country's own colour had to
+   fight it. The reference's ground is browner and greyer than this was, which
+   is exactly why its countries read as countries. Desert stays bright and warm:
+   it is wasteland now and carries no tint at all. */
 const TERPAINT={
-  plain: [118,122, 80], steppe:[178,160,102], forest:[ 74, 80, 56],
-  hills: [126,114, 78], mtn:   [110,104, 96], desert:[228,206,156],
-  jungle:[ 62, 82, 48], marsh: [ 88, 96, 72], tundra:[186,190,186],
+  plain: [116,119, 85], steppe:[176,159,109], forest:[ 73, 79, 59],
+  hills: [125,114, 85], mtn:   [110,105, 97], desert:[230,210,168],
+  jungle:[ 60, 79, 50], marsh: [ 87, 94, 74], tundra:[186,190,186],
   urban: [108,100, 88]
 };
 /* HOW MUCH OF IT IS UNDER TREES. The thing that actually makes that map read
@@ -5173,10 +5274,16 @@ const TERPAINT={
    borders. Everything here was one smooth gradient, which is why it looked
    like a watercolour of a map instead of a map. */
 const TERTREES={
-  plain:0.38, steppe:0.10, forest:0.88, hills:0.40, mtn:0.24,
+  plain:0.36, steppe:0.10, forest:0.88, hills:0.38, mtn:0.24,
   desert:0.00, jungle:0.95, marsh:0.34, tundra:0.08, urban:0.20
 };
-const FORESTC=[40,50,38], FORESTC2=[34,44,46];
+/* WOODLAND IS DARKER GROUND, NOT A HOLE. At near-black these read as mould on
+   the map: against open country at L=114 they were a two-and-a-half-fold drop,
+   and with a hard threshold on top of it the forest belt broke into blotches at
+   world zoom. The reference mottles its forest too — the Soviet Union is
+   plainly mottled in it — but the dark of that mottling measures L=61 against
+   ground in the eighties, well under twice. These are set to that ratio. */
+const FORESTC=[46,56,42], FORESTC2=[40,50,52];
 /* Value noise. Deterministic, so the ground is the same ground every time the
    map is rebuilt and does not crawl when a border moves. */
 function _vn(x,y,seed){
@@ -5670,7 +5777,10 @@ function buildGround(){
            produces the intended fraction of cover. At the old one a plain got
            almost no trees at all and only a forest province showed any. */
         const cut=0.62-tc*0.44;
-        const e=(fv-cut)*14;
+        /* Still an edge — a wood seen from above has one — but eight rather
+           than fourteen, which is the difference between an edge and a step
+           the map cannot resolve when it is drawn at a fifth of its size. */
+        const e=(fv-cut)*8;
         const cover=e<=0?0:e>=1?1:e*e*(3-2*e);
         if(cover>0){
           /* two shades of wood, so a forest is not one flat mass */
@@ -5704,14 +5814,25 @@ function buildGround(){
       /* The photograph said a third MORE colour; the capture says the opposite.
          Real ground here is muted — olive, sand, slate — and that restraint is
          what lets a pale national colour sit on it and still read as a colour. */
-      const SAT=1.06;
+      /* Measured, and it cuts against the note above: compared with the screen
+         capture as a whole distribution, this ground carries a mean saturation
+         of 0.19 where the reference carries 0.27. The photograph was wrong
+         about the DIRECTION for the ocean and it was wrong here too, but not
+         in the way the correction assumed — the ground does want more colour,
+         it just wants it muted rather than lifted in brightness. */
+      const SAT=1.26;
       r=L0+(r-L0)*SAT; g=L0+(g-L0)*SAT; b=L0+(b-L0)*SAT;
       const t0=Math.max(0,Math.min(1,L0/255));
-      /* Very nearly linear. The lift came from a photograph that had been
-         auto-exposed by a phone; the screen capture shows ground that is
-         muted and mid-dark, and lifting it only made it chalky. */
-      const curve=Math.pow(t0,0.98);
-      const k=L0>1?(curve*255+2)/L0:1;
+      /* The lift came from a photograph that had been auto-exposed by a phone;
+         the screen capture shows ground that is muted and mid-dark, and lifting
+         it only made it chalky. Measured against that capture as distributions
+         — the one comparison that survives not knowing exactly which pixel of
+         it is which place — this land ran a mean luminance of 107 against the
+         reference's 87. This is the curve that closes that: it takes the mid
+         tones down where the difference is, and leaves the bright desert and
+         the dark taiga, both of which already matched, very nearly alone. */
+      const curve=Math.pow(t0,1.17);
+      const k=L0>1?(curve*255)/L0:1;
       r=Math.max(0,Math.min(255,r*k));
       g=Math.max(0,Math.min(255,g*k));
       b=Math.max(0,Math.min(255,b*k));
@@ -5774,14 +5895,26 @@ function buildGround(){
   buildRivers(H,land,w,h);
   buildProvEdges(pidx,land,w,h);
   if(!groundLum||groundLum.length!==OW*OH)groundLum=new Uint8Array(OW*OH);
+  /* THE GREAT DESERTS TAKE NO COLOUR. Measured off the reference: French North
+     Africa there is warm sand, blue-minus-red of MINUS thirty-one, while French
+     West Africa and France itself sit at plus twenty-eight and plus thirty-nine.
+     The same country, the same map, and one of its regions carries no political
+     wash whatsoever. That is wasteland — the deep Sahara, the Empty Quarter,
+     the Australian interior — drawn as bare ground with the owner's colour left
+     off it, and it is a good part of why that map reads as terrain first.
+
+     Recognised by the ground's own colour rather than by a table of provinces:
+     bright and distinctly warm is sand, and nothing else on this map is. */
+  if(!groundBare||groundBare.length!==OW*OH)groundBare=new Uint8Array(OW*OH);
   {
     const gd=new Uint32Array(img.data.buffer);
     for(let i=0;i<OW*OH;i++){
       const v=gd[i];
-      if(!v){groundLum[i]=0;continue;}
+      if(!v){groundLum[i]=0;groundBare[i]=0;continue;}
       let r,g,b;
       if(LE){r=v&255;g=(v>>8)&255;b=(v>>16)&255;}else{r=(v>>24)&255;g=(v>>16)&255;b=(v>>8)&255;}
       groundLum[i]=(r*77+g*150+b*29)>>8;
+      groundBare[i]=(groundLum[i]>150&&r-b>38)?1:0;
     }
   }
   if(!groundSm)groundSm=document.createElement("canvas");
@@ -7157,11 +7290,17 @@ function renderTerritory(){
       if(!oid||comp[i0])continue;
       cid++;
       let sp=0;stack[sp++]=i0;comp[i0]=cid;
-      let x0=1e9,y0=1e9,x1=-1,y1=-1,area=0,sx=0,sy=0;
+      let x0=1e9,y0=1e9,x1=-1,y1=-1,area=0,sx=0,sy=0,sxx=0,syy=0,sxy=0;
       while(sp){
         const j=stack[--sp];
         const jx=j%w,jy=(j/w)|0;
         area++;sx+=jx;sy+=jy;
+        /* Second moments, gathered on a walk that was happening anyway. They
+           give the landmass its PRINCIPAL AXIS — the direction it actually
+           lies along — which is the line the reference writes its country
+           names on: France tilts, Norway runs down the diagonal, Chile is
+           vertical. A bounding box cannot tell you any of that. */
+        sxx+=jx*jx;syy+=jy*jy;sxy+=jx*jy;
         if(jx<x0)x0=jx;if(jx>x1)x1=jx;
         if(jy<y0)y0=jy;if(jy>y1)y1=jy;
         let n2;
@@ -7179,9 +7318,21 @@ function renderTerritory(){
       const bnm=natKeys[oid-1];
       if(bnm){
         const cur=NATLABEL[bnm];
-        if(!cur||area>cur.area)
-          NATLABEL[bnm]={x:(sx/area)*TS,y:(sy/area)*TS,
-                         w:(x1-x0+1)*TS,h:(y1-y0+1)*TS,area};
+        if(!cur||area>cur.area){
+          const mx=sx/area,my=sy/area;
+          const cxx=Math.max(0,sxx/area-mx*mx), cyy=Math.max(0,syy/area-my*my), cxy=sxy/area-mx*my;
+          /* eigenvalues of the 2x2 covariance: the spread along the long axis
+             and across it. Four standard deviations spans essentially all of a
+             landmass, and is a far better "how much room is there" than the
+             bounding box, which for Norway is mostly Sweden. */
+          const tr=(cxx+cyy)/2, det=Math.sqrt(Math.max(0,((cxx-cyy)/2)*((cxx-cyy)/2)+cxy*cxy));
+          const l1=tr+det, l2=Math.max(0,tr-det);
+          let ang=0.5*Math.atan2(2*cxy,cxx-cyy);
+          if(!isFinite(ang))ang=0;
+          NATLABEL[bnm]={x:mx*TS,y:my*TS,
+                         w:(x1-x0+1)*TS,h:(y1-y0+1)*TS,area,
+                         ang, along:Math.sqrt(l1)*4*TS, across:Math.sqrt(l2)*4*TS};
+        }
       }
     }
   }
@@ -7232,7 +7383,22 @@ function renderTerritory(){
        grey made every nation a variation on beige and you could not tell one
        from the next at a glance — which is the single thing a political map
        has to do. Twenty-two keeps them apart while staying a wash. */
-    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.16)*0.72+74))));
+    /* THE PALING BELONGED TO THE OLD RENDERING, AND IT OUTLIVED IT.
+       "*0.72+74" lifts the darkest channel of every country to 74 and squashes
+       what is left into three quarters of the range; with a 16% pull to grey on
+       top, Poland's #c55c6a was stored as [210,146,155] and Spain's #f2cd5e
+       came out of the map as [112,119,113] — a neutral grey-green. Measured
+       across eight neighbouring pairs, NONE of them were far enough apart to
+       read as different colours.
+
+       That flattening was correct for what this used to be: the colour was
+       opaque and carried the ground's lightness itself, so it had to be pale
+       and pre-lifted or the map went black. The colour is a translucent wash
+       now and the painted ground underneath supplies the lightness, so the
+       lift is applied twice and the paling has nothing left to do but destroy
+       the one thing a political map exists for. A light pull toward grey stays
+       — these are list colours, not map colours — and the rest goes. */
+    _flat[oi]=[0,1,2].map(i=>Math.round(Math.max(0,Math.min(255,(raw[i]+(lum-raw[i])*0.18)*0.92+10))));
   }
   /* Where a flag sits is a property of the LANDMASS, not of the pixel, so it is
      worked out once per landmass rather than recomputed for every pixel \u2014 which
@@ -7391,6 +7557,32 @@ function renderTerritory(){
      Scaling the nation's colour to the ground's lightness preserves its hue and
      saturation exactly, which is all the blend mode was doing. One lookup table
      per nation, so painting is a table read. */
+  /* HOW MUCH OF THE COUNTRY, AND HOW MUCH OF THE GROUND UNDER IT.
+     The political layer used to be opaque: it took the ground's LIGHTNESS and
+     replaced its colour outright. That is a real technique, but it is not the
+     one the reference uses, and the difference is visible at a glance — the
+     Sahara. In the reference the desert stays a pale sand under French blue,
+     because the colour is a WASH over the terrain map and the ground keeps its
+     own hue. Here the same desert came out flat blue-grey: its lightness had
+     survived and everything that made it a desert had not.
+
+     So the tint is translucent and the painted ground shows through it, which
+     is both what the reference does and less work than what this did. */
+  /* Solved from the reference rather than chosen: the same French blue over
+     temperate Europe and over West African sand implies a wash of 0.27 and
+     0.30 respectively. At the 0.58 this started from, every country's own
+     colour buried the ground it stood on. */
+  /* Half, in the end, and the reason is worth writing down. Solving the wash
+     off the world-zoom capture alone gives 0.27-0.30, and at that strength the
+     world view matches it closely — but zoom in to the scale the game is
+     actually played at and Germany, France and Poland are three shades of the
+     same olive. The other reference, a photograph of that game zoomed into
+     Europe, shows those countries plainly and separately coloured. Both are
+     true: what a country's colour has to do at world zoom is sit inside a
+     picture of the world, and what it has to do at ten times that is tell you
+     whose ground you are looking at. This is the strength that does both, and
+     the deserts still take none of it. */
+  const TINTA=0.50, WASTEA=0.10;
   const _mkLut=(oiK,c)=>{
     const t=new Uint32Array(256);
     const cl=Math.max(1,(c[0]*77+c[1]*150+c[2]*29)>>8);
@@ -7441,14 +7633,18 @@ function renderTerritory(){
             const of=ownerFine[o];
             if(!of)continue;                       // the real border runs through here
             const L=groundLum?groundLum[o]:0;
+            /* Over painted ground: the country's own colour, laid on thin, and
+               the ground supplies both the hue and the lightness underneath.
+               Over bare ground (no raster yet) it has to carry the pixel by
+               itself, so there it stays solid. */
+            const ta=(groundBare&&groundBare[o])?WASTEA:TINTA;
             if(of===oi){
-              img32[o]=L?((lut[L]&0x00ffffff)|(ea<<24))>>>0:_pack(c[0],c[1],c[2],ea);
+              img32[o]=L?_pack(c[0],c[1],c[2],(ea*ta)|0):_pack(c[0],c[1],c[2],ea);
             }else{
               /* a sliver of the neighbour that the coarse grid put on our side */
               const c2=_flat[of];
               if(!c2)continue;
-              const l2=_lut[of]||_mkLut(of,c2);
-              img32[o]=L?((l2[L]&0x00ffffff)|(ea<<24))>>>0:_pack(c2[0],c2[1],c2[2],ea);
+              img32[o]=L?_pack(c2[0],c2[1],c2[2],(ea*ta)|0):_pack(c2[0],c2[1],c2[2],ea);
             }
           }
         }
@@ -7647,8 +7843,17 @@ function _drawFrame(){
        curve was starting at 94% and only reaching 44% by the time you were
        down at a front, which put a nearly opaque wash over everything at every
        zoom anyone actually plays at. */
+    /* TWO ATTENUATIONS, MULTIPLIED. How much country and how much ground is
+       now decided per pixel, when the layer is built — a wash of TINTA, and
+       none at all on wasteland. This ramp was deciding the same thing a second
+       time on the way to the screen, and the two multiplied: half of forty per
+       cent is twenty, which is why Poland's pink measured [84,81,74] on screen
+       and every neighbour it has came within nine of it.
+       What is left for this to do is the part the per-pixel wash cannot know
+       about — that a front wants a little more ground showing than a world view
+       does — so it stays, gently, over a much narrower range. */
     const t=Math.max(0,Math.min(1,(z-0.7)/3.0));      // 0.7 -> 3.7
-    return 0.80+(0.34-0.80)*t*t*(3-2*t);              // smoothstep
+    return 1.00+(0.80-1.00)*t*t*(3-2*t);              // smoothstep
   })();
   /* A COUNTRY COLOUR IS A TINT, NOT A COAT OF PAINT. This is the last thing
      that was wrong and much the most important. Laid on as ordinary paint at
@@ -7702,7 +7907,13 @@ function _drawFrame(){
       const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.lines);
     }
   } else if(provEdgeCv){
-    ctx.globalAlpha=Math.min(0.70,0.30+z*0.14);
+    /* Faint at world zoom, not absent. Turning it off altogether was wrong in
+       the other direction: the reference does carry a fine web of internal
+       boundaries even with the whole world in view, and taking every one of
+       them out lifted the land's mean luminance by twelve and flattened the
+       dark end of the histogram. This mosaic is finer than the reference's, so
+       it wants less opacity, not none. */
+    ctx.globalAlpha=Math.min(0.62,0.10+z*0.24);
     ctx.drawImage(provEdgeCv,0,0,MW,MH);
     ctx.globalAlpha=1;
   }
@@ -7735,10 +7946,15 @@ function _drawFrame(){
      place nothing ever happens. It is pale ground, not a light source. */
   /* The ice, finally dark enough not to be the loudest thing on the map. It is
      a frozen waste at the bottom of the world, not a light box. */
-  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#55636a":"#b6b5ac");ctx.fill(icePath,FR);
+  /* The ice sheet reads as DISTANCE, not as a headline. At #55636a it was
+     luminance 97 against land averaging under ninety — the brightest large
+     thing on the map, and a flat slab of it across the bottom of every world
+     view. The reference simply frames Antarctica out; this map cannot, so it
+     puts it back where the eye expects the far south to be. */
+  ctx.fillStyle=terr?"#2e3033":(THEME==="dark"?"#3c464e":"#b6b5ac");ctx.fill(icePath,FR);
   ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(icePath);
   // links (faint, when zoomed)
-  if(z>1.6){
+  if(z>3.2){
     ctx.lineWidth=0.7/z*2;
     for(const L of LINKS){
       const a=G.prov[L[0]],b=G.prov[L[1]];if(!a||!b)continue;
@@ -7769,8 +7985,13 @@ function _drawFrame(){
      because it is printed on the map, not captioned over it: a division must
      never be hidden behind a letter. */
   drawNationNames(z,T);
-  // provinces
-  for(const p of Object.values(G.prov)){
+  /* THE MARKERS COME IN WITH THE ZOOM, the way the counters already do. At
+     world zoom the reference shows none: it is a picture of the world, and two
+     hundred and fifty dots scattered over it are the one thing that stops it
+     reading as one. They fade in over the same range the counters use, so
+     everything that belongs to a province arrives together. */
+  const _mkA=z<1.15?0:z<1.7?(z-1.15)/0.55:1;
+  if(_mkA>0)for(const p of Object.values(G.prov)){
     /* A VICTORY POINT, not a poker chip. These were the loudest thing on the
        map — a fat disc of national colour on every province, so the country
        colour was being stated twice and the ground could not be seen past
@@ -7779,6 +8000,7 @@ function _drawFrame(){
        target, selection, the capital ring, the port ring — they still do. */
     const r=(3+p.val)/Math.sqrt(z)*0.62;
     const isCap=capOf(p.owner)===p.id&&p.home===p.owner;
+    ctx.globalAlpha=_mkA;
     if(VIEW3D&&z>3.5)draw3DGround(p,r/0.62,z);
     const sel=G.sel===p.id;
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
@@ -7812,6 +8034,7 @@ function _drawFrame(){
       ctx.font=`${10/z*1.6}px Courier New`;
     }
   }
+  ctx.globalAlpha=1;              // the markers faded themselves in; nothing after them is faded
   // war target highlight for air manual aiming
   if(G.airMode==="manual"&&G.airTarget){
     const p=provOf(G.airTarget);
@@ -10541,7 +10764,11 @@ function _fpHud(p,enemyNear){
 /* The name of a country on a map like this is set in a heavy, slightly
    condensed grotesque with a hard dark outline — not a book face. Georgia read
    as an atlas plate from 1900 rather than as a war map. */
-const NAMEFONT=px=>`700 ${px}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`;
+/* Not condensed. Enlarged, the reference's labels are a broad, heavy
+   grotesque — closer to plain Arial Bold than to any narrow face — and the
+   tracking between letters is moderate, not the wide spacing this had. */
+const NAMEFONT=px=>`800 ${px}px Arial, "Helvetica Neue", Helvetica, sans-serif`;
+const NAMETRACK=0.17;
 function drawNationNames(z,T){
   if(MAPSTYLE==="terrain"||MAPOVER!=="none")return;
   const seen=[];
@@ -10555,8 +10782,14 @@ function drawNationNames(z,T){
   ctx.textAlign="center";ctx.textBaseline="middle";
   for(const[k,L]of ents){
     const name=(NATIONS[k].n||k).toUpperCase();
-    const tall=L.h>L.w*1.45;                    // Norway, Chile, Italy: write it downwards
-    const along=tall?L.h:L.w, across=tall?L.w:L.h;
+    /* Along the country's own axis. The old test only knew "taller than wide",
+       so it wrote every country either flat or straight down; a landmass that
+       lies on a diagonal got neither. */
+    let ang=L.ang||0, along=L.along||L.w, across=L.across||L.h;
+    if(!(along>0)){along=L.w;across=L.h;ang=0;}
+    /* Keep it readable: never upside down, and never past the vertical. */
+    while(ang>Math.PI/2)ang-=Math.PI;
+    while(ang<-Math.PI/2)ang+=Math.PI;
     let adv=_NAMEADV[name];
     if(!adv){
       ctx.font=NAMEFONT(100);
@@ -10567,16 +10800,25 @@ function drawNationNames(z,T){
        capital is nothing like a constant width, so GERMANY and POLAND both
        thought they had room and both got drawn on top of each other. The real
        advance of the real glyphs decides both the size and the collision. */
-    const unit=adv.reduce((n,a2)=>n+a2,0)+0.30*(name.length-1);   // width at 1px
+    const unit=adv.reduce((n,a2)=>n+a2,0)+NAMETRACK*(name.length-1);   // width at 1px
     /* Sized to the country, the way the real ones are: SOVIET UNION runs most
        of the way across the Soviet Union. Four fifths of the landmass and a
        third of its depth was a size too shy to read as a title. */
-    let fs=Math.min(along*0.90/unit, across*0.36);
+    /* SIZED THE WAY THE REFERENCE SIZES THEM. A label used to run nine tenths
+       of the way across its country, which put SOVIET UNION and CANADA across
+       half the world and made the map look like a poster of itself. Measured
+       off a real capture of the game this follows, a country name occupies
+       nearer three fifths of the landmass and about a quarter of its depth,
+       and the largest label on a world view is around sixty pixels, not
+       ninety-six. */
+    let fs=Math.min(along*0.60/unit, across*0.24);
     const px=fs*z;
-    if(px<10||px>96)continue;                   // unreadable, or shouting
+    if(px<10||px>64)continue;                   // unreadable, or shouting
     const[sx,sy]=W2S(L.x,L.y);
     const wpx=unit*px, hpx=px*0.82;
-    const bx=tall?hpx:wpx, by=tall?wpx:hpx;
+    /* the label's footprint once it is turned onto the country's axis */
+    const ca=Math.abs(Math.cos(ang)), sa=Math.abs(Math.sin(ang));
+    const bx=wpx*ca+hpx*sa, by=wpx*sa+hpx*ca;
     if(sx+bx/2<0||sx-bx/2>W||sy+by/2<0||sy-by/2>H)continue;
     let clash=false;
     for(const r of seen)
@@ -10585,14 +10827,18 @@ function drawNationNames(z,T){
     seen.push({x:sx,y:sy,w:bx,h:by});
     ctx.save();
     ctx.translate(L.x,L.y);
-    if(tall)ctx.rotate(-Math.PI/2);
+    ctx.rotate(ang);
     ctx.font=NAMEFONT(fs);
-    const track=fs*0.30;
+    const track=fs*NAMETRACK;
     let cx=-(unit*fs)/2;
     ctx.lineJoin="round";ctx.miterLimit=2;
-    ctx.strokeStyle="rgba(12,14,16,0.72)";
-    ctx.lineWidth=Math.max(fs*0.16,1.2/z);
-    ctx.fillStyle=THEME==="light"?"rgba(252,250,244,0.90)":"rgba(248,245,236,0.88)";
+    /* THE LETTERS ARE NOT OPAQUE. Enlarged, the reference's country names are
+       plainly translucent — the ground goes on through them, and the name sits
+       IN the map rather than on top of it. What carries them at that opacity is
+       the dark outline, which is why it is the heavier of the two. */
+    ctx.strokeStyle="rgba(10,12,14,0.82)";
+    ctx.lineWidth=Math.max(fs*0.17,1.2/z);
+    ctx.fillStyle=THEME==="light"?"rgba(252,250,244,0.72)":"rgba(246,243,235,0.60)";
     ctx.textAlign="left";ctx.textBaseline="middle";
     for(let i=0;i<name.length;i++){
       ctx.strokeText(name[i],cx,0);
