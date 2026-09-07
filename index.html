@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.3.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.4.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.3.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.4.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.3.0";
+const BUILD="23.4.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -2894,8 +2894,21 @@ function supplyTick(){
        the same blizzard costs them a fraction of what it costs an army sitting
        in the open on the far side of a border. Without this every army in the
        world quietly melts each winter, at home and at peace. */
-    const shelter=(p.owner===u.nat&&supplied(u.nat,u.at))?0.4:1;
-    const wear=(w.wear+t.wear)*shelter*(1-Math.min(0.45,((G.nations[u.nat].res&&G.nations[u.nat].res.land)||0)*0.05));
+    const holding=(p.owner===u.nat&&supplied(u.nat,u.at));
+    const shelter=holding?0.4:1;
+    /* THE GROUND COSTS THE MAN CROSSING IT, NOT THE MAN SITTING ON IT.
+       Weather falls on everyone in the open; the TERRAIN's toll is the price of
+       operating in it, and those are not the same bill. Charging both sides the
+       same made the hardest ground to attack also the hardest ground to stand
+       on, and the two cancelled: measured over ten controlled assaults — same
+       divisions, same odds, only the ground different — mountains at defence
+       x1.65 fell in 154 days while forest at x1.22 held for 198. The province
+       panel told the player mountains were the strongest ground on the map and
+       the map disagreed with it.
+       A division dug in on its own supplied ground pays a fraction of the
+       terrain's wear. One assaulting across it pays all of it. */
+    const groundShare=holding?0.18:1;
+    const wear=(w.wear*shelter+t.wear*groundShare)*(1-Math.min(0.45,((G.nations[u.nat].res&&G.nations[u.nat].res.land)||0)*0.05));
     if(wear>0)u.hp-=u.str*wear*3;
     if(supplied(u.nat,u.at)){ if(u.osup)u.osup=Math.max(0,u.osup-2); }
     else{
@@ -2956,7 +2969,7 @@ function moveUnits(arr,kind){
     const dest=G.prov[u.to];
     if(dest){
       const w=weatherAt(dest);
-      spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move;
+      spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move*riverSlow(dest);
     }
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
     if(kind==="army"&&shortOn(u.nat,"rubber"))spd*=0.80;  // no tyres, no tracks, no pace
@@ -3075,7 +3088,7 @@ function battles(){
          side that already holds it, which is what makes mountains and cities
          worth defending and worth going around. */
       const wx=weatherAt(p);pa*=wx.atk;pb*=wx.atk;
-      const fortB=1+(p.fort||0)*0.12,terD=terOf(p).def;
+      const fortB=1+(p.fort||0)*0.12,terD=terOf(p).def*riverDef(p);
       if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
@@ -5055,6 +5068,8 @@ let groundCv=null, groundSm=null, groundDirty=true;
 /* The lightness of the painted ground, one byte per map texel. The political
    layer needs it: see the note on tinting in renderTerritory. */
 let groundLum=null, groundBare=null;
+/* What the painted map actually says the ground is, province by province. */
+let PAINTED_TER=null, CLIMPROBE=null;
 /* THE COAST, RENDERED ONCE. The shelf and the beach are six strokes of the
    world's entire coastline, and landPath is the real thing — every fjord and
    every island. Stroked live they cost fifteen frames a second at world zoom,
@@ -5358,7 +5373,12 @@ let riverPath=null;
    neighbour; count how much water passes through each cell, and anywhere
    enough of it collects is a river. The Nile, the Amazon, the Volga and the
    Mississippi turn up because the land makes them turn up. */
-function buildRivers(H,land,w,h){
+/* Which provinces a major river actually runs through. The rivers were worked
+   out from the ground and then drawn and nothing else: the Rhine, the Volga,
+   the Dnieper and the Meuse were on the map and a division walked over them as
+   if they were painted on. A river is the oldest defensive line there is. */
+let PROV_RIVER={}, RIVDBG=null;
+function buildRivers(H,land,w,h,pidx){
   const N=w*h;
   const idx=[];
   for(let i=0;i<N;i++)if(land[i])idx.push(i);
@@ -5379,18 +5399,52 @@ function buildRivers(H,land,w,h){
   }
   const acc=new Float32Array(N).fill(1);
   for(const i of idx){const d=down[i];if(d>=0)acc[d]+=acc[i];}
+  let maxAcc=0;
+  for(const i of idx)if(acc[i]>maxAcc)maxAcc=acc[i];
+  const DRAW=Math.max(24,maxAcc*0.075);      // anything that reads as a watercourse
+  const BIG =Math.max(60,maxAcc*0.34);       // the ones worth forcing a crossing at
   /* Two weights, because the Rhine and a hill stream should not be the same
-     line. Both are paths rather than pixels so they stay sharp at any zoom. */
+     line. Both are paths rather than pixels so they stay sharp at any zoom.
+
+     THE THRESHOLDS ARE TAKEN FROM THE DATA, NOT PICKED. They were absolute —
+     draw at 220, call it major at 1400 — and the largest basin on this map
+     accumulates 574, so the major weight had never drawn a single pixel in any
+     era. The heavier of the two rivers was dead code and the "two weights"
+     above was describing something that did not happen. How much water
+     collects depends on the grid the flow is computed on, so the only sound
+     way to split a trickle from a river is against the biggest one there is. */
   riverPath={big:new Path2D(),small:new Path2D()};
+  const bigCells={};
   for(const i of idx){
     const d=down[i];
-    if(d<0||acc[i]<220)continue;
+    if(d<0||acc[i]<DRAW)continue;
     const x=i%w, y=(i/w)|0, dx=d%w, dy=(d/w)|0;
-    const P=acc[i]>1400?riverPath.big:riverPath.small;
+    const isBig=acc[i]>=BIG;
+    const P=isBig?riverPath.big:riverPath.small;
     P.moveTo((x+0.5)*TS,(y+0.5)*TS);
     P.lineTo((dx+0.5)*TS,(dy+0.5)*TS);
+    if(isBig&&pidx){const pi=pidx[i];if(pi>=0)bigCells[pi]=(bigCells[pi]||0)+1;}
+  }
+  /* A river is a LINE, so what matters is that one runs through the province at
+     all, not what fraction of its area is wet. Six cells of a major watercourse
+     is a river worth forcing. */
+  RIVDBG={maxAcc:Math.round(maxAcc),DRAW:Math.round(DRAW),BIG:Math.round(BIG),drawn:0,big:0};
+  for(const i of idx){if(acc[i]>=DRAW)RIVDBG.drawn++;if(acc[i]>=BIG)RIVDBG.big++;}
+  if(pidx){
+    const ids=Object.keys(G?G.prov:{});
+    PROV_RIVER={};
+    for(const pi in bigCells){
+      const id=ids[pi]; if(!id)continue;
+      PROV_RIVER[id]=Math.min(1,bigCells[pi]/6);
+    }
   }
 }
+/* How much a major river running through a province is worth to whoever holds
+   it. Forcing a crossing under fire is the hardest ordinary thing an army does;
+   this is deliberately worth less than the difference between plains and hills,
+   because it should colour a decision, not make one for you. */
+function riverDef(p){return 1+0.22*((p&&PROV_RIVER[p.id])||0);}
+function riverSlow(p){return 1-0.18*((p&&PROV_RIVER[p.id])||0);}
 let provEdgeCv=null, provTiles=null;
 const PT_S=180;                    // world units per boundary tile
 let PT_W=0, PT_H=0;
@@ -5610,6 +5664,55 @@ function buildGround(){
     desert:TERPAINT.desert, jungle:TERPAINT.jungle, tundra:TERPAINT.tundra,
     taiga: TERPAINT.forest,  plain: TERPAINT.plain
   };
+  const _climTally={};      // province index -> {ground class: cells painted}
+  /* WHICH SIDE OF THE CONTINENT IT IS ON. Latitude alone put deserts on Recife,
+     Ceara, Brisbane, Maputo, Mombasa and Wuhan — seven of the nine places where
+     the painted map still disagreed with the province data were EAST coasts,
+     which is not a coincidence and not noise. In the tropics the trade winds
+     blow from the east, so an eastern shore is wet and a western one at the
+     same latitude is desert: Brazil against the Atacama, Queensland against the
+     Namib. One right-to-left scan per row gives the distance to open water
+     going east, which is all the model needs to tell those two apart. */
+  const eastSea=new Int16Array(w*h);
+  for(let y=0;y<h;y++){
+    let d=9999;
+    for(let x=w-1;x>=0;x--){
+      const i=y*w+x;
+      if(!land[i])d=0; else if(d<9999)d++;
+      eastSea[i]=d;
+    }
+  }
+  /* Coastal, not continental. At a twentieth of the map's width this reached
+     900km inland and cut the Rub al Khali's aridity in half — the probe put
+     Arabia at humid 0.49 with the Indian Ocean 28 cells to its east. A seaboard
+     effect should die out before it gets to the middle of a desert. */
+  const EWIND=Math.max(6,w*0.032);      // how far inland that moisture reaches
+  /* A window into the model itself. Reading a finished pixel tells you what
+     came out, not which term put it there — hillshade, grain and the tint all
+     sit on top of it — and guessing from the output is how an afternoon gets
+     spent chasing a term that was never wrong. */
+  CLIMPROBE=(lon,lat)=>{
+    const x=Math.max(0,Math.min(w-1,Math.round((lon+180)/360*w)));
+    const y=Math.max(0,Math.min(h-1,Math.round((90-lat)/180*h)));
+    const i=y*w+x;
+    if(!land[i])return {at:[lon,lat],land:false};
+    const k=KEYS[kind[i]];
+    const la=Math.abs(90-(y+0.5)/h*180);
+    const n1=(_fbm(x*0.02,y*0.02,301,3)-0.5)*11;
+    const alw=la+n1;
+    const n2=(_fbm(x*0.025+9,y*0.025+9,311,3)-0.5)*0.55;
+    let arid=Math.max(0,Math.min(1,Math.exp(-Math.pow((alw-24)/8.0,2))*1.15+n2*0.5));
+    const raw=arid;
+    let humid=0;
+    if(la<38){humid=Math.max(0,1-eastSea[i]/EWIND);arid*=1-humid*0.68;}
+    const hi=Math.max(0,Math.min(1,(H[i]-0.42)/0.30));
+    const generic=(k==="plain"||k==="steppe")?0.80:k==="urban"?0.15:k==="hills"?0.68:0.42;
+    return {at:[lon,lat],land:true,cell:[x,y],province_says:k,lat_eff:+alw.toFixed(1),
+            arid_raw:+raw.toFixed(2),eastSea:eastSea[i],EWIND:+EWIND.toFixed(1),
+            humid:+humid.toFixed(2),arid_final:+arid.toFixed(2),
+            height:+H[i].toFixed(2),highground_cut:+hi.toFixed(2),generic,
+            desert_applied:+Math.max(0,Math.min(1,arid*generic*(1-hi*0.55))).toFixed(2)};
+  };
   for(let y=0;y<h;y++){
     const lat=90-(y+0.5)/h*180, al=Math.abs(lat);
     for(let x=0;x<w;x++){
@@ -5621,9 +5724,25 @@ function buildGround(){
       const n1=(_fbm(x*0.02,y*0.02,301,3)-0.5)*11;
       const n2=(_fbm(x*0.025+9,y*0.025+9,311,3)-0.5)*0.55;
       const alw=al+n1;
-      const arid =Math.max(0,Math.min(1,Math.exp(-Math.pow((alw-24)/10.5,2))*1.45+n2*0.5));
+      /* Narrower and less certain of itself. The desert belt really is centred
+         near the tropics, but at this width and gain it reached Texas, central
+         Mexico and the Argentine pampas and painted them 100% sand. The Sahara
+         still saturates — at 23 degrees this is over 1 before the noise. */
+      let arid =Math.max(0,Math.min(1,Math.exp(-Math.pow((alw-24)/8.0,2))*1.15+n2*0.5));
+      /* Only in the belt the trade winds actually blow in, and never enough to
+         turn a desert into a meadow — enough to keep an eastern seaboard off
+         the sand. */
+      if(al<38){
+        const humid=Math.max(0,1-eastSea[i]/EWIND);
+        arid*=1-humid*0.68;
+      }
       const wet  =Math.max(0,Math.min(1,Math.exp(-Math.pow(alw/9.5,2))*1.40+n2*0.5));
-      const boreal=Math.max(0,Math.min(1,(alw-45)/13))*(1-Math.max(0,Math.min(1,(alw-64)/9)));
+      /* The taiga starts where the taiga starts. At 45 degrees this band ran
+         down over Manchester, Hamburg, Danzig, Kiev and Moscow and painted
+         every one of them boreal forest — checked against the province data,
+         which calls them plains and a city, and against the world, which agrees
+         with the province data. */
+      const boreal=Math.max(0,Math.min(1,(alw-52)/12))*(1-Math.max(0,Math.min(1,(alw-64)/9)));
       const polar =Math.max(0,Math.min(1,(alw-64)/10));
       /* High ground makes its own weather; leave the mountains to the relief. */
       const hi=Math.max(0,Math.min(1,(H[i]-0.42)/0.30));
@@ -5634,7 +5753,12 @@ function buildGround(){
          has stated something and keeps most of its say. Anything in between
          gets a real share of the latitude it sits at — at a third it barely
          registered, and central Australia stayed a meadow. */
-      const generic=(k==="plain"||k==="steppe")?1:(k==="hills"||k==="urban")?0.72:0.42;
+      /* A CITY IS A CITY IN ANY CLIMATE. At 0.72 the latitude was free to
+         repaint Mexico City as open desert; a built-up province is the one kind
+         of ground whose own description outranks where it happens to sit. And a
+         stated plain now keeps a fifth of its say rather than none, so the
+         bands fill silence instead of overruling an answer. */
+      const generic=(k==="plain"||k==="steppe")?0.80:k==="urban"?0.15:k==="hills"?0.68:0.42;
       const put=(dst,amt)=>{
         const a=Math.max(0,Math.min(1,amt*generic*(1-hi*0.55)));
         if(a<=0.002)return;
@@ -5643,10 +5767,27 @@ function buildGround(){
       };
       let ta=0,tv=0;
       let a;
-      a=put(CLIM.desert,arid);   if(a){ta+=a;tv+=0.00*a;}
-      a=put(CLIM.jungle,wet);    if(a){ta+=a;tv+=0.95*a;}
-      a=put(CLIM.taiga,boreal);  if(a){ta+=a;tv+=0.80*a;}
-      a=put(CLIM.tundra,polar);  if(a){ta+=a;tv+=0.06*a;}
+      /* WHAT THE PAINTER DECIDED, RECORDED. The province says what ground it
+         is and the climate overrules it wherever the province had nothing to
+         say — and until now that argument was settled in the paint and nowhere
+         else, so the map showed a desert and the rules underneath it went on
+         calling the place a plain. Tallying the winner per province costs one
+         increment per cell on a pass that is already visiting every one. */
+      let bestC=null,bestA=0;
+      a=put(CLIM.desert,arid);   if(a){ta+=a;tv+=0.00*a;if(a>bestA){bestA=a;bestC="desert";}}
+      a=put(CLIM.jungle,wet);    if(a){ta+=a;tv+=0.95*a;if(a>bestA){bestA=a;bestC="jungle";}}
+      a=put(CLIM.taiga,boreal);  if(a){ta+=a;tv+=0.80*a;if(a>bestA){bestA=a;bestC="forest";}}
+      a=put(CLIM.tundra,polar);  if(a){ta+=a;tv+=0.06*a;if(a>bestA){bestA=a;bestC="tundra";}}
+      {
+        const pi=pidx[i];
+        if(pi>=0){
+          /* Only a decisive overrule counts. A trace of aridity over a forest
+             province is the climate shading it, not renaming it. */
+          const cls=(bestC&&bestA>=0.55)?bestC:k;
+          let t2=_climTally[pi]; if(!t2)t2=_climTally[pi]={};
+          t2[cls]=(t2[cls]||0)+1;
+        }
+      }
       if(ta>0){const m=Math.min(1,ta);t=t*(1-m)+(tv/ta)*m;}
       CR[i]=r;CG[i]=g;CB[i]=b;TC[i]=t;
     }
@@ -5892,7 +6033,20 @@ function buildGround(){
      They are generated here instead, out of the nearest-province test this
      function has already done, which makes them free and makes them work with
      no network at all. */
-  buildRivers(H,land,w,h);
+  /* Province index -> id, in the order pts was built, so the tally can be
+     handed back in terms the game speaks. */
+  {
+    const ids=Object.keys(G?G.prov:{});
+    PAINTED_TER={};
+    for(const pi in _climTally){
+      const id=ids[pi]; if(!id)continue;
+      const t2=_climTally[pi];
+      let best=null,bn=0,tot=0;
+      for(const k2 in t2){tot+=t2[k2];if(t2[k2]>bn){bn=t2[k2];best=k2;}}
+      if(best&&tot>0)PAINTED_TER[id]={ter:best,share:bn/tot,cells:tot};
+    }
+  }
+  buildRivers(H,land,w,h,pidx);
   buildProvEdges(pidx,land,w,h);
   if(!groundLum||groundLum.length!==OW*OH)groundLum=new Uint8Array(OW*OH);
   /* THE GREAT DESERTS TAKE NO COLOUR. Measured off the reference: French North
@@ -11434,7 +11588,9 @@ function renderPanel(){
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
-      return `<div class="row"><span>Ground</span><span>${t.i} ${t.n} · def ×${t.def.toFixed(2)} · move ×${t.move.toFixed(2)}</span></div>
+      const rv=(PROV_RIVER&&PROV_RIVER[p.id])||0;
+      return `<div class="row"><span>Ground</span><span>${t.i} ${t.n} · def ×${(t.def*riverDef(p)).toFixed(2)} · move ×${(t.move*riverSlow(p)).toFixed(2)}</span></div>
+      ${rv>0?`<div class="row"><span>River</span><span title="An attacker has to force the crossing">\u3030 Major river · def ×${riverDef(p).toFixed(2)} · move ×${riverSlow(p).toFixed(2)}</span></div>`:""}
       <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
       <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
