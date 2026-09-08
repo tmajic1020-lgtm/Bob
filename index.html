@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.5.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.6.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.5.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.6.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.5.0";
+const BUILD="23.6.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5634,6 +5634,124 @@ function buildGround(){
     kind[i]=KIDX[bt]!==undefined?KIDX[bt]:KIDX.plain;
     H[i]=TERHEIGHT[bt]!==undefined?TERHEIGHT[bt]:0.1;
   }
+  /* THE WORLD'S MOUNTAINS, BECAUSE TWO HUNDRED AND FIFTY MARKERS CANNOT HOLD
+     THEM. Everything above this point builds the height field by asking the
+     nearest province what kind of ground it is — and there are 250 of those for
+     the whole Earth, so a mountain province becomes a round blob and a range
+     that runs four thousand miles becomes two or three of them. Put side by
+     side with the reference at the same magnification the difference is not
+     subtle: it shows the Himalaya as a ridge with the Tarim basin north of it
+     and the Ganges plain south, and this showed China as one flat wash and the
+     Andes as a lilac strip with no ridge in it at all.
+
+     So the ranges are stated. Each is the SPINE of a real range in degrees,
+     with how high it stands and how wide it spreads; the hillshade below has
+     always been able to draw ridges and has simply never been given any. This
+     is geography, not gameplay: it sets the height field the relief is lit
+     from, and p.ter, movement, combat, supply and attrition never read it. */
+  {
+    const RIDGE=[
+      // amp, half-width in degrees, then the spine as lon,lat pairs
+      [0.92,4.2, -73,8, -76,2, -78,-6, -76,-14, -68,-20, -69,-28, -70,-36, -71,-42, -73,-50],  // Andes
+      [0.80,5.0, -148,63, -132,57, -122,50, -114,43, -108,38, -106,32],                        // Rockies
+      [0.72,2.6, -123,48, -121,41, -119,37, -117,33],                                          // Cascades / Sierra Nevada
+      [0.66,2.4, -108,29, -105,23, -101,19],                                                   // Sierra Madre Occidental
+      [0.52,2.6, -70,46, -76,40, -82,35, -85,33],                                              // Appalachians
+      [0.70,3.0, -152,62, -145,61, -138,60],                                                   // Alaska Range
+      [0.62,2.2, 6,59, 11,62, 15,66, 21,69],                                                   // Scandinavian mountains
+      [0.86,1.8, 6,45, 10,47, 14,47],                                                          // Alps
+      [0.70,1.2, -1,43, 2,42.6],                                                               // Pyrenees
+      [0.60,1.6, 19,49, 23,47.5, 25,45.5],                                                     // Carpathians
+      [0.62,1.4, 12,42, 15,41],                                                                // Apennines
+      [0.80,1.4, 40,43, 45,42.5, 48,41],                                                       // Caucasus
+      [0.56,2.0, 60,66, 59,60, 58,54],                                                         // Urals
+      [0.74,2.4, 46,36, 50,32, 56,28],                                                         // Zagros
+      [0.82,2.6, 52,36, 60,35, 70,36],                                                         // Elburz / Hindu Kush
+      [1.00,2.6, 74,35, 80,30, 85,28, 90,28, 95,29],                                           // Himalaya
+      [0.96,2.2, 73,37, 76,36, 79,36],                                                         // Karakoram / Pamir
+      [0.80,2.4, 70,42, 78,42, 85,43],                                                         // Tien Shan
+      [0.74,2.6, 85,49, 92,50, 98,50],                                                         // Altai
+      [0.62,3.0, 95,53, 105,52, 112,53],                                                       // Sayan / Baikal
+      [0.62,3.4, 128,66, 140,64, 155,62],                                                      // Verkhoyansk / Kolyma
+      [0.66,1.6, 158,56, 160,52],                                                              // Kamchatka
+      [0.62,1.6, 138,36, 140,39, 142,43],                                                      // Japanese Alps
+      [0.58,1.4, 73,20, 75,15, 77,9],                                                          // Western Ghats
+      [0.72,3.0, 37,12, 39,8],                                                                 // Ethiopian highlands
+      [0.62,2.0, -8,32, -4,33, 2,35, 8,36],                                                    // Atlas
+      [0.56,1.8, 28,-30, 30,-27],                                                              // Drakensberg
+      [0.54,2.2, 146,-20, 148,-26, 150,-33, 147,-37],                                          // Great Dividing Range
+      [0.66,1.6, 138,-5, 145,-6],                                                              // New Guinea highlands
+      [0.66,1.2, 168,-45, 172,-42]                                                             // Southern Alps
+    ];
+    /* Plateaus are areas, not lines: high ground that is broad and flat on top,
+       which is a different shape from a ridge and reads differently. */
+    const PLATEAU=[
+      // amp, radius in degrees, lon, lat
+      [0.86,11, 88,33],    // Tibet
+      [0.66, 5, -67,-19],  // Altiplano
+      [0.60, 8, 55,32],    // Iranian plateau
+      [0.52, 6, -110,37],  // Colorado plateau
+      [0.46, 9, 105,46],   // Mongolian plateau
+      [0.40, 8, 77,17],    // Deccan
+      [0.36, 9, -45,-18],  // Brazilian highlands
+      [0.34, 5, -62,4],    // Guiana highlands
+      [0.44, 6, 26,-22]    // southern African plateau
+    ];
+    const d2s=(px,py,ax,ay,bx,by)=>{     // squared distance, point to segment
+      const vx=bx-ax, vy=by-ay, wx=px-ax, wy=py-ay;
+      const L=vx*vx+vy*vy;
+      let t=L>0?(wx*vx+wy*vy)/L:0; t=t<0?0:t>1?1:t;
+      const dx=px-(ax+vx*t), dy=py-(ay+vy*t);
+      return dx*dx+dy*dy;
+    };
+    /* EACH RANGE OVER ITS OWN GROUND, not every cell against every range. The
+       obvious loop — for each land cell, test all thirty ranges — is a hundred
+       and fifty thousand cells times a hundred and fifty segments, and it cost
+       two and a half seconds every time the ground was built, which is every
+       new campaign and every change of era. A range only affects the box it
+       runs through, so walking that box instead turns the whole pass into
+       something too small to time. */
+    const LIFT=new Float32Array(w*h);
+    const stamp=(lo0,la0,lo1,la1,pad,fn)=>{
+      const x0=Math.max(0,Math.floor((Math.min(lo0,lo1)+180-pad)/360*w));
+      const x1=Math.min(w-1,Math.ceil((Math.max(lo0,lo1)+180+pad)/360*w));
+      const y0=Math.max(0,Math.floor((90-(Math.max(la0,la1)+pad))/180*h));
+      const y1=Math.min(h-1,Math.ceil((90-(Math.min(la0,la1)-pad))/180*h));
+      for(let y=y0;y<=y1;y++){
+        const lat=90-(y+0.5)/h*180;
+        const clat=Math.max(0.18,Math.cos(lat*Math.PI/180));
+        for(let x=x0;x<=x1;x++){
+          const i=y*w+x; if(!land[i])continue;
+          const v=fn((x+0.5)/w*360-180,lat,clat);
+          if(v>LIFT[i])LIFT[i]=v;
+        }
+      }
+    };
+    for(const R of RIDGE){
+      const amp=R[0], hw=R[1];
+      for(let k=2;k+3<R.length;k+=2){
+        const ax=R[k],ay=R[k+1],bx=R[k+2],by=R[k+3];
+        stamp(ax,ay,bx,by,hw*2.2,(lon,lat,clat)=>{
+          const d=d2s((lon-ax)*clat,lat, 0,ay, (bx-ax)*clat,by);
+          if(d>hw*hw*4)return 0;
+          const t=Math.sqrt(d)/hw;
+          return amp*Math.exp(-t*t*0.9);
+        });
+      }
+    }
+    for(const P of PLATEAU){
+      stamp(P[2],P[3],P[2],P[3],P[1]*2.3,(lon,lat,clat)=>{
+        const dx=(lon-P[2])*clat, dy=lat-P[3];
+        const t=Math.sqrt(dx*dx+dy*dy)/P[1];
+        if(t>=2.2)return 0;
+        return P[0]*Math.exp(-Math.pow(t,3.0)*0.8);
+      });
+    }
+    for(let i=0;i<w*h;i++){
+      const add=LIFT[i];
+      if(add>0&&land[i])H[i]=Math.min(1,Math.max(H[i],H[i]*0.35+add));
+    }
+  }
   /* Smooth the height so a mountain province becomes a RANGE with foothills
      rather than a block, then break it up again with fractal noise scaled by
      how high the ground is — rock is rugged, a plain is not. */
@@ -5647,6 +5765,22 @@ function buildGround(){
       }
       if(n)H[i]=sum/n;
     }
+  }
+  /* AND THE SECOND HALF OF THAT SENTENCE, WHICH WAS NEVER WRITTEN. The comment
+     above has always promised that the smoothing is followed by fractal noise
+     scaled to the height — and it was not: the blur ran and nothing came after
+     it, so every mountain on the map was a smooth dome. It is the same kind of
+     gap as the river weight that was never drawn, and it is why a range here
+     reads as a swelling where the reference reads as rock.
+     The amplitude rides on the height, so a plain is left perfectly smooth and
+     only ground that is already high gets broken up. */
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;if(!land[i])continue;
+    const rug=H[i]-0.16;                       // below this it is lowland: leave it
+    if(rug<=0)continue;
+    const n=(_fbm(x*0.085,y*0.085,401,4)-0.5)*2.0
+           +(_fbm(x*0.21 ,y*0.21 ,409,3)-0.5)*1.15;
+    H[i]=Math.max(0,Math.min(1,H[i]+n*rug*0.26));
   }
   /* THE COLOUR OF THE GROUND IS BLURRED; THE RELIEF IS NOT. Terrain came
      straight off the nearest-province test, so every change of ground was a
