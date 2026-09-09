@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.7.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.8.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.7.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.8.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.7.0";
+const BUILD="23.8.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4952,8 +4952,11 @@ const PH_AX=5.39, PH_BX=690.0;
 const PH_LAT=[80,60,40,20,0,-20,-40,-60];
 const PH_Y  =[133.2,229.4,325.6,421.8,518.0,614.2,710.4,806.6];
 /* Where that game's own interface sits on top of its map. */
-const PH_UI=[[0,0,1500,58],[0,812,1500,844],[1228,0,1500,246],[1148,688,1500,844]];
+const PH_UI=[[0,0,1500,64],[0,786,1500,844],[1222,0,1500,250],[1140,678,1500,844]];
 let MAPPHOTO=null;            // {w,h,d} once decoded
+let MAPPHOTO_CV=null;         // the same picture as something drawable
+let MAPPHOTO_SEA="#2b3b52";   // its own ocean, for what its camera missed
+let PHOTOSTRIP=null;          // how much painted text was lifted, and how much stayed
 let PHOTOMAP=true;            // is the picture being used as the ground?
 function _phY(lat){
   const L=PH_LAT,Y=PH_Y;
@@ -4996,8 +4999,16 @@ function _stripPhotoText(id){
     const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
     sat[j]=mx?(mx-mn)/mx:0;
   }
-  // local average by two box passes, which is what "the country around it" means
-  const R=6, tmp=new Float32Array(N), bg=new Float32Array(N);
+  /* TWO SCALES, because the labels come in two sizes. A six-pixel window sees
+     a thin caption as brighter than its surroundings, but SOVIET UNION is
+     drawn in strokes fatter than the window itself — measured against its own
+     interior a thick letter looks like ordinary ground, and the big names came
+     through as ghosts. The wide pass catches those; the narrow one still gets
+     the small type. */
+  const flag=new Uint8Array(N);
+  let bgOut=null;                 // the wide local average, kept for the growth below
+  for(const R of [6,20]){
+  const tmp=new Float32Array(N), bg=new Float32Array(N);
   for(let y=0;y<H;y++){
     let acc=0,cnt=0;
     for(let x=-R;x<=R;x++){const xx=Math.min(W-1,Math.max(0,x));acc+=L[y*W+xx];cnt++;}
@@ -5016,19 +5027,45 @@ function _stripPhotoText(id){
       acc+=tmp[add*W+x]-tmp[sub*W+x];
     }
   }
-  const flag=new Uint8Array(N);
-  for(let j=0;j<N;j++)if(Math.abs(L[j]-bg[j])>40&&sat[j]<0.42)flag[j]=1;
-  // grow by one, so the soft edge of a stroke goes with it
-  const grow=new Uint8Array(N);
-  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
-    const j=y*W+x; if(!flag[j])continue;
-    grow[j]=1;grow[j-1]=1;grow[j+1]=1;grow[j-W]=1;grow[j+W]=1;
+  const thr=R>10?52:40;
+  for(let j=0;j<N;j++)if(Math.abs(L[j]-bg[j])>thr&&sat[j]<0.42)flag[j]=1;
+  bgOut=bg;
+  }
+  const bg=bgOut;
+  /* GROW OUTWARD, BECAUSE A LETTER IS ITS OUTLINE TOO. The test above finds
+     the bright core of a label; on dark ground its BLACK outline is barely
+     darker than the country around it and is never flagged. Filling the core
+     alone lifts the white out and leaves the outline standing — which is why
+     the big names came back as dark ghosts after the first fix. Four rings of
+     growth from a flagged core takes the outline with it. */
+  let grow=new Uint8Array(N);
+  for(let j=0;j<N;j++)grow[j]=flag[j];
+  for(let pass=0;pass<8;pass++){
+    const nx=new Uint8Array(grow);
+    for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+      const j=y*W+x; if(grow[j])continue;
+      if(!(grow[j-1]||grow[j+1]||grow[j-W]||grow[j+W]))continue;
+      /* Spread ONLY along something that is itself unlike its surroundings —
+         which an outline is and open ground is not. Growing unconditionally
+         took 110,000 flagged pixels to 245,000 and ate that game's own border
+         lines and a good deal of terrain with them, leaving the map smeared. */
+      if(Math.abs(L[j]-bg[j])>16)nx[j]=1;
+    }
+    grow=nx;
   }
   // fill from the outside in: each pass resolves the flagged pixels that have
   // unflagged neighbours, and those become sources for the next pass
+  /* ENOUGH PASSES TO REACH THE MIDDLE OF A LETTER. Each pass fills one ring of
+     flagged pixels from the unflagged ground beside it, so eight passes reach
+     eight pixels in — fine for a caption, useless for SOVIET UNION, whose
+     strokes are far thicker than that. Their outsides were being replaced and
+     their cores left, which is why the big names came back as smudges rather
+     than disappearing. */
   const done=new Uint8Array(N);
   for(let j=0;j<N;j++)done[j]=grow[j]?0:1;
-  for(let pass=0;pass<8;pass++){
+  let flagged=0; for(let j=0;j<N;j++)if(!done[j])flagged++;
+  let filled=0;
+  for(let pass=0;pass<40;pass++){
     const add=[];
     for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
       const j=y*W+x; if(done[j])continue;
@@ -5041,7 +5078,44 @@ function _stripPhotoText(id){
     }
     if(!add.length)break;
     for(const j of add)done[j]=1;
+    filled+=add.length;
   }
+  PHOTOSTRIP={flagged,filled,left:flagged-filled};
+}
+/* THE PICTURE IS THE MAP. Not a texture sampled onto this map's coastlines —
+   the picture itself, coastlines and country shapes and all, laid over the
+   world in one piece. The generated sea, ground, national colour and coastline
+   are not drawn at all underneath it: there is nothing to see through it, so
+   drawing them is only cost.
+
+   The placement is the same linear registration used to sample it, run
+   backwards: the picture's own corners are converted to longitude and latitude
+   and then to world units, which makes this a single drawImage into a rectangle
+   and puts the picture's geography where this map's provinces already are.
+   Alignment is about 78% — good through the middle latitudes, loosest in the
+   far north — so a division can sit a little off its coast. That is the cost
+   of using one camera angle of another projection as a map, and it is the thing
+   that was asked for. */
+function photoWorldRect(){
+  const lonAt=x=>(x-PH_BX)/PH_AX;
+  const latAt=y=>{                    // the registration is linear now
+    const a=(PH_Y[4]-PH_Y[3])/(PH_LAT[4]-PH_LAT[3]);
+    return PH_LAT[4]+(y-PH_Y[4])/a;
+  };
+  const P=MAPPHOTO_CV;
+  const l0=lonAt(0), l1=lonAt(P.width), t0=latAt(0), t1=latAt(P.height);
+  const x0=(l0+180)/360*MW, x1=(l1+180)/360*MW;
+  const y0=(90-t0)/180*MH,  y1=(90-t1)/180*MH;
+  return [x0,y0,x1-x0,y1-y0];
+}
+function drawPhotoMap(){
+  if(!MAPPHOTO_CV)return false;
+  const R=photoWorldRect();
+  ctx.save();
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(MAPPHOTO_CV,R[0],R[1],R[2],R[3]);
+  ctx.restore();
+  return true;
 }
 function loadMapPhoto(){
   if(MAPPHOTO)return;
@@ -5053,6 +5127,39 @@ function loadMapPhoto(){
       const id=x.getImageData(0,0,c.width,c.height);
       _stripPhotoText(id);
       MAPPHOTO={w:c.width,h:c.height,d:id.data};
+      /* The picture itself, ready to be drawn as the map — with that game's own
+         interface cut out of it, and its outer edge faded, so what is left is
+         only its map and it does not end on a ruled line. */
+      x.putImageData(id,0,0);
+      x.globalCompositeOperation="destination-out";
+      for(const u of PH_UI){
+        const gx=x.createLinearGradient(u[0],u[1],u[0],u[3]);
+        x.fillStyle="rgba(0,0,0,1)";
+        x.fillRect(u[0]-1,u[1]-1,u[2]-u[0]+2,u[3]-u[1]+2);
+      }
+      /* a soft edge all the way round, so the picture meets the generated map
+         in a fade rather than a seam */
+      const FE=54;
+      for(let i=0;i<FE;i++){
+        x.fillStyle="rgba(0,0,0,"+Math.pow(1-i/FE,1.5)*0.5+")";
+        x.fillRect(i,i,c.width-i*2,1);
+        x.fillRect(i,c.height-i-1,c.width-i*2,1);
+        x.fillRect(i,i,1,c.height-i*2);
+        x.fillRect(c.width-i-1,i,1,c.height-i*2);
+      }
+      x.globalCompositeOperation="source-over";
+      MAPPHOTO_CV=c;
+      /* and the colour of its own water, for the part of the world its camera
+         never saw — the far Pacific, and everything below 62 south. */
+      {
+        let r=0,g=0,b=0,n=0;
+        for(let i=0;i<id.data.length;i+=4){
+          const R=id.data[i],G=id.data[i+1],B=id.data[i+2];
+          const L=0.2126*R+0.7152*G+0.0722*B;
+          if(B>R+14&&B>G+6&&L<70){r+=R;g+=G;b+=B;n++;}
+        }
+        if(n>1000)MAPPHOTO_SEA="rgb("+Math.round(r/n)+","+Math.round(g/n)+","+Math.round(b/n)+")";
+      }
       groundDirty=true;
       if(typeof buildGround==="function"&&window.G){try{buildGround();}catch(e){}}
     }catch(e){MAPPHOTO=null;}
@@ -8240,7 +8347,10 @@ function _drawFrame(){
      line where one colour stops. Drawn as the land outline stroked a few times
      at falling width and rising opacity, so it costs three strokes. */
   {
-    const seaBase=terr?"#000000":T.sea;
+    /* When the picture is the map, the generated sea only ever shows past the
+       edge of its camera — so it is painted in the picture's OWN water, and the
+       join stops being a visible rectangle around half the world. */
+    const seaBase=terr?"#000000":(photoMapOn()?MAPPHOTO_SEA:T.sea);
     if(seaCv!==1&&_seaKey!==seaBase)try{buildSea(seaBase);}catch(e){seaCv=1;}
     if(seaCv&&seaCv!==1)ctx.drawImage(seaCv,0,0,MW,MH);
     /* NO GRATICULE. Even at five per cent it was a set of ruled lines across
@@ -8268,7 +8378,9 @@ function _drawFrame(){
      ownership only exists on land. So the land IS the ground layer, and the
      one thing landPath is still used for is the coastline itself, which is a
      single stroke. */
-  /* THE PAINTED GROUND, under everything political. */
+  /* THE PAINTED GROUND, under everything political — and not drawn at all when
+     the picture is the map, because the picture is opaque over every pixel of
+     it. */
   if(groundCv){
     ctx.save();
     ctx.imageSmoothingEnabled=true;
@@ -8384,6 +8496,8 @@ function _drawFrame(){
   const mo=(MAPOVER!=="none"?0.34:1);
   /* Body first, and kept deliberately thin: this pass is ordinary paint, so
      every point of it is contrast taken out of the ground. */
+  /* Over the picture this is the only thing that says who holds a province, so
+     it stays — but thin, because the picture is the point. */
   ctx.globalAlpha=(terr?0.30:polA)*mo;
   ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
@@ -8395,6 +8509,21 @@ function _drawFrame(){
   // coastline
   ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);
   if(coastTiles)strokeTiles(coastTiles,z); else ctx.stroke(landPath);
+  /* THE PICTURE GOES ON HERE: over the ground, the national colour and the
+     coastline, and under everything that has to stay readable — the frontiers,
+     the province markers, the counters and the names. Where its own interface
+     stood, and past the edge of its camera, it is transparent and the generated
+     map shows through. */
+  if(photoMapOn()&&!terr){
+    drawPhotoMap();
+    /* Ownership has to survive the picture, or a conquest changes nothing you
+       can see. The national colour goes on again over it, thin. */
+    if(MAPOVER==="none"){
+      ctx.save();ctx.globalAlpha=0.30;
+      ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
+      ctx.restore();
+    }
+  }
   /* NATIONAL BORDERS ARE THE HEAVIEST LINE ON THE MAP, because a border is the
      one thing on it you are always looking for. Drawn from the political layer
      itself: where the colour changes, there is a frontier. */
