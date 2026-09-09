@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.1</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.2</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.1</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.2</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.1";
+const BUILD="23.9.2";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4953,6 +4953,12 @@ const PH_LAT=[80,60,40,20,0,-20,-40,-60];
 const PH_Y  =[133.2,229.4,325.6,421.8,518.0,614.2,710.4,806.6];
 /* Where that game's own interface sits on top of its map. */
 const PH_UI=[[0,0,1500,64],[0,786,1500,844],[1222,0,1500,250],[1140,678,1500,844]];
+/* The control lattice that unbends the picture onto this map, fitted against
+   the two coastlines. 78.3% agreement straight, 86.7% warped. */
+const PH_WLON=[-170,-130,-90,-50,-10,30,70,110,150];
+const PH_WLAT=[75,55,35,15,-5,-25,-45];
+const PH_WDX=[0,17,12,-16,-17,-8,0,14,14,0,-1,0,1,-17,6,10,-16,16,8,16,0,18,-14,3,9,-20,15,8,48,0,40,-20,0,8,16,0,8,38,-18,-16,-10,8,-2,0,16,8,38,-14,-16,-28,10,2,16,16,8,38,0,-6,-22,-2,0,0,0];
+const PH_WDY=[0,0,0,0,-16,-16,-16,16,8,0,0,0,2,18,-10,-4,16,0,0,-16,-16,0,24,8,8,-15,32,0,-8,-16,-34,30,32,40,40,32,0,1,-16,-32,50,50,64,24,-32,0,0,0,-4,64,68,68,64,63,0,0,7,7,8,68,0,0,0];
 let MAPPHOTO=null;            // {w,h,d} once decoded
 let MAPPHOTO_CV=null;         // the same picture as something drawable
 let MAPPHOTO_SEA="#2b3b52";   // its own ocean, for what its camera missed
@@ -5110,12 +5116,29 @@ function photoWorldRect(){
   const y0=(90-t0)/180*MH,  y1=(90-t1)/180*MH;
   return [x0,y0,x1-x0,y1-y0];
 }
+/* HOW MUCH OF THE PICTURE IS LEFT AT THIS ZOOM. The capture is 1500 pixels
+   across for the whole world — about one pixel per world unit, which is exactly
+   the map's own scale at world zoom and nothing like enough at a front. Held on
+   all the way in it magnifies six times and the map becomes a smear with no
+   readable coastline in it, counters floating over a blur. So it hands over: it
+   is the map while it has the resolution to be, and gives way to the generated
+   ground, which is sharp at any zoom, by the time you are looking at a theatre.
+   The generated map is drawn underneath it anyway, so this is a crossfade and
+   costs nothing extra. */
+function photoAlpha(z){
+  if(z<=1.7)return 1;
+  if(z>=3.6)return 0;
+  const t=(z-1.7)/1.9;
+  return 1-t*t*(3-2*t);
+}
 function drawPhotoMap(){
   if(!MAPPHOTO_CV)return false;
-  const R=photoWorldRect();
+  const a=photoAlpha(G.cam.z);
+  if(a<=0.004)return false;
   ctx.save();
   ctx.imageSmoothingEnabled=true;
-  ctx.drawImage(MAPPHOTO_CV,R[0],R[1],R[2],R[3]);
+  ctx.globalAlpha=a;
+  ctx.drawImage(MAPPHOTO_CV,0,0,MW,MH);   // already resampled onto this grid
   ctx.restore();
   return true;
 }
@@ -5189,25 +5212,63 @@ function loadMapPhoto(){
          reasoning cost the thing itself: what was left was a grey luminance
          texture with this map's colours painted over it, which is not the
          picture overlaid, it is the picture destroyed. It goes down as it is. */
+      /* AND IT IS UNBENT ONTO THIS MAP'S GRID. One straight line through the
+         registration puts the two coastlines within 78% of each other, which at
+         a theatre zoom is Britain drawn twice a few pixels apart and that
+         game's land lying across this one's water. A lattice of control points
+         — nine by seven, each free to shift the picture by up to seventy pixels
+         and penalised for disagreeing with its neighbours — takes that to 86.7%
+         without tearing the picture in the empty ocean where nothing constrains
+         it. Resampled here, once, so what is left to do per frame is one blit.
+         Its interface and the fade at its edges are handled in the same pass. */
       x.putImageData(id,0,0);
-      x.globalCompositeOperation="destination-out";
-      for(const u of PH_UI){
-        const gx=x.createLinearGradient(u[0],u[1],u[0],u[3]);
-        x.fillStyle="rgba(0,0,0,1)";
-        x.fillRect(u[0]-1,u[1]-1,u[2]-u[0]+2,u[3]-u[1]+2);
+      const src=x.getImageData(0,0,c.width,c.height).data;
+      const DW=Math.round(MW), DH=Math.round(MH);
+      const dc=document.createElement("canvas");dc.width=DW;dc.height=DH;
+      const dx2=dc.getContext("2d");
+      const out=dx2.createImageData(DW,DH), od=out.data;
+      const NX=PH_WLON.length, NY=PH_WLAT.length;
+      const lerpAt=(A,lon,lat)=>{
+        let i=0; while(i<NX-2&&lon>PH_WLON[i+1])i++;
+        let j=0; while(j<NY-2&&lat<PH_WLAT[j+1])j++;
+        const tx=Math.max(0,Math.min(1,(lon-PH_WLON[i])/(PH_WLON[i+1]-PH_WLON[i])));
+        const ty=Math.max(0,Math.min(1,(lat-PH_WLAT[j])/(PH_WLAT[j+1]-PH_WLAT[j])));
+        const a=A[j*NX+i],b2=A[j*NX+i+1],c2=A[(j+1)*NX+i],d2=A[(j+1)*NX+i+1];
+        return (a*(1-tx)+b2*tx)*(1-ty)+(c2*(1-tx)+d2*tx)*ty;
+      };
+      const FE=78;
+      for(let dy=0;dy<DH;dy++){
+        const lat=90-(dy+0.5)/DH*180;
+        for(let dxi=0;dxi<DW;dxi++){
+          const lon=(dxi+0.5)/DW*360-180;
+          const sx=PH_AX*lon+PH_BX+lerpAt(PH_WDX,lon,lat);
+          const sy=(-4.81*lat+518)+lerpAt(PH_WDY,lon,lat);
+          const o=(dy*DW+dxi)*4;
+          const ix=Math.round(sx), iy=Math.round(sy);
+          if(ix<0||iy<0||ix>=c.width||iy>=c.height)continue;
+          const so=(iy*c.width+ix)*4;
+          if(!src[so+3])continue;
+          /* EVERY EDGE OF IT FADES, the cut-out panels as much as the outside.
+             A hard boundary anywhere is a straight line ruled across the world:
+             where the picture's camera stopped there was a seam clean across
+             the north, and where its difficulty panel was cut away there was a
+             rectangular notch out of the Pacific. Both are the same fault —
+             an alpha that steps instead of ramps. */
+          let a=1;
+          const edge=Math.min(ix,iy,c.width-1-ix,c.height-1-iy);
+          if(edge<FE)a=Math.max(0,edge/FE);
+          for(const u of PH_UI){
+            const inside=Math.min(ix-u[0],iy-u[1],u[2]-1-ix,u[3]-1-iy);
+            if(inside>=0){a=0;break;}
+            const d=-inside;                    // how far outside this panel we are
+            if(d<FE)a=Math.min(a,d/FE);
+          }
+          if(a<=0.004)continue;
+          od[o]=src[so];od[o+1]=src[so+1];od[o+2]=src[so+2];od[o+3]=Math.round(255*a);
+        }
       }
-      /* a soft edge all the way round, so the picture meets the generated map
-         in a fade rather than a seam */
-      const FE=54;
-      for(let i=0;i<FE;i++){
-        x.fillStyle="rgba(0,0,0,"+Math.pow(1-i/FE,1.5)*0.5+")";
-        x.fillRect(i,i,c.width-i*2,1);
-        x.fillRect(i,c.height-i-1,c.width-i*2,1);
-        x.fillRect(i,i,1,c.height-i*2);
-        x.fillRect(c.width-i-1,i,1,c.height-i*2);
-      }
-      x.globalCompositeOperation="source-over";
-      MAPPHOTO_CV=c;_photoCut=false;
+      dx2.putImageData(out,0,0);
+      MAPPHOTO_CV=dc;_photoCut=true;
       /* and the colour of its own water, for the part of the world its camera
          never saw — the far Pacific, and everything below 62 south. */
       {
@@ -8576,9 +8637,15 @@ function _drawFrame(){
        enough to see who holds a province and who has just taken one, not
        enough to bury what is underneath. */
     if(MAPOVER==="none"){
-      ctx.save();ctx.globalAlpha=0.26;
-      ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
-      ctx.restore();
+      /* and this fades with it — under the picture the countries are already
+         painted at full strength, so as the picture goes the map underneath is
+         simply revealed. */
+      const oa=0.26*photoAlpha(z);
+      if(oa>0.004){
+        ctx.save();ctx.globalAlpha=oa;
+        ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
+        ctx.restore();
+      }
     }
   }
   /* NATIONAL BORDERS ARE THE HEAVIEST LINE ON THE MAP, because a border is the
