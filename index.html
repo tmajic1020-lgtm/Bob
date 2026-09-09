@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.8.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.8.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.8.0";
+const BUILD="23.9.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4957,6 +4957,8 @@ let MAPPHOTO=null;            // {w,h,d} once decoded
 let MAPPHOTO_CV=null;         // the same picture as something drawable
 let MAPPHOTO_SEA="#2b3b52";   // its own ocean, for what its camera missed
 let PHOTOSTRIP=null;          // how much painted text was lifted, and how much stayed
+let NOBORDERLINES=true;       // frontiers read as a change of colour, not as an inked line
+window.setBorderLines=v=>{NOBORDERLINES=!v;if(typeof draw==="function")draw();return !NOBORDERLINES;};
 let PHOTOMAP=true;            // is the picture being used as the ground?
 function _phY(lat){
   const L=PH_LAT,Y=PH_Y;
@@ -5117,6 +5119,49 @@ function drawPhotoMap(){
   ctx.restore();
   return true;
 }
+/* AND IT IS CUT TO THIS MAP'S LAND. The registration is about 78%, so the
+   picture's coastlines and this map's do not agree everywhere — and wherever
+   the picture has land that this map calls sea, that land was being painted
+   into the ocean as grey blobs off Europe, north of Siberia and through
+   Indonesia. Clipping the picture to this map's own landmass removes all of
+   them at a stroke: what the picture supplies is the GROUND inside a coastline
+   this map already knows, and the sea is left to the sea.
+   Deferred until a world exists, because it needs the coastline to cut against;
+   it runs once and then the flag stops it. */
+let _photoCut=false;
+function maskPhotoToLand(){
+  if(_photoCut||!MAPPHOTO_CV||typeof landPath==="undefined"||!landPath)return;
+  try{
+    const P=MAPPHOTO_CV, W=P.width, H=P.height;
+    const LR=1600, LRH=800;
+    const lc=document.createElement("canvas");lc.width=LR;lc.height=LRH;
+    const lg=lc.getContext("2d");
+    lg.fillStyle="#000";lg.fillRect(0,0,LR,LRH);
+    lg.setTransform(LR/MW,0,0,LRH/MH,0,0);
+    lg.fillStyle="#fff";lg.fill(landPath);
+    lg.setTransform(1,0,0,1,0,0);
+    const LD=lg.getImageData(0,0,LR,LRH).data;
+    const x=P.getContext("2d");
+    const id=x.getImageData(0,0,W,H), d=id.data;
+    const latOf=y=>{
+      const a=(PH_Y[4]-PH_Y[3])/(PH_LAT[4]-PH_LAT[3]);
+      return PH_LAT[4]+(y-PH_Y[4])/a;
+    };
+    for(let py=0;py<H;py++){
+      const lat=latOf(py+0.5);
+      const ly=Math.round((90-lat)/180*LRH);
+      for(let px=0;px<W;px++){
+        const o=(py*W+px)*4;
+        if(!d[o+3])continue;
+        const lon=(px+0.5-PH_BX)/PH_AX;
+        const lx=Math.round((lon+180)/360*LR);
+        if(lx<0||ly<0||lx>=LR||ly>=LRH||LD[(ly*LR+lx)*4]<120)d[o+3]=0;
+      }
+    }
+    x.putImageData(id,0,0);
+    _photoCut=true;
+  }catch(e){}
+}
 function loadMapPhoto(){
   if(MAPPHOTO)return;
   const im=new Image();
@@ -5127,9 +5172,36 @@ function loadMapPhoto(){
       const id=x.getImageData(0,0,c.width,c.height);
       _stripPhotoText(id);
       MAPPHOTO={w:c.width,h:c.height,d:id.data};
-      /* The picture itself, ready to be drawn as the map — with that game's own
-         interface cut out of it, and its outer edge faded, so what is left is
-         only its map and it does not end on a ruled line. */
+      /* THAT GAME'S COUNTRIES COME OUT OF THE PICTURE; ONLY ITS GROUND STAYS.
+         The capture is a political map: every country in it is washed in the
+         colour it held in 1936, and those shapes are that game's, at that
+         moment, offset from this map's by however well the registration lands.
+         Painting this map's own countries on top of them gave two sets of
+         borders in slightly different places.
+         So the colour is pulled out of it and the LIGHTNESS kept — which is
+         where the terrain actually lives: the relief, the woodland, the sand,
+         the rivers. A quarter of the chroma stays so sand still reads warm and
+         forest cool. What paints the countries after that is this map's own
+         ownership, which is by definition the right shape. */
+      {
+        const d2=id.data;
+        const KEEP=0.25;
+        for(let i=0;i<d2.length;i+=4){
+          const r=d2[i],g=d2[i+1],b=d2[i+2];
+          const L=0.2126*r+0.7152*g+0.0722*b;
+          /* ITS WATER IS DROPPED ENTIRELY, not drained of colour. Desaturating
+             the whole picture turned every ocean in it into a grey slab — and
+             there was no need for any of it: this map's own sea is already
+             built with a shelf and a depth profile measured against this very
+             capture. The picture is here for its LAND. Detected before the
+             colour is pulled, because afterwards there is no blue left to
+             recognise water by. */
+          if(b>r+14&&b>g+6&&L<78){d2[i+3]=0;continue;}
+          d2[i]  =L+(r-L)*KEEP;
+          d2[i+1]=L+(g-L)*KEEP;
+          d2[i+2]=L+(b-L)*KEEP;
+        }
+      }
       x.putImageData(id,0,0);
       x.globalCompositeOperation="destination-out";
       for(const u of PH_UI){
@@ -5148,7 +5220,7 @@ function loadMapPhoto(){
         x.fillRect(c.width-i-1,i,1,c.height-i*2);
       }
       x.globalCompositeOperation="source-over";
-      MAPPHOTO_CV=c;
+      MAPPHOTO_CV=c;_photoCut=false;
       /* and the colour of its own water, for the part of the world its camera
          never saw — the far Pacific, and everything below 62 south. */
       {
@@ -8347,10 +8419,7 @@ function _drawFrame(){
      line where one colour stops. Drawn as the land outline stroked a few times
      at falling width and rising opacity, so it costs three strokes. */
   {
-    /* When the picture is the map, the generated sea only ever shows past the
-       edge of its camera — so it is painted in the picture's OWN water, and the
-       join stops being a visible rectangle around half the world. */
-    const seaBase=terr?"#000000":(photoMapOn()?MAPPHOTO_SEA:T.sea);
+    const seaBase=terr?"#000000":T.sea;
     if(seaCv!==1&&_seaKey!==seaBase)try{buildSea(seaBase);}catch(e){seaCv=1;}
     if(seaCv&&seaCv!==1)ctx.drawImage(seaCv,0,0,MW,MH);
     /* NO GRATICULE. Even at five per cent it was a set of ruled lines across
@@ -8515,11 +8584,14 @@ function _drawFrame(){
      stood, and past the edge of its camera, it is transparent and the generated
      map shows through. */
   if(photoMapOn()&&!terr){
+    maskPhotoToLand();
     drawPhotoMap();
-    /* Ownership has to survive the picture, or a conquest changes nothing you
-       can see. The national colour goes on again over it, thin. */
+    /* And the countries go on over it at full strength. With that game's own
+       colours lifted out of the picture there is nothing left underneath to
+       argue with them, so these are the only country shapes on the map — and
+       they are this map's, so they are where the game says they are. */
     if(MAPOVER==="none"){
-      ctx.save();ctx.globalAlpha=0.30;
+      ctx.save();ctx.globalAlpha=polA;
       ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
       ctx.restore();
     }
@@ -8558,9 +8630,11 @@ function _drawFrame(){
     ctx.drawImage(provEdgeCv,0,0,MW,MH);
     ctx.globalAlpha=1;
   }
-  if(natEdgeCv){
-    /* Also unclipped: ownership only exists on land, so the layer is already
-       land-shaped and the clip was pure cost. */
+  /* NO INKED FRONTIERS. The heavy dark line round every country was the
+     loudest thing on the map; a frontier is where one colour stops and the
+     next begins, and with the countries painted at full strength that edge is
+     already perfectly legible without a line ruled along it. */
+  if(natEdgeCv&&!NOBORDERLINES){
     ctx.globalAlpha=Math.min(0.92,0.55+z*0.10);
     ctx.drawImage(natEdgeCv,0,0,MW,MH);
     ctx.globalAlpha=1;
