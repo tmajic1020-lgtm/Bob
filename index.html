@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.1</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.1</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.0";
+const BUILD="23.9.1";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5183,25 +5183,12 @@ function loadMapPhoto(){
          the rivers. A quarter of the chroma stays so sand still reads warm and
          forest cool. What paints the countries after that is this map's own
          ownership, which is by definition the right shape. */
-      {
-        const d2=id.data;
-        const KEEP=0.25;
-        for(let i=0;i<d2.length;i+=4){
-          const r=d2[i],g=d2[i+1],b=d2[i+2];
-          const L=0.2126*r+0.7152*g+0.0722*b;
-          /* ITS WATER IS DROPPED ENTIRELY, not drained of colour. Desaturating
-             the whole picture turned every ocean in it into a grey slab — and
-             there was no need for any of it: this map's own sea is already
-             built with a shelf and a depth profile measured against this very
-             capture. The picture is here for its LAND. Detected before the
-             colour is pulled, because afterwards there is no blue left to
-             recognise water by. */
-          if(b>r+14&&b>g+6&&L<78){d2[i+3]=0;continue;}
-          d2[i]  =L+(r-L)*KEEP;
-          d2[i+1]=L+(g-L)*KEEP;
-          d2[i+2]=L+(b-L)*KEEP;
-        }
-      }
+      /* THE PICTURE KEEPS ITS OWN COLOUR — ALL OF IT. It was being desaturated
+         to a quarter of its chroma and its water thrown away, on the reasoning
+         that its 1936 political colours fought with this map's own. That
+         reasoning cost the thing itself: what was left was a grey luminance
+         texture with this map's colours painted over it, which is not the
+         picture overlaid, it is the picture destroyed. It goes down as it is. */
       x.putImageData(id,0,0);
       x.globalCompositeOperation="destination-out";
       for(const u of PH_UI){
@@ -8584,14 +8571,12 @@ function _drawFrame(){
      stood, and past the edge of its camera, it is transparent and the generated
      map shows through. */
   if(photoMapOn()&&!terr){
-    maskPhotoToLand();
     drawPhotoMap();
-    /* And the countries go on over it at full strength. With that game's own
-       colours lifted out of the picture there is nothing left underneath to
-       argue with them, so these are the only country shapes on the map — and
-       they are this map's, so they are where the game says they are. */
+    /* Ownership goes over the picture thin enough to leave it the picture:
+       enough to see who holds a province and who has just taken one, not
+       enough to bury what is underneath. */
     if(MAPOVER==="none"){
-      ctx.save();ctx.globalAlpha=polA;
+      ctx.save();ctx.globalAlpha=0.26;
       ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
       ctx.restore();
     }
