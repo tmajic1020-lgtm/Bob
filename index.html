@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.7</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.8</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.7</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.8</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.7";
+const BUILD="23.9.8";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -8786,11 +8786,17 @@ function _drawFrame(){
        the more expensive things you can ask a canvas to do. */
     const x0=Math.max(0,((G.cam.x)/PT_S|0)), x1=Math.min(PT_W-1,((G.cam.x+W/z)/PT_S|0));
     const y0=Math.max(0,((G.cam.y)/PT_S|0)), y1=Math.min(PT_H-1,((G.cam.y+H/z)/PT_S|0));
-    ctx.strokeStyle="rgba(26,30,34,0.30)";ctx.lineWidth=0.9/z;
+    /* AND A PROVINCE LINE IS NOT A FRONTIER. These were drawn at 1.6 screen
+       pixels and 60% black against a national border of 1.25 at 62%: the line
+       between two counties of the same country came out HEAVIER than the line
+       between two countries. Everything read as one undifferentiated mesh.
+       They keep their width and give up some of their weight; the frontier
+       above is what should catch the eye. */
+    ctx.strokeStyle="rgba(26,30,34,0.20)";ctx.lineWidth=0.9/z;
     for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
       const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.cells);
     }
-    ctx.strokeStyle="rgba(18,20,24,0.60)";ctx.lineWidth=1.6/z;
+    ctx.strokeStyle="rgba(18,20,24,0.40)";ctx.lineWidth=1.6/z;
     for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
       const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.lines);
     }
@@ -8837,7 +8843,22 @@ function _drawFrame(){
      checks from 68 of 75 to 72. */
   if(realMap&&borderTiles){
     ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"rgba(14,16,20,0.62)":"rgba(30,28,22,0.62)");
-    ctx.lineWidth=terr?1.1/Math.sqrt(z):Math.max(0.5,1.25/z);
+    /* A HAIRLINE IS A HAIRLINE, AND THE FLOOR WAS IN THE WRONG UNITS. The
+       width is divided by the zoom so the line stays the same thickness on
+       screen however far in you are — and then a floor of half a world unit
+       was applied to the result, which is not a screen measurement at all. Up
+       to zoom 2.5 it never bites and the border is the intended 1.25 pixels;
+       past that it takes over and the line GROWS: 3.25 pixels at the zoom you
+       fight at, 5 at ten, twelve at twenty-four. The frontier turned into a
+       black rope laid over the map exactly as you got close enough to care
+       where it ran.
+       It stays constant now, and is allowed a little more weight up close
+       because a border seen from low down is a thing you follow — but bounded,
+       in pixels, which is the unit the eye actually measures in. The step at
+       2.4 is where the province mesh switches on: from there the frontier has
+       to outweigh it, and below it there is nothing to outrank. The world view
+       keeps the 1.25 it was measured against. */
+    ctx.lineWidth=terr?1.1/Math.sqrt(z):(z<2.4?1.25:Math.min(2.8,1.9+(z-2.4)*0.06))/z;
     strokeTiles(borderTiles,z);
   }
   // lakes (fallback map only) and Antarctica as neutral ice
