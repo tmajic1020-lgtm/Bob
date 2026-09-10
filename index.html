@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.4</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.5</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.4</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.5</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.4";
+const BUILD="23.9.5";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1917,6 +1917,33 @@ function newGame(playerNation){
   for(const bloc of(e.alliances||[]))for(const a of bloc)for(const b of bloc)
     if(a!==b&&nations[a]&&nations[b])nations[a].allies.add(b);
   const _st=(ERA==="ww2")?(YEAR===1939?[8,1]:[0,1]):(yi===0?e.start:[0,1]);const sd=[YEAR,_st[0],_st[1]];
+  /* AND THE AXIS IS NOT SIGNED BEFORE IT WAS SIGNED. The preset blocs above put
+     Germany, Italy and Japan in one alliance from the first tick, so the scripted
+     invasion of Poland on 1 September dragged all three in through the alliance
+     clause and the game opened with Japan at war with Poland. Italy was
+     non-belligerent until June 1940 and Japan never fought Poland at all.
+     The history table already forms both pacts on their real dates — Pact of
+     Steel on the 2nd, Tripartite on 1940-09-27 — so those entries were being
+     applied to alliances that already existed and did nothing. Any preset pair
+     that history is going to sign LATER is dropped here and left to it; the
+     catch-up pass below re-adds whatever a later start date has already lived
+     through. */
+  if(HISTMODE){
+    const start=new Date(sd[0],sd[1],sd[2]);
+    const later=(HIST[ERA]||[]).filter(ev=>ev[1]==="ally"&&new Date(ev[0]+"T00:00:00")>start);
+    for(const bloc of (e.alliances||[])){
+      /* A bloc is a triangle, and history names its pacts one pair at a time.
+         Dropping only the named pairs left Italy and Japan allied to each other
+         on a day when neither had signed anything, so if any pact in this bloc
+         is still in the future the whole bloc is: none of it has happened yet.
+         What HAS happened by the start date is restored by the catch-up pass. */
+      if(!later.some(ev=>bloc.includes(ev[2])&&bloc.includes(ev[3])))continue;
+      for(const a of bloc)for(const b of bloc){
+        if(a===b||!nations[a]||!nations[b])continue;
+        nations[a].allies.delete(b);
+      }
+    }
+  }
   G={prov,nations,player:playerNation,units:[],fleets:[],wings:[],
      day:0,date:new Date(sd[0],sd[1],sd[2]),speed:2,paused:false,uid:0,
      tension:ERA==="modern"?35:10,collapsed:{},
@@ -2039,6 +2066,12 @@ function warPair(a,b){
   G.nations[a].atWar.add(b);G.nations[b].atWar.add(a);
   G.nations[a].mobTimer=Math.min(G.nations[a].mobTimer??30,10);
   G.nations[b].mobTimer=Math.min(G.nations[b].mobTimer??30,10);
+  /* AND THE ARMIES ARE GIVEN ORDERS AT ONCE. The AI plans on a timer that starts
+     between 60 and 180 days, so a nation that BEGINS a campaign at war did
+     nothing for the following two to six months: from the invasion of Poland,
+     Germany stood still until December. This clears the movement clock only —
+     the staff meets tomorrow; the factories keep their own schedule. */
+  G.nations[a].ordTimer=0;G.nations[b].ordTimer=0;
 }
 let _toastT=null;
 function toast(msg){
@@ -2691,6 +2724,20 @@ function tick(){
   if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai)runGroups(k);}
   for(const k in G.nations){const n=G.nations[k];if(n.ai&&n.alive){n.aiTimer--;if(n.aiTimer<=0){aiTurn(k);n.aiTimer=20+Math.random()*40;}}}
+  /* ORDERS ARE NOT PRODUCTION, AND THEY DO NOT SHARE A CLOCK. A nation at war
+     needs to re-read the map in days — at the full turn's interval its units
+     finished a move and then stood where they stopped for the next month, which
+     is why a front never went anywhere once the first orders were carried out.
+     But a full turn also BUILDS, one unit at a time, so simply running it more
+     often made an army grow six times faster: Poland came out of the winter of
+     1939 with thirty-three divisions from six provinces. Movement gets its own
+     short clock and the factories keep the old one. */
+  for(const k in G.nations){
+    const n=G.nations[k];
+    if(!n.ai||!n.alive||!n.atWar.size)continue;
+    n.ordTimer=(n.ordTimer??0)-1;
+    if(n.ordTimer<=0){n.ordTimer=3+Math.random()*4;autoCapture(k);}
+  }
   if(G.day%10===0){
     G.hist=G.hist||[];
     G.hist.push([natProvs(G.player).length,Math.round(G.tension)]);
@@ -3529,14 +3576,25 @@ function autoCapture(nat,roster,defensive,onlyNat){
     }
   }
   // the rest attack the best-scoring targets
+  /* THE BEST TARGET IS THE BEST REACHABLE ONE. This took the single highest
+     scoring enemy province in the world and, if no path to it existed, gave the
+     unit no order at all — so an army whose favourite target was an overseas
+     colony simply stood still. Measured from the invasion of Poland: every one
+     of Germany's units idle, autoCapture moving none of them, and the top four
+     targets Montreal, Suez, Birmingham and Kano, of which only Birmingham could
+     be walked to. Germany sat in Berlin for the whole war while Poland, at half
+     its strength, took a German province. Falling through to the next target
+     down is the whole fix; the scoring already knew Lille was two provinces
+     away. Bounded, because a path search is not free and the tail of that list
+     is the far side of the world. */
+  const TRY=8;
   for(const u of mine){
     if(defenders.has(u)||u.to)continue;
     const from=provOf(u.at);
-    let best=null,bs=-1e9;
-    for(const p of enemies){const s=targetScore(p,from,nat);if(s>bs){bs=s;best=p;}}
-    if(best){
-      const path=findPath(u.at,best.id,"army",nat);
-      if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;}
+    const ranked=enemies.map(p=>[targetScore(p,from,nat),p]).sort((a,b)=>b[0]-a[0]);
+    for(let i=0;i<ranked.length&&i<TRY;i++){
+      const path=findPath(u.at,ranked[i][1].id,"army",nat);
+      if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;break;}
     }
   }
 }
@@ -3703,7 +3761,13 @@ function aiTurn(k){
 }
 
 /* ============================== HISTORICAL MODE ============================== */
-let HISTMODE=false;try{HISTMODE=localStorage.getItem("if_hist")==="on";}catch(e){}
+/* ON UNLESS TURNED OFF. Left off by default, a campaign opening on the morning
+   of 1 September 1939 produced no European war at all: measured over four years
+   Poland was never invaded and GREW from six provinces to fourteen, the Soviet
+   Union and the United States never fired a shot, and Germany's wars were with
+   China, South Africa, Australia and Japan. The sandbox is still one toggle
+   away, and an explicit choice either way is remembered. */
+let HISTMODE=true;try{const _h=localStorage.getItem("if_hist");if(_h)HISTMODE=(_h==="on");}catch(e){}
 window.setHist=v=>{HISTMODE=v;try{localStorage.setItem("if_hist",v?"on":"off");}catch(e){}if(G)logMsg(v?"Historical mode ON — the actual events of the era will unfold on their real dates.":"Historical mode OFF — the world is a sandbox.","good");};
 /* [date, type, a, b, label] — applied when the in-game date passes */
 const HIST={
