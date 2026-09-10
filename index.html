@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.5</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.6</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.5</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.6</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.5";
+const BUILD="23.9.6";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5013,6 +5013,8 @@ const MAPPHOTO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX
    what this picture's projection actually looks like through the latitudes
    where there is enough land to tell. */
 const PH_AX=5.39, PH_BX=690.0;
+/* How much of the edge lost to resampling is put back. See the unsharp pass. */
+const PH_SHARP=0.85;
 const PH_LAT=[80,60,40,20,0,-20,-40,-60];
 const PH_Y  =[133.2,229.4,325.6,421.8,518.0,614.2,710.4,806.6];
 /* Where that game's own interface sits on top of its map. */
@@ -5329,6 +5331,36 @@ function loadMapPhoto(){
           }
           if(a<=0.004)continue;
           od[o]=src[so];od[o+1]=src[so+1];od[o+2]=src[so+2];od[o+3]=Math.round(255*a);
+        }
+      }
+      /* AND THE ACUTANCE THE RESAMPLING COST IS PUT BACK. The capture reaches
+         the screen through two resamplings — 1150 pixels of map widened onto a
+         2000-wide equirectangular grid here, then scaled back down to about
+         1530 by the camera — on top of a JPEG. Each step takes the high
+         frequencies off, and measured against the capture the ninetieth
+         percentile of local gradient came out at 35 where the reference runs
+         50: the picture was arriving visibly softer than the picture. An
+         unsharp mask, once, at decode: subtract a small blur and add back the
+         difference. Nothing per frame, and only where the picture is opaque —
+         sharpening across its feathered edges would draw a bright rim exactly
+         where the seam is meant to disappear. */
+      if(PH_SHARP>0){
+        const bl=new Float32Array(DW*DH*3);
+        for(let y=0;y<DH;y++)for(let xq=0;xq<DW;xq++){
+          const o=(y*DW+xq)*4, b=(y*DW+xq)*3;
+          const xm=xq>0?xq-1:DW-1, xp=xq<DW-1?xq+1:0;      // the map wraps in x
+          const ym=y>0?y-1:0, yp=y<DH-1?y+1:DH-1;
+          for(let ch=0;ch<3;ch++){
+            bl[b+ch]=(od[(y*DW+xm)*4+ch]+od[(y*DW+xp)*4+ch]
+                     +od[(ym*DW+xq)*4+ch]+od[(yp*DW+xq)*4+ch]+od[o+ch]*2)/6;
+          }
+        }
+        for(let i=0,n=DW*DH;i<n;i++){
+          if(od[i*4+3]<250)continue;                        // leave the feather alone
+          for(let ch=0;ch<3;ch++){
+            const v=od[i*4+ch]+(od[i*4+ch]-bl[i*3+ch])*PH_SHARP;
+            od[i*4+ch]=v<0?0:v>255?255:v;
+          }
         }
       }
       dx2.putImageData(out,0,0);
