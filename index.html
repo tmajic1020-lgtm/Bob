@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.3</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.4</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.3</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.4</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.3";
+const BUILD="23.9.4";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -8697,7 +8697,7 @@ function _drawFrame(){
        them out lifted the land's mean luminance by twelve and flattened the
        dark end of the histogram. This mosaic is finer than the reference's, so
        it wants less opacity, not none. */
-    ctx.globalAlpha=Math.min(0.62,0.10+z*0.24);
+    ctx.globalAlpha=Math.min(0.62,0.02+z*0.05);
     ctx.drawImage(provEdgeCv,0,0,MW,MH);
     ctx.globalAlpha=1;
   }
@@ -8720,9 +8720,20 @@ function _drawFrame(){
      geometry, so they stay a hairline however far you zoom in, where the old
      raster line broke into forty-kilometre steps. Drawn at the weight a border
      deserves rather than as a faint hint. */
+  /* AND THE WEIGHT IS WHAT WAS BURYING THE PICTURE. With the capture supplying
+     the ground, the map still came out about eleven luminance darker than the
+     capture itself, and the picture arrives intact — the embedded copy matches
+     REAL.jpg to within JPEG noise, and the resample costs two. Snapshotting the
+     canvas the instant the picture is laid down and again at the end of the
+     frame put seven and a half of it AFTER the picture, darkening half of all
+     land: not lines the eye reads as lines, but a web of them at 1.7 screen
+     pixels and 82% black over every border in the world. At 1.25 and 62% the
+     frontiers still read at a glance and the picture underneath survives them:
+     land on screen went from 82.7 to 84.3 against the capture's 92.7, and the
+     checks from 68 of 75 to 72. */
   if(realMap&&borderTiles){
-    ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"rgba(14,16,20,0.82)":"rgba(30,28,22,0.62)");
-    ctx.lineWidth=terr?1.1/Math.sqrt(z):Math.max(0.5,1.7/z);
+    ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"rgba(14,16,20,0.62)":"rgba(30,28,22,0.62)");
+    ctx.lineWidth=terr?1.1/Math.sqrt(z):Math.max(0.5,1.25/z);
     strokeTiles(borderTiles,z);
   }
   // lakes (fallback map only) and Antarctica as neutral ice
