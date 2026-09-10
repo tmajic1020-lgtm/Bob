@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.6</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.7</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.6</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.7</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.6";
+const BUILD="23.9.7";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5014,7 +5014,7 @@ const MAPPHOTO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX
    where there is enough land to tell. */
 const PH_AX=5.39, PH_BX=690.0;
 /* How much of the edge lost to resampling is put back. See the unsharp pass. */
-const PH_SHARP=0.85;
+const PH_SHARP=1.20, PH_SHARP_R=3;
 const PH_LAT=[80,60,40,20,0,-20,-40,-60];
 const PH_Y  =[133.2,229.4,325.6,421.8,518.0,614.2,710.4,806.6];
 /* Where that game's own interface sits on top of its map. */
@@ -5345,11 +5345,19 @@ function loadMapPhoto(){
          sharpening across its feathered edges would draw a bright rim exactly
          where the seam is meant to disappear. */
       if(PH_SHARP>0){
+        /* THE RADIUS HAS TO MATCH WHAT WAS LOST. A one-pixel blur on this grid
+           is about three quarters of a pixel once the camera has scaled the
+           canvas down, which is finer than anything the resampling destroyed —
+           it sharpened grain the eye cannot see and left the real edges soft.
+           The detail actually gone is at the scale of the source pixel, which
+           lands here about 1.7 grid pixels wide, so that is where the blur is
+           taken from. */
+        const R=PH_SHARP_R;
         const bl=new Float32Array(DW*DH*3);
         for(let y=0;y<DH;y++)for(let xq=0;xq<DW;xq++){
           const o=(y*DW+xq)*4, b=(y*DW+xq)*3;
-          const xm=xq>0?xq-1:DW-1, xp=xq<DW-1?xq+1:0;      // the map wraps in x
-          const ym=y>0?y-1:0, yp=y<DH-1?y+1:DH-1;
+          const xm=((xq-R)%DW+DW)%DW, xp=(xq+R)%DW;        // the map wraps in x
+          const ym=Math.max(0,y-R), yp=Math.min(DH-1,y+R);
           for(let ch=0;ch<3;ch++){
             bl[b+ch]=(od[(y*DW+xm)*4+ch]+od[(y*DW+xp)*4+ch]
                      +od[(ym*DW+xq)*4+ch]+od[(yp*DW+xq)*4+ch]+od[o+ch]*2)/6;
