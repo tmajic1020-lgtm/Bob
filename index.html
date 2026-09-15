@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.10</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.11</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.10</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.11</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.10";
+const BUILD="23.9.11";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -6113,6 +6113,67 @@ function buildProvEdges(pidx,land,w,h){
       if(dl&&runL<0)runL=x; else if(!dl&&runL>=0){segL.push(runL*TS,(y+1)*TS,x*TS,(y+1)*TS);runL=-1;}
     }
   }
+  /* THE CORNERS ARE CUT. These boundaries are read off a grid, so every one of
+     them is a staircase of right angles two world units to a step — invisible
+     with the world in view, thirteen screen pixels a step at a front and
+     thirty-two deep in, where the mosaic stops reading as a border and starts
+     reading as pixels. The majority filter above rounds the LABELS, which
+     cannot help below one texel; this rounds the GEOMETRY.
+     Where exactly two runs meet, both are trimmed back and joined by a
+     diagonal. The trim is bounded by the shorter of the two runs and by a
+     world unit and a half, so a stair step becomes a clean 45 degrees while a
+     long straight frontier is left straight — it only ever moves a corner, and
+     never by more than it has to. */
+  const chamfer=(arr)=>{
+    const n=arr.length/4;
+    if(!n)return arr;
+    const key=(x,y)=>x*100000+y;
+    const ends=new Map();                       // endpoint -> segment ends meeting there
+    for(let k=0;k<n;k++){
+      for(const e of [0,1]){
+        const x=arr[k*4+e*2], y=arr[k*4+e*2+1], q=key(x,y);
+        let L=ends.get(q); if(!L)ends.set(q,L=[]);
+        L.push(k*2+e);
+      }
+    }
+    const tr=new Float32Array(n*4);tr.set(arr);
+    const cut=new Float32Array(n*2);            // how far each end was trimmed
+    const TRIMMAX=1.5, SHORTRUN=6;
+    for(const [,L] of ends){
+      if(L.length!==2)continue;                 // a junction of three is a real corner
+      const a=L[0]>>1, ae=L[0]&1, b=L[1]>>1, be=L[1]&1;
+      const la=Math.hypot(arr[a*4+2]-arr[a*4],arr[a*4+3]-arr[a*4+1]);
+      const lb=Math.hypot(arr[b*4+2]-arr[b*4],arr[b*4+3]-arr[b*4+1]);
+      /* Only where a run is SHORT. A staircase is short alternating runs; two
+         long frontiers meeting at an angle is a real corner and cutting it
+         buys nothing but segments to stroke. Restricting it here is worth
+         about two frames a second at theatre zoom, where the most boundary
+         tiles are on screen at once. */
+      if(Math.min(la,lb)>SHORTRUN)continue;
+      const t=Math.min(TRIMMAX,la*0.45,lb*0.45);
+      if(t<=0.01)continue;
+      cut[a*2+ae]=t; cut[b*2+be]=t;
+    }
+    const out=[];
+    for(let k=0;k<n;k++){
+      const x0=arr[k*4],y0=arr[k*4+1],x1=arr[k*4+2],y1=arr[k*4+3];
+      const len=Math.hypot(x1-x0,y1-y0)||1;
+      const ux=(x1-x0)/len, uy=(y1-y0)/len;
+      const c0=cut[k*2], c1=cut[k*2+1];
+      if(c0+c1>=len)continue;                   // nothing left of it: let the joins carry it
+      tr[k*4]=x0+ux*c0; tr[k*4+1]=y0+uy*c0;
+      tr[k*4+2]=x1-ux*c1; tr[k*4+3]=y1-uy*c1;
+      out.push(tr[k*4],tr[k*4+1],tr[k*4+2],tr[k*4+3]);
+    }
+    for(const [,L] of ends){                    // and the diagonals that join them
+      if(L.length!==2)continue;
+      const a=L[0]>>1, ae=L[0]&1, b=L[1]>>1, be=L[1]&1;
+      if(!cut[a*2+ae]||!cut[b*2+be])continue;
+      out.push(tr[a*4+ae*2],tr[a*4+ae*2+1],tr[b*4+be*2],tr[b*4+be*2+1]);
+    }
+    return out;
+  };
+  const segCs=chamfer(segC), segLs=chamfer(segL);
   PT_W=Math.ceil(MW/PT_S);PT_H=Math.ceil(MH/PT_S);
   provTiles=new Array(PT_W*PT_H);
   const bin=(arr,key)=>{
@@ -6125,7 +6186,7 @@ function buildProvEdges(pidx,land,w,h){
       e[key].moveTo(arr[k],arr[k+1]);e[key].lineTo(arr[k+2],arr[k+3]);
     }
   };
-  bin(segC,"cells");bin(segL,"lines");
+  bin(segCs,"cells");bin(segLs,"lines");
   c.putImageData(im,0,0);
 }
 function buildGround(){
@@ -8691,9 +8752,18 @@ function _drawFrame(){
     if(riverPath&&MAPQ>=1){
       ctx.lineCap="round";ctx.lineJoin="round";
       ctx.strokeStyle="rgba(56,96,124,0.50)";
-      ctx.lineWidth=Math.max(0.35,1.5/z);ctx.stroke(riverPath.small);
+      /* THE SAME FLOOR IN THE SAME WRONG UNIT THE FRONTIERS HAD. The width is
+         divided by the zoom to hold the line at a constant thickness on
+         screen, and then floored in WORLD units — so past zoom 4 the floor
+         takes over and the river GROWS: a stream reaches 5.6 screen pixels at
+         sixteen and 8.4 at twenty-four, a major river 9.6 and 14.4. Rivers
+         turned into blue bands laid across the ground exactly where you get
+         close enough to care which bank you are on. Held in pixels now, with a
+         little more weight up close because a river is something you fight
+         across, and bounded. */
+      ctx.lineWidth=(z<4?1.5:Math.min(2.6,1.5+(z-4)*0.06))/z;ctx.stroke(riverPath.small);
       ctx.strokeStyle="rgba(48,88,120,0.72)";
-      ctx.lineWidth=Math.max(0.6,3.2/z);ctx.stroke(riverPath.big);
+      ctx.lineWidth=(z<5?3.2:Math.min(5.0,3.2+(z-5)*0.10))/z;ctx.stroke(riverPath.big);
       ctx.lineCap="butt";
     }
     /* The sharp grain, fading in exactly where the raster starts to go soft.
