@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.11</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.9.12</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.11</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.9.12</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.9.11";
+const BUILD="23.9.12";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5457,12 +5457,29 @@ function tileRings(rings,closed,step){
   step=step||1;
   const PW=Math.ceil(MW/PT_S), PH=Math.ceil(MH/PT_S);
   const tiles=new Array(PW*PH);
+  /* CHAINED, NOT LOOSE. Every segment used to open its own subpath — a moveTo
+     and a lineTo each — which has two consequences. It is more path commands
+     than it needs to be, and, because a subpath of one segment has no join,
+     the renderer draws two BUTT ENDS meeting at an angle instead: at a vertex
+     every world unit, the coastline came out notched all the way round, and
+     visibly chewed once a world unit was fourteen screen pixels. Round caps
+     close them and cost two frames a second at a front. Continuing the subpath
+     when the next segment starts where the last one ended costs nothing, emits
+     fewer commands, and gives the renderer a real join to draw — a MITRE join,
+     which is the cheap default. Round joins close the same notch and cost two
+     frames a second at world zoom, where the world's whole coastline is on
+     screen at once; with the segments chained there is nothing left for them
+     to fix. */
+  const lastX=new Float64Array(PW*PH), lastY=new Float64Array(PW*PH);
+  const open=new Uint8Array(PW*PH);
   const add=(x0,y0,x1,y1)=>{
     const tx=Math.min(PW-1,Math.max(0,((x0+x1)*0.5/PT_S)|0));
     const ty=Math.min(PH-1,Math.max(0,((y0+y1)*0.5/PT_S)|0));
     const t=ty*PW+tx;
     let P=tiles[t];if(!P)P=tiles[t]=new Path2D();
-    P.moveTo(x0,y0);P.lineTo(x1,y1);
+    if(open[t]&&lastX[t]===x0&&lastY[t]===y0)P.lineTo(x1,y1);
+    else{P.moveTo(x0,y0);P.lineTo(x1,y1);}
+    open[t]=1;lastX[t]=x1;lastY[t]=y1;
   };
   for(const ring of rings){
     let px=null,py=null,fx=0,fy=0;
@@ -8843,7 +8860,17 @@ function _drawFrame(){
      screen, so it is filtered when it is being shrunk (where nearest-neighbour
      would drop stripes and stars outright) and left hard-edged when it is being
      blown up, where filtering is exactly what looks blurry. */
-  ctx.imageSmoothingEnabled=(z*DPR)<1;
+  /* AND FILTERED WHEN IT IS BLOWN UP TOO, UNLESS IT IS FLAGS. The reasoning
+     above is right about flags and wrong about everything else: a flag has
+     stripes and stars that filtering would smear, but the political layer in
+     every other map style is FLAT country colour, and there is nothing in it
+     for a filter to blur. Left hard-edged it is one texel per world unit of
+     nearest-neighbour, so at a front the frontier between two countries came
+     out as a staircase of fourteen-pixel blocks — France and Britain meeting
+     across the Channel in rectangles. The colour has no detail to lose and the
+     frontier line is stroked over the top as vector geometry, so the edge the
+     eye actually reads stays exactly as sharp as it was. */
+  ctx.imageSmoothingEnabled=(z*DPR)<1||MAPSTYLE!=="flags";
   /* An overlay is a different question about the same map, so the flags step
      back while one is up. Left at full strength the terrain and supply
      colours simply disappear under the national colours they sit on. */
@@ -8900,6 +8927,22 @@ function _drawFrame(){
      that makes a coastline read at a glance. */
 
   // coastline
+  /* ROUND CAPS, BECAUSE THESE ARE LOOSE SEGMENTS AND NOT A PATH. The tiled
+     outlines are emitted one segment at a time — a moveTo and a lineTo each —
+     so lineJoin never applies to them: there is no join, only two butt ends
+     meeting at an angle, and every vertex of the coastline leaves a notch cut
+     out of the far side of the corner. The atlas averages a vertex every world
+     unit, which is fourteen screen pixels at a front and thirty deep in, so
+     the whole coast came out looking chewed. Round caps close each end over
+     the next.
+     Only once the notches are big enough to see. A round cap is not free —
+     rounding every segment of the world's entire coastline cost six frames a
+     second at world zoom, measured against HEAD in the same run — and at that
+     distance a segment is under a pixel long and there is no notch to close.
+     The cost is paid where the benefit is. */
+  /* A mitre limit, so the two or three genuinely sharp corners in a coastline
+     are bevelled instead of growing spikes. Free: it is state, not work. */
+  ctx.lineJoin="miter";ctx.miterLimit=2.5;
   ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);
   if(coastTiles)strokeTiles(coastTiles,z); else ctx.stroke(landPath);
   /* THE PICTURE GOES ON HERE: over the ground, the national colour and the
@@ -9022,6 +9065,7 @@ function _drawFrame(){
        to outweigh it, and below it there is nothing to outrank. The world view
        keeps the 1.25 it was measured against. */
     ctx.lineWidth=terr?1.1/Math.sqrt(z):(z<2.4?1.25:Math.min(2.8,1.9+(z-2.4)*0.06))/z;
+    ctx.lineJoin="miter";ctx.miterLimit=2.5;
     strokeTiles(borderTiles,z);
   }
   // lakes (fallback map only) and Antarctica as neutral ice
