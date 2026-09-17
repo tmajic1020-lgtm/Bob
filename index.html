@@ -204,7 +204,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.10.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.10.1</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -223,7 +223,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.10.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.10.1</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -355,7 +355,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.10.0";
+const BUILD="23.10.1";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5015,6 +5015,9 @@ const MAPPHOTO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX
 const PH_AX=5.39, PH_BX=690.0;
 /* How much of the edge lost to resampling is put back. See the unsharp pass. */
 const PH_SHARP=1.20, PH_SHARP_R=3;
+/* How much of the ink drawn over the land is given back, and the tone range it
+   is given back over. See the lift in the decode. */
+const PH_LIFT=0.11, PH_LIFT0=58, PH_LIFTW=26;
 const PH_LAT=[80,60,40,20,0,-20,-40,-60];
 const PH_Y  =[133.2,229.4,325.6,421.8,518.0,614.2,710.4,806.6];
 /* Where that game's own interface sits on top of its map. */
@@ -5380,10 +5383,27 @@ function loadMapPhoto(){
                      +od[(ym*DW+xq)*4+ch]+od[(yp*DW+xq)*4+ch]+od[o+ch]*2)/6;
           }
         }
+        /* AND THE LAND IS LIFTED BACK TO WHERE IT STARTED. Measured against the
+           capture, the land reaches the screen about six luminance dark in
+           every channel — red 87.6 against 93.8, green 85.7 against 92.0, blue
+           90.6 against 96.9 — while the SEA lands within a point of it. That
+           asymmetry is the whole explanation: the frontiers, the province
+           mosaic and the names are drawn over land and not over water, and
+           together they cost about four (measured stage by stage: 2.29, 1.17,
+           0.62), with the rest lost in resampling.
+           So the compensation is applied where the loss is. Land and sea are
+           far enough apart in tone — about 90 against 47 — to separate them by
+           luminance alone, with a ramp between so nothing gets a hard edge.
+           No land mask is needed here, which matters: this runs when the image
+           decodes and the mask may not exist yet. */
         for(let i=0,n=DW*DH;i<n;i++){
           if(od[i*4+3]<250)continue;                        // leave the feather alone
+          const L=0.2126*od[i*4]+0.7152*od[i*4+1]+0.0722*od[i*4+2];
+          const t=Math.max(0,Math.min(1,(L-PH_LIFT0)/PH_LIFTW));
+          const gain=1+PH_LIFT*t*t*(3-2*t);
           for(let ch=0;ch<3;ch++){
-            const v=od[i*4+ch]+(od[i*4+ch]-bl[i*3+ch])*PH_SHARP;
+            let v=od[i*4+ch]+(od[i*4+ch]-bl[i*3+ch])*PH_SHARP;
+            v*=gain;
             od[i*4+ch]=v<0?0:v>255?255:v;
           }
         }
