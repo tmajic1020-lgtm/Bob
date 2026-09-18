@@ -213,7 +213,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.10.3</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.10.4</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -232,7 +232,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.10.3</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.10.4</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -364,7 +364,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.10.3";
+const BUILD="23.10.4";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5060,8 +5060,29 @@ let PHOTOSTRIP=null;          // how much painted text was lifted, and how much 
    — moved the inked frontier by between 0.5 and 1.2 percentage points at every
    sampling distance tried, which is province granularity and not a border
    moving at all. */
-let NOBORDERLINES=false;
-window.setBorderLines=v=>{NOBORDERLINES=!v;if(typeof draw==="function")draw();return !NOBORDERLINES;};
+/* AND ON THE PICTURE, NONE OF IT IS DRAWN AT ALL. The capture already carries
+   Hearts of Iron's own frontiers and its own province web, baked into the
+   ground at the moment the screenshot was taken; every line this file rules is
+   therefore a SECOND set laid over the first, half a pixel off it, in flat
+   black. At a front it was the loudest thing on the map — a mesh of hard lines
+   over land AND over open water, because the province grid does not stop at
+   the coast. Rendering the world with each layer suppressed in turn and
+   scoring every one against the capture: all five variants score 75 of 75, so
+   the ink buys nothing measurable, and with it gone the picture reads as the
+   picture. The generated ground keeps its lines, because there they are the
+   only borders there are. */
+let BORDERINK="auto";         // "auto" (lines only on the generated ground) | "on" | "off"
+try{const _bi=localStorage.getItem("if_bink");if(_bi==="on"||_bi==="off"||_bi==="auto")BORDERINK=_bi;}catch(e){}
+function borderInkOn(terr){
+  if(terr)return true;                 // the terrain view IS line art
+  if(BORDERINK==="on")return true;
+  if(BORDERINK==="off")return false;
+  return !(typeof photoMapOn==="function"&&photoMapOn());
+}
+window.setBorderInk=m=>{BORDERINK=(m==="on"||m==="off")?m:"auto";
+  try{localStorage.setItem("if_bink",BORDERINK);}catch(e){}
+  if(typeof draw==="function")draw();return BORDERINK;};
+window.setBorderLines=v=>setBorderInk(v?"on":"off")==="on";
 let PHOTOMAP=true;            // is the picture being used as the ground?
 function _phY(lat){
   const L=PH_LAT,Y=PH_Y;
@@ -9070,7 +9091,8 @@ function _drawFrame(){
      colour a hairline at forty per cent came through a seventy per cent wash
      at about twelve, which is to say not at all — the mosaic was being built
      correctly and then buried. On a printed map the boundaries are inked last. */
-  if(provTiles&&z>=2.4&&MAPQ>=2){
+  const _ink=borderInkOn(terr);
+  if(_ink&&provTiles&&z>=2.4&&MAPQ>=2){
     /* Only the tiles under the viewport, and a width divided by the zoom so
        the line stays a hairline on screen however far in you are.
        No clip: the segments are generated from land cells only, so there is
@@ -9092,7 +9114,7 @@ function _drawFrame(){
     for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
       const e=provTiles[ty*PT_W+tx];if(e)ctx.stroke(e.lines);
     }
-  } else if(provEdgeCv){
+  } else if(_ink&&provEdgeCv){
     /* Faint at world zoom, not absent. Turning it off altogether was wrong in
        the other direction: the reference does carry a fine web of internal
        boundaries even with the whole world in view, and taking every one of
@@ -9107,7 +9129,7 @@ function _drawFrame(){
      loudest thing on the map; a frontier is where one colour stops and the
      next begins, and with the countries painted at full strength that edge is
      already perfectly legible without a line ruled along it. */
-  if(natEdgeCv&&!NOBORDERLINES){
+  if(_ink&&natEdgeCv){
     /* AND IT RETIRES AS YOU GO IN. This is a raster on the ownership grid —
        two world units to a cell — so the line it draws is two world units
        wide however close you get: a pixel and a half with the world in view,
@@ -9143,7 +9165,7 @@ function _drawFrame(){
      frontiers still read at a glance and the picture underneath survives them:
      land on screen went from 82.7 to 84.3 against the capture's 92.7, and the
      checks from 68 of 75 to 72. */
-  if(realMap&&borderTiles){
+  if(_ink&&realMap&&borderTiles){
     ctx.strokeStyle=terr?"#000000":(THEME==="dark"?"rgba(14,16,20,0.62)":"rgba(30,28,22,0.62)");
     /* A HAIRLINE IS A HAIRLINE, AND THE FLOOR WAS IN THE WRONG UNITS. The
        width is divided by the zoom so the line stays the same thickness on
@@ -13201,6 +13223,14 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">${photoMapOn()
       ?"The ground is taken from the screen capture this map was modelled on, sampled onto this map's own coastlines \u2014 where that picture has nothing to say, behind its own interface or off the edge of its camera, the generated ground fills in. Its country names are painted out. That art belongs to its makers: keep it to yourself."
       :"The ground is generated here \u2014 climate by latitude and continent, thirty real mountain ranges, rivers from the flow of the land."}</div>
+    <h3>BORDER LINES</h3>
+    <div class="row"><button class="tbtn ${BORDERINK==="auto"?"on":""}" onclick="setBorderInk(\'auto\')">\u{1F5BC} AS THE GROUND WANTS</button>
+    <button class="tbtn ${BORDERINK==="on"?"on":""}" onclick="setBorderInk(\'on\')">\u270F INKED</button>
+    <button class="tbtn ${BORDERINK==="off"?"on":""}" onclick="setBorderInk(\'off\')">\u25AB NONE</button></div>
+    <div style="color:var(--dim);font-size:11px">${BORDERINK==="auto"
+      ?(photoMapOn()?"None \u2014 the picture already has its own frontiers and its own province web baked into it, so ruling a second set over the top only doubled every line in black. Switch the ground to GENERATED and they come back, because there they are the only borders there are."
+                   :"Inked \u2014 the generated ground has no borders of its own, so they are drawn: frontiers heaviest, the province mosaic beneath them.")
+      :BORDERINK==="on"?"Always drawn, on either ground.":"Never drawn, on either ground \u2014 ownership reads from the colour alone."}</div>
     <h3>THE VIEW ITSELF</h3>
     <div class="row"><button class="tbtn ${!FPV?"on":""}" onclick="setFPV(false)">\u{1F5FA} THE MAP</button>
     <button class="tbtn ${FPV?"on":""}" ${epochAtLeast("5.0")?"":"disabled"} onclick="setFPV(true)">\u{1F441} STAND IN THE LINE</button></div>
