@@ -213,7 +213,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.10.4</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.11.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -232,7 +232,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.10.4</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.11.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -364,7 +364,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.10.4";
+const BUILD="23.11.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -2725,6 +2725,25 @@ function tick(){
         if(G.nations[old]&&!natProvs(old).length)die(old);
       }
     }
+  } else {
+    /* THE SAME DERIVATION DRIVES THE DRIFT. A division standing on enemy
+       ground with nobody left to contest it goes on taking that ground every
+       day, not only on the tick it arrived -- tryCapture fires once, on
+       arrival, and on its own an army that walked into an empty province and
+       stopped would have sat at half a push forever. Everywhere else the
+       ground leaks back toward the border, which is what makes a broken
+       offensive lose what it gained instead of holding it for nothing. */
+    for(const p of Object.values(G.prov)){
+      if(!(p.push>0)&&!p.pushBy)continue;
+      if(G.battleSites&&G.battleSites.has(p.id))continue;   // the fight already moved it today
+      const here=G.units.filter(u=>!u.to&&u.at===p.id);
+      const naths=[...new Set(here.map(u=>u.nat))];
+      const hostile=naths.filter(n=>n!==p.owner&&atWar(n,p.owner));
+      if(p.garrison<=0&&hostile.length===1&&!naths.includes(p.owner)&&hostile[0]===p.pushBy){
+        p.push=Math.min(1,(p.push||0)+PUSH_WALK);
+        if(p.push>=1)fallTo(p,hostile[0]);
+      } else relaxFront(p);
+    }
   }
   garrisonRegen();
   resUpkeepTick();
@@ -3073,6 +3092,189 @@ function validStep(u,nxt){
   const o=provOf(nxt).owner;
   return o===u.nat||atWar(u.nat,o);
 }
+/* THE LINE DRIFTS. A province used to be an ATOM: you held all of it or none
+   of it, the fighting inside it moved nothing whatever, and on the tick the
+   last defender died the whole thing changed hands at once. A three-week
+   battle for Sedan showed nothing at all on the map and then, in one frame,
+   showed Sedan. That is the snap.
+
+   p.push is how far into a province its attacker has actually got -- nought at
+   the far edge, one when the last of it falls -- and p.pushBy is whose gain it
+   is. Every day of a battle moves it by the margin the two sides win the day
+   by, so terrain, forts, weather, air and supply already bend the rate without
+   any of them being asked twice: the pa and pb the fight is scored on ARE the
+   rate. Ground not being pressed leaks back. And the drawn front line is hung
+   on this number, so what the eye sees move is the same quantity the battle is
+   actually fought over. */
+const PUSH_RATE=0.16;      // ground a wholly decisive day takes
+const PUSH_WALK=0.5;       // ground a day takes when nobody is left to hold it
+const PUSH_DECAY=0.05;     // ground given back per quiet day
+/* Below this the gain is nominal and the line is drawn at the border, so a
+   front that has not moved does not jitter a pixel back and forth forever. */
+const PUSH_EPS=0.02;
+function pushOf(p){return (p.push||0)>PUSH_EPS?p.push:0;}
+/* The attacker's gain for one day, signed: positive drives the line into the
+   defender, negative gives it back. A fresh attacker does not inherit somebody
+   else's ground -- their gains are rolled back first, which is what makes a
+   relieving army have to retake what the last one lost. */
+function advanceFront(p,att,atkP,defP){
+  if(p.pushBy&&p.pushBy!==att&&(p.push||0)>0){
+    p.push=Math.max(0,(p.push||0)-PUSH_RATE);
+    if(p.push<=0){p.push=0;p.pushBy=att;}
+    return;
+  }
+  p.pushBy=att;
+  const edge=(atkP-defP)/(atkP+defP+1e-6);
+  p.push=Math.max(0,Math.min(1,(p.push||0)+edge*PUSH_RATE));
+  if(p.push>=1)fallTo(p,att);
+}
+/* Ground nobody is pressing settles back toward the border. */
+function relaxFront(p){
+  if(!(p.push>0))return;
+  p.push-=PUSH_DECAY;
+  if(p.push<=0){p.push=0;p.pushBy=null;}
+}
+/* The province finally changes hands. Everything that used to happen the
+   instant a division walked in happens here instead, one push later. */
+function fallTo(p,nat){
+  const old=p.owner;
+  if(old===nat)return;
+  p.owner=nat;p.garrison=0;p.push=0;p.pushBy=null;terDirty=true;G.supply=null;
+  if(G.stats){if(nat===G.player)G.stats.taken++;else if(old===G.player)G.stats.lostProv++;}
+  if(MODS.scorched)p.val=Math.max(1,Math.round(p.val*0.4));
+  G.tension=Math.min(100,G.tension+0.4);
+  if(G.nations[old])G.nations[old].stab-=p.id===capOf(old)?8:1.5;
+  if(nat===G.player||old===G.player){logMsg(`${NATIONS[nat].f} captured ${p.name}`,nat===G.player?"good":"war");sfx(nat===G.player?"good":"war");}
+  if(nat===G.player){
+    const wq=weatherAt(p);
+    if(wq===WEATHER.blizzard)unlockAch("general_winter");
+    if(wq===WEATHER.sand&&p.ter==="desert")unlockAch("desert_fox");
+    if(p.ter==="mtn")unlockAch("alpinist");
+  }
+  if(G.nations[old]&&!natProvs(old).length)die(old);
+}
+/* THE FRONT LINE, AND WHY IT IS NOT DRAWN FROM THE PROVINCE CENTRES. The
+   first two attempts guessed at the geometry and both deserved what they got.
+   A perpendicular tick at each contested pair, sized by the distance between
+   the centres, came out as a scatter of long red slashes lying across the map
+   at every angle, joined to nothing. Clipping those into proper Voronoi edges
+   fixed the slashes and still put the line only NEAR the border, because the
+   political map is not a Voronoi of province centres at all -- with the atlas
+   loaded it comes from real country shapes, and the bisector of two capitals
+   is not the border between their countries.
+
+   So it is drawn from the same thing the borders themselves are drawn from:
+   the ownership raster, one cell to two world units, with the province that
+   owns every cell kept alongside it. A cell whose neighbour belongs to someone
+   its owner is at war with is a front cell. That gives a line that is
+   connected, that follows the real frontier exactly, and that costs one pass
+   over a grid the map already builds.
+
+   And the DRIFT falls straight out of it. A province being pushed into is not
+   painted wholly to its owner any more: the cells of it nearest the attacker
+   are counted as the attacker's, as large a share of them as p.push says, cut
+   along the axis the attack is coming from. At a push of nought the cut is at
+   the province's edge and the line sits on the border; at a half it is halfway
+   across; at one the province has fallen. So the line genuinely WALKS across
+   the ground, a day at a time, and the province changing hands is the moment
+   the line finishes crossing it rather than an event of its own. */
+let provPix=null, provPixW=0, provPixH=0;
+let frontEdgeCv=null, frontKey="";   // the front, as a Path2D in world units
+function buildFronts(){
+  frontEdgeCv=null;
+  if(!G||!G.prov||!provPix)return;
+  const w=provPixW,h=provPixH;
+  const PL=Object.values(G.prov);
+  const natIdx={},natKey=[0];
+  let ni=1;
+  const oIdx=new Int16Array(PL.length);
+  for(let i=0;i<PL.length;i++){
+    const o=PL[i].owner;
+    if(!o){oIdx[i]=0;continue;}
+    if(!natIdx[o]){natIdx[o]=ni++;natKey[natIdx[o]]=o;}
+    oIdx[i]=natIdx[o];
+  }
+  /* Which pairs of nations are actually shooting at each other. Looked up once
+     here rather than per cell -- atWar on half a million cells is half a
+     million Set lookups. */
+  const war=new Uint8Array(ni*ni);
+  for(let a=1;a<ni;a++)for(let b=a+1;b<ni;b++)
+    if(atWar(natKey[a],natKey[b])){war[a*ni+b]=1;war[b*ni+a]=1;}
+  /* The provinces with ground taken in them, and the direction it is being
+     taken from: toward whatever the attacker already holds next door. */
+  const cont=new Map();
+  for(let i=0;i<PL.length;i++){
+    const q=PL[i];
+    if(!pushOf(q)||!q.pushBy||!natIdx[q.pushBy])continue;
+    let ax=0,ay=0,m=0;
+    for(const bid of (q.adj||[])){
+      const b=G.prov[bid];
+      if(!b||b.owner!==q.pushBy)continue;
+      let bx=b.x;
+      if(bx-q.x>MW/2)bx-=MW; else if(bx-q.x<-MW/2)bx+=MW;
+      ax+=bx-q.x;ay+=b.y-q.y;m++;
+    }
+    if(!m)continue;
+    const L=Math.hypot(ax,ay);
+    if(!(L>1e-6))continue;
+    cont.set(i,{ax:ax/L,ay:ay/L,cx:q.x,cy:q.y,att:natIdx[q.pushBy],push:Math.min(1,q.push),lo:1e9,hi:-1e9,cut:1e9});
+  }
+  const SX=MW/w, SY=MH/h;
+  /* First pass: how far does each contested province reach along the axis it
+     is being attacked along? The cut has to be placed between its own near and
+     far edge, and nothing else knows where those are. */
+  if(cont.size){
+    for(let i=0;i<w*h;i++){
+      const pi=provPix[i];
+      if(pi<0)continue;
+      const cc=cont.get(pi);
+      if(!cc)continue;
+      const wx=(i%w)*SX, wy=((i/w)|0)*SY;
+      const sProj=(wx-cc.cx)*cc.ax+(wy-cc.cy)*cc.ay;
+      if(sProj<cc.lo)cc.lo=sProj;
+      if(sProj>cc.hi)cc.hi=sProj;
+    }
+    for(const cc of cont.values())
+      cc.cut=(cc.hi>cc.lo)?cc.hi-cc.push*(cc.hi-cc.lo):1e9;
+  }
+  /* Second pass: the effective owner of every cell, and a front cell wherever
+     two of them are at war across a boundary. */
+  const eff=new Int16Array(w*h);
+  for(let i=0;i<w*h;i++){
+    const pi=provPix[i];
+    if(pi<0){eff[i]=0;continue;}
+    let o=oIdx[pi];
+    const cc=cont.get(pi);
+    if(cc&&cc.cut<1e8){
+      const wx=(i%w)*SX, wy=((i/w)|0)*SY;
+      if((wx-cc.cx)*cc.ax+(wy-cc.cy)*cc.ay>cc.cut)o=cc.att;
+    }
+    eff[i]=o;
+  }
+  /* AS GEOMETRY, NOT AS PIXELS -- the same lesson this file already learned
+     about the national frontiers. Painted into a raster the front came out as
+     a fat orange band two cells thick, and two cells is four world units,
+     which at the zoom you fight at is a stripe a centimetre wide with a
+     visible staircase down both sides. The boundary between two cells is an
+     edge of the grid, and grid edges meet exactly, so emitting them as
+     segments gives the same connected line as a hairline that stays a hairline
+     however far in you go. */
+  const P=new Path2D();
+  let any=0;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x, o=eff[i];
+    if(!o)continue;
+    if(x<w-1){const r=eff[i+1];
+      if(r&&r!==o&&war[o*ni+r]){
+        const ex=(x+1)*SX;
+        P.moveTo(ex,y*SY);P.lineTo(ex,(y+1)*SY);any=1;}}
+    if(y<h-1){const dn=eff[i+w];
+      if(dn&&dn!==o&&war[o*ni+dn]){
+        const ey=(y+1)*SY;
+        P.moveTo(x*SX,ey);P.lineTo((x+1)*SX,ey);any=1;}}
+  }
+  frontEdgeCv=any?P:null;
+}
 function tryCapture(u){
   const p=provOf(u.at);
   if(p.owner!==u.nat&&atWar(u.nat,p.owner)){
@@ -3083,19 +3285,13 @@ function tryCapture(u){
           if(u.nat===G.player)logMsg(`\u{1F6A9} Occupying ${p.name} \u2014 hold it ${occNeed(p)} days to annex it.`);}
         return;
       }
-      const old=p.owner;p.owner=u.nat;p.garrison=0;terDirty=true;G.supply=null;
-      if(G.stats){if(u.nat===G.player)G.stats.taken++;else if(old===G.player)G.stats.lostProv++;}
-      if(MODS.scorched)p.val=Math.max(1,Math.round(p.val*0.4));
-      G.tension=Math.min(100,G.tension+0.4);
-      G.nations[old].stab-=p.id===capOf(old)?8:1.5;
-      if(u.nat===G.player||old===G.player){logMsg(`${NATIONS[u.nat].f} captured ${p.name}`,u.nat===G.player?"good":"war");sfx(u.nat===G.player?"good":"war");}
-      if(u.nat===G.player){
-        const wq=weatherAt(p);
-        if(wq===WEATHER.blizzard)unlockAch("general_winter");
-        if(wq===WEATHER.sand&&p.ter==="desert")unlockAch("desert_fox");
-        if(p.ter==="mtn")unlockAch("alpinist");
-      }
-      if(!natProvs(old).length)die(old);
+      /* Even walking into empty country is not instant any more -- but it is
+         quick, because there is nobody in it to be slow against. Two days,
+         against the fortnight a defended province costs. */
+      if(p.pushBy!==u.nat&&(p.push||0)>0)p.push=0;
+      p.pushBy=u.nat;
+      p.push=Math.min(1,(p.push||0)+PUSH_WALK);
+      if(p.push>=1)fallTo(p,u.nat);
     }
   }
 }
@@ -3146,6 +3342,16 @@ function battles(){
       const wx=weatherAt(p);pa*=wx.atk;pb*=wx.atk;
       const fortB=1+(p.fort||0)*0.12,terD=terOf(p).def*riverDef(p);
       if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
+      /* AND THE DAY'S MARGIN MOVES THE LINE. pa and pb are the whole fight by
+         this point -- frontage, veterancy, generals, supply, air, naval gunfire,
+         weather, the ground itself and the forts dug into it -- so the ground
+         gained is scored off exactly the numbers the battle is already decided
+         by, rather than a second model that would have to be kept in step with
+         this one. A province held by neither of them is nobody's to gain. */
+      if(p.owner===A||p.owner===B){
+        const att=p.owner===A?B:A;
+        advanceFront(p,att,p.owner===A?pb:pa,p.owner===A?pa:pb);
+      }
       // commanders learn from battle
       for(const u of[...fa,...fb])if(u.gen){u.gen.xp++;if(u.gen.xp>=25*u.gen.lvl&&u.gen.lvl<5){u.gen.lvl++;u.gen.xp=0;
         if(u.nat===G.player)logMsg(`★ General ${u.gen.name} promoted to level ${u.gen.lvl}!`,"good");}}
@@ -6306,8 +6512,11 @@ function buildGround(){
     }
     pidx[i]=bi;
     kind[i]=KIDX[bt]!==undefined?KIDX[bt]:KIDX.plain;
+    /* kept: which province every cell belongs to is what lets the front line
+       be drawn as a cut ACROSS a province rather than along its border */
     H[i]=TERHEIGHT[bt]!==undefined?TERHEIGHT[bt]:0.1;
   }
+  provPix=pidx;provPixW=w;provPixH=h;
   /* THE WORLD'S MOUNTAINS, BECAUSE TWO HUNDRED AND FIFTY MARKERS CANNOT HOLD
      THEM. Everything above this point builds the height field by asking the
      nearest province what kind of ground it is — and there are 250 of those for
@@ -9185,6 +9394,38 @@ function _drawFrame(){
     ctx.lineWidth=terr?1.1/Math.sqrt(z):(z<2.4?1.25:Math.min(2.8,1.9+(z-2.4)*0.06))/z;
     ctx.lineJoin="miter";ctx.miterLimit=2.5;
     strokeTiles(borderTiles,z);
+  }
+  /* THE FRONT LINE, AND IT IS NOT A BORDER. A border says who owns what; a
+     front says where the fighting has got to, and the two stop being the same
+     thing the moment a shot is fired. It is drawn only between provinces held
+     by nations actually at war, so it appears when a war starts and goes when
+     it ends, and it does not put a single line back over the picture in
+     peacetime.
+
+     Its POSITION is the whole point. Each segment sits on the axis between the
+     two province centres, at the midpoint when no ground has been taken and
+     sliding toward the defender in proportion to p.push -- so a battle being
+     won visibly pushes the line INTO the defender's province, a day at a time,
+     and a province falls when the line has crossed the whole of it. That is
+     what makes it drift rather than snap: the same number the battle is fought
+     over is the number the line is hung on. */
+  /* Rebuilt when the day turns or the map's ownership does, not per frame:
+     nothing in it can move in between. */
+  {let sig="";
+   if(G){sig=G.day+"/"+(terDirty?1:0);
+     for(const q of Object.values(G.prov))if(q.push>0)sig+="/"+q.id+q.push.toFixed(2);}
+   if(sig!==frontKey){frontKey=sig;try{buildFronts();}catch(e){frontEdgeCv=null;}}}
+  if(frontEdgeCv){
+    ctx.save();
+    ctx.lineCap="butt";ctx.lineJoin="round";
+    /* Drawn at full strength at every zoom. A border can afford to retire as
+       you come in; a front is the one line you came in to look at. */
+    const fw=(z<2?1.6:Math.min(3.0,1.6+(z-2)*0.08))/z;
+    ctx.strokeStyle=terr?"#000000":"rgba(20,8,6,0.55)";
+    ctx.lineWidth=fw*2.1;ctx.stroke(frontEdgeCv);
+    ctx.strokeStyle=terr?"#ff5a3a":"rgba(232,96,58,0.95)";
+    ctx.lineWidth=fw;ctx.stroke(frontEdgeCv);
+    ctx.restore();
   }
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
@@ -12731,7 +12972,7 @@ function renderPanel(){
       <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
       <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
-    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
+    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${Math.round(100*p.push)}%</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
       h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
       <button class="bbtn" ${me.pp<60||p.depot?"disabled":""} onclick="buildIn('${p.id}','depot')">🚛 Build supply depot — 60 PP ${p.depot?"(built)":""}<small>Feeds every province around it. The only way to hold ground far from your cities.</small></button>
@@ -15012,7 +15253,7 @@ const MP={role:null,code:null,ref:null,
   send(o){if(this.ref)this.ref.child("orders").push(o);}
 };
 function mpSerialize(){
-  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0,+(p.bombed||0).toFixed(3)];}
+  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0,+(p.bombed||0).toFixed(3),+(p.push||0).toFixed(3),p.pushBy||""];}
   const nat={};
   for(const k in G.nations){const n=G.nations[k];
     nat[k]=[+n.pp.toFixed(1),+n.rp.toFixed(1),+n.oil.toFixed(1),n.nukes,+n.stab.toFixed(1),
@@ -15043,10 +15284,14 @@ function mpApplyState(S){
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
-  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm]=S.prov[id];
+  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb]=S.prov[id];
     if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
     if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}
-    if(bm)p.bombed=bm; else delete p.bombed;}
+    if(bm)p.bombed=bm; else delete p.bombed;
+    /* Saves written before the front drifted carry neither field; they load as
+       a front that has taken no ground, which is exactly what they were. */
+    p.push=ph||0;p.pushBy=pb||null;}
+  frontKey="";
   /* A guest can be sent a country it has never heard of: one that ROSE out of a
      conquest after the guest joined, or a Shattered World shard. The old code
      skipped anything it did not recognise \u2014 and then the provinces it had just
