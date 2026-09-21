@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.12.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.12.1</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.12.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.12.1</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -401,7 +401,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.12.0";
+const BUILD="23.12.1";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -5339,6 +5339,20 @@ const PH_AX=5.39, PH_BX=690.0;
 /* How much of the edge lost to resampling is put back. See the unsharp pass. */
 const PH_SHARP=1.20, PH_SHARP_R=3;
 const PH_SHARP2=0.85, PH_SHARP2_R=1;   // the fine pass, for the picture magnified
+/* CHROMA IS NOISIER THAN LUMINANCE, AND MAGNIFYING IT IS WHAT MAKES THE
+   CLOSE-UP BLOTCHY. In the capture a country reads as one flat colour; here,
+   twelve times magnified, the same ground came out as pink and cyan speckle.
+   That is not brightness and it is not softness -- measured against the
+   reference at matched pixels-per-degree the acutance gap is six per cent --
+   it is the chroma of a 1500-pixel JPEG blown up until its colour noise is
+   the size of a province.
+   So the colour is smoothed and the luminance is not. Blurring Cb and Cr
+   while leaving Y alone costs no detail the eye can see -- it has far less
+   colour acuity than luminance acuity, which is why the JPEG threw most of
+   the chroma away in the first place -- and it is NOT desaturation: every
+   colour stays exactly as strong, it simply stops changing from texel to
+   texel. */
+const PH_CHROMA_R=2;
 /* How much of the ink drawn over the land is given back, and the tone range it
    is given back over. See the lift in the decode.
    The range matters as much as the amount. Lifting from 58 raised the mean
@@ -5775,6 +5789,46 @@ function loadMapPhoto(){
            to four thousand by two thousand with a better filter, 32MB and two
            thirds of a second to build -- came out WORSE than this at both high
            zooms, 6.30 against 7.21, and was dropped. */
+        /* before the fine sharpen, which works on luminance detail and must
+           not be handed smoothed edges to sharpen */
+        if(PH_CHROMA_R>0){
+          const R=PH_CHROMA_R, Y=new Float32Array(DW*DH);
+          const cb=new Float32Array(DW*DH), cr=new Float32Array(DW*DH);
+          for(let i=0,n=DW*DH;i<n;i++){
+            const r=od[i*4],g2=od[i*4+1],b3=od[i*4+2];
+            const y=0.299*r+0.587*g2+0.114*b3;
+            Y[i]=y; cb[i]=b3-y; cr[i]=r-y;
+          }
+          /* separable box blur on the two chroma planes only; x wraps */
+          const t1=new Float32Array(DW*DH), t2=new Float32Array(DW*DH);
+          const W2=2*R+1;
+          for(let y=0;y<DH;y++){
+            let a1=0,a2=0;
+            for(let k=-R;k<=R;k++){const xx=((k%DW)+DW)%DW;a1+=cb[y*DW+xx];a2+=cr[y*DW+xx];}
+            for(let x=0;x<DW;x++){
+              t1[y*DW+x]=a1/W2; t2[y*DW+x]=a2/W2;
+              const xo=((x-R)%DW+DW)%DW, xi=((x+R+1)%DW+DW)%DW;
+              a1+=cb[y*DW+xi]-cb[y*DW+xo]; a2+=cr[y*DW+xi]-cr[y*DW+xo];
+            }
+          }
+          for(let x=0;x<DW;x++){
+            let a1=0,a2=0;
+            for(let k=-R;k<=R;k++){const yy=Math.min(DH-1,Math.max(0,k));a1+=t1[yy*DW+x];a2+=t2[yy*DW+x];}
+            for(let y=0;y<DH;y++){
+              cb[y*DW+x]=a1/W2; cr[y*DW+x]=a2/W2;
+              const yo=Math.min(DH-1,Math.max(0,y-R)), yi=Math.min(DH-1,Math.max(0,y+R+1));
+              a1+=t1[yi*DW+x]-t1[yo*DW+x]; a2+=t2[yi*DW+x]-t2[yo*DW+x];
+            }
+          }
+          for(let i=0,n=DW*DH;i<n;i++){
+            if(od[i*4+3]<250)continue;
+            const y=Y[i], r=y+cr[i], b3=y+cb[i];
+            const g2=(y-0.299*r-0.114*b3)/0.587;
+            od[i*4]  =r<0?0:r>255?255:r;
+            od[i*4+1]=g2<0?0:g2>255?255:g2;
+            od[i*4+2]=b3<0?0:b3>255?255:b3;
+          }
+        }
         if(PH_SHARP2>0){
           const R2=PH_SHARP2_R;
           const b2=new Float32Array(DW*DH*3);
