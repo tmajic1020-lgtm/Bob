@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.12.1</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.13.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.12.1</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.13.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -401,7 +401,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.12.1";
+const BUILD="23.13.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1927,6 +1927,10 @@ function newGame(playerNation){
     if(sea){prov[a].seaAdj.push(b);prov[b].seaAdj.push(a);}
     else{prov[a].adj.push(b);prov[b].adj.push(a);}
   }
+  /* Each era has its own province set, so the network built for the last one
+     joins places this one has never heard of. Dropped here and rebuilt on the
+     first frame that wants it. */
+  railPath=null;
   for(const id in ERAS[ERA].owners){if(prov[id]){prov[id].owner=ERAS[ERA].owners[id];prov[id].home=ERAS[ERA].owners[id];}}
   // sub-provinces inherit their parent whenever the era moved the parent
   for(const c in SUBPARENT){
@@ -6396,6 +6400,93 @@ function buildNatEdges(owner,w,h){
   c.putImageData(natEdgeImg,0,0);
 }
 let riverPath=null;
+/* ============================== THE RAILWAYS ==============================
+   The one thing in a close view of this kind of map that a photograph can
+   never give you. The embedded capture is 1500 pixels wide for the whole
+   Earth: at the zoom you fight at, every pixel of it is twenty across and
+   there is nothing left in it to see. A railway is GEOMETRY -- two points and
+   a stroke -- so it is exactly as sharp at zoom twenty as at zoom two, and it
+   is the first thing that puts real detail back into ground that had none.
+
+   It is worked out from the map rather than listed, the way the rivers are.
+   Every province is a node, every land border between two an edge, and an edge
+   costs what it would cost to build: the distance, multiplied by what the
+   ground does to a railway engineer -- a mountain is four and a half times a
+   plain, a marsh two and a half -- and divided by what is at either end,
+   because a line is worth building toward somewhere worth reaching. The
+   cheapest set of edges that still joins every province to every other is the
+   network. That is a minimum spanning tree, and it is also, roughly, how a
+   real network gets built: the easy link first, the expensive one only when
+   nothing cheaper will do.
+
+   Then the trunk routes: any link between two places already worth taking gets
+   laid whether the tree needed it or not, because real networks have
+   redundancy between their cities and a spanning tree has none anywhere. */
+let railPath=null;
+const RAIL_TER={plain:1.0,steppe:1.1,urban:0.8,forest:1.5,hills:2.2,mtn:4.5,
+                desert:1.6,jungle:2.6,marsh:2.4,tundra:2.0};
+function buildRails(){
+  railPath=null;
+  if(!G||!G.prov)return;
+  const P=Object.values(G.prov);
+  if(P.length<2)return;
+  const idx={};P.forEach((q,i)=>{idx[q.id]=i;});
+  const edges=[];
+  for(let i=0;i<P.length;i++){
+    const a=P[i];
+    for(const bid of (a.adj||[])){
+      const j=idx[bid];
+      if(j===undefined||j<=i)continue;
+      const b=P[j];
+      const dx=b.x-a.x;
+      if(Math.abs(dx)>MW/2)continue;            // never a line across the seam
+      const d=Math.hypot(dx,b.y-a.y);
+      const ter=((RAIL_TER[a.ter]||1)+(RAIL_TER[b.ter]||1))/2;
+      const worth=1/(1+0.15*((a.val||1)+(b.val||1)));
+      edges.push([d*ter*worth,i,j]);
+    }
+  }
+  if(!edges.length)return;
+  edges.sort((u,v)=>u[0]-v[0]);
+  /* Kruskal, with path-halving in the find so a long chain of provinces does
+     not walk the whole chain on every lookup. */
+  const par=new Int32Array(P.length);
+  for(let i=0;i<P.length;i++)par[i]=i;
+  const find=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;};
+  const taken=new Set(), keep=[];
+  for(const e of edges){
+    const ra=find(e[1]), rb=find(e[2]);
+    if(ra===rb)continue;
+    par[ra]=rb;keep.push(e);taken.add(e[1]+"|"+e[2]);
+  }
+  /* trunk redundancy between the places worth reaching */
+  const LIMIT=Math.round(P.length*1.35);
+  for(const e of edges){
+    if(keep.length>=LIMIT)break;
+    if(taken.has(e[1]+"|"+e[2]))continue;
+    if((P[e[1]].val||1)>=3&&(P[e[2]].val||1)>=3){keep.push(e);taken.add(e[1]+"|"+e[2]);}
+  }
+  const trunk=new Path2D(), branch=new Path2D(), ties=new Path2D();
+  const TIE=1.15, TIEH=0.42;          // world units between sleepers, and half a sleeper
+  for(const e of keep){
+    const a=P[e[1]], b=P[e[2]];
+    const isTrunk=(a.val||1)>=3&&(b.val||1)>=3;
+    const T=isTrunk?trunk:branch;
+    T.moveTo(a.x,a.y);T.lineTo(b.x,b.y);
+    /* THE SLEEPERS, which are what make it read as a railway rather than a
+       road. Laid here as world geometry so they resolve as you come in
+       instead of being a screen-locked hatch that never does. */
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
+    if(!(d>0.001))continue;
+    const ux=dx/d, uy=dy/d, px=-uy*TIEH, py=ux*TIEH;
+    for(let t=TIE/2;t<d;t+=TIE){
+      const cx=a.x+ux*t, cy=a.y+uy*t;
+      ties.moveTo(cx-px,cy-py);ties.lineTo(cx+px,cy+py);
+    }
+  }
+  railPath={trunk,branch,ties,n:keep.length};
+}
+
 /* RIVERS, WHICH THE MAP HAD NONE OF and which are one of the first things the
    eye looks for on a map of the world. They are not drawn from a list of
    rivers — there is no such list here — they are worked out from the ground
@@ -9275,6 +9366,7 @@ function _drawFrame(){
       ctx.lineWidth=(z<5?3.2:Math.min(5.0,3.2+(z-5)*0.10))/z;ctx.stroke(riverPath.big);
       ctx.lineCap="butt";
     }
+
     /* The sharp grain, fading in exactly where the raster starts to go soft.
        A full-map pattern fill at four per cent opacity is invisible and costs
        exactly as much as one at forty, so it does not start until it is worth
@@ -9607,6 +9699,65 @@ function _drawFrame(){
      and a province falls when the line has crossed the whole of it. That is
      what makes it drift rather than snap: the same number the battle is fought
      over is the number the line is hung on. */
+  /* THE RAILWAYS GO OVER THE PICTURE, NOT UNDER IT. Laid in with the rivers
+     they were drawn at line 9369 and the capture was painted over the top of
+     them at 9582: built correctly, 256 edges of it, and then buried. Nothing
+     that has to stay readable can live under an opaque photograph. */
+  /* AND THE RIVERS WITH THEM, FOR THE SAME REASON. They are laid into the
+     ground layer on the reasoning that a river is part of the country rather
+     than a line ruled over the top of it -- which is right, and which the
+     capture then paints over completely. Every river on this map has been
+     invisible for as long as the picture has been the ground. Drawn again
+     here, only when the picture is what is underneath; with it off, the pass
+     in the ground layer is the one you see and this one never runs. */
+  if(riverPath&&MAPQ>=1&&typeof photoMapOn==="function"&&photoMapOn()&&!terr){
+    ctx.save();
+    ctx.lineCap="round";ctx.lineJoin="round";
+    ctx.strokeStyle="rgba(56,96,124,0.50)";
+    ctx.lineWidth=(z<4?1.5:Math.min(2.6,1.5+(z-4)*0.06))/z;ctx.stroke(riverPath.small);
+    ctx.strokeStyle="rgba(48,88,120,0.72)";
+    ctx.lineWidth=(z<5?3.2:Math.min(5.0,3.2+(z-5)*0.10))/z;ctx.stroke(riverPath.big);
+    ctx.restore();
+  }
+  /* THE RAILWAYS, OVER THE RIVERS, because that is the way round a bridge
+     works. Built once, the first frame that asks for them. */
+  if(MAPQ>=2&&z>1.8){
+    if(railPath===null){try{buildRails();}catch(e){railPath=1;}}
+    if(railPath&&railPath!==1){
+    /* They fade in rather than appearing: a rail network drawn with the
+       whole world in view is a grey haze over every continent, which is
+       what the province mosaic used to be before it learned to wait. */
+    const ra=Math.min(1,(z-1.8)/1.4);
+    ctx.save();
+    ctx.lineCap="butt";ctx.lineJoin="round";
+    /* TWO PASSES, BECAUSE THE GROUND UNDERNEATH IS A PHOTOGRAPH. A single
+       dark hairline drawn at 78% over the capture was invisible: the ground
+       it crosses runs from near-black forest to pale desert within a few
+       provinces, and any one colour disappears against half of it. A pale
+       bed with the rail laid on top reads on both, which is also what a
+       railway actually looks like from above -- ballast, then track. */
+    ctx.globalAlpha=ra*0.42;
+    ctx.strokeStyle=terr?"#3a2f22":"rgba(232,222,200,0.92)";
+    ctx.lineWidth=Math.min(3.4,1.9+(z-1.8)*0.07)/z;ctx.stroke(railPath.branch);
+    ctx.lineWidth=Math.min(4.6,2.6+(z-1.8)*0.09)/z;ctx.stroke(railPath.trunk);
+    ctx.globalAlpha=ra*0.85;
+    ctx.strokeStyle=terr?"#000000":"rgba(38,30,24,0.95)";
+    ctx.lineWidth=Math.min(1.5,0.8+(z-1.8)*0.04)/z;ctx.stroke(railPath.branch);
+    ctx.lineWidth=Math.min(2.2,1.2+(z-1.8)*0.05)/z;ctx.stroke(railPath.trunk);
+    /* THE SLEEPERS WAIT UNTIL THEY WOULD BE MORE THAN A PIXEL APART. They
+       are laid every 1.15 world units, which at zoom 4 is four screen
+       pixels and at zoom 2 is two: drawn there they are not a railway,
+       they are a smear along one. From about six they separate, and from
+       there the line reads as track all the way in. */
+    if(z>5.5){
+      ctx.globalAlpha=ra*Math.min(1,(z-5.5)/3)*0.62;
+      ctx.strokeStyle=terr?"#000000":"rgba(38,30,22,0.95)";
+      ctx.lineWidth=Math.min(1.5,0.8+(z-5.5)*0.04)/z;
+      ctx.stroke(railPath.ties);
+    }
+    ctx.restore();
+    }
+  }
   /* Rebuilt when the day turns or the map's ownership does, not per frame:
      nothing in it can move in between. */
   {let sig="";
