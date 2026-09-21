@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.14.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.15.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.14.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.15.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -297,6 +297,11 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🛢 <b id="hOil">0</b> oil</span>
   <span title="Manpower — every division comes out of this and does not come back">👥 <b id="hMP">0</b>K</span>
   <span>☢ <b id="hNuke">0</b></span>
+  <span id="hCon" title="Construction — sites working out of the capacity your industry supports, and anything queued behind them">🏗 <b id="hConT">0/1</b></span>
+  <span id="hStab" title="Stability. A country that runs out of it collapses into civil war">🏛 <b id="hStabT">0</b>%</span>
+  <span id="hWarS" title="War support — how much war the public will take before it stops supplying you men">✊ <b id="hWarT">0</b>%</span>
+  <span id="hFoc" title="The national focus in progress">🎯 <b id="hFocT">—</b></span>
+  <span id="hRes" title="What the laboratories are working on">⚙ <b id="hResT">—</b></span>
   <span>🌡 <b id="hTen">0</b>%</span>
   <span>🗺 <b id="hProv">0</b> prov</span>
   <span>⚔ <b id="hDiv">0</b> div</span>
@@ -401,7 +406,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.14.0";
+const BUILD="23.15.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -2726,6 +2731,7 @@ function tick(){
     if(me0&&me0.atWar.size)st.warDays++;
   }
   productionTick();
+  constructionTick();
   supplyTick();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
@@ -4241,35 +4247,119 @@ function genMul(u,p){
 }
 function vetMul(u){return 1+Math.min(0.24,(u.xp||0)*0.002);}
 function vetStars(u){const x=u&&u.xp||0;return x>=90?" 🎖":x>=45?" ★★":x>=15?" ★":"";}
-/* buildings */
-function buildIn(pid,what){if(!G||!G.nations)return;
-  const me=G.nations[G.player],p=provOf(pid);
-  if(p.owner!==G.player)return;
-  if(what==="fort"){
-    if((p.fort||0)>=3)return;
-    if(me.pp<25){logMsg("A fort level costs 25 PP.","war");return;}
-    me.pp-=25;p.fort=(p.fort||0)+1;sfx("good");
-    logMsg(`🏰 Fortifications raised at ${p.name} (level ${p.fort}).`,"good");
-  }
-  if(what==="depot"){
-    /* A depot is a supply source in its own right, which is the only way to
-       hold ground a long way from any city you own -- a desert, a mountain
-       range, the far end of a conquest. It is also the first thing worth
-       spending production on that is not another division. */
-    if(p.depot)return;
-    if(me.pp<60){logMsg("A supply depot costs 60 PP.","war");return;}
-    me.pp-=60;p.depot=1;G.supply=null;sfx("good");
-    logMsg(`\u{1F69B} Supply depot established at ${p.name}.`,"good");
-  }
-  if(what==="fac"){
-    if((p.fac||0)>=2)return;
-    if(me.pp<40){logMsg("A factory costs 40 PP.","war");return;}
-    me.pp-=40;p.fac=(p.fac||0)+1;p.val++;sfx("coin");
-    logMsg(`🏭 New factory in ${p.name} (+1 province value).`,"good");
-  }
+/* ============================= CONSTRUCTION =============================
+   A fort used to appear the INSTANT you could afford it. Twenty-five points
+   and the fortifications were simply there, that tick, anywhere you owned --
+   which made production a shopping list rather than a plan, and made the one
+   decision that ought to cost you time cost you nothing but points. Divisions
+   have always taken days to build; the buildings they shelter in did not.
+
+   Three things now stand between wanting a thing and having it: the points,
+   the days, and the CAPACITY. A country can only run so many sites at once --
+   one, plus what its industry and its existing factories support -- so a
+   fourth order does not slow the first three down, it waits behind them. That
+   is the whole shape of an industrial decision: not what can I afford, but
+   what do I start first, and what does that mean I am not starting. */
+const BUILDINGS={
+  fort: {n:"Fortifications",i:"\u{1F3F0}",pp:25,days:60,
+         d:"Dug in. Every level stiffens the defence and widens the front a defender can hold.",
+         have:p=>(p.fort||0),cap:()=>3,
+         fx:p=>{p.fort=(p.fort||0)+1;}},
+  fac:  {n:"Factory",i:"\u{1F3ED}",pp:40,days:120,
+         d:"+1 province value, permanently \u2014 more production and more research every day it stands.",
+         have:p=>(p.fac||0),cap:()=>2,
+         fx:p=>{p.fac=(p.fac||0)+1;p.val++;terDirty=true;}},
+  depot:{n:"Supply Depot",i:"\u{1F69B}",pp:60,days:45,
+         d:"A supply source in its own right \u2014 the only way to hold ground a long way from any city you own.",
+         have:p=>(p.depot?1:0),cap:()=>1,
+         fx:p=>{p.depot=1;G.supply=null;}}
+};
+/* How many sites a country can run at once. One always, and then what its
+   industry and its standing factories will support. */
+function conSlots(k){
+  const n=G.nations&&G.nations[k];
+  if(!n)return 1;
+  let fac=0;
+  for(const p of natProvs(k))fac+=(p.fac||0);
+  return Math.max(1,Math.min(6,1+Math.floor(((n.res&&n.res.ind)||0)/2)+Math.floor(fac/4)));
+}
+/* And how long one takes. Industry research is what shortens it, which is what
+   makes the first factory worth more than the production it adds. */
+function conDays(k,what){
+  const B=BUILDINGS[what];
+  if(!B)return 60;
+  return Math.max(10,Math.round(B.days/Math.max(0.5,techMul(k,"ind"))));
+}
+function conSites(k){return (G.build||[]).filter(o=>o.nat===k);}
+function buildIn(pid,what){
+  if(!G||!G.nations)return;
+  const me=G.nations[G.player],p=provOf(pid),B=BUILDINGS[what];
+  if(!p||!B||p.owner!==G.player)return;
+  G.build=G.build||[];
+  const queuedHere=G.build.filter(o=>o.nat===G.player&&o.at===pid&&o.what===what).length;
+  if(B.have(p)+queuedHere>=B.cap(p)){
+    logMsg(`${p.name} can take no more \u2014 ${B.n.toLowerCase()} is at its limit there.`,"war");return;}
+  if(me.pp<B.pp){logMsg(`${B.n} costs ${B.pp} PP.`,"war");return;}
+  me.pp-=B.pp;
+  const d=conDays(G.player,what);
+  G.build.push({bid:++G.uid,nat:G.player,at:pid,what,left:d,total:d});
+  const waiting=conSites(G.player).length>conSlots(G.player);
+  sfx("good");
+  logMsg(`${B.i} ${B.n} begun at ${p.name} \u2014 ${d} days${waiting?", waiting for a free site":""}.`,"good");
   renderPanel();refreshHUD();
 }
 window.buildIn=buildIn;
+/* Calling off a site returns half of what was put into it. Half, because the
+   concrete already poured does not come back. */
+window.cancelBuild=bid=>{
+  if(!G||!G.build)return;
+  const o=G.build.find(x=>x.bid===bid&&x.nat===G.player);
+  if(!o)return;
+  const B=BUILDINGS[o.what];
+  G.build=G.build.filter(x=>x!==o);
+  if(B){G.nations[G.player].pp+=Math.round(B.pp*0.5);
+    logMsg(`${B.i} ${B.n} at ${(G.prov[o.at]||{}).name||"?"} called off \u2014 half the outlay returned.`,"war");}
+  renderPanel();refreshHUD();
+};
+/* Only as many sites as the country has capacity for advance on any day. The
+   rest are ordered and paid for and simply have not been started. */
+function constructionTick(){
+  if(!G.build||!G.build.length)return;
+  const byNat={};
+  for(const o of G.build)(byNat[o.nat]=byNat[o.nat]||[]).push(o);
+  const done=[];
+  for(const k in byNat){
+    const n=G.nations[k];
+    if(!n||!n.alive)continue;
+    const slots=conSlots(k);
+    let started=0;
+    for(const o of byNat[k]){
+      if(started>=slots)break;
+      const p=G.prov[o.at];
+      /* Ground that has been lost does not build. The order keeps its place
+         and its money; it simply makes no progress while somebody else is
+         standing on it. */
+      if(!p||p.owner!==k)continue;
+      started++;
+      o.left--;
+      if(o.left<=0)done.push(o);
+    }
+  }
+  if(!done.length)return;
+  const fin=new Set(done);
+  G.build=G.build.filter(o=>!fin.has(o));
+  let mine=false;
+  for(const o of done){
+    const p=G.prov[o.at],B=BUILDINGS[o.what];
+    if(!p||!B||p.owner!==o.nat)continue;
+    B.fx(p);
+    if(o.nat===G.player){
+      mine=true;
+      logMsg(`${B.i} ${B.n} complete at ${p.name}.`,"good");
+    }
+  }
+  if(mine){sfx("good");renderPanel();refreshHUD();}
+}
 /* Leaving a pact. Works for any nation so the host can run it on behalf of a
    multiplayer guest, and so the AI can walk out of an alliance too. */
 function breakAllianceFor(k,o){
@@ -13423,9 +13513,31 @@ function renderPanel(){
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
     ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${Math.round(100*p.push)}%</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     if(p.owner===G.player){
-      h+=`<button class="bbtn" ${me.pp<25||(p.fort||0)>=3?"disabled":""} onclick="buildIn('${p.id}','fort')">🏰 Build fort — 25 PP ${(p.fort||0)>=3?"(max)":"(level "+((p.fort||0)+1)+"/3)"}<small>+12% defense and stronger garrison per level.</small></button>
-      <button class="bbtn" ${me.pp<60||p.depot?"disabled":""} onclick="buildIn('${p.id}','depot')">🚛 Build supply depot — 60 PP ${p.depot?"(built)":""}<small>Feeds every province around it. The only way to hold ground far from your cities.</small></button>
-      <button class="bbtn" ${me.pp<40||(p.fac||0)>=2?"disabled":""} onclick="buildIn('${p.id}','fac')">🏭 Build factory — 40 PP ${(p.fac||0)>=2?"(max)":""}<small>+1 province value, forever.</small></button>`;
+      /* THE SITES, GENERATED FROM THE TABLE. Three hand-written buttons could
+         not show what the province already had under construction, so the only
+         way to find out whether you had already ordered a factory here was to
+         remember. Each row now carries its own state: building, waiting for a
+         free site, finished, or orderable. */
+      const _sites=conSites(G.player), _slots=conSlots(G.player);
+      const _here=_sites.filter(o=>o.at===p.id);
+      h+=`<h3>CONSTRUCTION \u00b7 ${Math.min(_sites.length,_slots)}/${_slots} SITES WORKING${_sites.length>_slots?" \u00b7 "+(_sites.length-_slots)+" WAITING":""}</h3>`;
+      for(const _k in BUILDINGS){
+        const B=BUILDINGS[_k];
+        const q=_here.filter(o=>o.what===_k);
+        const had=B.have(p), cap=B.cap(p);
+        if(q.length){
+          /* a site in progress: how far, and the chance to call it off */
+          const o=q[0], pct=Math.round(100*(o.total-o.left)/o.total);
+          const rank=_sites.indexOf(o), working=rank<_slots;
+          h+=`<div class="row"><span>${B.i} ${B.n}</span><span style="color:${working?"var(--amber)":"var(--dim)"}">${working?pct+"% \u00b7 "+o.left+"d":"waiting"}</span></div>
+          <div class="bar" style="margin-bottom:4px"><i style="width:${pct}%;background:${working?"var(--amber)":"#5a6355"}"></i></div>
+          <button class="bbtn" onclick="cancelBuild(${o.bid})">\u2716 Call off ${B.n.toLowerCase()}<small>Half the outlay comes back.</small></button>`;
+        }else if(had>=cap){
+          h+=`<div class="row"><span style="color:var(--dim)">${B.i} ${B.n}</span><span style="color:var(--dim)">\u2713 ${cap>1?had+"/"+cap:"built"}</span></div>`;
+        }else{
+          h+=`<button class="bbtn" ${me.pp<B.pp?"disabled":""} onclick="buildIn('${p.id}','${_k}')">${B.i} ${B.n} \u2014 ${B.pp} PP \u00b7 ${conDays(G.player,_k)} days${cap>1?" (level "+(had+1)+"/"+cap+")":""}<small>${B.d}</small></button>`;
+        }
+      }
     }
     if(G.selUnit){
       const su=G.selUnit;
@@ -14447,6 +14559,36 @@ function refreshHUD(){
      el3.textContent=cur;
      el3.parentNode.style.color=cur<MP_COST.inf?"var(--red)":cur<cap*0.2?"var(--amber)":"";}}
   $("#hNuke").textContent=me.nukes;
+  /* EVERYTHING THE COUNTRY IS DOING, ON THE ONE STRIP. Production, research
+     and manpower were up here; what it was BUILDING, what it was researching,
+     what focus it was on and whether the public was still behind it were each
+     buried a panel deep, so the three things that quietly lose you a campaign
+     were the three you had to go looking for. */
+  {const el=$("#hConT");
+   if(el){const sites=conSites(G.player),slots=conSlots(G.player);
+     const work=Math.min(sites.length,slots), wait=Math.max(0,sites.length-slots);
+     el.textContent=work+"/"+slots+(wait?" +"+wait:"");
+     el.parentNode.style.color=wait?"var(--amber)":(work?"":"var(--dim)");}}
+  {const el=$("#hStabT");
+   if(el){const v=Math.round(me.stab);el.textContent=v;
+     el.parentNode.style.color=v<20?"var(--red)":v<40?"var(--amber)":"";}}
+  {const el=$("#hWarT");
+   if(el){const v=Math.round(me.warSup??50);el.textContent=v;
+     el.parentNode.style.color=v<20?"var(--red)":v<35?"var(--amber)":"";}}
+  {const el=$("#hFocT");
+   if(el){
+     if(me.focus&&FOCUSES[me.focus.key]){
+       const f=FOCUSES[me.focus.key];
+       el.textContent=f.n+" "+Math.round(100*me.focus.prog/FOCUS_DAYS)+"%";
+       el.parentNode.style.color="";
+     }else{el.textContent="none";el.parentNode.style.color="var(--dim)";}}}
+  {const el=$("#hResT");
+   if(el){
+     if(me.researching&&RESNAMES[me.researching]){
+       const c=resCost(me,me.researching);
+       el.textContent=RESNAMES[me.researching]+" "+Math.round(100*Math.min(1,me.resProg/c))+"%";
+       el.parentNode.style.color="";
+     }else{el.textContent="idle";el.parentNode.style.color="var(--amber)";}}}
   {const cp=G.prov[capOf(G.player)],el2=$("#hWxT");
    if(el2&&cp){const w=weatherAt(cp);
      el2.textContent=SEASON_N[seasonOf(cp.lat)]+" \u00b7 "+w.n;
@@ -15797,7 +15939,9 @@ function mpSerialize(){
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas"]),
-    queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total])};
+    queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total]),
+    /* construction sites (v23.15+); older saves simply have none */
+    build:(G.build||[]).map(o=>[o.bid,o.nat,o.at,o.what,o.left,o.total])};
 }
 function mpBroadcastMods(){if(MP.role==="host"&&MP.ref)MP.ref.child("state").set(mpSerialize());}
 window.mpBroadcastMods=mpBroadcastMods;
@@ -15811,6 +15955,7 @@ function mpApplyState(S){
   }
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
+  G.build=(S.build||[]).filter(a=>BUILDINGS[a[3]]).map(a=>({bid:a[0],nat:a[1],at:a[2],what:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
   for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb]=S.prov[id];
     if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
