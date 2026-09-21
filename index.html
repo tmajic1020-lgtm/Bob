@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.13.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.14.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.13.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.14.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -401,7 +401,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.13.0";
+const BUILD="23.14.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1930,7 +1930,7 @@ function newGame(playerNation){
   /* Each era has its own province set, so the network built for the last one
      joins places this one has never heard of. Dropped here and rebuilt on the
      first frame that wants it. */
-  railPath=null;
+  railPath=null;terrainMarks=null;
   for(const id in ERAS[ERA].owners){if(prov[id]){prov[id].owner=ERAS[ERA].owners[id];prov[id].home=ERAS[ERA].owners[id];}}
   // sub-provinces inherit their parent whenever the era moved the parent
   for(const c in SUBPARENT){
@@ -6399,6 +6399,71 @@ function buildNatEdges(owner,w,h){
   }
   c.putImageData(natEdgeImg,0,0);
 }
+/* ========================== WHAT THE GROUND IS MADE OF =====================
+   The picture is 1500 pixels wide for the whole Earth. Past about zoom eight
+   there is nothing left in it: every complaint in this file about the close
+   view being mush comes back to that, and four separate attempts to filter it
+   into sharpness are recorded in the log as reverted. A photograph cannot be
+   sharpened into detail it never sampled.
+
+   Geometry can. A tree drawn as three strokes is three strokes at any
+   magnification -- the same reason the railways hold up -- so the way to stop
+   the ground dissolving is to stop it being a photograph and start it being
+   made of things. Each province already knows what kind of ground it is; this
+   scatters that kind across it as marks, on a lattice fixed in WORLD space so
+   they sit still while you zoom instead of swimming.
+
+   Placed through provPix, the per-cell province index the front line already
+   keeps, so a wood stops at its province's edge rather than at a circle drawn
+   round its capital. Bucketed into the same boundary tiles the coastline uses,
+   so a frame strokes the two or three tiles you can see and not the world. */
+let terrainMarks=null;
+const TM_WOOD=new Set(["forest","jungle"]), TM_RELIEF=new Set(["hills","mtn"]);
+function buildTerrainMarks(){
+  terrainMarks=null;
+  if(!G||!G.prov||!provPix||!PT_W||!PT_H)return;
+  const PL=Object.values(G.prov);
+  const wood={tiles:new Array(PT_W*PT_H),PW:PT_W,PH:PT_H};
+  const relief={tiles:new Array(PT_W*PT_H),PW:PT_W,PH:PT_H};
+  const SX=MW/provPixW, SY=MH/provPixH;
+  let seed=20259;
+  const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+  const put=(T,wx,wy)=>{
+    const tx=(wx/PT_S)|0, ty=(wy/PT_S)|0;
+    if(tx<0||ty<0||tx>=PT_W||ty>=PT_H)return null;
+    const k=ty*PT_W+tx;
+    return T.tiles[k]||(T.tiles[k]=new Path2D());
+  };
+  let nw=0,nr=0;
+  /* Two spacings, because a wood is dense and a range is not. Both jittered
+     off the lattice, or the marks line up into rows and read as a crop. */
+  for(const [STEP,kinds,T,isWood] of [[2.3,TM_WOOD,wood,true],[3.4,TM_RELIEF,relief,false]]){
+    for(let wy=STEP*0.5;wy<MH;wy+=STEP)for(let wx=STEP*0.5;wx<MW;wx+=STEP){
+      const jx=wx+(rnd()-0.5)*STEP*0.85, jy=wy+(rnd()-0.5)*STEP*0.85;
+      const px=(jx/SX)|0, py=(jy/SY)|0;
+      if(px<0||py<0||px>=provPixW||py>=provPixH)continue;
+      const pi=provPix[py*provPixW+px];
+      if(pi<0)continue;                       // sea
+      const q=PL[pi];
+      if(!q||!kinds.has(q.ter))continue;
+      const P=put(T,jx,jy);
+      if(!P)continue;
+      if(isWood){
+        /* a conifer: a stem, and a pair of boughs off the top of it */
+        const h=0.34+rnd()*0.22, w=h*0.62;
+        P.moveTo(jx,jy+h*0.75);P.lineTo(jx,jy-h*0.55);
+        P.moveTo(jx-w,jy+h*0.05);P.lineTo(jx,jy-h*0.75);P.lineTo(jx+w,jy+h*0.05);
+        nw++;
+      }else{
+        /* a ridge: one caret, leaning whichever way this one happens to */
+        const w=0.55+rnd()*0.42, h=w*(0.62+rnd()*0.3), lean=(rnd()-0.5)*w*0.5;
+        P.moveTo(jx-w,jy+h*0.45);P.lineTo(jx+lean,jy-h*0.55);P.lineTo(jx+w,jy+h*0.45);
+        nr++;
+      }
+    }
+  }
+  terrainMarks=(nw||nr)?{wood,relief,nw,nr}:1;
+}
 let riverPath=null;
 /* ============================== THE RAILWAYS ==============================
    The one thing in a close view of this kind of map that a photograph can
@@ -9703,6 +9768,41 @@ function _drawFrame(){
      they were drawn at line 9369 and the capture was painted over the top of
      them at 9582: built correctly, 256 edges of it, and then buried. Nothing
      that has to stay readable can live under an opaque photograph. */
+  /* WHAT THE GROUND IS MADE OF, UNDER THE WATER AND THE TRACK, because that
+     is the order they sit in. Held back until zoom 4.5: a wood drawn with a
+     continent in view is a green haze over every forested province, and the
+     marks are a third of a world unit tall, which at that distance is a fifth
+     of a pixel. They arrive exactly where the capture underneath them has
+     stopped having anything to say. */
+  /* NOT FROM 4.5. There they cost 24% of the frame rate -- 25 against 33 --
+     to buy 4% of acutance, because at that distance the viewport spans half a
+     dozen boundary tiles and every mark in all of them is stroked, while the
+     capture underneath still has detail of its own. The curve says where they
+     belong: the picture's acutance peaks at zoom 6 and has halved by 12. They
+     start where it starts failing, and by then a viewport is one tile. */
+  if(MAPQ>=2&&z>8&&!terr){
+    if(terrainMarks===null){try{buildTerrainMarks();}catch(e){terrainMarks=1;}}
+    if(terrainMarks&&terrainMarks!==1){
+      const ta=Math.min(1,(z-8)/3);
+      ctx.save();
+      ctx.lineCap="round";ctx.lineJoin="round";
+      /* THE SAME TWO PASSES THE RAILWAYS NEEDED, AND FOR THE SAME REASON. A
+         dark green tree on a dark green forest is not a tree, and the capture
+         underneath runs from near-black woodland to pale steppe within one
+         province. A pale bed under the mark makes it read on either, and a
+         stand of trees seen from above does throw light exactly there. */
+      ctx.globalAlpha=ta*0.34;
+      ctx.strokeStyle="rgba(226,224,198,0.95)";
+      ctx.lineWidth=Math.min(2.6,1.5+(z-8)*0.07)/z;strokeTiles(terrainMarks.wood,z);
+      ctx.lineWidth=Math.min(2.9,1.7+(z-8)*0.07)/z;strokeTiles(terrainMarks.relief,z);
+      ctx.globalAlpha=ta*0.88;
+      ctx.strokeStyle="rgba(26,42,24,0.95)";
+      ctx.lineWidth=Math.min(1.4,0.7+(z-8)*0.04)/z;strokeTiles(terrainMarks.wood,z);
+      ctx.strokeStyle="rgba(54,44,34,0.90)";
+      ctx.lineWidth=Math.min(1.6,0.8+(z-8)*0.04)/z;strokeTiles(terrainMarks.relief,z);
+      ctx.restore();
+    }
+  }
   /* AND THE RIVERS WITH THEM, FOR THE SAME REASON. They are laid into the
      ground layer on the reasoning that a river is part of the country rather
      than a line ruled over the top of it -- which is right, and which the
