@@ -132,6 +132,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 .resfoot{color:var(--dim);font-size:9.5px;line-height:1.35;padding:4px 2px 1px;border-top:1px solid var(--line);margin-top:4px}
 @keyframes resPulse{0%,100%{box-shadow:0 0 0 0 #e8a33d00}50%{box-shadow:0 0 8px 0 #e8a33d55}}
 @media(max-width:640px){.restree{grid-template-columns:1fr}}
+/* ============================ THE FOCUS TREE ============================
+   A focus tree is a LATTICE, not a list of buttons. The old panel printed the
+   seven focuses as a column of rows: nothing showed which came before which,
+   nothing was ever out of reach, and you could take the atom bomb before you
+   had built a factory. What makes this screen worth looking at is the SHAPE --
+   four branches side by side, each rung opening the one below it, the line you
+   are on lit and the road ahead visibly out of reach until you have earned it.
+   Nodes are absolutely positioned on a computed lattice and the prerequisite
+   lines are drawn behind them in SVG, which is the only way the elbows between
+   columns land on the nodes rather than near them. Same palette, same states
+   and the same pulse as the research tree next door, because it is the same
+   game and should not look pasted in from another one. */
+.ftwrap{overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  background:#11160f;border:1px solid var(--line);padding:12px;margin-top:8px}
+.ftree{position:relative;margin:0 auto}
+.ftree svg{position:absolute;left:0;top:0;pointer-events:none}
+.fnode{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;text-align:center;
+  background:linear-gradient(#232b20,#181e16);border:1px solid #2b3327;
+  font-size:9.5px;line-height:1.18;padding:4px 5px;user-select:none;
+  transition:border-color .15s ease,background .15s ease,transform .1s ease}
+.fnode .fi{font-size:15px;filter:saturate(.75);line-height:1}
+.fnode .fn{width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fnode .fs{font-size:8.5px;color:var(--dim);letter-spacing:.5px}
+.fnode.done{border-color:#3f5a38;background:#1b2618;color:#9fc08c}
+.fnode.done .fs{color:#7ea86a}
+.fnode.running{border-color:var(--amber);background:#2a2415;color:#ffd791;
+  animation:resPulse 1.8s ease-in-out infinite}
+.fnode.running .fs{color:var(--amber)}
+.fnode.open{border-color:#5d6a52;cursor:pointer}
+.fnode.open:hover{border-color:var(--amber);background:#242b1e}
+.fnode.open:active{transform:scale(.97)}
+.fnode.locked{opacity:.34}
+.fthead{display:flex;gap:8px;margin-bottom:6px}
+.fthead span{font-size:9.5px;letter-spacing:1px;color:var(--amber);text-align:center;
+  border-bottom:1px solid var(--line);padding-bottom:4px;box-sizing:border-box}
 #tip{position:absolute;pointer-events:none;background:#0e130fcc;border:1px solid var(--line);padding:5px 8px;font-size:11px;display:none;z-index:20;max-width:220px}
 #speedbox{position:absolute;bottom:8px;right:8px;display:flex;gap:5px;align-items:center;background:#11160fb0;border:1px solid var(--line);padding:5px 8px}
 #auth{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%);z-index:60;display:flex;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -213,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.11.1</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.12.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -232,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.11.1</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.12.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -364,7 +401,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.11.1";
+const BUILD="23.12.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -4034,15 +4071,86 @@ function runHistory(catchup){
   }
 }
 /* ============================== NATIONAL FOCUSES ============================== */
+/* Four branches, four rungs each. col/row place the node on the lattice; req
+   lists what must be finished first, and every one of them must be done. Two
+   rungs reach ACROSS branches on purpose -- armour wants fuel before it wants
+   tanks, and the bomber force wants the factories -- because a tree whose
+   branches never touch is four ladders standing next to each other.
+   Every effect below writes to a field that exists: res levels, pp, oil, mp,
+   stability, war support, the resource stockpile, and the unit builders. */
 const FOCUSES={
- ind:{n:"Industrial Effort",d:"Modernize the factories. Instantly gain an Industry research level.",fx:me=>{me.res.ind++;}},
- rearm:{n:"Rearmament",d:"Three fresh infantry divisions muster at the capital, free of charge.",fx:me=>{const c=G.prov[capOf(G.player)];for(let i=0;i<3;i++)addUnit(G.player,c.owner===G.player?c.id:natProvs(G.player)[0].id,"inf",3);}},
- navy:{n:"Naval Expansion",d:"The shipyards work day and night: a free capital squadron and an escort flotilla.",fx:me=>{const ps=natProvs(G.player).filter(p=>p.coastal);if(ps.length){addFleet(G.player,ps[0].id,4,"cap");addFleet(G.player,ps[ps.length-1].id,2,"dd");}}},
- air:{n:"Air Supremacy Program",d:"A free fighter wing and a tactical bomber join the capital airbase.",fx:me=>{addWing(G.player,3,"fig");addWing(G.player,2,"cas");}},
- atom:{n:"Atomic Pioneers",d:"A secret program: build nuclear weapons WITHOUT Industry III.",fx:me=>{me.atomicOk=true;}},
- prop:{n:"National Propaganda",d:"Posters, parades, radio. +15 stability.",fx:me=>{me.stab=Math.min(100,me.stab+15);}},
- oil:{n:"Synthetic Fuel Plants",d:"Coal into oil: +40 to the stockpile.",fx:me=>{me.oil+=40;}}
+ /* --- INDUSTRY --- */
+ ind:  {n:"Industrial Effort",i:"\u{1F3ED}",col:0,row:0,req:[],
+        d:"Modernize the factories. Instantly gain an Industry research level.",
+        fx:me=>{me.res.ind++;}},
+ oil:  {n:"Synthetic Fuel",i:"\u{1F6E2}",col:0,row:1,req:["ind"],
+        d:"Coal into oil: +40 to the stockpile.",
+        fx:me=>{me.oil+=40;}},
+ works:{n:"State Arsenals",i:"\u2699",col:0,row:2,req:["oil"],
+        d:"The state takes the factories in hand: +150 production.",
+        fx:me=>{me.pp+=150;}},
+ atom: {n:"Atomic Pioneers",i:"\u2622",col:0,row:3,req:["works"],
+        d:"A secret program: build nuclear weapons WITHOUT Industry III.",
+        fx:me=>{me.atomicOk=true;}},
+ /* --- THE ARMY --- */
+ rearm:{n:"Rearmament",i:"\u{1F396}",col:1,row:0,req:[],
+        d:"Three fresh infantry divisions muster at the capital, free of charge.",
+        fx:me=>{for(let i=0;i<3;i++)addUnit(G.player,focusHome(),"inf",3);}},
+ staff:{n:"The General Staff",i:"\u{1F5FA}",col:1,row:1,req:["rearm"],
+        d:"Officers, maps and doctrine. Instantly gain a Land Doctrine level.",
+        fx:me=>{me.res.land++;}},
+ armr: {n:"Armoured Corps",i:"\u{1F6E1}",col:1,row:2,req:["staff","oil"],
+        d:"Two armoured divisions, and the fuel to move them.",
+        fx:me=>{for(let i=0;i<2;i++)addUnit(G.player,focusHome(),"arm",4);me.oil+=20;}},
+ mob:  {n:"Mass Mobilisation",i:"\u{1F465}",col:1,row:3,req:["armr"],
+        d:"The whole country under arms: a great pool of manpower and the will to spend it.",
+        fx:me=>{me.mp=(me.mp||0)+120;me.warSup=Math.min(100,(me.warSup??50)+10);}},
+ /* --- SEA AND AIR --- */
+ navy: {n:"Naval Expansion",i:"\u2693",col:2,row:0,req:[],
+        d:"The shipyards work day and night: a free capital squadron and an escort flotilla.",
+        fx:me=>{const ps=natProvs(G.player).filter(p=>p.coastal);
+                if(ps.length){addFleet(G.player,ps[0].id,4,"cap");addFleet(G.player,ps[ps.length-1].id,2,"dd");}}},
+ yards:{n:"Escort Command",i:"\u{1F6A2}",col:2,row:1,req:["navy"],
+        d:"Convoys and the ships that shepherd them. A Naval Engineering level and two escorts.",
+        fx:me=>{me.res.nav++;const ps=natProvs(G.player).filter(p=>p.coastal);
+                if(ps.length)addFleet(G.player,ps[0].id,3,"dd");}},
+ air:  {n:"Air Supremacy",i:"\u2708",col:2,row:2,req:[],
+        d:"A free fighter wing and a tactical bomber join the capital airbase.",
+        fx:me=>{addWing(G.player,3,"fig");addWing(G.player,2,"cas");}},
+ strat:{n:"Strategic Bombing",i:"\u{1F4A3}",col:2,row:3,req:["air","works"],
+        d:"Four engines and the factories to build them. An Aviation level and a heavy wing.",
+        fx:me=>{me.res.air++;addWing(G.player,3,"cas");}},
+ /* --- THE HOME FRONT --- */
+ prop: {n:"National Propaganda",i:"\u{1F4E3}",col:3,row:0,req:[],
+        d:"Posters, parades, radio. +15 stability.",
+        fx:me=>{me.stab=Math.min(100,me.stab+15);}},
+ econ: {n:"War Economy",i:"\u{1F4C8}",col:3,row:1,req:["prop"],
+        d:"The budget put on a war footing: +80 production and the public behind it.",
+        fx:me=>{me.pp+=80;me.warSup=Math.min(100,(me.warSup??50)+8);}},
+ steel:{n:"Strategic Reserves",i:"\u{1F5C3}",col:3,row:2,req:["econ"],
+        d:"Warehouses filled against the lean years: steel, rubber, aluminium and tungsten.",
+        fx:me=>{me.stock=me.stock||{};
+                for(const[r,q]of[["steel",120],["rubber",60],["alu",60],["tung",40]])
+                  me.stock[r]=(me.stock[r]||0)+q;}},
+ unity:{n:"National Unity",i:"\u{1F91D}",col:3,row:3,req:["steel"],
+        d:"One country, one war. Stability and war support both climb.",
+        fx:me=>{me.stab=Math.min(100,me.stab+10);me.warSup=Math.min(100,(me.warSup??50)+12);}}
 };
+/* Where a free division musters: the capital if we still hold it, otherwise
+   anywhere we do. A nation with nothing left gets nothing, rather than throwing. */
+function focusHome(){
+  const c=G.prov[capOf(G.player)];
+  if(c&&c.owner===G.player)return c.id;
+  const ps=natProvs(G.player);
+  return ps.length?ps[0].id:null;
+}
+/* Is every prerequisite finished? */
+function focusOpen(me,k){
+  const f=FOCUSES[k];
+  if(!f)return false;
+  const done=me.focusDone||{};
+  return (f.req||[]).every(r=>done[r]);
+}
 const FOCUS_DAYS=70;
 /* generals */
 const GEN_NAMES=["Stahl","Volkov","Armand","Blackwood","Ono","Reyes","Castellano","Novak","Iqbal","Sørensen","Drummond","Kovács","Mbeki","Lindqvist","Ferro","Okafor"];
@@ -13284,19 +13392,83 @@ function renderPanel(){
     el.innerHTML=h;
   }
   if(curPanel==="focus"){
+    /* THE TREE IS DRAWN, NOT LISTED. Geometry first: every node sits on a
+       lattice computed from its col/row, and the prerequisite lines are laid
+       into an SVG underneath at the same coordinates. Doing it the other way
+       round -- CSS grid for the nodes and guessed offsets for the lines --
+       puts the elbows NEAR the nodes instead of on them, and a tree whose
+       lines miss its nodes is worse than no lines at all. */
+    el.classList.add("wide");
     me.focusDone=me.focusDone||{};
+    /* 64 tall, not 56: a two-line name -- "National Propaganda", "Strategic
+       Reserves" -- pushed its own badge out of the bottom of the box. */
+    const NW=112,NH=64,GX=18,GY=28;
+    let maxC=0,maxR=0;
+    for(const k in FOCUSES){const f=FOCUSES[k];
+      if(f.col>maxC)maxC=f.col; if(f.row>maxR)maxR=f.row;}
+    const TW=(maxC+1)*(NW+GX)-GX, TH=(maxR+1)*(NH+GY)-GY;
+    const nx=f=>f.col*(NW+GX), ny=f=>f.row*(NH+GY);
+    const state=k=>{
+      if(me.focusDone[k])return "done";
+      if(me.focus&&me.focus.key===k)return "running";
+      if(!focusOpen(me,k))return "locked";
+      return me.focus?"waiting":"open";
+    };
     let h=`<h2>NATIONAL FOCUS</h2>`;
     if(me.focus){
       const f=FOCUSES[me.focus.key];
-      h+=`<h3>IN PROGRESS: ${f.n.toUpperCase()}</h3>
-      <div class="row"><div class="bar"><i style="width:${Math.min(100,me.focus.prog/FOCUS_DAYS*100)}%"></i></div><span>${Math.round(me.focus.prog/FOCUS_DAYS*100)}%</span></div>
-      <div style="color:var(--dim);font-size:11px">${f.d}</div>`;
-    }else h+=`<div style="color:var(--dim);font-size:11px">Pick one national focus at a time. Each takes ${FOCUS_DAYS} days and can be completed once.</div>`;
+      const pct=Math.min(100,me.focus.prog/FOCUS_DAYS*100);
+      const left=Math.max(1,FOCUS_DAYS-me.focus.prog);
+      h+=`<div class="resslot busy">
+        <div class="resicon">${f.i}</div>
+        <div style="flex:1;min-width:0">
+          <b style="white-space:nowrap">${f.n.toUpperCase()}</b>
+          <div class="bar" style="margin:4px 0 3px"><i style="width:${pct}%"></i></div>
+          <small style="color:var(--dim)">${Math.round(pct)}% \u00b7 ${left} day${left===1?"":"s"} remaining</small>
+        </div></div>`;
+    }else{
+      h+=`<div class="resslot">
+        <div class="resicon">\u{1F3AF}</div>
+        <div style="flex:1;min-width:0">
+          <b style="color:var(--dim)">NO FOCUS CHOSEN</b>
+          <div class="bar" style="margin:4px 0 3px"><i style="width:0%"></i></div>
+          <small style="color:var(--dim)">Pick one from the tree \u00b7 ${FOCUS_DAYS} days each</small>
+        </div></div>`;
+    }
+    /* the branch headings, on the same lattice as the columns they head */
+    const HEADS=["INDUSTRY","THE ARMY","SEA &amp; AIR","HOME FRONT"];
+    h+=`<div class="ftwrap"><div class="ftree" style="width:${TW}px;height:${TH+22}px">
+      <div class="fthead" style="gap:${GX}px">`;
+    for(let c=0;c<=maxC;c++)h+=`<span style="width:${NW}px">${HEADS[c]||""}</span>`;
+    h+=`</div><svg width="${TW}" height="${TH}" style="top:22px">`;
     for(const k in FOCUSES){
       const f=FOCUSES[k];
-      if(me.focusDone[k]){h+=`<div class="row"><span style="color:var(--dim)">✔ ${f.n}</span><span style="color:var(--dim)">done</span></div>`;continue;}
-      h+=`<button class="bbtn" ${me.focus?"disabled":""} onclick="pickFocus('${k}')">🎯 ${f.n}<small>${f.d}</small></button>`;
+      for(const r of (f.req||[])){
+        const pf=FOCUSES[r];if(!pf)continue;
+        const x1=nx(pf)+NW/2, y1=ny(pf)+NH, x2=nx(f)+NW/2, y2=ny(f);
+        const lit=!!me.focusDone[r];
+        const col=lit?"#5d7a4e":"#2b3327";
+        const pts=(x1===x2)?`${x1},${y1} ${x2},${y2}`
+          :`${x1},${y1} ${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}`;
+        h+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/>`;
+      }
     }
+    h+=`</svg>`;
+    for(const k in FOCUSES){
+      const f=FOCUSES[k], st=state(k);
+      const cls=st==="waiting"?"locked":st;
+      const badge=st==="done"?"\u2713":st==="running"?Math.round(me.focus.prog/FOCUS_DAYS*100)+"%"
+        :st==="locked"?"\u{1F512}":FOCUS_DAYS+"d";
+      const click=(st==="open")?` onclick="pickFocus('${k}')"`:"";
+      h+=`<div class="fnode ${cls}" style="left:${nx(f)}px;top:${ny(f)+22}px;width:${NW}px;height:${NH}px"${click} title="${f.d.replace(/"/g,"&quot;")}">
+        <span class="fi">${f.i}</span><span class="fn">${f.n}</span><span class="fs">${badge}</span></div>`;
+    }
+    h+=`</div></div>`;
+    /* what the thing under the cursor actually does, spelled out -- a tooltip
+       is not available on a touch screen, which is most of where this is played */
+    const sel=me.focus?FOCUSES[me.focus.key]:null;
+    h+=`<div style="color:var(--dim);font-size:11px;margin-top:8px">${sel?sel.d:
+      "One focus at a time, "+FOCUS_DAYS+" days each, each one taken once. A locked node needs the ones above it finished first."}</div>`;
     el.innerHTML=h;
   }
   if(curPanel==="mods"){
@@ -13819,6 +13991,14 @@ window.pickFocus=k=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
   me.focusDone=me.focusDone||{};
   if(me.focus||me.focusDone[k])return;
+  /* and the road has to be open. Without this the tree was a picture of a rule
+     rather than the rule itself: the panel drew the atom bomb as locked and
+     the handler started it anyway. */
+  if(!focusOpen(me,k)){
+    const missing=(FOCUSES[k].req||[]).filter(r=>!me.focusDone[r]).map(r=>FOCUSES[r].n);
+    logMsg(`${FOCUSES[k].n} needs ${missing.join(" and ")} first.`,"war");
+    return;
+  }
   me.focus={key:k,prog:0};
   sfx("good");logMsg(`🎯 National focus begun: ${FOCUSES[k].n} (${FOCUS_DAYS} days).`,"good");
   renderPanel();
@@ -15298,7 +15478,14 @@ function mpSerialize(){
       /* politics (v4.1+) */ n.ideo||"aut",Math.round(n.warSup??50),Object.keys(n.cab||{}).join(","),n.doctrine||"",
       n.spyT||"",Math.round(n.spyNet||0),n.sabotage||0,n.electT??1460,(n.law&&n.law.cons)||0,(n.law&&n.law.eco)||0,Math.round(n.grudge||0),[...(n.trade||[])].join(","),
       JSON.stringify(n.pacts||{}),Object.keys(n.lend||{}).join(","),Math.round(n.mp||0),
-      RESKEYS.map(r=>Math.round(n.stock&&n.stock[r]||0)).join(",")];}
+      RESKEYS.map(r=>Math.round(n.stock&&n.stock[r]||0)).join(","),
+      /* NATIONAL FOCUS (v23.12+). It was never written at all: the focus in
+         progress and every focus ever finished were dropped on save, so a
+         reload handed the tree back untouched and whatever had been spent on
+         it was simply gone. That was survivable while the focuses were a flat
+         list of seven; with prerequisites it loses the whole branch. */
+      n.focus?n.focus.key:"", n.focus?Math.round(n.focus.prog):0,
+      Object.keys(n.focusDone||{}).join(",")];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0]),
@@ -15369,6 +15556,11 @@ function mpApplyState(S){
       if(a[34]!==undefined)n.mp=+a[34]||0;
       n.stock=n.stock||{};n.income=n.income||{};
       if(a[35]){const v=String(a[35]).split(",");RESKEYS.forEach((r,i)=>{n.stock[r]=+v[i]||0;});}
+      /* the focus tree; saves written before v23.12 carry none of it, and load
+         as a nation that has simply not started one */
+      n.focusDone={};
+      if(a[38])for(const f of String(a[38]).split(","))if(f&&FOCUSES[f])n.focusDone[f]=1;
+      n.focus=(a[36]&&FOCUSES[a[36]])?{key:a[36],prog:+a[37]||0}:null;
     }}
   const selId=G.selUnit&&G.selUnit.id;
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army"}));
