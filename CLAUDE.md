@@ -61,6 +61,38 @@ governing the far view where it is honest.
 lowers saturation by itself. The middle one is not, and disagrees with this
 map by 25 points, so the trend is real well before the snow gets a say.)
 
+## Where the close-zoom colour actually comes from
+
+Peeled apart at zoom 14, over the same ground, share of pixels above
+saturation 0.25:
+
+    as shipped                         59.2%
+    with the capture faded out         53.9%
+    and the ownership wash off too     45.0%
+    the real game                       5.2%
+
+So the capture is worth 5 points and the wash 9, and the remaining 45 is the
+GENERATED TERRAIN PALETTE itself — the greens, golds and ochres it paints
+ground with. Anything that tries to reach the real game's close view by
+adjusting the capture or the wash is arguing over 14 points of a 54-point gap.
+
+Attempts on record, all reverted: fading the wash with zoom (moved 1 point);
+a tone curve to match the brighter reference (matched its statistics, looked
+like neon); pre-upscaling the capture 2x (worse at both high zooms); a third
+detail octave (lost acutance); coloured frontier bands, which are what the
+real game's close view actually has (moved close-zoom colour from 59.2 to
+73.2 — fourteen points the WRONG way, because here they land on ground that
+is already saturated rather than on neutral terrain).
+
+What has worked is additive geometry, every time: railways, rivers brought out
+from under the capture, conifers and ridge carets. They do not fight the
+picture, they sit on top of it, and they are sharp at any magnification.
+
+CAVEAT ON THE 5.2%: that reference is a snow scene and snow is white, which
+costs saturation for free. The un-snowy middle reference gives 38.4% against
+this map's 62.9%, and THAT is the honest target. Closing it means desaturating
+the terrain palette, not touching the capture.
+
 ## The embedded capture
 
 `MAPPHOTO_SRC` is a screenshot of Paradox's Hearts of Iron IV, used as the map
