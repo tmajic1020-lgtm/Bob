@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.15.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.16.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.15.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.16.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -297,6 +297,7 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🛢 <b id="hOil">0</b> oil</span>
   <span title="Manpower — every division comes out of this and does not come back">👥 <b id="hMP">0</b>K</span>
   <span>☢ <b id="hNuke">0</b></span>
+  <span id="hEqp" title="The gun stockpile, and how much of your army is actually armed with it">🔫 <b id="hEqpT">0</b></span>
   <span id="hCon" title="Construction — sites working out of the capacity your industry supports, and anything queued behind them">🏗 <b id="hConT">0/1</b></span>
   <span id="hStab" title="Stability. A country that runs out of it collapses into civil war">🏛 <b id="hStabT">0</b>%</span>
   <span id="hWarS" title="War support — how much war the public will take before it stops supplying you men">✊ <b id="hWarT">0</b>%</span>
@@ -406,7 +407,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.15.0";
+const BUILD="23.16.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1893,6 +1894,81 @@ function mpRegen(k){
 function mpCap(k){return Math.max(60,mpRegen(k)*60);}
 /* Costs are in thousands of men. A division is twenty thousand of them; a
    fleet or an air wing is the crews. */
+/* ============================== EQUIPMENT ==============================
+   Production was ONE pool that bought a division outright, and the division
+   arrived whole and stayed whole until it was killed. So industry was a
+   shopping budget: the only question it ever asked was how many, never how
+   well armed, and a country that had been fighting for four years was exactly
+   as dangerous per division as one that had just mobilised.
+
+   Industry is split now. The civilian half makes production points -- which is
+   what pays for orders and what runs the building sites -- and the military
+   half makes GUNS, into a national stockpile. Divisions draw out of that
+   stockpile to arm themselves, lose it when they are shot at, and fight on a
+   multiplier of how well equipped they actually are. An army bigger than its
+   industry can arm is an army of under-strength divisions, which is the
+   central bargain of the whole genre and the one this game was not making you
+   make.
+
+   The shape is borrowed from supply, deliberately: a floor plus a scaled
+   remainder, so a division with nothing is badly weakened rather than
+   useless -- men with rifles and no artillery still hold a line. */
+const EQ_PER_STR=8;      // guns one point of divisional strength wants
+const EQ_RATE=3.2;      // guns a point of military production makes in a day
+const EQ_FLOOR=0.45;     // how well a division with nothing at all still fights
+const EQ_DRAW=0.06;      // most of its need a division can absorb in one day
+const EQ_LOSS=1.0;       // guns lost per point of damage taken
+const EQ_NEW=0.55;       // how equipped a freshly raised division arrives
+function eqpNeed(u){return (u.str||0)*EQ_PER_STR;}
+/* Saves and units written before equipment existed have no u.eq at all. They
+   read as fully equipped, which is exactly what they were under the old rules
+   -- the alternative silently halves every army in every old save. */
+function eqpOf(u){return u.eq===undefined?1:u.eq;}
+function eqpMul(u){const e=Math.max(0,Math.min(1,eqpOf(u)));return EQ_FLOOR+(1-EQ_FLOOR)*e;}
+function milShareOf(k){
+  const n=G.nations&&G.nations[k];
+  if(!n)return 0.35;
+  return n.milShare===undefined?0.35:Math.max(0,Math.min(1,n.milShare));
+}
+/* What the whole army would need to be at full establishment, which is what
+   makes the stockpile figure mean something to look at. */
+function eqpDemand(k){
+  let d=0;
+  for(const u of G.units)if(u.nat===k)d+=eqpNeed(u);
+  return d;
+}
+function eqpArmed(k){
+  let have=0,need=0;
+  for(const u of G.units)if(u.nat===k){const n2=eqpNeed(u);need+=n2;have+=n2*eqpOf(u);}
+  return need>0?have/need:1;
+}
+/* THE GUNS GO OUT TO THE DIVISIONS THAT NEED THEM MOST, and only as fast as
+   supply can carry them: a division cut off re-equips at a crawl however full
+   the warehouses are. */
+function equipTick(){
+  const by={};
+  for(const u of G.units)if(eqpOf(u)<1)(by[u.nat]=by[u.nat]||[]).push(u);
+  for(const k in by){
+    const n=G.nations[k];
+    if(!n||!n.alive)continue;
+    let pool=n.eqp||0;
+    if(pool<=0.01)continue;
+    const list=by[k];
+    list.sort((a,b)=>eqpOf(a)-eqpOf(b));
+    for(const u of list){
+      if(pool<=0.01)break;
+      const need=eqpNeed(u);
+      if(need<=0)continue;
+      const gap=need*(1-eqpOf(u));
+      const rate=need*EQ_DRAW*Math.max(0.15,supplyPct(k,u.at));
+      const take=Math.min(pool,gap,rate);
+      if(take<=0)continue;
+      u.eq=Math.min(1,eqpOf(u)+take/need);
+      pool-=take;
+    }
+    n.eqp=Math.max(0,pool);
+  }
+}
 const MP_COST={inf:20,arm:26,art:16,aa:11,nuke:0};
 function mpCostOf(t){
   if(!t)return 0;
@@ -2048,7 +2124,9 @@ const roleMul=(u,defending)=>{const t=UTYPE[u.type]||UTYPE.inf;return defending?
 const uIcon=t=>(UTYPE[t]||UTYPE.inf).i;
 function addUnit(nat,pid,type,str){
   if(MODS.mass)str=+(str*1.3).toFixed(1);
-  const u={id:++G.uid,nat,at:pid,to:null,prog:0,type,str,hp:str*10,kind:"army",xp:MODS.elite?30:0};
+  const u={id:++G.uid,nat,at:pid,to:null,prog:0,type,str,hp:str*10,kind:"army",xp:MODS.elite?30:0,
+           /* raised, not yet armed: it draws the rest out of the stockpile */
+           eq:MODS.elite?1:EQ_NEW};
   if(G&&G.nations[nat]&&G.nations[nat].doctrine==="ma")u.hp*=1.15;
   G.units.push(u);return u;
 }
@@ -2544,6 +2622,16 @@ function tick(){
     const _law=n.law||{cons:0,eco:0};
     n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*consOf(n).pp*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1);
     let inc=n.ppRate/10;
+    /* THE SPLIT. The military half of industry makes guns rather than points,
+       and the stockpile is capped at twice what the standing army could want,
+       because a warehouse is not a strategy -- past that the factories are
+       building for an army that does not exist. */
+    {const _ms=milShareOf(k);
+     if(_ms>0){
+       const cap=Math.max(200,eqpDemand(k)*2);
+       n.eqp=Math.min(cap,(n.eqp||0)+n.ppRate*_ms*EQ_RATE*0.1);
+       inc*=(1-_ms*0.85);
+     }}
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
     n.oil+=oil*0.12;
@@ -2732,6 +2820,7 @@ function tick(){
   }
   productionTick();
   constructionTick();
+  equipTick();
   supplyTick();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
@@ -3378,7 +3467,7 @@ function battles(){
          reserve worth having and a doom-stack on one tile worth much less than
          the same divisions spread across three. */
       const lineA=frontLine(fa,p,p.owner===A),lineB=frontLine(fb,p,p.owner===B);
-      const pw=(arr,side,def)=>arr.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*roleMul(u,def),0);
+      const pw=(arr,side,def)=>arr.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*roleMul(u,def),0);
       let pa=(pw(lineA.front,A,p.owner===A)+pw(lineA.rear,A,p.owner===A)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
       let pb=(pw(lineB.front,B,p.owner===B)+pw(lineB.rear,B,p.owner===B)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
@@ -3488,7 +3577,15 @@ function frontLine(arr,p,defending){
 }
 function dmg(arr,amt){
   if(!arr.length)return;const per=amt/arr.length;
-  for(const u of arr){u.hp-=per;}
+  for(const u of arr){
+    u.hp-=per;
+    /* AND THE GUNS GO WITH THE MEN. Without this a division could be shot to
+       pieces and reinforced back to full strength for nothing: equipment would
+       only ever have been a one-off cost at the moment it was raised, which is
+       a purchase, not a war economy. */
+    const need=eqpNeed(u);
+    if(need>0)u.eq=Math.max(0,eqpOf(u)-per*EQ_LOSS/need);
+  }
 }
 function killUnit(u){
   if(G.stats){
@@ -3881,6 +3978,17 @@ window.setDiff=k=>{
 /* smarter AI */
 function aiTurn(k){
   const n=G.nations[k];
+  /* THE COMPUTER MAKES THE SAME BARGAIN. Left at the default it would sit at a
+     peacetime split through a world war and field an army it could not arm,
+     which is not a difficulty setting, it is an opponent that does not
+     understand the game it is in. At peace it builds; at war it arms; and it
+     leans harder on guns the emptier its warehouses are relative to the army
+     it is already fielding. */
+  if(n&&n.alive){
+    const armed=eqpArmed(k);
+    const base=n.atWar.size?0.62:0.28;
+    n.milShare=Math.max(0,Math.min(0.9,base+(1-armed)*0.25));
+  }
   // research
   if(!n.researching){
     const keys=["ind","land","nav","air"];
@@ -4281,7 +4389,10 @@ function conSlots(k){
   if(!n)return 1;
   let fac=0;
   for(const p of natProvs(k))fac+=(p.fac||0);
-  return Math.max(1,Math.min(6,1+Math.floor(((n.res&&n.res.ind)||0)/2)+Math.floor(fac/4)));
+  /* and it is the CIVILIAN half that builds. Putting the country on guns
+     costs you building sites, which is the other half of the same decision. */
+  const raw=1+Math.floor(((n.res&&n.res.ind)||0)/2)+Math.floor(fac/4);
+  return Math.max(1,Math.min(6,Math.round(raw*(0.45+0.55*(1-milShareOf(k))))));
 }
 /* And how long one takes. Industry research is what shortens it, which is what
    makes the first factory worth more than the production it adds. */
@@ -4309,6 +4420,11 @@ function buildIn(pid,what){
   renderPanel();refreshHUD();
 }
 window.buildIn=buildIn;
+window.setMilShare=v=>{
+  if(!G||!G.nations||!G.nations[G.player])return;
+  G.nations[G.player].milShare=Math.max(0,Math.min(1,+v||0));
+  renderPanel();refreshHUD();
+};
 /* Calling off a site returns half of what was put into it. Half, because the
    concrete already poured does not come back. */
 window.cancelBuild=bid=>{
@@ -13686,6 +13802,19 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Deploy at: <b style="color:var(--ink)">${sel.name}</b> ${deployable?"":"(not yours — select one of your provinces)"}<br>Select any province you own first to deploy there.</div>
     <div class="row" style="flex-wrap:wrap;gap:8px">${RESKEYS.map(r=>`<span title="${RESOURCES[r].n}">${RESOURCES[r].i} <b>${Math.floor(me.stock[r]||0)}</b> <small style="color:var(--dim)">+${(me.income[r]||0).toFixed(1)}</small></span>`).join("")}</div>
     <div class="row"><span>\u{1F465} Manpower</span><span style="color:${(me.mp||0)<MP_COST.inf?"var(--red)":""}">${Math.round(me.mp||0)}K of ${Math.round(mpCap(G.player))}K \u00b7 +${mpRegen(G.player).toFixed(1)}K/day</span></div>
+    <h3>INDUSTRY</h3>
+    ${(()=>{const ms=milShareOf(G.player),armed=eqpArmed(G.player);
+      const need=Math.round(eqpDemand(G.player)),have=Math.round(me.eqp||0);
+      const col=armed>=0.85?"var(--green)":armed>=0.6?"var(--amber)":"var(--red)";
+      return `<div class="row"><span>\u{1F3ED} On guns</span><span><b style="color:var(--amber)">${Math.round(ms*100)}%</b> military \u00b7 ${Math.round((1-ms)*100)}% civilian</span></div>
+      <div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(ms*100)}%;background:var(--amber)"></i></div>
+      <div class="row" style="flex-wrap:wrap;gap:3px">${[0,25,35,50,65,80].map(v=>
+        `<button class="tbtn ${Math.round(ms*100)===v?"on":""}" onclick="setMilShare(${v/100})">${v}%</button>`).join("")}</div>
+      <div class="row"><span>\u{1F52B} Army equipped</span><span style="color:${col}">${Math.round(armed*100)}%</span></div>
+      <div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(armed*100)}%;background:${col}"></i></div>
+      <div class="row"><span>Warehouse</span><span>${have} guns \u00b7 army wants ${need}</span></div>
+      <div class="row"><span>This split gives you</span><span>+${((me.ppRate||0)/10*(1-ms*0.85)).toFixed(1)} PP/d \u00b7 ${conSlots(G.player)} building site${conSlots(G.player)===1?"":"s"}</span></div>
+      <div style="color:var(--dim);font-size:11px">The military half makes guns; the civilian half makes production points and runs the building sites. A division with none of its equipment fights at ${Math.round(EQ_FLOOR*100)}% \u2014 an army bigger than your industry can arm is an army of weak divisions.</div>`;})()}
     ${(me.mp||0)<MP_COST.inf?`<div style="color:var(--red);font-size:11px">No men left to call up. Raise CONSCRIPTION under POLICY \u2014 or stop losing divisions.</div>`:""}
     <button class="bbtn" ${me.pp<20||(me.mp||0)<MP_COST.inf||!haveRes(G.player,"inf")||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + ${MP_COST.inf}K \u{1F465}${resCostText("inf")}<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
     <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
@@ -14564,6 +14693,10 @@ function refreshHUD(){
      what focus it was on and whether the public was still behind it were each
      buried a panel deep, so the three things that quietly lose you a campaign
      were the three you had to go looking for. */
+  {const el=$("#hEqpT");
+   if(el){const armed=eqpArmed(G.player);
+     el.textContent=Math.round(me.eqp||0)+" \u00b7 "+Math.round(armed*100)+"%";
+     el.parentNode.style.color=armed<0.6?"var(--red)":armed<0.85?"var(--amber)":"";}}
   {const el=$("#hConT");
    if(el){const sites=conSites(G.player),slots=conSlots(G.player);
      const work=Math.min(sites.length,slots), wait=Math.max(0,sites.length-slots);
@@ -15932,10 +16065,12 @@ function mpSerialize(){
          it was simply gone. That was survivable while the focuses were a flat
          list of seven; with prerequisites it loses the whole branch. */
       n.focus?n.focus.key:"", n.focus?Math.round(n.focus.prog):0,
-      Object.keys(n.focusDone||{}).join(",")];}
+      Object.keys(n.focusDone||{}).join(","),
+      /* the war economy (v23.16+): the gun stockpile and the split that fills it */
+      Math.round(n.eqp||0), +milShareOf(k).toFixed(2)];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3)]),
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas"]),
@@ -16011,9 +16146,17 @@ function mpApplyState(S){
       n.focusDone={};
       if(a[38])for(const f of String(a[38]).split(","))if(f&&FOCUSES[f])n.focusDone[f]=1;
       n.focus=(a[36]&&FOCUSES[a[36]])?{key:a[36],prog:+a[37]||0}:null;
+      /* Saves from before the split have neither. A nation loads with an empty
+         warehouse at the default share, and its divisions -- which carry no eq
+         either -- read as fully equipped, which is what they were. */
+      n.eqp=+a[39]||0;
+      n.milShare=(a[40]===undefined)?0.35:Math.max(0,Math.min(1,+a[40]||0));
     }}
   const selId=G.selUnit&&G.selUnit.id;
-  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army"}));
+  /* a[11] is how well equipped the division is; a save written before the war
+     economy has none, and undefined reads as fully equipped */
+  G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army",
+    eq:a[11]===undefined?undefined:Math.max(0,Math.min(1,+a[11]))}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas"}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
