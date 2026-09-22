@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.16.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.17.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.16.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.17.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -407,7 +407,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.16.0";
+const BUILD="23.17.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1913,6 +1913,56 @@ function mpCap(k){return Math.max(60,mpRegen(k)*60);}
    The shape is borrowed from supply, deliberately: a floor plus a scaled
    remainder, so a division with nothing is badly weakened rather than
    useless -- men with rifles and no artillery still hold a line. */
+/* THREE KINDS OF IT, BECAUSE A TANK IS NOT A RIFLE. One undifferentiated pool
+   meant an armoured division and a line infantry division cost exactly the same
+   to keep in the field, so army composition was free: there was never a reason
+   to field infantry except manpower. Splitting the stockpile by arm is what
+   makes armour an industrial commitment rather than a better unit.
+
+   And each kind eats what it should actually eat. The resource table was
+   already right about this -- steel for anything heavy, rubber for tracks and
+   seals, aluminium for airframes, tungsten for the hard edges -- it was simply
+   only ever charged once, at the moment of purchase. Now it is charged for
+   every gun and every airframe that replaces a loss, which is what turns a
+   blockade or the loss of a bauxite province into something the front feels. A
+   country with no aluminium does not have an expensive air force; it has no
+   air force, because the airframes it loses are never replaced. */
+const EQ_KINDS=["gun","arm","air"];
+const EQ_KIND={
+  gun:{n:"Infantry equipment",i:"\u{1F52B}",res:{steel:0.030}},
+  arm:{n:"Armour",            i:"\u{1F6E1}",res:{steel:0.100,rubber:0.050,tung:0.040}},
+  air:{n:"Airframes",         i:"\u2708",   res:{alu:0.090,rubber:0.030}}
+};
+function eqpKindOf(x){
+  if(!x)return "gun";
+  if(x.kind==="wing")return "air";
+  return x.type==="arm"?"arm":"gun";
+}
+/* A scalar from the first war economy, or nothing at all from before it, both
+   become the infantry pool -- which is what they were. */
+function eqpPool(n){
+  if(!n)return {gun:0,arm:0,air:0};
+  if(!n.eqp||typeof n.eqp!=="object")n.eqp={gun:+n.eqp||0,arm:0,air:0};
+  for(const kk of EQ_KINDS)if(typeof n.eqp[kk]!=="number")n.eqp[kk]=0;
+  return n.eqp;
+}
+/* What a country is paying its resources for, and what it cannot afford. The
+   throttle is proportional: half the aluminium buys half the airframes rather
+   than stopping the line outright. */
+function eqpPayFor(n,kind,q){
+  const need=EQ_KIND[kind]&&EQ_KIND[kind].res;
+  if(!need||q<=0)return Math.max(0,q);
+  n.stock=n.stock||{};
+  let allow=1;
+  for(const r in need){
+    const want=need[r]*q;
+    if(want>0)allow=Math.min(allow,(n.stock[r]||0)/want);
+  }
+  allow=Math.max(0,Math.min(1,allow));
+  const made=q*allow;
+  for(const r in need)n.stock[r]=Math.max(0,(n.stock[r]||0)-need[r]*made);
+  return made;
+}
 const EQ_PER_STR=8;      // guns one point of divisional strength wants
 const EQ_RATE=3.2;      // guns a point of military production makes in a day
 const EQ_FLOOR=0.45;     // how well a division with nothing at all still fights
@@ -1925,6 +1975,18 @@ function eqpNeed(u){return (u.str||0)*EQ_PER_STR;}
    -- the alternative silently halves every army in every old save. */
 function eqpOf(u){return u.eq===undefined?1:u.eq;}
 function eqpMul(u){const e=Math.max(0,Math.min(1,eqpOf(u)));return EQ_FLOOR+(1-EQ_FLOOR)*e;}
+/* LOSSES COST EQUIPMENT, WHEREVER THEY HAPPEN. Divisions lost theirs through
+   dmg(); wings did not, because flak, enemy fighters and the daily
+   operational loss each write w.hp straight out. So an air force was a
+   one-off purchase: aluminium mattered on the day a wing was bought and never
+   again, and a bauxite province was worth taking once. Every loss goes
+   through here now, so replacing what comes back holed is what actually
+   drains the stockpile. */
+function eqpHurt(x,amt){
+  if(!x||!(amt>0))return;
+  const need=eqpNeed(x);
+  if(need>0)x.eq=Math.max(0,eqpOf(x)-amt*EQ_LOSS/need);
+}
 function milShareOf(k){
   const n=G.nations&&G.nations[k];
   if(!n)return 0.35;
@@ -1932,14 +1994,32 @@ function milShareOf(k){
 }
 /* What the whole army would need to be at full establishment, which is what
    makes the stockpile figure mean something to look at. */
-function eqpDemand(k){
+/* Air wings are equipment too -- without them the airframe pool has no
+   consumer and aluminium goes on meaning nothing after the day a wing is
+   bought. */
+function eqpForce(k){
+  const out=[];
+  for(const u of G.units)if(u.nat===k)out.push(u);
+  for(const w of G.wings)if(w.nat===k)out.push(w);
+  return out;
+}
+function eqpDemand(k,kind){
   let d=0;
-  for(const u of G.units)if(u.nat===k)d+=eqpNeed(u);
+  for(const x of eqpForce(k))if(!kind||eqpKindOf(x)===kind)d+=eqpNeed(x);
   return d;
 }
-function eqpArmed(k){
+/* Unmet demand, which is what production is shared out by. */
+function eqpGap(k,kind){
+  let g=0;
+  for(const x of eqpForce(k))if(eqpKindOf(x)===kind)g+=eqpNeed(x)*(1-eqpOf(x));
+  return g;
+}
+function eqpArmed(k,kind){
   let have=0,need=0;
-  for(const u of G.units)if(u.nat===k){const n2=eqpNeed(u);need+=n2;have+=n2*eqpOf(u);}
+  for(const x of eqpForce(k)){
+    if(kind&&eqpKindOf(x)!==kind)continue;
+    const n2=eqpNeed(x);need+=n2;have+=n2*eqpOf(x);
+  }
   return need>0?have/need:1;
 }
 /* THE GUNS GO OUT TO THE DIVISIONS THAT NEED THEM MOST, and only as fast as
@@ -1947,26 +2027,31 @@ function eqpArmed(k){
    the warehouses are. */
 function equipTick(){
   const by={};
-  for(const u of G.units)if(eqpOf(u)<1)(by[u.nat]=by[u.nat]||[]).push(u);
+  const add=(x)=>{if(eqpOf(x)<1)(by[x.nat]=by[x.nat]||[]).push(x);};
+  for(const u of G.units)add(u);
+  for(const w of G.wings)add(w);
   for(const k in by){
     const n=G.nations[k];
     if(!n||!n.alive)continue;
-    let pool=n.eqp||0;
-    if(pool<=0.01)continue;
+    const pool=eqpPool(n);
     const list=by[k];
     list.sort((a,b)=>eqpOf(a)-eqpOf(b));
-    for(const u of list){
-      if(pool<=0.01)break;
-      const need=eqpNeed(u);
+    for(const x of list){
+      const kind=eqpKindOf(x);
+      if(pool[kind]<=0.01)continue;
+      const need=eqpNeed(x);
       if(need<=0)continue;
-      const gap=need*(1-eqpOf(u));
-      const rate=need*EQ_DRAW*Math.max(0.15,supplyPct(k,u.at));
-      const take=Math.min(pool,gap,rate);
+      const gap=need*(1-eqpOf(x));
+      /* A wing sits at its capital airbase rather than in a province, so it
+         re-equips at the rate its country supplies its own capital. */
+      const sup=(x.kind==="wing")?supplyPct(k,capOf(k)):supplyPct(k,x.at);
+      const rate=need*EQ_DRAW*Math.max(0.15,sup);
+      const take=Math.min(pool[kind],gap,rate);
       if(take<=0)continue;
-      u.eq=Math.min(1,eqpOf(u)+take/need);
-      pool-=take;
+      x.eq=Math.min(1,eqpOf(x)+take/need);
+      pool[kind]-=take;
     }
-    n.eqp=Math.max(0,pool);
+    for(const kk of EQ_KINDS)pool[kk]=Math.max(0,pool[kk]);
   }
 }
 const MP_COST={inf:20,arm:26,art:16,aa:11,nuke:0};
@@ -2172,8 +2257,10 @@ function addFleet(nat,pid,str,cls){
   G.fleets.push(f);return f;
 }
 function addWing(nat,str,wt){
+  /* raised, not yet fully equipped: it draws airframes out of the stockpile
+     exactly as a division draws guns */
   wt=WINGTYPES[wt]?wt:"cas";airDirty();
-  const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing",wt};
+  const w={id:++G.uid,nat,str,hp:str*10,target:null,kind:"wing",wt,eq:MODS.elite?1:EQ_NEW};
   G.wings.push(w);return w;
 }
 
@@ -2628,8 +2715,24 @@ function tick(){
        building for an army that does not exist. */
     {const _ms=milShareOf(k);
      if(_ms>0){
-       const cap=Math.max(200,eqpDemand(k)*2);
-       n.eqp=Math.min(cap,(n.eqp||0)+n.ppRate*_ms*EQ_RATE*0.1);
+       const pool=eqpPool(n);
+       const made=n.ppRate*_ms*EQ_RATE*0.1;
+       /* SHARED OUT BY WHAT IS ACTUALLY SHORT. A separate slider per arm would
+          be a third thing to fiddle with for a decision the country has already
+          made by what it chose to field: an armoured army wants armour. With
+          nothing short anywhere it all goes to the infantry pool, and the caps
+          below stop that becoming a warehouse nobody needs. */
+       const want={};let tot=0;
+       for(const kk of EQ_KINDS){want[kk]=eqpGap(k,kk);tot+=want[kk];}
+       for(const kk of EQ_KINDS){
+         const share=tot>0.001?want[kk]/tot:(kk==="gun"?1:0);
+         if(share<=0)continue;
+         /* and paid for in the right stuff, or throttled to what it can pay */
+         const q=eqpPayFor(n,kk,made*share);
+         if(q<=0)continue;
+         const cap=Math.max(120,eqpDemand(k,kk)*2);
+         pool[kk]=Math.min(cap,pool[kk]+q);
+       }
        inc*=(1-_ms*0.85);
      }}
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
@@ -3583,8 +3686,7 @@ function dmg(arr,amt){
        pieces and reinforced back to full strength for nothing: equipment would
        only ever have been a one-off cost at the moment it was raised, which is
        a purchase, not a war economy. */
-    const need=eqpNeed(u);
-    if(need>0)u.eq=Math.max(0,eqpOf(u)-per*EQ_LOSS/need);
+    eqpHurt(u,per);
   }
 }
 function killUnit(u){
@@ -3623,7 +3725,8 @@ function airTable(){
   for(const w of G.wings){
     if(!w.target)continue;
     const m=t[w.target]||(t[w.target]={});
-    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air");
+    /* A wing with no airframes to replace its losses is a wing on paper. */
+    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air")*eqpMul(w);
   }
   _airTblDay=G.day;_airTblN=G.wings.length;_airDirty=false;_airTbl=t;
   return t;
@@ -3644,7 +3747,7 @@ function airControl(nat,pid){
 function airSupport(nat,pid){
   if(G.nations[nat].oil<=0)return 0; // grounded without fuel
   let s=0;
-  for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*wingOf(w).ground;
+  for(const w of G.wings)if(w.nat===nat&&w.target===pid)s+=w.str*wingOf(w).ground*eqpMul(w);
   /* No aluminium, no airframes to replace the ones that come back holed. */
   return Math.min(s,5)*weatherAt(G.prov[pid]).air*airControl(nat,pid)*(shortOn(nat,"alu")?0.5:1);
 }
@@ -3741,13 +3844,13 @@ function airOps(){
     // flak over the target
     let flak=0;
     for(const u of here)if(u.type==="aa"&&atWar(w.nat,u.nat))flak+=u.str;
-    if(flak>0)w.hp-=flak*0.5/(Math.max(1,techMul(w.nat,"air"))*c.tough);
+    if(flak>0){const d2=flak*0.5/(Math.max(1,techMul(w.nat,"air"))*c.tough);w.hp-=d2;eqpHurt(w,d2);}
     /* Losing the air over a target is paid for in aircraft: an escorted
        formation gets home, an unescorted one does not. */
     let enemyAir=0;
     {const m=airT[w.target];if(m)for(const k in m)if(atWar(w.nat,k))enemyAir+=m[k];}
-    if(enemyAir>0)w.hp-=enemyAir*0.22*(1.35-ctrl)/c.tough;
-    if(Math.random()<0.01)w.hp-=1;
+    if(enemyAir>0){const d3=enemyAir*0.22*(1.35-ctrl)/c.tough;w.hp-=d3;eqpHurt(w,d3);}
+    if(Math.random()<0.01){w.hp-=1;eqpHurt(w,1);}
     if(w.hp<=0){
       G.wings=G.wings.filter(x=>x!==w);
       if(w.nat===G.player)logMsg(`\u2708 A ${c.n.toLowerCase()} was shot down!`,"war");
@@ -13804,7 +13907,6 @@ function renderPanel(){
     <div class="row"><span>\u{1F465} Manpower</span><span style="color:${(me.mp||0)<MP_COST.inf?"var(--red)":""}">${Math.round(me.mp||0)}K of ${Math.round(mpCap(G.player))}K \u00b7 +${mpRegen(G.player).toFixed(1)}K/day</span></div>
     <h3>INDUSTRY</h3>
     ${(()=>{const ms=milShareOf(G.player),armed=eqpArmed(G.player);
-      const need=Math.round(eqpDemand(G.player)),have=Math.round(me.eqp||0);
       const col=armed>=0.85?"var(--green)":armed>=0.6?"var(--amber)":"var(--red)";
       return `<div class="row"><span>\u{1F3ED} On guns</span><span><b style="color:var(--amber)">${Math.round(ms*100)}%</b> military \u00b7 ${Math.round((1-ms)*100)}% civilian</span></div>
       <div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(ms*100)}%;background:var(--amber)"></i></div>
@@ -13812,7 +13914,20 @@ function renderPanel(){
         `<button class="tbtn ${Math.round(ms*100)===v?"on":""}" onclick="setMilShare(${v/100})">${v}%</button>`).join("")}</div>
       <div class="row"><span>\u{1F52B} Army equipped</span><span style="color:${col}">${Math.round(armed*100)}%</span></div>
       <div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(armed*100)}%;background:${col}"></i></div>
-      <div class="row"><span>Warehouse</span><span>${have} guns \u00b7 army wants ${need}</span></div>
+      ${EQ_KINDS.map(kk=>{
+        const K=EQ_KIND[kk],pool=eqpPool(me);
+        const want=Math.round(eqpDemand(G.player,kk));
+        if(!want)return "";
+        const a2=eqpArmed(G.player,kk);
+        const c2=a2>=0.85?"var(--green)":a2>=0.6?"var(--amber)":"var(--red)";
+        /* which resource this arm is actually short of, named, because "your
+           air force is at 40%" is not an instruction and "no aluminium" is */
+        const lack=Object.keys(K.res||{}).filter(r=>(me.stock&&me.stock[r]||0)<1)
+                     .map(r=>RESOURCES[r].n);
+        return `<div class="row"><span>${K.i} ${K.n}</span><span style="color:${c2}">${Math.round(a2*100)}% \u00b7 ${Math.round(pool[kk])} in store</span></div>
+          <div class="bar" style="margin-bottom:${lack.length?"2":"4"}px"><i style="width:${Math.round(a2*100)}%;background:${c2}"></i></div>
+          ${lack.length?`<div style="color:var(--red);font-size:11px;margin-bottom:4px">No ${lack.join(" or ").toLowerCase()} \u2014 only the synthetic trickle is replacing losses. Measured: a battered air force takes 25 days to rebuild with the ore and 75 without.</div>`:""}`;
+      }).join("")}
       <div class="row"><span>This split gives you</span><span>+${((me.ppRate||0)/10*(1-ms*0.85)).toFixed(1)} PP/d \u00b7 ${conSlots(G.player)} building site${conSlots(G.player)===1?"":"s"}</span></div>
       <div style="color:var(--dim);font-size:11px">The military half makes guns; the civilian half makes production points and runs the building sites. A division with none of its equipment fights at ${Math.round(EQ_FLOOR*100)}% \u2014 an army bigger than your industry can arm is an army of weak divisions.</div>`;})()}
     ${(me.mp||0)<MP_COST.inf?`<div style="color:var(--red);font-size:11px">No men left to call up. Raise CONSCRIPTION under POLICY \u2014 or stop losing divisions.</div>`:""}
@@ -14695,7 +14810,8 @@ function refreshHUD(){
      were the three you had to go looking for. */
   {const el=$("#hEqpT");
    if(el){const armed=eqpArmed(G.player);
-     el.textContent=Math.round(me.eqp||0)+" \u00b7 "+Math.round(armed*100)+"%";
+     const pool=eqpPool(me);
+     el.textContent=Math.round(pool.gun+pool.arm+pool.air)+" \u00b7 "+Math.round(armed*100)+"%";
      el.parentNode.style.color=armed<0.6?"var(--red)":armed<0.85?"var(--amber)":"";}}
   {const el=$("#hConT");
    if(el){const sites=conSites(G.player),slots=conSlots(G.player);
@@ -16067,13 +16183,13 @@ function mpSerialize(){
       n.focus?n.focus.key:"", n.focus?Math.round(n.focus.prog):0,
       Object.keys(n.focusDone||{}).join(","),
       /* the war economy (v23.16+): the gun stockpile and the split that fills it */
-      Math.round(n.eqp||0), +milShareOf(k).toFixed(2)];}
+      EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2)];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3)]),
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
-    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas"]),
+    wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
     queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total]),
     /* construction sites (v23.15+); older saves simply have none */
     build:(G.build||[]).map(o=>[o.bid,o.nat,o.at,o.what,o.left,o.total])};
@@ -16149,7 +16265,12 @@ function mpApplyState(S){
       /* Saves from before the split have neither. A nation loads with an empty
          warehouse at the default share, and its divisions -- which carry no eq
          either -- read as fully equipped, which is what they were. */
-      n.eqp=+a[39]||0;
+      /* a[39] was one number in the first war economy and is three now; a bare
+         number still loads, as the infantry pool it was */
+      {const v=a[39];
+       if(typeof v==="string"&&v.indexOf(",")>=0){
+         const q=v.split(",");n.eqp={};EQ_KINDS.forEach((kk,i)=>{n.eqp[kk]=+q[i]||0;});
+       }else n.eqp={gun:+v||0,arm:0,air:0};}
       n.milShare=(a[40]===undefined)?0.35:Math.max(0,Math.min(1,+a[40]||0));
     }}
   const selId=G.selUnit&&G.selUnit.id;
@@ -16158,7 +16279,8 @@ function mpApplyState(S){
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army",
     eq:a[11]===undefined?undefined:Math.max(0,Math.min(1,+a[11]))}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
-  G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas"}));
+  G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas",
+    eq:a[6]===undefined?undefined:Math.max(0,Math.min(1,+a[6]))}));
   if(selId)G.selUnit=[...G.units,...G.fleets].find(u=>u.id===selId)||null;
   refreshHUD();
 }
