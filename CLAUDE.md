@@ -101,10 +101,32 @@ reproducible, but it flipped no check and the score stayed 60 of 75.
 The dominant term is latitude band 5 (21.7N to 10N), 42 points of that 260 on
 its own: the reference reads 143.5 there and this map 101.6. It is not bad
 data -- that band holds the Mekong delta as marsh, the Sahel as desert and
-Yucatan as jungle, all correct -- it is that this map's tropical greens are
-simply much darker than the real game's across the board. Closing it is a
-broad re-tune of every wet-climate colour, validated band by band, not a
-scalar applied to the palette.
+Yucatan as jungle, all correct.
+
+## Fitting the palette instead of choosing it
+
+The twelve latitude bands are twelve equations in ten terrain colours. Measure
+what fraction of each band each terrain covers BY AREA (through provPix, not by
+counting provinces), weight each band by its pixel count, and solve. Worth
+knowing before guessing again:
+
+- The model explains what this map renders to within 4.5 luminance, so band
+  brightness really is just area-weighted paint. The composition table looks
+  self-contradictory -- plain is 0.59 of a band that needs to come DOWN 33 and
+  0.35 of one that needs to go UP 20 -- but the solve handles that; eyeballing
+  it does not.
+- Effective on-screen forest was luminance 8.7 against a paint value of 76.
+  The tree mottling, not the palette entry, is what sets a woodland band.
+- Best achievable by any palette was 7.8 RMS against the 15.8 it sat at. A
+  half-step in log space toward the solution, clamped to 45%, took the
+  generated map 60 -> 61 and total error 269 -> 228.
+- That brightened open ground under an unchanged dark mottle, so texture and
+  local contrast OVERSHOT (p90 66.4 against 50.5) having been too smooth
+  before. Raising the mottle to match fixed both and lifted the woodland
+  bands: 61 -> 62, error 228 -> 196.
+- A SECOND fitted step made it worse, 62 -> 61 and error 196 -> 220, and was
+  reverted. The fit only models band luminance; it is blind to the saturation,
+  warmth and texture checks the same change moves. One step, then stop.
 
 ## The embedded capture
 
