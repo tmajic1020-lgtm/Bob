@@ -90,8 +90,21 @@ picture, they sit on top of it, and they are sharp at any magnification.
 
 CAVEAT ON THE 5.2%: that reference is a snow scene and snow is white, which
 costs saturation for free. The un-snowy middle reference gives 38.4% against
-this map's 62.9%, and THAT is the honest target. Closing it means desaturating
-the terrain palette, not touching the capture.
+this map's 62.9%, and THAT is the honest target.
+
+AND THE PALETTE IS NOT THE LEVER THIS SUGGESTED. Tried: jungle and tundra
+re-set against the bands they actually land in, and the forest mottling raised
+to the L=61 this file's own note had already measured off the reference. Total
+error across the generated map's checks fell 269.1 to 260.7 -- 3%, real and
+reproducible, but it flipped no check and the score stayed 60 of 75.
+
+The dominant term is latitude band 5 (21.7N to 10N), 42 points of that 260 on
+its own: the reference reads 143.5 there and this map 101.6. It is not bad
+data -- that band holds the Mekong delta as marsh, the Sahel as desert and
+Yucatan as jungle, all correct -- it is that this map's tropical greens are
+simply much darker than the real game's across the board. Closing it is a
+broad re-tune of every wet-climate colour, validated band by band, not a
+scalar applied to the palette.
 
 ## The embedded capture
 

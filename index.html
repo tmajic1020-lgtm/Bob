@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.17.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.18.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.17.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.18.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -297,6 +297,7 @@ body.light #speedbox{background:#ece7d6d0}
   <span>🛢 <b id="hOil">0</b> oil</span>
   <span title="Manpower — every division comes out of this and does not come back">👥 <b id="hMP">0</b>K</span>
   <span>☢ <b id="hNuke">0</b></span>
+  <span id="hOos" style="display:none" title="Divisions cut off from supply. They starve, they cannot be re-equipped, and after three weeks they surrender where they stand — unless a relief column reopens the road">⚠ <b id="hOosT">0</b> CUT OFF</span>
   <span id="hEqp" title="The gun stockpile, and how much of your army is actually armed with it">🔫 <b id="hEqpT">0</b></span>
   <span id="hCon" title="Construction — sites working out of the capacity your industry supports, and anything queued behind them">🏗 <b id="hConT">0/1</b></span>
   <span id="hStab" title="Stability. A country that runs out of it collapses into civil war">🏛 <b id="hStabT">0</b>%</span>
@@ -407,7 +408,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.17.0";
+const BUILD="23.18.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -1585,10 +1586,94 @@ function supplyPct(nat,pid){
   const R=supplyRange(G.nations[nat]||{});
   return d<=R?1:Math.max(0.45,1-(d-R)*0.03);
 }
+/* ============================== POCKETS ==============================
+   Supply already knew when a province could not be reached: supplyPct returns
+   0 for ground with no path back to a source. Nothing was ever done with it.
+   A division cut off behind the front fought on at 55% for the rest of the
+   war, indefinitely, drawing replacements it had no road to receive -- so
+   cutting a corridor achieved nothing, and the one manoeuvre this kind of war
+   is actually about was missing from a game whose front line had just learned
+   to drift.
+
+   Out of supply, a division starves: it bleeds strength, it cannot re-equip
+   (equipTick already refuses to deliver down a road that does not exist), and
+   after three weeks of it, it surrenders where it stands. The counter falls
+   back when a relief column reopens the road, so a pocket that is relieved in
+   time survives -- which is what makes relieving one worth trying. */
+const OOS_LIMIT=21;      // days cut off before a division gives up
+const OOS_BLEED=0.55;    // strength lost per day in the pocket
+function pocketTick(){
+  if(!G.supply)return;                       // not built yet: nobody is cut off
+  const lost=[];
+  /* A SPEARHEAD IS NOT A POCKET. Taking "cut off" to mean simply standing on
+     unsupplied ground condemned every division that attacked: a unit fighting
+     its way into enemy territory is on ground its own supply has not reached
+     yet, so it started the three-week clock the moment it crossed the border
+     and starved to death in the middle of its own offensive. Measured, that
+     cost thirty per cent of the conquest in the game -- median 100 provinces
+     changing hands over two years against about 140.
+     Encircled means no road home in ANY direction: unsupplied here, and
+     unsupplied in every province next door. One province beyond your own
+     supply is the end of a supply line, which the 55% already pays for. */
+  const hasRoadHome=(u)=>{
+    const q=G.prov[u.at];
+    if(!q)return true;
+    for(const a of (q.adj||[]))if(supplyPct(u.nat,a)>0)return true;
+    return false;
+  };
+  /* AND A POCKET IS MADE BY ENEMIES, NOT BY DISTANCE. Without this the rule
+     starved every colonial garrison on the map: of 109 divisions surrendering
+     across two years, 48 were standing on their OWN home ground -- Lagos,
+     Accra, Khartoum, Mogadishu, Addis Ababa -- with nobody within a thousand
+     miles of them. They were not encircled, they were merely a long way from
+     a railhead, which the 55% supply penalty already charges for. France lost
+     39 divisions to it and Britain 14, which is most of the conquest this
+     cost. Somebody has to have closed the ring. */
+  const ringClosed=(u)=>{
+    const q=G.prov[u.at];
+    if(!q)return false;
+    if(q.owner&&q.owner!==u.nat&&atWar(u.nat,q.owner))return true;
+    for(const a of (q.adj||[])){
+      const r=G.prov[a];
+      if(r&&r.owner&&r.owner!==u.nat&&atWar(u.nat,r.owner))return true;
+    }
+    return false;
+  };
+  for(const u of G.units){
+    const cut=supplyPct(u.nat,u.at)<=0&&!hasRoadHome(u)&&ringClosed(u);
+    if(cut){
+      u.oos=(u.oos||0)+1;
+      /* it starves whether or not anyone is shooting at it */
+      u.hp-=OOS_BLEED;
+      eqpHurt(u,OOS_BLEED);
+      if(u.oos>=OOS_LIMIT||u.hp<=0)lost.push(u);
+      else if(u.oos===7&&u.nat===G.player)
+        logMsg(`\u26A0 A division at ${provOf(u.at).name} is CUT OFF \u2014 ${OOS_LIMIT-u.oos} days before it surrenders.`,"war");
+    }else if(u.oos){
+      /* the road is open again: it recovers faster than it starved, because a
+         relieved pocket is resupplied rather than merely un-encircled */
+      u.oos=Math.max(0,u.oos-2);
+      if(!u.oos&&u.nat===G.player)
+        logMsg(`\u{1F69B} The division at ${provOf(u.at).name} has been relieved.`,"good");
+    }
+  }
+  for(const u of lost){
+    const where=(G.prov[u.at]||{}).name||"the field";
+    if(u.nat===G.player)logMsg(`\u{1F3F3} A division surrendered at ${where} \u2014 cut off and starved out.`,"war");
+    else if(atWar(u.nat,G.player))logMsg(`\u{1F3F3} An enemy division surrendered at ${where}.`,"good");
+    killUnit(u);
+  }
+}
+/* How badly the pocket is telling. A division just cut off is the 55% supply
+   already gave it; one three weeks in is a fraction of that. */
+function oosMul(u){
+  const o=u.oos||0;
+  return o<=0?1:Math.max(0.35,1-o/OOS_LIMIT*0.65);
+}
 function supMul(u){
   let q=supplyPct(u.nat,u.at);
   if(u.gen&&u.gen.trait==="log")q=Math.max(q,0.85);   // a good quartermaster is worth a division
-  return q<=0?0.55:0.55+0.45*q;
+  return (q<=0?0.55:0.55+0.45*q)*oosMul(u);
 }
 
 /* ============================== POLITICS ============================== */
@@ -2923,12 +3008,18 @@ function tick(){
   }
   productionTick();
   constructionTick();
-  equipTick();
   supplyTick();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
   airOps();
   battles();
+  /* AFTER the supply map has been rebuilt and after the day's fighting, which
+     is the only order that makes sense: a division is resupplied, and starves,
+     against where the front actually ended the day rather than where it began
+     it. Sitting before supplyTick they both read yesterday's map, and a pocket
+     closed this morning would not have been noticed until tomorrow. */
+  equipTick();
+  pocketTick();
   /* Occupation is DERIVED fresh every tick from who is actually standing on
      the ground uncontested \u2014 it used to be a one-shot flag set only when a
      unit first arrived, so once progress was knocked back to zero the flag
@@ -6622,7 +6713,12 @@ const TERHEIGHT={plain:0.10,steppe:0.13,forest:0.22,hills:0.55,mtn:0.96,
 const TERPAINT={
   plain: [116,119, 85], steppe:[176,159,109], forest:[ 73, 79, 59],
   hills: [125,114, 85], mtn:   [110,105, 97], desert:[230,210,168],
-  jungle:[ 60, 79, 50], marsh: [ 87, 94, 74], tundra:[116,128,150],
+  /* JUNGLE AND TUNDRA SET AGAINST THE REFERENCE, NOT AGAINST TASTE. Scored by
+     latitude band, the equatorial belt came out 25 luminance under the real
+     thing (71 against 96) and it is jungle that fills it; the arctic came out
+     32 OVER (104 against 73) and that is tundra. Both were picked to look
+     right on their own rather than measured where they actually land. */
+  jungle:[ 80, 98, 66], marsh: [ 87, 94, 74], tundra:[ 94,104,122],
   urban: [108,100, 88]
 };
 /* HOW MUCH OF IT IS UNDER TREES. The thing that actually makes that map read
@@ -6641,7 +6737,11 @@ const TERTREES={
    world zoom. The reference mottles its forest too — the Soviet Union is
    plainly mottled in it — but the dark of that mottling measures L=61 against
    ground in the eighties, well under twice. These are set to that ratio. */
-const FORESTC=[46,56,42], FORESTC2=[40,50,52];
+/* And the mottling itself was set to a measured ratio that the band scores
+   then disagreed with: the note above puts the reference's forest dark at
+   L=61, these were 53 and 48, and the two northern woodland bands score 17 and
+   25 luminance short. Raised to the figure that note already named. */
+const FORESTC=[54,64,50], FORESTC2=[48,58,60];
 /* Value noise. Deterministic, so the ground is the same ground every time the
    map is rebuilt and does not crawl when a border moves. */
 function _vn(x,y,seed){
@@ -14808,6 +14908,13 @@ function refreshHUD(){
      what focus it was on and whether the public was still behind it were each
      buried a panel deep, so the three things that quietly lose you a campaign
      were the three you had to go looking for. */
+  {const el=$("#hOosT"),box=$("#hOos");
+   if(el&&box){
+     let n=0,worst=0;
+     for(const u of G.units)if(u.nat===G.player&&(u.oos||0)>0){n++;if(u.oos>worst)worst=u.oos;}
+     box.style.display=n?"":"none";
+     if(n){el.textContent=n;
+       box.style.color=worst>=OOS_LIMIT*0.6?"var(--red)":"var(--amber)";}}}
   {const el=$("#hEqpT");
    if(el){const armed=eqpArmed(G.player);
      const pool=eqpPool(me);
@@ -16186,7 +16293,7 @@ function mpSerialize(){
       EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2)];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3)]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0]),
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
@@ -16277,7 +16384,8 @@ function mpApplyState(S){
   /* a[11] is how well equipped the division is; a save written before the war
      economy has none, and undefined reads as fully equipped */
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army",
-    eq:a[11]===undefined?undefined:Math.max(0,Math.min(1,+a[11]))}));
+    eq:a[11]===undefined?undefined:Math.max(0,Math.min(1,+a[11])),
+    oos:+a[12]||0}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas",
     eq:a[6]===undefined?undefined:Math.max(0,Math.min(1,+a[6]))}));
