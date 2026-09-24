@@ -133,3 +133,50 @@ knowing before guessing again:
 `MAPPHOTO_SRC` is a screenshot of Paradox's Hearts of Iron IV, used as the map
 ground behind a toggle (Settings -> MAP GROUND, or `setPhotoMap(false)`). It is
 fine for private use and should not be published. Keep it toggleable.
+
+## The standalone staff map
+
+`staff-map.html` is a separate single file: a HOI4-styled 1936 theatre map
+with a top status bar, counters and a clock. It shares nothing with
+`index.html` and embeds no capture, so it is safe to publish.
+
+Its first version drew Europe from hand-written polygons, about thirty
+vertices a country, and was rightly called the worst thing in the repo.
+The fix was not better hand-drawing:
+
+- **The coastline data was already here.** `atlas50.json` in the scratchpad
+  (the same encoding `_decRing` reads in `index.html`) holds 227 real
+  country boundaries. Clipped to a Europe box and re-encoded at Q=24 --
+  1/24 degree, about 3km, finer than a 1500px map resolves -- 51 countries
+  and 7,833 vertices cost 17KB inline. Coastlines have not moved since
+  1936, so this part is simply right rather than approximate.
+- **1936 politics is a separate layer, clipped to that ground.** Most of
+  the theatre is an exact union of modern states (Czechoslovakia = Czechia
+  + Slovakia, Yugoslavia = the six republics + Kosovo, Romania + Moldova
+  for Bessarabia). Only the borders that genuinely moved are hand-drawn --
+  Germany's eastern provinces, the Kresy, Vilnius, Ruthenia, Bukovina --
+  and those are all INLAND, the one place a few kilometres of error cannot
+  be seen. A coast is where everybody can see it.
+- **Stroking a multi-ring country strokes its internal edges too**, which
+  ruled a line down the middle of Czechoslovakia at full national weight.
+  Stroke at twice the width then fill the same path back over it: an
+  internal edge is covered from both sides, the true boundary keeps its
+  outward half, and what is left is the union outline.
+- **A clip region is not a border.** The regions are closed polygons but
+  only their leading `nb` points are a real frontier; the rest closes the
+  shape out at sea. Stroking the whole polygon drew straight lines across
+  the middle of Germany and out into the Baltic.
+
+Measurement notes, in the spirit of the rest of this file:
+
+- Classifying a painted pixel by nearest national colour DOES NOT WORK once
+  the gradient and the dark veil are on it -- it put Warsaw in Lithuania and
+  Minsk in Hungary. Repaint each nation a flat index colour and read the
+  pixel exactly. Empty `CITIES` and `COUNTERS` first or the probe lands on a
+  marker and reads the marker.
+- Two "bugs" here were faults in the probe: Copenhagen "outside Denmark"
+  was the probe asking at 12.6 when the coastline is at 12.583, and Danzig
+  "floating in the bay" was me misreading a screenshot by 50 pixels. Both
+  disagreed with a numeric check, and the numeric check was right both times.
+- Audit city positions against the ring data rather than by eye. Of 46
+  cities exactly one (Lisbon) was in the water, by 4km.
