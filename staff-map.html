@@ -544,12 +544,31 @@ const cam={lon:12.5,lat:50.4,span:34};
   }
 })();
 
+/* The atlas was clipped to a box, and zooming out far enough showed
+   that box as a hard rectangle with a grey slab of half-a-country
+   beyond it. Rather than fade the edge, the camera is simply not
+   allowed to leave the data: the span is capped so the viewport is
+   never wider or taller than the box, and the centre is held so its
+   edges stay off screen. */
+function clampCam(){
+  const bw=RB[2]-RB[0], bh=RB[3]-RB[1];
+  /* span is measured in degrees of longitude across the viewport,
+     before the cos(lat) correction, so convert both ways through kx */
+  const k=Math.cos(cam.lat*Math.PI/180);
+  cam.span=Math.min(cam.span, bw*k, bh*k*W/H);
+  cam.span=Math.max(3, cam.span);
+  const halfLon=cam.span/(2*k), halfLat=(H/(W/cam.span))/2;
+  cam.lat=Math.max(RB[1]+halfLat, Math.min(RB[3]-halfLat, cam.lat));
+  cam.lon=Math.max(RB[0]+halfLon, Math.min(RB[2]-halfLon, cam.lon));
+}
+
 function resize(){
   DPR=Math.min(2,window.devicePixelRatio||1);
   W=wrap.clientWidth;H=wrap.clientHeight;
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
   cv.style.width=W+"px";cv.style.height=H+"px";
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  clampCam();
   draw();
 }
 window.addEventListener("resize",resize);
@@ -608,16 +627,21 @@ function inRegion(e,fn){
   else      { notRegionPath(e.not); ctx.clip("evenodd"); }
   fn(); ctx.restore();
 }
+function hex2rgb(h){return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];}
+for(const k in NATIONS) NATIONS[k].rgb=hex2rgb(NATIONS[k].col);
+/* The political colour is a TINT ON GROUND. It used to be an opaque
+   gradient plus a dark veil, which is why the land measured 20-26
+   lightness against the real game's 50-62: the fill was the map. Now
+   the terrain underneath carries the brightness and this only colours
+   it, pushed toward white the way the real map's pastels are. */
 function natFill(e,lit){
   const N=NATIONS[e.nat]; if(!N)return;
-  const gg=ctx.createLinearGradient(0,0,0,H);
-  gg.addColorStop(0,shade(N.col,lit?1.08:0.86));
-  gg.addColorStop(1,shade(N.col,lit?0.86:0.62));
-  ctx.fillStyle=gg; ctx.fill();
-  /* the moody overlay: everything sits under a thin dark veil so no
-     national colour can shout */
-  ctx.fillStyle="rgba(16,20,12,0.22)"; ctx.fill();
+  const c=N.rgb, t=0.30;
+  const r=(c[0]+(255-c[0])*t)|0, g=(c[1]+(255-c[1])*t)|0, b=(c[2]+(255-c[2])*t)|0;
+  ctx.fillStyle="rgba("+r+","+g+","+b+","+(lit?0.62:0.44)+")";
+  ctx.fill();
 }
+
 /* point-in-polygon on a lon/lat ring */
 function inPoly(ring,lon,lat){
   let w=false;
@@ -629,88 +653,455 @@ function inPoly(ring,lon,lat){
   return w;
 }
 
+/* ===================================================================
+   GROUND, NOT FILL.
+
+   The first two versions of this map painted each country a flat
+   colour on a navy sea. Measured against a capture of the real game
+   at the same zoom, that was wrong in three ways at once, and the
+   numbers said so plainly:
+
+                       real game      flat-fill version
+     land lightness      50 - 62          20 - 26
+     internal detail   0.14 - 0.24      0.03 - 0.07
+     sea saturation        0.34            0.67
+
+   Half the brightness, a third of the detail, a sea twice as blue as
+   it should be. The real game is a TEXTURED TERRAIN MAP with a pale
+   political wash laid over it and a mesh of provinces ruled across
+   it; the political colour is a tint on ground, not the ground. So
+   the ground is generated here and the nation colour went from an
+   opaque fill to a wash over it.
+   =================================================================== */
+
+/* value noise: cheap, seeded by position, identical every redraw so
+   the terrain does not crawl when the map is panned */
+function h2(x,y){
+  let n=(x|0)*374761393+(y|0)*668265263;
+  n=(n^(n>>13))*1274126177;
+  return ((n^(n>>16))>>>0)/4294967296;
+}
+function vnoise(x,y){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=h2(xi,yi), b=h2(xi+1,yi), c=h2(xi,yi+1), d=h2(xi+1,yi+1);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function fbm(x,y,oct){
+  let sum=0, amp=0.5, f=1, norm=0;
+  for(let i=0;i<oct;i++){ sum+=amp*vnoise(x*f,y*f); norm+=amp; f*=2; amp*=0.5; }
+  return sum/norm;
+}
+/* Two attempts at "more detail when you zoom in" are recorded here as
+   reverted, both for the same reason: there was nothing to fix.
+
+   Raising the fBm persistence moved 96 pixels of 988,000, because over
+   a hundredth of a degree the whole field varies by 0.005 and the
+   terrain thresholds never notice. Adding colour mottling at a
+   zoom-tied frequency then measured very slightly WORSE on every
+   figure it touched.
+
+   The reason neither helped is that the premise was wrong. Measured on
+   a real close-zoom capture, the game's own close view carries an edge
+   density of 0.008 to 0.027 -- and this map's close view was already
+   0.017, inside that range. Close ground in this game IS smooth, with
+   the detail carried by province lines and coast rather than by
+   texture. The target was met before the work started. */
+
+/* The terrain palette. Ground first, politics later. */
+const T_LOW=[126,136, 98], T_GRASS=[152,152,112], T_DRY=[186,176,136],
+      T_SAND=[205,190,150], T_HILL=[150,143,116], T_ROCK=[170,167,158],
+      T_HIGH=[206,205,198];
+function mix3(a,b,t){return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];}
+
+/* Terrain is baked in SCREEN space at a third of the resolution and
+   upscaled. Screen space rather than one fixed geographic texture so
+   that zooming in adds octaves instead of magnifying blur -- the map
+   keeps its detail at any range, which a pre-baked image cannot do.
+   Cached on the camera, because nothing but a pan or a zoom changes it. */
+let terrCache=null;
+/* ---- where the mountains actually are ----------------------------
+   Pure noise gives a continent with no Alps: ridges land wherever the
+   hash puts them, which is nowhere in particular, and the eye knows.
+   These are the real ranges as polylines, rasterised ONCE into a
+   coarse blurred field and then sampled as an elevation bonus during
+   the bake. Rasterising through canvas rather than computing distance
+   to 60 segments per pixel keeps it to one cheap lookup: at bake
+   resolution the per-pixel version would have been tens of millions
+   of distance tests. */
+const RIDGES=[
+  [[6.0,45.2],[7.5,45.9],[9.5,46.5],[11.5,47.1],[13.5,47.2],[15.2,47.3]],   /* Alps        */
+  [[-1.7,43.3],[0.5,42.8],[2.6,42.4]],                                      /* Pyrenees    */
+  [[18.9,49.5],[21.0,49.3],[23.5,48.2],[25.4,47.6],[26.1,45.6],
+   [24.2,45.4],[22.6,45.3]],                                                /* Carpathians */
+  [[9.0,44.4],[11.0,43.5],[13.2,42.4],[15.2,40.9],[16.3,39.7]],             /* Apennines   */
+  [[14.4,45.5],[16.5,44.1],[18.6,43.0],[20.1,42.0],[21.0,40.5]],            /* Dinarides   */
+  [[21.8,43.1],[24.5,42.8],[27.0,42.7]],                                    /* Stara Planina */
+  [[6.6,58.4],[8.4,61.0],[12.0,63.4],[15.5,64.4]],                          /* Scandes     */
+  [[-6.2,43.1],[-4.2,43.1],[-2.5,42.9]],                                    /* Cantabrians */
+  [[-3.2,41.2],[-1.6,40.6],[-0.6,40.2]],                                    /* Iberian sys */
+  [[-6.3,37.3],[-3.1,37.1],[-1.8,37.4]],                                    /* Baetic      */
+  [[-5.3,57.3],[-3.9,56.8],[-3.2,57.2]],                                    /* Highlands   */
+  [[13.0,49.3],[12.3,50.2],[13.5,50.6],[15.3,50.7],[16.6,50.5]],            /* Bohemian rim*/
+  [[27.5,37.2],[31.0,36.9],[34.5,37.4],[37.5,38.0]],                        /* Taurus      */
+  [[31.0,40.9],[35.0,40.8],[38.5,40.4]],                                    /* Pontics     */
+  [[35.5,36.3],[36.4,34.5]],                                                /* Levant      */
+  [[-5.5,33.9],[-1.0,34.6],[3.0,35.6],[6.5,36.3]]                           /* Atlas       */
+];
+const RB=[-11.5,34.0,42.0,64.5];          /* the box the atlas was clipped to */
+const RW=640, RH=420;
+const RIDGEF=(function(){
+  const oc=document.createElement('canvas'); oc.width=RW; oc.height=RH;
+  const c=oc.getContext('2d');
+  c.fillStyle="#000"; c.fillRect(0,0,RW,RH);
+  const P=(lo,la)=>[ (lo-RB[0])/(RB[2]-RB[0])*RW, (RB[3]-la)/(RB[3]-RB[1])*RH ];
+  c.lineJoin=c.lineCap="round";
+  /* three passes, wide and faint to narrow and bright, so each range
+     has foothills falling away from a spine rather than a hard edge */
+  for(const [w,a] of [[26,0.30],[14,0.45],[6,0.65]]){
+    c.strokeStyle="rgba(255,255,255,"+a+")"; c.lineWidth=w;
+    for(const r of RIDGES){
+      c.beginPath();
+      r.forEach((q,i)=>{const t=P(q[0],q[1]); i?c.lineTo(t[0],t[1]):c.moveTo(t[0],t[1]);});
+      c.stroke();
+    }
+  }
+  const d=c.getImageData(0,0,RW,RH).data;
+  const f=new Float32Array(RW*RH);
+  for(let i=0;i<f.length;i++) f[i]=d[i*4]/255;
+  return f;
+})();
+/* bilinear sample of the ridge field */
+function ridgeAt(lon,lat){
+  const x=(lon-RB[0])/(RB[2]-RB[0])*RW, y=(RB[3]-lat)/(RB[3]-RB[1])*RH;
+  if(x<0||y<0||x>=RW-1||y>=RH-1) return 0;
+  const xi=x|0, yi=y|0, xf=x-xi, yf=y-yi;
+  const a=RIDGEF[yi*RW+xi],     b=RIDGEF[yi*RW+xi+1];
+  const cc=RIDGEF[(yi+1)*RW+xi], dd=RIDGEF[(yi+1)*RW+xi+1];
+  return (a+(b-a)*xf)+((cc+(dd-cc)*xf)-(a+(b-a)*xf))*yf;
+}
+
+/* Terrain is baked at a third of screen resolution and upscaled.
+   Baking at a half when zoomed in was tried, to sharpen the close
+   view, and reverted: it changed no measured figure. */
+const TERR_SUB=3;
+function terrSub(){ return TERR_SUB; }
+function terrainBake(lon0,lat0,lon1,lat1,oct){
+  const sc=W/cam.span, kxx=kx(), SC=terrSub();
+  let tw=Math.ceil((lon1-lon0)*sc*kxx/SC), th=Math.ceil((lat1-lat0)*sc/SC);
+  /* keep the bake bounded however far in the camera goes */
+  const CAP=900;
+  const k=Math.min(1,CAP/Math.max(tw,th)); tw=Math.max(1,Math.round(tw*k)); th=Math.max(1,Math.round(th*k));
+  const oc=document.createElement('canvas'); oc.width=tw; oc.height=th;
+  const octx=oc.getContext('2d'), img=octx.createImageData(tw,th), d=img.data;
+  const dlon=(lon1-lon0)/tw, dlat=(lat1-lat0)/th;
+  for(let py=0,i=0;py<th;py++){
+    const lat=lat1-py*dlat;
+    for(let px=0;px<tw;px++,i+=4){
+      const lon=lon0+px*dlon;
+      /* elevation is noise PLUS the real ranges; the noise alone put
+         mountains nowhere in particular and the eye knew */
+      const rg=ridgeAt(lon,lat);
+      const e=fbm(lon*1.7+11.3, lat*1.7+ 7.1, oct)*(1-rg*0.45)+rg*0.62;
+      const m=fbm(lon*1.1-31.7, lat*1.1+53.9, oct-1);
+      const dry=Math.max(0,Math.min(1,(47.5-lat)/13))*0.8 + (1-m)*0.5;
+      let col=mix3(T_LOW,T_GRASS,Math.max(0,Math.min(1,dry*1.1)));
+      col=mix3(col,T_DRY ,Math.max(0,Math.min(1,(dry-0.55)*2.2)));
+      col=mix3(col,T_SAND,Math.max(0,Math.min(1,(dry-0.95)*2.0)));
+      col=mix3(col,T_HILL,Math.max(0,Math.min(1,(e-0.56)*3.4))*0.8);
+      col=mix3(col,T_ROCK,Math.max(0,Math.min(1,(e-0.70)*4.0)));
+      col=mix3(col,T_HIGH,Math.max(0,Math.min(1,(e-0.82)*5.0)));
+      /* relief: light from the north-west, which is what makes the
+         noise read as ground rather than as static */
+      const rx=ridgeAt(lon+dlon,lat), ry=ridgeAt(lon,lat-dlat);
+      const ex=fbm((lon+dlon)*1.7+11.3, lat*1.7+7.1, oct)*(1-rx*0.45)+rx*0.62;
+      const ey=fbm(lon*1.7+11.3, (lat-dlat)*1.7+7.1, oct)*(1-ry*0.45)+ry*0.62;
+      const sh=1+((e-ex)+(e-ey))*2.6;
+      d[i  ]=Math.max(0,Math.min(255,col[0]*sh));
+      d[i+1]=Math.max(0,Math.min(255,col[1]*sh));
+      d[i+2]=Math.max(0,Math.min(255,col[2]*sh));
+      d[i+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+  return oc;
+}
+/* Baking the exact viewport meant a 110ms re-bake on every step of a
+   drag, which made panning crawl. The projection is linear in lon and
+   lat, so a baked rectangle can simply be blitted into whatever screen
+   rectangle its corners now land on: bake a rectangle 30% larger than
+   the viewport and a pan costs one drawImage until the camera leaves
+   it. Only a zoom, which changes the octave count, forces the work. */
+function drawTerrain(){
+  const a=INV(0,0), b=INV(W,H);
+  const lo0=a[0], lo1=b[0], la0=b[1], la1=a[1];
+  const oct=Math.max(4,Math.min(9,Math.round(4+Math.log2(34/cam.span))));
+  /* Tying the cache to the exact span meant a re-bake on every wheel
+     step -- 287ms a frame while zooming. A baked rectangle is just an
+     image, and drawImage will rescale it, so a zoom only has to re-bake
+     when the octave count changes or when the camera has come in far
+     enough that the bake is visibly soft. */
+  const ppd=W/cam.span*kx();
+  const c=terrCache;
+  if(!c || c.oct!==oct || ppd/c.ppd>1.7 ||
+     lo0<c.lon0 || lo1>c.lon1 || la0<c.lat0 || la1>c.lat1){
+    const mx=(lo1-lo0)*0.30, my=(la1-la0)*0.30;
+    const n={lon0:lo0-mx, lon1:lo1+mx, lat0:la0-my, lat1:la1+my, oct:oct, ppd:ppd};
+    n.cv=terrainBake(n.lon0,n.lat0,n.lon1,n.lat1,oct);
+    /* Compare like with like: the bake is at a third of screen
+       resolution, so its screen-equivalent pixels-per-degree is its
+       width times the subsampling. Dividing the raw bake width by the
+       span instead made this ratio a constant 3 and re-baked every
+       frame, which was slower than what it replaced. The cap inside
+       the bake can also hand back fewer pixels than were asked for,
+       and this accounts for that too. */
+    n.ppd=n.cv.width*terrSub()/(n.lon1-n.lon0);
+    terrCache=n;
+  }
+  const t=terrCache;
+  const p0=PX(t.lon0,t.lat1), p1=PX(t.lon1,t.lat0);
+  ctx.drawImage(t.cv, p0[0], p0[1], p1[0]-p0[0], p1[1]-p0[1]);
+}
+
+/* ---- the province mesh -------------------------------------------
+   The single most recognisable thing about the real map is that every
+   country is ruled into dozens of provinces. A jittered lattice reads
+   the same at this scale: lattice vertices on a fixed geographic grid,
+   each pushed off its node by a fixed hash, so cells are irregular
+   quads that never move between redraws. Fixed in degrees, not in
+   pixels, so provinces stay put and get bigger as you come in, the way
+   real ones do. */
+const PROV_STEP=0.62;
+function provV(i,j){
+  return [ i*PROV_STEP + (h2(i*7+1,j*13+5)-0.5)*PROV_STEP*0.92,
+           j*PROV_STEP + (h2(i*17+9,j*3+41)-0.5)*PROV_STEP*0.92 ];
+}
+function drawProvinces(s){
+  const a=INV(0,0), b=INV(W,H);
+  const i0=Math.floor(a[0]/PROV_STEP)-1, i1=Math.ceil(b[0]/PROV_STEP)+1;
+  const j0=Math.floor(b[1]/PROV_STEP)-1, j1=Math.ceil(a[1]/PROV_STEP)+1;
+  if((i1-i0)*(j1-j0)>30000) return;            /* far out: too dense to read */
+  ctx.lineWidth=Math.max(0.5,Math.min(1.1,s*0.030));
+  ctx.strokeStyle="rgba(46,42,32,0.34)";
+  ctx.beginPath();
+  /* Edges are drawn one at a time rather than as full lattice rows so
+     that about a fifth can be dropped. A complete lattice reads as
+     graph paper; dropping edges merges neighbouring cells into larger
+     irregular ones, which is what a province map actually looks like.
+     The choice is a hash of the edge, so it never changes. */
+  for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
+    const v=provV(i,j);
+    if(h2(i*31+2,j*57+8)>0.20){
+      const w=provV(i+1,j), p=PX(v[0],v[1]), q=PX(w[0],w[1]);
+      ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]);
+    }
+    if(h2(i*91+6,j*23+3)>0.20){
+      const w=provV(i,j+1), p=PX(v[0],v[1]), q=PX(w[0],w[1]);
+      ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]);
+    }
+  }
+  ctx.stroke();
+}
+
+/* Where to stamp each country's name. The anchor is the nation's
+   single largest modern country, not the union of everything it owns:
+   France plus Algeria and Syria has its centre in the Mediterranean,
+   which is where the label would have gone. */
+const NATBOX={};
+(function(){
+  const best={};
+  for(const e of POLITICS){
+    if(!NATIONS[e.nat] || e.only) continue;
+    for(const c of e.of){
+      const rs=LAND[c]; if(!rs)continue;
+      let B=[1e9,1e9,-1e9,-1e9];
+      for(const r of rs) for(const q of r){
+        B[0]=Math.min(B[0],q[0]);B[1]=Math.min(B[1],q[1]);
+        B[2]=Math.max(B[2],q[0]);B[3]=Math.max(B[3],q[1]);
+      }
+      const area=(B[2]-B[0])*(B[3]-B[1]);
+      if(!best[e.nat] || area>best[e.nat].a) best[e.nat]={a:area,B:B};
+    }
+  }
+  for(const k in best) NATBOX[k]=best[k].B;
+})();
+
+/* The real map letter-spaces a country's name right across its
+   territory in a pale carved capital, and that is most of what makes
+   a screenshot read as this game at a glance. */
+function polyCentroid(r){
+  let a=0,cx=0,cy=0;
+  for(let i=0,j=r.length-1;i<r.length;j=i++){
+    const f=r[j][0]*r[i][1]-r[i][0]*r[j][1];
+    a+=f; cx+=(r[j][0]+r[i][0])*f; cy+=(r[j][1]+r[i][1])*f;
+  }
+  if(Math.abs(a)<1e-9) return r[0];
+  return [cx/(3*a), cy/(3*a)];
+}
+/* An anchor per nation: the centroid of its largest ring, which for a
+   country shaped like Norway or Greece is nowhere near the centre of
+   its bounding box. Computed once. */
+const NATANCHOR={};
+(function(){
+  for(const k in NATBOX){
+    let big=null,ba=-1;
+    for(const e of POLITICS){
+      if(e.nat!==k || e.only) continue;
+      for(const c of e.of){
+        const rs=LAND[c]; if(!rs)continue;
+        for(const r of rs){
+          let a=0;
+          for(let i=0,j=r.length-1;i<r.length;j=i++) a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];
+          a=Math.abs(a)/2;
+          if(a>ba){ba=a;big=r;}
+        }
+      }
+    }
+    if(big){
+      const c=polyCentroid(big);
+      /* a centroid can fall outside a concave country; fall back to the
+         capital, which is at least always on its own soil */
+      NATANCHOR[k]= natAt(c[0],c[1])===k ? c : NATIONS[k].cap;
+    }
+  }
+})();
+
+/* The real map letter-spaces a country's name right across its
+   territory in a pale carved capital, and that is most of what makes
+   a screenshot read as this game at a glance. Labels are placed
+   largest-country-first and a later one is dropped if its box would
+   collide with one already down, because Greece stamped across Turkey
+   reads worse than Greece not stamped at all. */
+const NATORDER=Object.keys(NATBOX).sort((a,b)=>{
+  const A=NATBOX[a],B=NATBOX[b];
+  return (B[2]-B[0])*(B[3]-B[1])-(A[2]-A[0])*(A[3]-A[1]);
+});
+function drawNatNames(s){
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  const placed=[];
+  for(const k of NATORDER){
+    const B=NATBOX[k], N=NATIONS[k]; if(!N)continue;
+    const an=NATANCHOR[k]; if(!an)continue;
+    const p0=PX(B[0],B[3]), p1=PX(B[2],B[1]);
+    const wpx=p1[0]-p0[0], hpx=p1[1]-p0[1];
+    if(wpx<150 || hpx<34) continue;
+    const nm=N.name.toUpperCase();
+    let fs=Math.min(hpx*0.34, wpx/(nm.length*0.95), 68);
+    if(fs<11) continue;
+    ctx.font="700 "+fs.toFixed(1)+"px 'Roboto Condensed','Arial Narrow',sans-serif";
+    ctx.letterSpacing=(fs*0.26).toFixed(1)+"px";
+    const a=PX(an[0],an[1]);
+    const tw=ctx.measureText(nm).width, th=fs*1.15;
+    const box=[a[0]-tw/2, a[1]-th/2, a[0]+tw/2, a[1]+th/2];
+    if(box[2]<0||box[0]>W||box[3]<0||box[1]>H){ ctx.letterSpacing="0px"; continue; }
+    let hit=false;
+    for(const q of placed)
+      if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]){hit=true;break;}
+    if(hit){ ctx.letterSpacing="0px"; continue; }
+    placed.push(box);
+    ctx.lineWidth=Math.max(2,fs*0.14);
+    ctx.strokeStyle="rgba(30,24,16,0.50)"; ctx.strokeText(nm,a[0],a[1]);
+    ctx.fillStyle="rgba(250,246,234,0.34)"; ctx.fillText(nm,a[0],a[1]);
+    ctx.letterSpacing="0px";
+  }
+  ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+}
+
 function draw(){
   const s=W/cam.span;
 
-  /* --- the sea ------------------------------------------------- */
+  /* --- the sea ---------------------------------------------------
+     Measured at 0.67 saturation against the real game's 0.34, the old
+     navy was twice as blue as the thing it was imitating. This is a
+     grey-blue, and lighter. */
   const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,"#132742"); g.addColorStop(.55,"#0d1b2e"); g.addColorStop(1,"#0a1524");
+  g.addColorStop(0,"#3d5064"); g.addColorStop(.55,"#334457"); g.addColorStop(1,"#2b3a4c");
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
   /* a faint graticule, the way a staff map is ruled */
-  ctx.strokeStyle="rgba(120,160,200,.055)"; ctx.lineWidth=1;
-  for(let lon=-10;lon<=35;lon+=5){const a=PX(lon,80),b=PX(lon,20);
+  ctx.strokeStyle="rgba(210,225,240,.07)"; ctx.lineWidth=1;
+  for(let lon=-10;lon<=40;lon+=5){const a=PX(lon,80),b=PX(lon,20);
     ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
-  for(let lat=40;lat<=62;lat+=4){const a=PX(-20,lat),b=PX(45,lat);
+  for(let lat=34;lat<=64;lat+=4){const a=PX(-20,lat),b=PX(50,lat);
     ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
 
-  /* --- land ------------------------------------------------------
-     Every ring in the theatre, filled once as a single dark landmass
-     with a drop shadow under it. The shadow is most of what makes the
-     land sit ON the sea rather than merely beside it. */
+  /* --- land ------------------------------------------------------- */
   ctx.save();
-  ctx.shadowColor="rgba(0,0,0,.55)"; ctx.shadowBlur=14; ctx.shadowOffsetY=3;
-  ctx.fillStyle="#11150d";
+  ctx.shadowColor="rgba(0,0,0,.5)"; ctx.shadowBlur=13; ctx.shadowOffsetY=3;
+  ctx.fillStyle="#6d7258";
   allLandPath(); ctx.fill();
   ctx.restore();
 
-  /* --- national colour, clipped to real ground -------------------- */
+  /* the generated ground, showing only where there is land */
+  ctx.save();
+  allLandPath(); ctx.clip();
+  drawTerrain();
+  ctx.restore();
+
+  /* --- national colour, as a wash over the ground ----------------- */
   for(const e of POLITICS){
-    const N=NATIONS[e.nat]; if(!N)continue;
-    const lit=(hoverNat===e.nat);
-    inRegion(e,()=>{
-      entryPath(e); natFill(e,lit);
-    });
+    if(!NATIONS[e.nat])continue;
+    inRegion(e,()=>{ entryPath(e); natFill(e,hoverNat===e.nat); });
   }
 
-  /* --- internal state lines, under the frontiers ------------------ */
-  if(s>7){
-    ctx.strokeStyle="rgba(20,24,16,0.38)";
-    ctx.lineWidth=Math.max(.5,Math.min(1.2,s*0.042));
-    for(const e of POLITICS){
-      if(e.of.length<2) continue;
-      inRegion(e,()=>{ entryPath(e); ctx.stroke(); });
-    }
-  }
+  /* --- provinces, ruled over everything but under the frontiers --- */
+  ctx.save();
+  allLandPath(); ctx.clip();
+  drawProvinces(s);
+  ctx.restore();
 
   /* --- frontiers ---------------------------------------------------
      Stroking a country made of several rings also strokes the borders
      BETWEEN those rings, which would rule a line down the middle of
-     Czechoslovakia at full national weight. The way round it is to
-     stroke at twice the width and then fill the same path back over
-     the top: an internal edge has the nation on both sides so the
-     whole of its stroke is covered, while the true outer boundary
-     keeps the outward half. What is left is the union outline, which
-     is what a frontier is. */
+     Czechoslovakia at full national weight. Clipping to the OUTSIDE of
+     the nation before stroking removes them: an internal edge has the
+     nation on both sides, so all of its stroke is clipped away, while
+     the true boundary keeps its outward half. That leaves the union
+     outline -- and unlike filling the path back over the stroke, which
+     is how this worked when the fill was opaque, it does not paint out
+     the ground and the provinces underneath. */
   ctx.lineJoin="round"; ctx.lineCap="round";
-  const fw=Math.max(1.1,Math.min(2.6,s*0.075));
+  const fw=Math.max(1.0,Math.min(2.4,s*0.070));
   for(const e of POLITICS){
     if(!NATIONS[e.nat])continue;
     inRegion(e,()=>{
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(-1e5,-1e5);ctx.lineTo(1e5,-1e5);ctx.lineTo(1e5,1e5);ctx.lineTo(-1e5,1e5);
+      ctx.closePath();
+      for(const c of e.of){ const rs=LAND[c]; if(!rs)continue; for(const r of rs) addRing(r); }
+      ctx.clip("evenodd");
       entryPath(e);
-      ctx.strokeStyle=(hoverNat===e.nat)?"rgba(216,162,58,0.95)":"rgba(10,13,8,0.88)";
+      ctx.strokeStyle=(hoverNat===e.nat)?"rgba(240,196,86,0.95)":"rgba(58,32,30,0.85)";
       ctx.lineWidth=fw*2; ctx.stroke();
-      entryPath(e); natFill(e,hoverNat===e.nat);
+      ctx.restore();
     });
   }
 
-  /* --- the two frontiers that are not a modern border --------------
-     Germany's eastern provinces and Poland's eastern voivodeships cut
-     across modern countries, so their fills came from a clip and the
-     clip ate the outward half of the stroke. Draw those two lines
-     explicitly, clipped to land so they do not run out to sea. */
+  /* --- the frontiers that are not a modern border ------------------
+     Germany's eastern provinces, East Prussia, the Kresy, Vilnius,
+     Ruthenia and Bukovina came from a clip, and the clip ate the
+     outward half of their stroke. Draw those lines explicitly,
+     clipped to land so they do not run out to sea. Only the leading
+     `nb` points of each region are a real frontier. */
   ctx.save();
   allLandPath(); ctx.clip();
-  ctx.strokeStyle="rgba(10,13,8,0.88)"; ctx.lineWidth=fw;
+  ctx.strokeStyle="rgba(58,32,30,0.85)"; ctx.lineWidth=fw;
   for(const nm in REGIONS){
     const R=REGIONS[nm];
     ctx.beginPath();
     for(let i=0;i<R.nb;i++){
       const t=PX(R.p[i][0],R.p[i][1]); i?ctx.lineTo(t[0],t[1]):ctx.moveTo(t[0],t[1]);
     }
-    ctx.stroke();                      /* open: no closing segment */
+    ctx.stroke();
   }
   ctx.restore();
+
+  /* --- country names, stamped across the territory ----------------
+     The real map letter-spaces a country's name right across it in a
+     pale carved capital. It is most of what makes a screenshot read
+     as this game at a glance. */
+  drawNatNames(s);
 
   /* --- cities ---------------------------------------------------- */
   for(const [nm,lon,lat,isCap] of CITIES){
@@ -873,8 +1264,7 @@ window.addEventListener("mousemove",e=>{
     lastX=e.clientX;lastY=e.clientY;
     const s=W/cam.span;
     cam.lon-=dx/(s*kx()); cam.lat+=dy/s;
-    cam.lat=Math.max(40,Math.min(60,cam.lat));
-    cam.lon=Math.max(-12,Math.min(38,cam.lon));
+    clampCam();
     draw(); tip.style.display="none"; return;
   }
   if(x<0||y<0||x>W||y>H){tip.style.display="none";return;}
@@ -904,7 +1294,7 @@ wrap.addEventListener("wheel",e=>{
   e.preventDefault();
   const r=cv.getBoundingClientRect();
   const before=INV(e.clientX-r.left,e.clientY-r.top);
-  cam.span=Math.max(5,Math.min(46,cam.span*(e.deltaY>0?1.12:0.89)));
+  cam.span=cam.span*(e.deltaY>0?1.12:0.89); clampCam();
   const after=INV(e.clientX-r.left,e.clientY-r.top);
   cam.lon+=before[0]-after[0]; cam.lat+=before[1]-after[1];
   draw();
@@ -921,7 +1311,7 @@ wrap.addEventListener("touchstart",e=>{
 wrap.addEventListener("touchmove",e=>{
   if(e.touches.length===2&&pinch){
     const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    cam.span=Math.max(5,Math.min(46,cam.span*(pinch/d)));
+    cam.span=cam.span*(pinch/d); clampCam();
     pinch=d; draw(); e.preventDefault(); return;
   }
   if(dragging&&e.touches.length===1){
@@ -929,7 +1319,7 @@ wrap.addEventListener("touchmove",e=>{
     lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
     const s=W/cam.span;
     cam.lon-=dx/(s*kx()); cam.lat+=dy/s;
-    cam.lat=Math.max(40,Math.min(60,cam.lat));
+    clampCam();
     draw(); e.preventDefault();
   }
 },{passive:false});

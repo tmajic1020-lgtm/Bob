@@ -180,3 +180,66 @@ Measurement notes, in the spirit of the rest of this file:
   disagreed with a numeric check, and the numeric check was right both times.
 - Audit city positions against the ring data rather than by eye. Of 46
   cities exactly one (Lisbon) was in the water, by 4km.
+
+## The staff map is terrain, not fill
+
+Called out as still bad after the coastlines went in, and measuring it
+against a capture of the real game at the same zoom said exactly why:
+
+                      real game     flat-fill version
+    land lightness      50 - 62         20 - 26
+    internal detail   0.14 - 0.24     0.03 - 0.07
+    sea saturation       0.34            0.67
+
+Half the brightness, a third of the detail, a sea twice as blue as the
+thing it was imitating. The real map is a TEXTURED TERRAIN MAP with a
+pale political wash over it and a mesh of provinces ruled across it;
+the political colour is a tint on ground, not the ground. What fixed
+it, in order of how much each was worth:
+
+- **A generated terrain ground**, baked from fBm and drawn under
+  everything, with the nation colour dropped from an opaque gradient
+  plus a dark veil to a wash at 0.44 alpha pushed 30% toward white.
+  Land went 20-26 -> 45-49 lightness and 0.12-0.59 -> 0.18-0.20
+  saturation.
+- **A province mesh**: a jittered lattice, fixed in degrees, with about
+  a fifth of its edges dropped by hash so cells merge into irregular
+  ones. A complete lattice reads as graph paper. This is most of the
+  detail figure: 0.03-0.07 -> 0.12-0.16.
+- **Real mountain ranges.** Noise alone puts ridges nowhere in
+  particular and the eye knows. Sixteen ranges as polylines, rasterised
+  once through canvas into a coarse blurred field and sampled as an
+  elevation bonus. Doing it as distance-to-segment per pixel would have
+  been tens of millions of tests per bake.
+- A lighter, greyer sea: 0.67 -> ~0.41 saturation against a target 0.34.
+
+Reverted, each for failing to measure better:
+
+- **Raising the fBm persistence** to get more detail when zoomed in.
+  Moved 96 pixels of 988,000: over a hundredth of a degree the whole
+  field varies by 0.005, so the terrain thresholds never notice.
+- **Colour mottling at a zoom-tied frequency**, the same idea again.
+  Measured very slightly WORSE on every figure it touched.
+- **Baking terrain at half screen resolution when zoomed in** instead
+  of a third. Changed no measured figure.
+
+All three were chasing "the resolution fades when you zoom in", and the
+premise was wrong. The real game's own close view measures 0.008-0.027
+edge density and this map's close view was already 0.017, inside the
+range, before any of it. ESTABLISH THE TARGET BEFORE OPTIMISING: two of
+the three would never have been written.
+
+More instrument faults, adding to the tally:
+
+- **Frame timings in this container are worthless.** A bisection said
+  baseline 6.5ms, then that REMOVING the province mesh cost 120ms --
+  a physical impossibility. Repeated runs disagreed by 10x. The
+  trustworthy measure was a counter, not a timer: terrain bakes during
+  a pan and a zoom, which went 40 -> 0 and stayed there.
+- **Caching on the camera needs like compared with like.** Keying the
+  terrain cache on exact span re-baked every wheel step; the fix
+  compared screen pixels-per-degree against BAKE pixels-per-degree,
+  which differ by the subsampling factor, so the ratio was a constant 3
+  and it re-baked every frame -- slower than what it replaced.
+- The flat-index-colour ownership probe must also disable the province
+  mesh and the country labels, or it reads those instead of the fill.
