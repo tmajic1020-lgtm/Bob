@@ -1529,8 +1529,12 @@ function computeSupply(){
        the day the enemy enters the capital. */
     if(!src.length){let best=mine[0];for(const q of mine)if(q.val>best.val)best=q;src.push(best.id);}
     const hasNavy=G.fleets.some(f=>f.nat===k);
-    const dist={},q2=[];
-    for(const id of src)if(dist[id]===undefined){dist[id]=0;q2.push(id);}
+    /* `par` records WHICH depot the shortest route came from. The fill
+       already computes it implicitly; carrying it costs one assignment
+       per relaxation and is what lets a hub be charged for the
+       divisions it is actually feeding. */
+    const dist={},par={},q2=[];
+    for(const id of src)if(dist[id]===undefined){dist[id]=0;par[id]=id;q2.push(id);}
     let guard=0;
     while(q2.length&&guard++<6000){
       const id=q2.shift(),d=dist[id],pr=G.prov[id];
@@ -1541,7 +1545,7 @@ function computeSupply(){
           const t=G.prov[j];
           if(!t||(t.owner!==k&&!allied(k,t.owner)))continue;
           const nd=d+(pass?3:supplyCost(t));
-          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;q2.push(j);}
+          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;par[j]=par[id];q2.push(j);}
         }
       }
     }
@@ -1560,12 +1564,13 @@ function computeSupply(){
           const t=G.prov[j];
           if(!t||t.owner===k||allied(k,t.owner))continue;
           const nd=d+4;
-          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;next.push(j);}
+          if(dist[j]===undefined||dist[j]>nd+0.001){dist[j]=nd;par[j]=par[id];next.push(j);}
         }
       }
       front=next;
     }
     sup[k]=dist;
+    buildHubs(k,src,dist,par);
   }
   G.supply=sup;
 }
@@ -1673,7 +1678,12 @@ function oosMul(u){
 function supMul(u){
   let q=supplyPct(u.nat,u.at);
   if(u.gen&&u.gen.trait==="log")q=Math.max(q,0.85);   // a good quartermaster is worth a division
-  return (q<=0?0.55:0.55+0.45*q)*oosMul(u);
+  /* Distance was the only thing that degraded supply, so twenty divisions
+     on one road ate exactly as well as two. Strain is demand against the
+     feeding hub's capacity: it is 1 while the hub copes and falls away
+     once it does not, which is what makes an offensive outrun its
+     logistics rather than merely its map distance. */
+  return (q<=0?0.55:0.55+0.45*q)*oosMul(u)*hubStrain(u.nat,u.at);
 }
 
 /* ============================== POLITICS ============================== */
@@ -2251,6 +2261,9 @@ function newGame(playerNation){
      sel:null,selUnit:null,auto:false,airMode:"manual",airTarget:null,
      stats:{lost:0,killed:0,taken:0,lostProv:0,starved:0,peakProv:0,peakDiv:0,warDays:0,battles:0},queue:[],
      cam:{x:0,y:0,z:1},log:[]};
+  /* The state layer is derived from the provinces, so it is built the
+     moment they exist and before anything asks what region it is in. */
+  buildStates();
   // starting forces scaled to historical strength
   for(const k in nations){
     const caps=Object.values(prov).filter(p=>p.owner===k);
@@ -2283,6 +2296,470 @@ function newGame(playerNation){
    worthless caught alone; anti-air barely fights on the ground but tears into
    bombers overhead. One table, so a unit's name and map symbol come from the
    same place everywhere. */
+/* ####################################################################
+   #                                                                  #
+   #   E N G I N E   C O R E                                          #
+   #   states & supply hubs / division templates & OOB / tick phases  #
+   #                                                                  #
+   ####################################################################
+
+   WHY THIS IS JAVASCRIPT, AND WHY IT IS NOT A STRUCT-OF-ARRAYS.
+
+   The language question answers itself here: this engine is 17,000
+   lines of JavaScript in one file that runs by opening it. C# or Java
+   would buy a faster inner loop and cost the thing that makes this
+   project work -- no build step, no runtime to install, edit and
+   reload. That trade is only worth making if the tick is the
+   constraint, so it was measured rather than assumed:
+
+       120 ticks   6.34 ms/tick    158 ticks/sec
+       365 ticks   6.52 ms/tick    153 ticks/sec
+       (251 provinces, 145 nations, 338 divisions, 54 fleets)
+
+   The fastest speed a player can select runs a handful of ticks a
+   second. There is roughly two orders of magnitude of headroom. Note
+   also that the per-tick cost barely moved while the division count
+   went from 150 to 338 -- the tick is dominated by per-PROVINCE and
+   per-NATION work, not per-division, so the entity count is not what
+   would bite first anyway.
+
+   So: plain object graphs, kept as they are. A struct-of-arrays
+   rewrite over Float32Array would be the right call in a C# engine
+   with 13,000 provinces and 10,000 divisions, and it is the wrong
+   call here today -- it would cost readability and the ability to
+   inspect G from the console, and it would measure no better, which
+   this project's own rules say is grounds for reverting it.
+
+   THE TRIGGER POINT IS WRITTEN DOWN so this is a decision and not an
+   omission: revisit the layout when a tick exceeds 40ms or the map
+   passes ~4,000 provinces, whichever comes first. `tickProfile()`
+   below reports the per-phase cost so that judgement is made on
+   numbers.
+   ==================================================================== */
+
+/* ====================================================================
+   LAYER 1a — STATES
+
+   Provinces are the unit of movement and combat. They are the wrong
+   unit for everything ELSE a country does: factories, conscription
+   and infrastructure are regional, not per-village. HOI4 splits this
+   in two and so does this -- a State owns a handful of provinces and
+   carries the economy; the provinces underneath carry the war.
+
+   There is no hand-authored state table for 251 provinces across
+   nine eras, and there should not be: it would have to be redrawn for
+   every era. States are DERIVED at world build, by flood-filling
+   provinces that share a home owner into clusters of about four. That
+   is stable for a given era (the fill is deterministic, ordered by
+   province id) and it costs one pass over the map.
+   ==================================================================== */
+const STATE_SIZE=4;              /* provinces per state, aimed at not enforced */
+
+function buildStates(){
+  const states={}, byProv={};
+  let sid=0;
+  /* deterministic order: same map in, same states out, every session */
+  const ids=Object.keys(G.prov).sort();
+  const seen=new Set();
+  for(const start of ids){
+    if(seen.has(start))continue;
+    const home=G.prov[start].home;
+    /* breadth-first so a state is a contiguous blob rather than a
+       scattering -- a state whose provinces do not touch cannot have
+       infrastructure or a supply hub in any meaningful sense */
+    const grp=[], q=[start];
+    seen.add(start);
+    while(q.length && grp.length<STATE_SIZE){
+      const id=q.shift(); grp.push(id);
+      for(const j of G.prov[id].adj){
+        if(seen.has(j))continue;
+        const t=G.prov[j]; if(!t||t.home!==home)continue;
+        seen.add(j); q.push(j);
+        if(grp.length+q.length>=STATE_SIZE*2)break;
+      }
+    }
+    /* anything the walk queued but did not take is released, or the
+       next state would start with a hole in it */
+    for(const id of q) seen.delete(id);
+    const id="s"+(sid++);
+    let val=0; for(const pid of grp) val+=G.prov[pid].val||0;
+    states[id]={
+      id, home, provs:grp,
+      /* infrastructure raises supply throughput and construction speed.
+         Seeded from the economic value already on the provinces so a
+         developed region starts developed. */
+      infra: Math.max(1,Math.min(5,Math.round(1+val/grp.length))),
+      val
+    };
+    for(const pid of grp) byProv[pid]=id;
+  }
+  G.states=states; G.provState=byProv;
+  return states;
+}
+/* A state's CURRENT owner is not its home owner: territory changes
+   hands province by province, so ownership is asked of the ground. */
+function stateOf(pid){ return G.states?G.states[G.provState[pid]]:null; }
+function stateOwner(st){
+  if(!st)return null;
+  const count={};
+  for(const pid of st.provs){ const o=G.prov[pid].owner; count[o]=(count[o]||0)+1; }
+  let best=null,bn=-1;
+  for(const o in count) if(count[o]>bn){bn=count[o];best=o;}
+  return best;
+}
+/* Fully held states are what a country can actually build and conscript
+   in -- a half-overrun region is not an industrial base. */
+function statesOf(nat){
+  const out=[];
+  if(!G.states)return out;
+  for(const id in G.states){
+    const st=G.states[id];
+    if(st.provs.every(pid=>G.prov[pid].owner===nat)) out.push(st);
+  }
+  return out;
+}
+
+/* ====================================================================
+   LAYER 1b — SUPPLY HUBS
+
+   computeSupply() already picks depots (the capital, real cities,
+   ports with a fleet standing off them) and flood-fills a distance
+   from them, and supplied() is a yes/no on whether that fill reached
+   you. What it has never had is THROUGHPUT: a hub feeds any number of
+   divisions equally well, so twenty divisions stacked on one road eat
+   exactly as well as two.
+
+   Hubs are promoted to records with a capacity here, and the strain on
+   a hub is the demand its dependants place on it. This is the piece
+   that makes an offensive outrun its logistics rather than its map
+   distance, which is the thing that actually stops armies.
+   ==================================================================== */
+const HUB_BASE=6.0;              /* divisions a bare depot can carry       */
+const HUB_PER_VAL=2.2;           /* ...plus this much per point of value   */
+const HUB_PER_INFRA=1.6;         /* ...plus this much per level of infra   */
+const HUB_RANGE=7;               /* hops before a hub can feed nothing more*/
+const HUB_FLOOR=0.35;            /* worst supply a hopelessly overloaded hub gives */
+
+function hubCapacity(pid){
+  const p=G.prov[pid]; if(!p)return 0;
+  const st=stateOf(pid);
+  return HUB_BASE + (p.val||0)*HUB_PER_VAL + ((st&&st.infra)||1)*HUB_PER_INFRA;
+}
+/* Which hub feeds a province: the nearest source in the nation's own
+   supply fill. Recomputed with the fill, not per division, because the
+   fill is the expensive part and it already knows the answer. */
+function buildHubs(nat,src,dist,parent){
+  const hubs={};
+  for(const id of src) hubs[id]={id, cap:hubCapacity(id), load:0};
+  G.hubs=G.hubs||{}; G.hubs[nat]=hubs;
+  G.hubOf=G.hubOf||{}; G.hubOf[nat]=parent||{};
+  return hubs;
+}
+/* Strain is demand over capacity, 0 when a hub is comfortable and
+   rising past 1 when it is carrying more than it can. Returned as a
+   MULTIPLIER on supply quality so callers do not each re-derive it. */
+function hubStrain(nat,pid){
+  const h=G.hubs&&G.hubs[nat], of=G.hubOf&&G.hubOf[nat];
+  if(!h||!of)return 1;
+  const hub=h[of[pid]];
+  if(!hub||!hub.cap)return 1;
+  const over=hub.load/hub.cap;
+  /* 1/over, not 1/over^2. The square looked like a reasonable curve and
+     measured as a switch: stacking divisions on one hub went from x1.00
+     straight to the x0.35 floor somewhere between ten and twenty-five
+     of them, so the mechanic was binary in everything but name. */
+  return over<=1 ? 1 : Math.max(HUB_FLOOR, 1/over);
+}
+/* Charge every division to the hub that feeds it. One pass per tick,
+   over divisions rather than provinces, so it is cheap. */
+function chargeHubs(){
+  if(!G.hubs)return;
+  for(const nat in G.hubs) for(const id in G.hubs[nat]) G.hubs[nat][id].load=0;
+  for(const u of G.units){
+    const of=G.hubOf&&G.hubOf[u.nat]; if(!of)continue;
+    const hid=of[u.at]; if(hid===undefined)continue;
+    const h=G.hubs[u.nat]&&G.hubs[u.nat][hid]; if(!h)continue;
+    h.load += divSupplyUse(u);
+  }
+}
+
+/* ====================================================================
+   LAYER 2 — BATTALIONS, DIVISION TEMPLATES AND THE ORDER OF BATTLE
+
+   Until now a division was a single tag: "inf", "arm", "art", "aa",
+   each with one attack number and one defence number. Two of those
+   four were LITERALLY IDENTICAL -- infantry and armour both sat at
+   attack 1.00, defence 1.00 -- so armour differed from infantry by its
+   icon and nothing else. There was no reason to build one over the
+   other and no way for a tank to behave like a tank.
+
+   A division is now a COMPOSITION of battalions, and every number that
+   matters is derived from what is in it: manpower, equipment demand,
+   supply draw, speed, width, organisation, and the four combat stats
+   that make armour mean something --
+
+     soft attack   damage against unarmoured troops
+     hard attack   damage against armoured troops
+     armour        how hard this division is to hurt
+     piercing      whether it can hurt armour at all
+
+   That last pair is the whole point. An infantry division with no
+   anti-tank cannot pierce a medium tank's armour, and an attack that
+   cannot pierce does half damage. That single rule is what stops
+   infantry masses from grinding down armour, and it is why the two
+   were interchangeable before.
+   ==================================================================== */
+
+/* Per-battalion stats. `arm` names which equipment pool it draws from,
+   matching EQ_KIND above so demand flows into the existing war economy
+   rather than a parallel one.
+     mp    manpower cost, in the same units as MP_COST
+     eq    equipment draw
+     soft  attack vs unarmoured        hard  attack vs armoured
+     ap    armour piercing             armor armour rating
+     def   defence                     brk   breakthrough
+     org   organisation                w     combat width
+     sup   supply draw                 spd   speed multiplier            */
+const BTN={
+  inf: {n:"Infantry",     arm:"gun", mp:1.00, eq:1.00, soft:1.00, hard:0.28, ap:0.35, armor:0.00, def:1.00, brk:0.30, org:6.0, w:2.0, sup:0.12, spd:1.00},
+  mot: {n:"Motorised",    arm:"gun", mp:1.00, eq:1.45, soft:1.05, hard:0.14, ap:0.40, armor:0.10, def:0.92, brk:0.50, org:6.5, w:2.0, sup:0.22, spd:1.60},
+  mech:{n:"Mechanised",   arm:"arm", mp:1.00, eq:1.70, soft:1.10, hard:0.60, ap:1.20, armor:1.10, def:1.15, brk:0.90, org:6.0, w:2.0, sup:0.32, spd:1.50},
+  art: {n:"Artillery",    arm:"gun", mp:0.60, eq:1.80, soft:1.60, hard:0.20, ap:0.60, armor:0.00, def:0.55, brk:0.95, org:1.0, w:1.5, sup:0.22, spd:0.85},
+  atg: {n:"Anti-tank",    arm:"gun", mp:0.50, eq:1.60, soft:0.25, hard:1.95, ap:2.50, armor:0.00, def:0.70, brk:0.35, org:1.0, w:1.5, sup:0.18, spd:0.90},
+  aa:  {n:"Anti-air",     arm:"gun", mp:0.55, eq:1.50, soft:0.55, hard:0.45, ap:0.60, armor:0.00, def:0.85, brk:0.25, org:1.0, w:1.5, sup:0.16, spd:0.90},
+  lt:  {n:"Light tank",   arm:"arm", mp:0.50, eq:1.00, soft:0.80, hard:0.90, ap:1.30, armor:1.50, def:0.80, brk:1.70, org:2.0, w:2.0, sup:0.35, spd:2.00},
+  mt:  {n:"Medium tank",  arm:"arm", mp:0.60, eq:1.00, soft:1.00, hard:1.70, ap:2.30, armor:2.60, def:1.00, brk:2.40, org:2.0, w:2.0, sup:0.50, spd:1.80},
+  ht:  {n:"Heavy tank",   arm:"arm", mp:0.70, eq:1.00, soft:1.10, hard:2.40, ap:3.40, armor:4.20, def:1.30, brk:3.00, org:2.0, w:2.0, sup:0.75, spd:1.20},
+  rec: {n:"Recon",        arm:"gun", mp:0.20, eq:0.40, soft:0.20, hard:0.05, ap:0.20, armor:0.10, def:0.25, brk:0.35, org:1.5, w:0.5, sup:0.08, spd:2.20},
+  eng: {n:"Engineers",    arm:"gun", mp:0.25, eq:0.50, soft:0.25, hard:0.10, ap:0.25, armor:0.00, def:0.60, brk:0.50, org:1.5, w:0.5, sup:0.10, spd:1.00}
+};
+
+/* Derive a template's stats from its battalions.
+
+   WHICH STATS SUM AND WHICH AVERAGE is the one thing to get right, and
+   it follows from how this engine already models a division: `u.str`
+   carries the division's SIZE and power is str x multipliers. So the
+   combat stats have to be per-strength multipliers -- averages -- or
+   size would be counted twice. Costs and footprint are absolute, and
+   sum. Speed is the slowest thing in the column, so it is a minimum. */
+function templateStats(btns){
+  let n=0, soft=0, hard=0, ap=0, armor=0, def=0, brk=0, org=0;
+  let mp=0, w=0, sup=0, spd=Infinity;
+  const eq={};
+  for(const k in btns){
+    const c=btns[k], b=BTN[k];
+    if(!b||!c)continue;
+    n+=c;
+    soft+=b.soft*c; hard+=b.hard*c; ap+=b.ap*c; armor+=b.armor*c;
+    def+=b.def*c;   brk+=b.brk*c;   org+=b.org*c;
+    mp+=b.mp*c;     w+=b.w*c;       sup+=b.sup*c;
+    eq[b.arm]=(eq[b.arm]||0)+b.eq*c;
+    spd=Math.min(spd,b.spd);
+  }
+  if(!n)return null;
+  const st={
+    btns:btns, n:n,
+    soft:soft/n, hard:hard/n, ap:ap/n, armor:armor/n,
+    def:def/n,  brk:brk/n,    org:org/n,
+    mp:mp, width:w, sup:sup, spd:isFinite(spd)?spd:1, eq:eq
+  };
+  /* HARDNESS is the share of the division that is armoured, and it is
+     what decides whether an enemy hits it with soft or hard attack.
+     Derived from the battalions' own armour so it cannot drift out of
+     step with them. */
+  let armoured=0;
+  for(const k in btns){ const b=BTN[k]; if(b&&b.armor>0) armoured+=btns[k]; }
+  st.hardness=armoured/n;
+  return st;
+}
+
+/* The four stock templates reproduce the legacy types EXACTLY.
+
+   This is deliberate and it is the whole migration plan: a pure
+   infantry template averages to infantry's old attack 1.00 and defence
+   1.00 because those numbers were put into BTN.inf; artillery to 1.60
+   and 0.55; anti-air to 0.55 and 0.85. So every existing save, every
+   AI army and every balance figure carries over unchanged, and the new
+   dimensions -- armour, piercing, hardness -- start at the values the
+   old model implied. `assertStockParity()` checks it rather than
+   trusting it.
+
+   Armour is the exception and is meant to be: it kept its old attack
+   and defence but now has armour 2.60 and piercing 2.30 where infantry
+   has 0.00 and 0.35, which is the difference that did not exist. */
+const STOCK_TPL={
+  inf:{name:"Infantry Division",  btns:{inf:9}},
+  arm:{name:"Panzer Division",    btns:{mt:9}},
+  art:{name:"Artillery Division", btns:{art:9}},
+  aa: {name:"Anti-Air Division",  btns:{aa:9}}
+};
+for(const k in STOCK_TPL){
+  STOCK_TPL[k].id="stock_"+k;
+  STOCK_TPL[k].stats=templateStats(STOCK_TPL[k].btns);
+}
+/* Combined-arms designs, which is what templates are FOR. These are
+   offered to the player and the AI; nothing uses them automatically,
+   because a template nobody chose should not appear in an army. */
+const DESIGN_TPL={
+  inf40:{id:"inf40", name:"Infantry, 1940",    btns:{inf:7,art:2,eng:1}},
+  mot40:{id:"mot40", name:"Motorised",         btns:{mot:6,art:2,atg:1,rec:1}},
+  pz39: {id:"pz39",  name:"Panzer, 1939",      btns:{lt:4,mot:4,art:1,rec:1}},
+  pz42: {id:"pz42",  name:"Panzer, 1942",      btns:{mt:6,mech:4,art:2,eng:1}},
+  hpz:  {id:"hpz",   name:"Heavy Panzer",      btns:{ht:4,mech:4,atg:1,eng:1}},
+  def:  {id:"def",   name:"Fortress Garrison", btns:{inf:9,atg:2,aa:2,eng:1}}
+};
+for(const k in DESIGN_TPL) DESIGN_TPL[k].stats=templateStats(DESIGN_TPL[k].btns);
+
+/* A unit's template. `u.tpl` is optional -- everything written before
+   templates existed carries only `u.type`, and saves from those builds
+   have to keep loading -- so the stock template for the legacy type is
+   the fallback. Nothing in the engine may assume `u.tpl` is set. */
+function tplOf(u){
+  if(u&&u.tpl){
+    const n=G.nations&&G.nations[u.nat];
+    const own=n&&n.templates&&n.templates[u.tpl];
+    if(own)return own.stats;
+    if(DESIGN_TPL[u.tpl])return DESIGN_TPL[u.tpl].stats;
+  }
+  return (STOCK_TPL[(u&&u.type)||"inf"]||STOCK_TPL.inf).stats;
+}
+function tplName(u){
+  if(u&&u.tpl){
+    const n=G.nations&&G.nations[u.nat];
+    const own=n&&n.templates&&n.templates[u.tpl];
+    if(own)return own.name;
+    if(DESIGN_TPL[u.tpl])return DESIGN_TPL[u.tpl].name;
+  }
+  return (STOCK_TPL[(u&&u.type)||"inf"]||STOCK_TPL.inf).name;
+}
+/* Everything a division costs or occupies, derived rather than tabled. */
+function divManpower(u){ return tplOf(u).mp; }
+function divWidth(u){    return tplOf(u).width; }
+function divSupplyUse(u){return tplOf(u).sup*(u.str||1)/3; }
+function divSpeed(u){    return tplOf(u).spd; }
+function divOrg(u){      return tplOf(u).org; }
+/* Equipment demand per arm, which feeds the existing EQ_KIND economy. */
+function divEqNeed(u){   return tplOf(u).eq; }
+
+/* A country's order of battle: its divisions grouped by template, with
+   the totals a staff officer would actually be asked for. */
+function orderOfBattle(nat){
+  const by={};
+  for(const u of G.units){
+    if(u.nat!==nat)continue;
+    const key=u.tpl||("stock_"+u.type);
+    const e=by[key]||(by[key]={name:tplName(u), n:0, str:0, width:0, mp:0, sup:0});
+    e.n++; e.str+=u.str; e.width+=divWidth(u); e.mp+=divManpower(u); e.sup+=divSupplyUse(u);
+  }
+  return by;
+}
+
+/* Combat, with armour in it.
+
+   Two rules, both HOI4's and both absent before:
+     - damage is soft attack against the unarmoured share of the enemy
+       and hard attack against the armoured share;
+     - an attack whose piercing is below the enemy's armour does HALF
+       damage. This is what makes a tank a tank.                       */
+/* An attack that cannot pierce still does SOME damage -- shells still land,
+   tracks still break. 0.5 was tried first and, combined with the hardness
+   cap below, put armour 16x ahead of infantry, which is not a mechanic but
+   a rewrite of the game's balance. */
+const PIERCE_FAIL=0.65;
+/* NO DIVISION IS ENTIRELY TANKS. Even a panzer division is recon, engineers,
+   artillery and the men who carry the fuel, and HOI4's own tank divisions
+   sit near 0.8 hardness rather than 1.0. The stock armour template here is
+   pure medium tanks -- it has to be, so that its soft attack and defence
+   reproduce the legacy numbers exactly -- so the cap is applied at the point
+   of use instead. Without it infantry facing armour may use only its hard
+   attack, and the fight stops being a fight. */
+const HARD_CAP=0.85;
+function sideHardness(arr){
+  let w=0,h=0;
+  for(const u of arr){ const t=tplOf(u), s=u.str||1; w+=s; h+=s*t.hardness; }
+  return w?Math.min(HARD_CAP,h/w):0;
+}
+function sideArmor(arr){
+  let w=0,a=0;
+  for(const u of arr){ const t=tplOf(u), s=u.str||1; w+=s; a+=s*t.armor; }
+  return w?a/w:0;
+}
+/* Replaces roleMul in the combat sum. `eHard`/`eArm` describe the side
+   being hit; defenders use their defence stat, which armour does not
+   modify -- being hard to kill is already in the armour term. */
+function divCombat(u,defending,eHard,eArm){
+  const t=tplOf(u);
+  if(defending)return t.def;
+  const raw=t.soft*(1-eHard)+t.hard*eHard;
+  return raw*(t.ap>=eArm?1:PIERCE_FAIL);
+}
+
+/* A migration is only safe if it is checked. This asserts that the four
+   stock templates still reproduce the legacy UTYPE numbers exactly, so
+   a change to BTN that would silently rebalance every existing army
+   fails loudly instead. Returns [] when all is well. */
+function assertStockParity(){
+  const bad=[];
+  for(const k in STOCK_TPL){
+    const st=STOCK_TPL[k].stats, legacy=UTYPE[k];
+    if(!legacy)continue;
+    if(Math.abs(st.soft-legacy.atk)>1e-9)
+      bad.push(k+" soft "+st.soft.toFixed(3)+" != legacy atk "+legacy.atk);
+    if(Math.abs(st.def-legacy.def)>1e-9)
+      bad.push(k+" def "+st.def.toFixed(3)+" != legacy def "+legacy.def);
+  }
+  return bad;
+}
+
+/* ====================================================================
+   LAYER 3 — THE TICK
+
+   The order of the phases is not cosmetic and is already load-bearing:
+   supply is rebuilt before movement and fighting so a division is fed
+   against where the front ENDED the day, and equipment and pockets are
+   settled after the fighting that changed them. That ordering is
+   recorded in tick() itself and must not be shuffled casually.
+
+   What is added here is measurement. "Smoothly without lagging" is a
+   claim, and a claim about performance needs a number attached to it
+   or it decays the moment someone adds a phase. tickProfile() runs the
+   phases with a clock on each and reports where a tick goes, so the
+   struct-of-arrays decision at the top of this section can be revisited
+   against evidence rather than a feeling.
+   ==================================================================== */
+const TICK_BUDGET_MS=40;         /* the line at which the layout question reopens */
+
+function tickProfile(days){
+  days=days||120;
+  const phases=["productionTick","constructionTick","supplyTick","moveUnits",
+                "airOps","battles","equipTick","pocketTick","chargeHubs"];
+  const acc={}; for(const f of phases) acc[f]=0;
+  const real={};
+  for(const f of phases) if(typeof window[f]==="function") real[f]=window[f];
+  for(const f in real){
+    window[f]=function(...a){
+      const t=performance.now();
+      const r=real[f].apply(this,a);
+      acc[f]+=performance.now()-t;
+      return r;
+    };
+  }
+  const t0=performance.now();
+  for(let i=0;i<days;i++) tick();
+  const total=performance.now()-t0;
+  for(const f in real) window[f]=real[f];
+  const rows=Object.keys(acc).filter(f=>acc[f]>0)
+    .sort((a,b)=>acc[b]-acc[a])
+    .map(f=>"  "+f.padEnd(18)+(acc[f]/days).toFixed(3)+" ms/tick  "+
+            Math.round(100*acc[f]/total)+"%");
+  const per=total/days;
+  return "tick "+per.toFixed(2)+" ms  ("+Math.round(1000/per)+"/sec)"+
+         (per>TICK_BUDGET_MS?"  OVER BUDGET":"")+"\n"+rows.join("\n");
+}
+window.tickProfile=tickProfile;
+window.orderOfBattle=orderOfBattle;
+window.assertStockParity=assertStockParity;
+
 const UTYPE={
   inf:{n:"Infantry", i:"\u25A0", atk:1.00, def:1.00},
   arm:{n:"Armored",  i:"\u25B2", atk:1.00, def:1.00},
@@ -3009,6 +3486,9 @@ function tick(){
   productionTick();
   constructionTick();
   supplyTick();
+  /* Charged after supply and before movement: a division is billed to
+     the hub feeding it where it STANDS, not where it is going. */
+  chargeHubs();
   moveUnits(G.units,"army");
   moveUnits(G.fleets,"fleet");
   airOps();
@@ -3661,9 +4141,18 @@ function battles(){
          reserve worth having and a doom-stack on one tile worth much less than
          the same divisions spread across three. */
       const lineA=frontLine(fa,p,p.owner===A),lineB=frontLine(fb,p,p.owner===B);
-      const pw=(arr,side,def)=>arr.reduce((s,u)=>s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*roleMul(u,def),0);
-      let pa=(pw(lineA.front,A,p.owner===A)+pw(lineA.rear,A,p.owner===A)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
-      let pb=(pw(lineB.front,B,p.owner===B)+pw(lineB.rear,B,p.owner===B)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
+      /* WHAT IS BEING SHOT AT decides which attack value applies, so the
+         two sides are characterised before either fires. Hardness is the
+         armoured share of the line and armour is its average rating:
+         soft attack lands on the soft share, hard attack on the hard
+         share, and an attacker who cannot pierce does half damage.
+         Computed once per battle per side, not per division pair. */
+      const hardA=sideHardness(lineA.front), armA=sideArmor(lineA.front);
+      const hardB=sideHardness(lineB.front), armB=sideArmor(lineB.front);
+      const pw=(arr,side,def,eHard,eArm)=>arr.reduce((s,u)=>
+        s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*divCombat(u,def,eHard,eArm),0);
+      let pa=(pw(lineA.front,A,p.owner===A,hardB,armB)+pw(lineA.rear,A,p.owner===A,hardB,armB)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
+      let pb=(pw(lineB.front,B,p.owner===B,hardA,armA)+pw(lineB.rear,B,p.owner===B,hardA,armA)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
       pb*=1+airSupport(B,pid)*0.3+navalSupport(B,pid)*0.25;
       /* Weather blunts both sides' offence; the ground itself only helps the

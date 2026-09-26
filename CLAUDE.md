@@ -365,3 +365,87 @@ What worked, and is worth reaching for first next time:
 - **Test the clip directly**: clip, fill the whole canvas red, then
   sample. That showed paint coming through on the Polish side and
   pointed straight at the parity bug.
+
+## Engine core: states, supply hubs, division templates
+
+Three layers added as foundations, in `index.html` just above `UTYPE`.
+
+### The language and layout decision, with the number behind it
+
+Asked which of Python, Java or C# suits a grand strategy engine. For
+THIS engine the answer is none of them: it is 17,000 lines of
+JavaScript in one file that runs by opening it, and that property is
+worth more than a faster inner loop unless the tick is the constraint.
+It is not:
+
+    120 ticks   6.34 ms/tick    158 ticks/sec
+    365 ticks   6.52 ms/tick    153 ticks/sec
+    (251 provinces, 145 nations, 338 divisions, 54 fleets)
+
+Roughly two orders of magnitude of headroom against the fastest speed a
+player can pick. Per-tick cost also barely moved while divisions went
+150 -> 338, so the tick is dominated by per-province and per-nation
+work, not per-entity.
+
+`tickProfile(days)` reports the per-phase breakdown. It found something
+worth knowing: the NAMED phases together are about a fifth of a tick
+(supplyTick 12%, everything else under 2% each). The rest is in tick()'s
+own per-province loops. So a struct-of-arrays rewrite over divisions
+would be optimising ~2% of the frame. The trigger to revisit the layout
+is written into the code: a tick over 40ms, or the map past ~4,000
+provinces.
+
+### What was actually missing
+
+- **States.** Factories and conscription are regional; provinces are the
+  wrong unit for them. Derived at world build by deterministic BFS over
+  provinces sharing a home owner, so no hand-authored table has to be
+  redrawn for each of the nine eras. 103 states over 251 provinces.
+- **Supply hub throughput.** `computeSupply` already picked depots and
+  flood-filled distance from them, but a hub fed any number of divisions
+  equally well. Hubs are now records with a capacity, the fill carries
+  which hub feeds each province, and strain degrades supply.
+- **Division templates.** The real gap. Infantry and armour were
+  LITERALLY IDENTICAL -- both attack 1.00, defence 1.00 -- so armour
+  differed by its icon. A division is now a composition of battalions
+  and manpower, equipment draw, supply, speed, width, organisation,
+  soft/hard attack, armour and piercing all derive from it.
+
+### Migration by parity assertion, not by hope
+
+The four stock templates are PURE (9 infantry, 9 medium tanks, and so
+on) precisely so their averaged soft attack and defence reproduce the
+old UTYPE numbers exactly. `assertStockParity()` checks it and returns
+the failures, so a future edit to the battalion table that would
+silently rebalance every existing army fails loudly. `u.tpl` is optional
+throughout and `tplOf()` falls back to the stock template for `u.type`,
+so old saves keep loading.
+
+### Two tuning faults the measurements caught
+
+- **Hub strain was binary.** `1/over^2` looked like a curve and measured
+  as a switch: stacking divisions went x1.00 straight to the x0.35 floor
+  between ten and twenty-five of them. `1/over` degrades properly
+  (x1.00 -> x0.46 -> x0.35).
+- **Armour came out 16.7x infantry.** The stock armour template is pure
+  tanks, so hardness was 1.00 and infantry could only ever use its hard
+  attack. No division is entirely tanks -- HOI4's own sit near 0.8 -- so
+  hardness is capped at 0.85 at the point of use, the unpierced penalty
+  softened 0.5 -> 0.65, and infantry given organic anti-tank
+  (hard 0.12 -> 0.28). That lands at 3.97x, which is what a panzer
+  division attacking plain infantry should look like.
+
+### The balance change, measured
+
+Two years simulated from the same start with the same seeded dice, the
+only difference being `divCombat`:
+
+    legacy flat atk/def   units 366  armoured 20  battles 176  killed  91
+    armour + piercing     units 375  armoured 25  battles 262  killed 110
+
+The world does not run away: the largest holdings are broadly the same
+powers. Combat is more decisive (battles +49%, casualties +21%) and more
+armour gets built, which is the point -- it is now worth building.
+Regression suites all pass: `final.js` 14 era x graphics combinations,
+`final2.js` every map mode and overlay, `p10c.js` all 13 panels against
+hostile states, `save.js` differing only by pre-existing float rounding.
