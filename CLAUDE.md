@@ -294,3 +294,74 @@ Worth knowing for next time:
   Latakia -- each at exactly 4km, against a coastline quantised to 3km.
   That is the instrument hitting its floor, not bad data; ports sit on
   the water's edge. Do not "fix" these by nudging them inland.
+
+## The borders
+
+Called out as bad, and there were three separate faults stacked on
+each other.
+
+**1. The geometry was too coarse.** The atlas was Natural Earth 50m on a
+3km grid, so the Bohemian frontier -- which winds through the Ore
+Mountains -- was about twenty straight segments with visible corners.
+Replaced with `ne_10m_admin_0_countries` at ~600m: 31,690 points, 70KB,
+facets under 2px even at maximum zoom.
+
+**2. Douglas-Peucker broke the shared borders.** Simplifying each
+country independently picks a DIFFERENT subset of vertices for each side
+of a shared border, so Poland's edge and Russia's edge no longer
+coincided and a sliver opened between them that belonged to neither.
+Natural Earth's raw polygons DO share vertices exactly -- all 9 along
+the Kaliningrad border -- so the fix is simplification that is a pure
+function of local geometry:
+
+- snap to the encoding grid (same coordinate in, same coordinate out);
+- drop vertices collinear with their two neighbours, marking in one pass
+  and removing afterwards, and testing by perpendicular distance, which
+  is unchanged when the ring is traversed the other way. Both sides of a
+  shared border then reach the same verdict and the border stays shared.
+
+Same 70KB as the Douglas-Peucker version, and topologically sound.
+
+**3. A country in two entries doubled its ring and flipped the clip.**
+Germany holds parts of Poland under two entries, Silesia and East
+Prussia, so the nation's ring list held Poland's rings TWICE. Under the
+even-odd rule a doubled ring flips parity: Poland counted as INSIDE the
+outward clip rather than outside it, so the frontier stroke along the
+Kaliningrad-Poland border -- an internal edge that should have been
+discarded -- survived as a full-weight line ruled across the middle of
+German East Prussia. Deduplicate by country when building the list.
+
+Also: the six hand-placed 1936 frontiers were seven-point straight lines
+sitting next to 32,000 points of real coastline, which looks exactly as
+wrong as it sounds. They are now splined and given a tapered fractal
+wander, pinned to their placed endpoints. That displacement is a
+STYLISATION, not data -- what it claims is only that the border was
+irregular, which is true of every border and truer than a ruler.
+
+### Four detectors in a row were wrong, and how the fifth worked
+
+This hunt cost more in bad measurement than in code:
+
+- **"Longest dark run along a screen row"** found 64px and said the line
+  was not there. The line SLOPES, so it never occupies one row for long.
+- **"Fraction of samples with a dark pixel within 4px"** read 100% --
+  and would have read 100% anywhere, because rivers, province lines and
+  terrain all put something dark within 4px. No control was run.
+- **"Remove one political entry and re-measure"** showed nothing,
+  because removing an entry also removes its FILL, which changes the
+  contrast the detector was reading.
+- Reasoning about the clip from first principles was wrong twice.
+
+What worked, and is worth reaching for first next time:
+
+- **Sample along the suspected feature and compare against two parallel
+  control lines offset either side.** A real line is a dip against its
+  own neighbourhood; an absolute threshold cannot tell a border from a
+  river. This turned 98 into -1 and made the fix verifiable.
+- **Colour-code the drawing phases.** Patching
+  `CanvasRenderingContext2D.prototype.stroke` to recolour by strokeStyle
+  and lineWidth named the guilty pass in one run, after four indirect
+  experiments had failed.
+- **Test the clip directly**: clip, fill the whole canvas red, then
+  sample. That showed paint coming through on the Polish side and
+  pointed straight at the parity bug.
