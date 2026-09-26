@@ -243,3 +243,54 @@ More instrument faults, adding to the tally:
   and it re-baked every frame -- slower than what it replaced.
 - The flat-index-colour ownership probe must also disable the province
   mesh and the country labels, or it reads those instead of the fill.
+
+## Open data beats invented data
+
+Asked whether the terrain could come off the internet. The answer splits
+in two, and both halves matter:
+
+- **Frames from videos and screenshots of the real game are still its
+  art**, just laundered through another source, and worse quality for
+  the trouble -- compressed, with UI over everything. Not a route.
+- **Natural Earth is public domain and reachable**, and it is where the
+  coastlines in this repo came from in the first place. Anything it
+  holds is free to use and better than a guess.
+
+The environment's network policy blocks naciscdn.org, NASA NEO and
+NOAA's ETOPO endpoints, but raw.githubusercontent.com works, and the
+whole Natural Earth vector set is mirrored at `nvkelso/natural-earth-vector`.
+Fetched, clipped to the theatre and re-encoded the same way as the
+coastlines:
+
+- `ne_10m_rivers_europe` + the world layer for Turkey and the Levant:
+  1,084 rivers, 30k points, carrying Natural Earth's scalerank so the
+  Danube draws at every zoom and tributaries only when close.
+- `ne_10m_lakes`: 118 lakes.
+- `ne_10m_populated_places_simple`: 190 cities with real positions and
+  populations, replacing about forty typed from memory.
+
+Worth knowing for next time:
+
+- **A present-day dataset on a 1936 map is an anachronism generator.**
+  Natural Earth flags today's capitals, so Zagreb, Bratislava,
+  Ljubljana, Sarajevo, Skopje, Pristina, Kiev, Minsk and Kishinev all
+  arrived wearing a capital's star when every one was a provincial city
+  of Yugoslavia, Czechoslovakia, the USSR or Romania. The star is now
+  granted only to capitals in this map's own 1936 nation table. Names
+  needed the same treatment in both directions: Koenigsberg, Danzig,
+  Breslau, Stettin, Lwow, Memel, Allenstein and Wilno restored, and
+  Dnipro, Kharkiv, Donetsk and Mykolaiv put back to their 1936 forms.
+- **A population filter throws away exactly what a 1936 map needs.**
+  Koenigsberg and Memel are small towns now. A keep-list fixed it --
+  and then the 190-city cap silently dropped them anyway, because the
+  sort ran before the cap. Selection must be keep-aware and the drawing
+  order must be importance-first, or Wilno wins a label collision
+  against Paris.
+- **190 labels collide where 40 did not.** The first render produced
+  "Viennaburg" and "Luxembourng" out of overlapping names. Labels now
+  reserve a box and a later one is dropped.
+- **The city-on-land audit cannot resolve better than the coastline.**
+  It now flags six ports -- Lisbon, Helsinki, Istanbul, Genoa, Mersin,
+  Latakia -- each at exactly 4km, against a coastline quantised to 3km.
+  That is the instrument hitting its floor, not bad data; ports sit on
+  the water's edge. Do not "fix" these by nudging them inland.
