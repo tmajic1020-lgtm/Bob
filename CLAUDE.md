@@ -128,11 +128,28 @@ knowing before guessing again:
   reverted. The fit only models band luminance; it is blind to the saturation,
   warmth and texture checks the same change moves. One step, then stop.
 
-## The embedded capture
+## The embedded capture is GONE
 
-`MAPPHOTO_SRC` is a screenshot of Paradox's Hearts of Iron IV, used as the map
-ground behind a toggle (Settings -> MAP GROUND, or `setPhotoMap(false)`). It is
-fine for private use and should not be published. Keep it toggleable.
+`MAPPHOTO_SRC` held a 215KB base64 screen capture of Paradox's Hearts of Iron
+IV, used as the map ground. It has been DELETED at the owner's request, along
+with the ~12KB decode-and-sharpen pipeline that existed only to process it.
+Do not reintroduce it.
+
+Nothing downstream broke, because every consumer already had to cope with the
+picture failing to decode: `photoMapOn()` is `PHOTOMAP && !!MAPPHOTO`,
+`MAPPHOTO` now stays null, and every branch that asked for the picture takes
+the generated-terrain fallback it already had. Measured before and after the
+deletion, the sea and the ground are pixel-identical to the pre-existing
+"capture off" path, and `check100.js` still scores 62 of 75 -- the same as
+before -- which is its own confirmation of what this file already recorded:
+the capture was worth about five points of colour and the generated terrain
+was carrying the picture.
+
+The file went from 1,702,597 to 1,471,840 bytes.
+
+CAVEAT: deleting it from the working file does not remove it from this
+repository's git history. Earlier commits still carry it. If the point is to
+be able to publish the repo, the history has to be rewritten separately.
 
 ## The standalone staff map
 
@@ -449,3 +466,40 @@ armour gets built, which is the point -- it is now worth building.
 Regression suites all pass: `final.js` 14 era x graphics combinations,
 `final2.js` every map mode and overlay, `p10c.js` all 13 panels against
 hostile states, `save.js` differing only by pre-existing float rounding.
+
+
+## Making the sea like the real game's
+
+Asked to make the water match the reference. It was already close on spot
+samples, so the honest test was the DISTRIBUTION of every sea pixel against
+the same statistic on a lit capture:
+
+                        before        reference (Z_mid)
+    median luminance      27.4              30.7
+    25th percentile       23.3              27.4
+    median saturation     0.46              0.323
+
+Darker and half again as blue. Two changes, both aimed at a measured gap:
+
+- `THEMES.dark.sea` #30465d -> #3e515e: L 26.3 -> 30.5, S 0.484 -> 0.34.
+- The abyss offset -25,-32,-31 -> -14,-18,-17. The deep had been darkened on
+  an earlier bucket comparison and, on a fuller one, overshot.
+
+After, measured over genuinely open ocean (mid-Pacific, Indian, South
+Pacific) so it is like for like with the reference's open-water crop:
+median 31.7-32.8 against 30.7, saturation 0.33 against 0.323, quartiles
+within a point. `check100.js` holds at 62 of 75 and NOT ONE SEA CHECK FAILS
+-- all thirteen remaining failures are land: latitude-band luminance,
+warmth and texture.
+
+### Two more instrument faults, both caught before acting on them
+
+- **`landPath` is in MAP space, not screen space.** A "distance to land" test
+  that called `isPointInPath` with screen coordinates was meaningless, so the
+  first pass at classifying dark pixels as open water was worthless.
+- **A world view is not an open-water crop.** Sampling the whole map put 28%
+  of "sea" below luminance 24 against the reference's 2% -- but the world
+  view is full of coastline, and the offending pixels measured rgb(13,28,38),
+  which is exactly `THEMES.dark.coast`. It was coastline, not water. This is
+  the same class of error as comparing two map images at different
+  pixels-per-degree: fix the framing before believing the number.
