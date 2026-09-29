@@ -613,3 +613,41 @@ Things worth knowing before adding the next one:
 
 Build is now 24.0.0 (BUILD const and both .buildno spans), with a v24.0
 changelog entry covering the Time Machine and this build's other work.
+
+## Training
+
+Experience was only ever earned in combat (+1 xp a round), so every
+division arrived at zero and a country at peace could do nothing to
+prepare. Training is a standing order: ARMY -> TRAINING, with TRAIN ALL
+IDLE, STOP ALL, per army group, and "train the N at <selected province>".
+
+- `trainTick()` runs after `battles()` and before `equipTick()`, so a
+  division that entered battle today stops drilling today, and what the
+  exercises wore out is drawn back from the stockpile the same day.
+- +0.25 xp a day to a cap of 30 (TRAIN_CAP): past the first star at 15,
+  short of seasoned at 45. Seasoned and elite remain combat-only.
+- Costs 0.4% of a division's equipment a day, refilled from the national
+  pool. A/B from the same seed with a 500-per-kind stockpile, 60 days:
+  425.3 left without training, 377.3 with -- the cost is real, and it is
+  the whole decision: a trained army or the reserve you go to war with.
+- Marching, battle or leaving your own territory ends the order; being cut
+  off only pauses it. Saved as unit field a[13]; a[14] now carries `u.tpl`
+  too, which was not being saved at all (harmless until now, because
+  nothing assigns a design template yet, but a latent loss).
+- Gated at the v24.0 epoch like the rest of this build. Player-only: the AI
+  does not train yet, which is a player advantage worth knowing about.
+
+Faults caught on the way:
+
+- **Drill must only ever add.** `xp = min(cap, xp + rate)` would pull a
+  veteran who somehow held a training order DOWN to 30. A division already
+  at or above the cap now simply stops training.
+- **Two probes were wrong again.** "Any division over 30 without combat"
+  counted divisions that trained and then went to war -- a war started
+  inside the test window -- so it read true; tracking xp across trainTick
+  itself found zero drill-driven overshoots. And the first equipment probe
+  read Germany's stockpile at 0 before and after, which cannot show a cost;
+  seeding the pool and A/B-ing did.
+- **A Playwright click on this panel needs `openPanel("army")` and a paused
+  clock.** Setting `curPanel` alone leaves the panel hidden, and an
+  unpaused game re-renders it every tick, detaching the button mid-click.

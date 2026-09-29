@@ -2780,6 +2780,89 @@ function assertStockParity(){
    struct-of-arrays decision at the top of this section can be revisited
    against evidence rather than a feeling.
    ==================================================================== */
+/* ====================================================================
+   TRAINING
+
+   Experience was only ever earned in combat -- a division gained one
+   point per round it fought, and every division ever raised arrived at
+   zero. So the only way to have a trained army was to have already
+   fought a war with it, and a country at peace could do nothing at all
+   to prepare for one.
+
+   Training is a standing order. A division that is holding still, in its
+   own supplied territory and not in a battle, drills: it gains
+   experience every day, and it wears out equipment doing it -- rifles,
+   engines and tracks lost in exercises -- which the division then draws
+   back out of the national stockpile like any other loss. So training
+   competes with the front for the same equipment, which is the whole
+   of the decision: a trained army at peace, or a full stockpile for the
+   war.
+
+   IT STOPS SHORT OF VETERANCY. Drill takes a division to 30 xp -- past
+   the first star at 15, short of seasoned at 45 -- and no further. The
+   difference between a trained division and a veteran one is having
+   been shot at, and a button should not be able to buy that.
+
+   The order ends itself when the division marches, enters a battle,
+   or reaches the cap; being cut off only pauses it. */
+const TRAIN_CAP=30;               /* xp drill can reach: the first star, not the second */
+const TRAIN_RATE=0.25;            /* xp a day: about four months from raw to trained    */
+const TRAIN_WEAR=0.004;           /* equipment worn out a day, refilled from the pool   */
+
+function canTrain(u){
+  if(!u||u.kind!=="army")return false;
+  if((u.xp||0)>=TRAIN_CAP)return false;
+  if(u.to)return false;
+  if(G.battleSites&&G.battleSites.has(u.at))return false;
+  const p=G.prov[u.at];
+  return !!p&&p.owner===u.nat;
+}
+function trainTick(){
+  if(!epochAtLeast("24.0"))return;
+  let done=0;
+  for(const u of G.units){
+    if(!u.train)continue;
+    /* marching or fighting cancels the order outright */
+    if(u.to||(G.battleSites&&G.battleSites.has(u.at))){u.train=false;continue;}
+    const p=G.prov[u.at];
+    if(!p||p.owner!==u.nat){u.train=false;continue;}
+    /* cut off: a pause, not a cancellation -- there is no ammunition to
+       spend on exercises, but the order stands for when supply returns */
+    if(!supplied(u.nat,u.at))continue;
+    /* Drill only ever ADDS. Written as min(cap, xp+rate) it would pull a
+       veteran who somehow held a training order DOWN to the cap -- a
+       division stripped of combat experience for doing exercises. */
+    if((u.xp||0)>=TRAIN_CAP){u.train=false;continue;}
+    u.xp=Math.min(TRAIN_CAP,(u.xp||0)+TRAIN_RATE);
+    if(typeof u.eq==="number")u.eq=Math.max(0,u.eq-TRAIN_WEAR);
+    if(u.xp>=TRAIN_CAP){u.train=false;if(u.nat===G.player)done++;}
+  }
+  if(done)logMsg("\u{1F3AF} "+done+" division"+(done>1?"s have":" has")+" finished training.","info");
+}
+/* The player's controls. Each returns how many divisions it affected, so
+   the panel can say something true about what just happened. */
+function setTraining(u,on){
+  if(!epochAtLeast("24.0"))return false;
+  if(on&&!canTrain(u))return false;
+  u.train=!!on;return true;
+}
+window.trainUnits=function(filter,on){
+  if(!G)return 0;
+  let n=0;
+  for(const u of G.units){
+    if(u.nat!==G.player||!filter(u))continue;
+    if(setTraining(u,on))n++;
+  }
+  if(on&&n)logMsg("\u{1F3AF} "+n+" division"+(n>1?"s":"")+" ordered to train.","info");
+  if(!on&&n)logMsg(n+" division"+(n>1?"s":"")+" stood down from training.","info");
+  renderPanel();
+  return n;
+};
+window.trainAllIdle=()=>trainUnits(u=>!u.train&&canTrain(u),true);
+window.stopAllTraining=()=>trainUnits(u=>u.train,false);
+window.trainGroup=g=>trainUnits(u=>groupOf(u)===g&&!u.train&&canTrain(u),true);
+window.trainHere=pid=>trainUnits(u=>u.at===pid&&!u.train&&canTrain(u),true);
+
 const TICK_BUDGET_MS=40;         /* the line at which the layout question reopens */
 
 function tickProfile(days){
@@ -3550,6 +3633,10 @@ function tick(){
   moveUnits(G.fleets,"fleet");
   airOps();
   battles();
+  /* After the fighting, so a division that went into battle today stops
+     drilling today; before equipTick, so what exercises wore out is drawn
+     back from the stockpile the same day. */
+  trainTick();
   /* AFTER the supply map has been rebuilt and after the day's fighting, which
      is the only order that makes sense: a division is resupplied, and starves,
      against where the front actually ended the day rather than where it began
@@ -5768,7 +5855,7 @@ const EPOCHS=[
  {id:"21.0",label:"v21.0 \u2014 Manpower",desc:"A war costs men. Every country draws divisions from a manpower pool its actual population sets."},
  {id:"22.0",label:"v22.0 \u2014 The Resource Economy",desc:"Steel, oil, rubber, tungsten and aluminium, equipment drawn by each arm, shortages and blockades that bite."},
  {id:"23.0",label:"v23.0 \u2014 Real Country Colours",desc:"Eighty-one nations in their accurate colours, and borders that follow real frontiers."},
- {id:"24.0",label:"v24.0 \u2014 Current",desc:"Everything \u2014 division templates built from battalions, with armour and piercing; supply hubs that can be overloaded; states; the world\u2019s real rivers and lakes."}
+ {id:"24.0",label:"v24.0 \u2014 Current",desc:"Everything \u2014 division templates built from battalions, with armour and piercing; training; supply hubs that can be overloaded; states; the world\u2019s real rivers and lakes."}
 ];
 function epochIdx(id){const i=EPOCHS.findIndex(e=>e.id===id);return i<0?EPOCHS.length-1:i;}
 /* ------------------------------ ACHIEVEMENTS -------------------------------
@@ -14357,7 +14444,8 @@ function renderPanel(){
       if(u.hp<u.str*10*0.5)return {k:1,e:"\u{1FA79}",t:"MAULED",c:"#ff8d7a"};
       if(u.hp<u.str*10*0.8)return {k:2,e:"\u25CB",t:"WORN",c:"#c9a06a"};
       if(u.to)return {k:3,e:"\u2192",t:"ON THE MARCH",c:"var(--dim)"};
-      return {k:4,e:"\u00b7",t:"HOLDING",c:"var(--dim)"};
+      if(u.train)return {k:4,e:"\u{1F3AF}",t:"TRAINING "+Math.floor(u.xp||0)+"/"+TRAIN_CAP,c:"#7fb069"};
+      return {k:5,e:"\u00b7",t:"HOLDING",c:"var(--dim)"};
     };
     const rows=mine.map(u=>({u,s:state(u)})).sort((a,b)=>a.s.k-b.s.k||a.u.hp-b.u.hp);
     const fighting=rows.filter(r=>r.s.k===0).length, mauled=rows.filter(r=>r.s.k===1).length;
@@ -14369,6 +14457,25 @@ function renderPanel(){
     if(mauled)h+=`<div class="row"><span style="color:#ff8d7a">\u{1FA79} Mauled</span><span style="color:#ff8d7a">${mauled} under half strength</span></div>`;
     if(!mine.length)h+=`<div style="color:var(--dim)">No divisions in the field. Raise them from RECRUIT.</div>`;
     else h+=`<div style="color:var(--dim);font-size:11px;margin-top:6px">Tap any line to fly to it and take command.</div>`;
+    /* TRAINING. Placed above the list because it is an order given to many
+       divisions at once, not something you do to one line of it. */
+    if(mine.length&&epochAtLeast("24.0")){
+      const tr=mine.filter(u=>u.train).length, idle=mine.filter(u=>!u.train&&canTrain(u)).length;
+      const capped=mine.filter(u=>(u.xp||0)>=TRAIN_CAP).length;
+      const wearDay=tr*TRAIN_WEAR*100;
+      h+=`<h3>\u{1F3AF} TRAINING</h3>
+      <div style="color:var(--dim);font-size:11px">Divisions holding in their own territory drill for experience, up to ${TRAIN_CAP} xp (\u2605). Exercises wear out equipment, which is replaced from the stockpile. Seasoned and elite still have to be earned in battle.</div>
+      <div class="row"><span>Training</span><span style="color:#7fb069">${tr} division${tr===1?"":"s"}${tr?" \u00b7 ~"+wearDay.toFixed(1)+"% of a division's kit worn a day":""}</span></div>
+      <div class="row"><span style="color:var(--dim)">Ready to train</span><span style="color:var(--dim)">${idle}${capped?" \u00b7 "+capped+" already trained":""}</span></div>
+      <div class="row" style="gap:3px">
+        <button class="tbtn" style="flex:1;font-size:10px" ${idle?"":"disabled"} onclick="trainAllIdle()">\u{1F3AF} TRAIN ALL IDLE (${idle})</button>
+        <button class="tbtn" style="flex:1;font-size:10px" ${tr?"":"disabled"} onclick="stopAllTraining()">\u23F9 STOP ALL (${tr})</button>
+      </div>`;
+      if(G.sel&&G.prov[G.sel]){
+        const hereIdle=mine.filter(u=>u.at===G.sel&&!u.train&&canTrain(u)).length;
+        if(hereIdle)h+=`<button class="tbtn" style="width:100%;font-size:10px;margin-top:3px" onclick="trainHere('${G.sel}')">\u{1F3AF} Train the ${hereIdle} at ${G.prov[G.sel].name}</button>`;
+      }
+    }
     for(const {u,s} of rows){
       const p=G.prov[u.at]; if(!p)continue;
       const pct=Math.max(0,Math.round(u.hp/(u.str*10)*100));
@@ -14394,6 +14501,10 @@ function renderPanel(){
         <div style="color:var(--dim);font-size:10px">${st.d}</div>`;
         if(foes.length)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><button class="tbtn" style="font-size:10px" ${!(grp&&grp.target)?"disabled":""} onclick="setGroupTarget(${g},null)">Any enemy</button>${
           foes.slice(0,5).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${NATIONS[k].f} ${NATIONS[k].n}</button>`).join("")}</div>`;
+        if(roster.length&&epochAtLeast("24.0")){
+          const gi=roster.filter(u=>!u.train&&canTrain(u)).length;
+          if(gi)h+=`<button class="tbtn" style="font-size:10px" onclick="trainGroup(${g})">\u{1F3AF} Train group ${g} (${gi})</button>`;
+        }
         if(roster.length)h+=`<button class="tbtn" style="font-size:10px" onclick="disbandGroup(${g})">\u2715 Disband group ${g}</button>`;
       }
       const unassigned=mine.filter(u=>!groupOf(u)).length;
@@ -15505,6 +15616,7 @@ const CHANGELOG=[
   "\u{1F4BE} IF YOU HAD EVER SAVED A SETTING, you were about to be stranded in v5.3: it was the default, so it was the value stored for nearly everyone. A stored v5.3 from before this build is read as Current once and rewritten; choose v5.3 deliberately from now on and it is kept",
   "\u{1F441} STAND IN THE LINE now arrives in v16.0, the version it actually came in, rather than v5.0, which was as far as the Time Machine reached when it was gated",
   "\u{1F6E1} DIVISIONS ARE BUILT FROM BATTALIONS. Infantry and armour were literally identical \u2014 attack 1.00, defence 1.00 \u2014 and differed by their icon. A division is now a template of battalions, and its manpower, equipment, supply, speed, width, organisation, soft and hard attack, armour and piercing all follow from what is in it. An attack that cannot pierce the target's armour does two-thirds damage. The four stock templates reproduce the old numbers exactly, so every existing army carries over unchanged",
+  "\u{1F3AF} TRAINING. Experience could only be earned in combat, so every division ever raised arrived green and a country at peace could do nothing to prepare for war. ARMY \u2192 TRAINING now drills divisions holding in their own territory: TRAIN ALL IDLE, per army group, or everything at the selected province. A training division gains experience every day up to 30 xp (\u2605) and wears out equipment in exercises, which is replaced from the stockpile \u2014 so a trained army costs you the reserve you would have gone to war with. Seasoned and elite are still earned only in battle. Marching or fighting ends the order; being cut off pauses it",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
   "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
   "\u{1F5D1} THE SCREENSHOT UNDER THE MAP IS GONE, and the sea is recoloured against the real water it was imitating: lighter, and a third less blue"
@@ -16743,7 +16855,7 @@ function mpSerialize(){
       EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2)];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
-    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0]),
+    units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
@@ -16835,7 +16947,10 @@ function mpApplyState(S){
      economy has none, and undefined reads as fully equipped */
   G.units=(S.units||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],type:a[5],str:a[6],hp:a[7],gen:a[8]||null,xp:a[9]||0,grp:a[10]||0,kind:"army",
     eq:a[11]===undefined?undefined:Math.max(0,Math.min(1,+a[11])),
-    oos:+a[12]||0}));
+    oos:+a[12]||0,
+    /* a[13] the training order and a[14] the division template: a save from
+       before either existed has neither, and reads as untrained, stock */
+    train:!!a[13],tpl:a[14]||undefined}));
   G.fleets=(S.fleets||[]).map(a=>({id:a[0],nat:a[1],at:a[2],to:a[3]||null,prog:a[4],str:a[5],hp:a[6],kind:"fleet",cls:SHIPS[a[7]]?a[7]:"dd"}));
   G.wings=(S.wings||[]).map(a=>({id:a[0],nat:a[1],str:a[2],hp:a[3],target:a[4]||null,kind:"wing",wt:WINGTYPES[a[5]]?a[5]:"cas",
     eq:a[6]===undefined?undefined:Math.max(0,Math.min(1,+a[6]))}));
