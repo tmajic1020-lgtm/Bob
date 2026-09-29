@@ -503,3 +503,56 @@ warmth and texture.
   which is exactly `THEMES.dark.coast`. It was coastline, not water. This is
   the same class of error as comparing two map images at different
   pixels-per-degree: fix the framing before believing the number.
+
+## The rivers were invented; now they are real
+
+The map's rivers were derived by flow accumulation over the GENERATED
+heightfield -- every cell sends its water to its lowest neighbour, count
+what passes through, call the busy ones rivers. The comment above that
+code claimed the Nile, the Amazon, the Volga and the Mississippi "turn up
+because the land makes them turn up". They did not: the heightfield is
+noise, so what turned up were plausible rivers in the wrong places. The
+province-level defence bonus they fed was therefore also wrong -- the
+Rhine and the Vistula were not lines an army had to force.
+
+Replaced with Natural Earth's, the same public-domain source as the
+coastlines: scalerank <= 6 for the network, 0-5 drawn as major, 1,031
+rivers and 453 lakes for 112KB, simplified to 0.1 degrees, which on a
+2000-pixel world is half a pixel. The lakes it replaces were TWO
+hand-drawn rings -- the Caspian, and one labelled "Great Lakes hint".
+
+Verified by naming the rivers a player would notice rather than by
+counting: Nile/Cairo, Volga/Moscow and Stalingrad, Dnieper/Kiev,
+Danube/Vienna and Budapest and Belgrade, Tigris/Baghdad, Yangtze/
+Shanghai, Ganges/Calcutta, Amazon/Manaus, Elbe/Hamburg, Vistula/Warsaw.
+All fourteen correct.
+
+Three faults found on the way, each by a check rather than by eye:
+
+- **The ownership raster mis-attributed provinces.** The Danube passes
+  0.2 world units from Vienna's own centre and Vienna still came back
+  with no river, while Budapest and Belgrade on the same river were
+  right. Dropped for nearest-province-centre, which is how this map
+  identifies a place everywhere else: provinces are points, and with 251
+  of them over a 2000x1000 world the mean spacing is 89 units, so 45 is
+  the radius at which a river runs THROUGH somewhere rather than past it.
+- **The major/minor line was in the wrong place.** At scalerank <= 4 the
+  Vistula and the Elbe were excluded -- both are rank 5 -- which is
+  exactly the rivers that matter militarily in Poland and Germany.
+  Rank <= 5 fixes it, and takes major rivers from 472 to 637.
+- **The old divisor turned a gradient into a switch.** Carried over as 3
+  from the flow raster, where one cell was one step of the walk, it
+  saturated instantly against real polylines: 145 of 150 river provinces
+  at exactly 1.0, so 58% of the world drew the full +22% defence. Cells
+  of major river per province actually measure min 1, p25 11, median 25,
+  p75 47, p95 101, max 189. Sweeping the divisor: 3 -> 145 at full,
+  10 -> 118, 20 -> 87, 25 -> 81, 35 -> 60 with the most even spread,
+  60 -> 27 but two thirds barely counting. 35 sits between the median and
+  the upper quartile, so a river has to run the length of a province to
+  earn the full bonus and one that clips a corner still counts.
+
+A note on sequencing: the geometry predicted the answer before the
+measurement could be run (cells are 0.36 degrees, polylines simplified to
+0.1, so a full crossing is 20-45 cells) and the measured median was 25.
+That is the right way round -- the estimate was written down as
+provisional and then checked, not asserted.
