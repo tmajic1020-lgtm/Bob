@@ -556,3 +556,60 @@ measurement could be run (cells are 0.36 degrees, polylines simplified to
 0.1, so a full crossing is 20-45 cells) and the measured median was 25.
 That is the right way round -- the estimate was written down as
 provisional and then checked, not asserted.
+
+## The Time Machine
+
+Settings -> TIME MACHINE recreates an earlier version by gating every
+feature that came after it (`epochAtLeast(id)`), rather than shipping old
+files. It had stopped at v5.3, still labelled "Current", while the game
+went on to v23 -- and since every gate compared against an epoch no later
+than 5.3, NOTHING from eighteen major versions was gated. "v4.0 -- The
+Original Build" had weather, supply, trenches, four hull types, manpower,
+the resource economy and armour.
+
+Now 21 epochs, current = 24.0. Each added epoch gates what it introduced:
+
+    5.5  peace conferences       openPeaceConf + the NEGOTIATE button
+    5.8  Cold War, Civil War     era picker; setEpoch moves you to ww2
+    9.0  artillery, anti-air     addUnit raises them as infantry; buttons hidden
+    13.0 new nations rise        the riseNewNation roll
+    16.0 stand in the line       setFPV (was gated to 5.0, the 3D view)
+    19.0 ground/weather/supply   weatherAt -> clear, terrain defence 1,
+                                 supplyTick leaves G.supply null, supMul 1
+    20.0 width of a front        frontLine puts everyone in the front
+    21.0 manpower                spendMP always succeeds
+    22.0 resource economy        haveRes/spendRes true, eqpMul/steelMul 1,
+                                 equipTick skipped
+    23.0 real country colours    PRE23_COL restored in applyEra
+    24.0 this build              divCombat -> roleMul, hubStrain 1,
+                                 chargeHubs skipped
+
+Things worth knowing before adding the next one:
+
+- **`epochIdx()` maps an UNKNOWN id to the LAST epoch.** A gate written
+  against a version that is not in EPOCHS silently reads as "current build
+  only" rather than failing. Every gate must name a real epoch id.
+- **The default epoch is stored, so moving "current" strands people.**
+  `EPOCH` defaulted to "5.3" and was saved to localStorage the first time
+  anyone touched Settings, so nearly every player had "5.3" stored. Adding
+  newer epochs would have silently dropped them all into v5.3. A stored
+  "5.3" without the `if_epoch_v24` marker is read as current once and
+  rewritten; a deliberate 5.3 chosen afterwards is kept. EPOCH_CURRENT is
+  now derived from the list, so next time only the marker needs bumping.
+- **Test a gate on BOTH sides, and choose a probe that can tell.** Three of
+  twelve first read "no change" and all three were the probe: armour
+  attacking infantry is unchanged BY DESIGN (the stock templates keep parity),
+  a unit in its own capital is fully supplied with or without a supply
+  system, and resources live in `n.stock`, not `n.res`. The discriminating
+  probes -- infantry attacking armour, whether a supply map exists, emptying
+  the right store -- all flipped.
+- **Gates remove systems, so play the old epochs, not just the new one.** A
+  full war year at v4.0, 5.3, 9.0, 16.0, 19.0, 21.0, 23.0 and 24.0 runs with
+  no page errors, and reads like the history: arm/inf only until 9.0, no
+  supply map until 19.0, armies shrinking 439 -> 383 -> 312 as manpower and
+  resources arrive.
+- The rivers are NOT gated: the flow-accumulation code they replaced has
+  been deleted, so there is nothing older to fall back to.
+
+Build is now 24.0.0 (BUILD const and both .buildno spans), with a v24.0
+changelog entry covering the Time Machine and this build's other work.

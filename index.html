@@ -250,7 +250,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="auth" class="hud">
   <div class="box">
     <h1>IRON <span>FRONT</span></h1>
-    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">23.19.0</span></div>
+    <div class="sub2">HIGH COMMAND ACCESS &middot; BUILD <span class="buildno">24.0.0</span></div>
     <div class="tabs">
       <button class="tbtn on" id="tabIn">SIGN IN</button>
       <button class="tbtn" id="tabUp">SIGN UP</button>
@@ -269,7 +269,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="start" class="hud">
   <h1>IRON <span>FRONT</span></h1>
   <div class="sub" id="eraSub">A WORLD AT WAR &middot; 1939</div>
-  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">23.19.0</span></div>
+  <div style="font-size:10px;color:#5a6355;letter-spacing:2px;margin:4px 0 8px;text-align:center">BUILD <span class="buildno">24.0.0</span></div>
   <div id="dailyQ" style="width:min(520px,100%);margin:0 auto 14px;border:1px solid #2a3038;background:#0d1210;padding:10px 12px"></div>
   <div id="whoBar" style="display:flex;gap:10px;align-items:center;margin:-12px 0 16px;font-size:11px;color:var(--dim)">
     <span id="authWho"></span>
@@ -408,7 +408,7 @@ body.light #speedbox{background:#ece7d6d0}
 "use strict";
 /* The one place the build number lives. Every visible copy is stamped from it,
    so a bumped build can never disagree with the number a crash report shows. */
-const BUILD="23.19.0";
+const BUILD="24.0.0";
 addEventListener("DOMContentLoaded",()=>{
   for(const el of document.querySelectorAll(".buildno"))el.textContent=BUILD;
 });
@@ -879,7 +879,10 @@ OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:1,desc:"Sixty 
    answer: their GRE is Greece and this game's GRE is Greenland, and their PRU
    is Peru while this game's PRU is Prussia. */
 const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#3287af",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#dbdb77",LVA:"#4b4dba",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#277446",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
-for(const k in HOI4COL)if(NATIONS[k])NATIONS[k].c=HOI4COL[k];
+/* The colours each nation wore before v23.0, kept so the Time Machine can
+   put them back rather than showing v23's palette in every earlier build. */
+const PRE23_COL={};
+for(const k in HOI4COL)if(NATIONS[k]){PRE23_COL[k]=NATIONS[k].c;NATIONS[k].c=HOI4COL[k];}
 
 
 /* Adjacency: land links + sea links (sea:1 requires crossing water) */
@@ -1238,6 +1241,7 @@ const BUILD_RES={
 };
 const resCostOf=t=>BUILD_RES[t]||null;
 function haveRes(k,t){
+  if(typeof epochAtLeast==="function"&&!epochAtLeast("22.0"))return true;   /* resources arrive in v22.0 */
   const need=resCostOf(t);if(!need)return true;
   const st=(G.nations[k]||{}).stock||{};
   for(const r in need)if((st[r]||0)<need[r])return false;
@@ -1250,6 +1254,7 @@ function shortOf(k,t){
   return out;
 }
 function spendRes(k,t){
+  if(typeof epochAtLeast==="function"&&!epochAtLeast("22.0"))return true;
   const need=resCostOf(t);if(!need)return true;
   const n=G.nations[k];if(!n)return false;
   if(!haveRes(k,t))return false;
@@ -1490,6 +1495,7 @@ function _wHash(p,spell){
 let _wCache=null,_wKey="";
 function weatherAt(p){
   if(!p||!G)return WEATHER.clear;
+  if(!epochAtLeast("19.0"))return WEATHER.clear;     /* weather arrives in v19.0 */
   const spell=Math.floor(G.day/10),key=spell+":"+G.date.getMonth();
   if(_wKey!==key){_wCache={};_wKey=key;}
   const hit=_wCache[p.id];if(hit)return hit;
@@ -1708,6 +1714,7 @@ function oosMul(u){
   return o<=0?1:Math.max(0.35,1-o/OOS_LIMIT*0.65);
 }
 function supMul(u){
+  if(!epochAtLeast("19.0"))return 1;
   let q=supplyPct(u.nat,u.at);
   if(u.gen&&u.gen.trait==="log")q=Math.max(q,0.85);   // a good quartermaster is worth a division
   /* Distance was the only thing that degraded supply, so twenty divisions
@@ -1747,7 +1754,7 @@ const MINISTERS={
  spy:{n:"Spymaster",d:"Espionage operations cost 30% less",cost:60}};
 /* Steel keeps guns and armour serviceable. Run out and the whole army fights
    like an army with no spare barrels, which is what one is. */
-function steelMul(k){return shortOn(k,"steel")?0.82:1;}
+function steelMul(k){if(!epochAtLeast("22.0"))return 1;return shortOn(k,"steel")?0.82:1;}
 function natAtkMul(k){const n=G.nations[k];if(!n)return 1;
   let m=(k==="ZOM"?1.5:1)*ideoOf(n).atk*((DOCTRINES[n.doctrine]||{atk:1}).atk)*(n.cab&&n.cab.staff?1.10:1)*(MODS.blitz?1.35:1)*(MODS.trench?0.6:1);
   m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m;}
@@ -1777,6 +1784,9 @@ function applyEra(era){
     const b=NAT_BASE[k];
     if(!b){NAT_BASE[k]={n:NATIONS[k].n,f:NATIONS[k].f,c:NATIONS[k].c,cap:NATIONS[k].cap};continue;}
     NATIONS[k].n=b.n;NATIONS[k].f=b.f;NATIONS[k].c=b.c;
+    /* pre-v23 palette when the Time Machine is set before v23.0. Guarded:
+       applyEra can run before EPOCH has been declared further down the file. */
+    try{ if(PRE23_COL[k]&&!epochAtLeast("23.0"))NATIONS[k].c=PRE23_COL[k]; }catch(e){}
     if(b.cap!==undefined)NATIONS[k].cap=b.cap;
   }
   for(const k in ERAS[era].rename){NATIONS[k].n=ERAS[era].rename[k][0];NATIONS[k].f=ERAS[era].rename[k][1];}
@@ -2105,7 +2115,7 @@ function eqpNeed(u){return (u.str||0)*EQ_PER_STR;}
    read as fully equipped, which is exactly what they were under the old rules
    -- the alternative silently halves every army in every old save. */
 function eqpOf(u){return u.eq===undefined?1:u.eq;}
-function eqpMul(u){const e=Math.max(0,Math.min(1,eqpOf(u)));return EQ_FLOOR+(1-EQ_FLOOR)*e;}
+function eqpMul(u){if(!epochAtLeast("22.0"))return 1;const e=Math.max(0,Math.min(1,eqpOf(u)));return EQ_FLOOR+(1-EQ_FLOOR)*e;}
 /* LOSSES COST EQUIPMENT, WHEREVER THEY HAPPEN. Divisions lost theirs through
    dmg(); wings did not, because flak, enemy fighters and the daily
    operational loss each write w.hp straight out. So an air force was a
@@ -2157,6 +2167,7 @@ function eqpArmed(k,kind){
    supply can carry them: a division cut off re-equips at a crawl however full
    the warehouses are. */
 function equipTick(){
+  if(!epochAtLeast("22.0"))return;
   const by={};
   const add=(x)=>{if(eqpOf(x)<1)(by[x.nat]=by[x.nat]||[]).push(x);};
   for(const u of G.units)add(u);
@@ -2192,6 +2203,7 @@ function mpCostOf(t){
   return MP_COST[t]||0;
 }
 function spendMP(k,amt){
+  if(!epochAtLeast("21.0"))return true;    /* manpower arrives in v21.0 */
   const n=G.nations[k];
   if(!n||amt<=0)return true;
   if((n.mp||0)<amt)return false;
@@ -2495,6 +2507,7 @@ function buildHubs(nat,src,dist,parent){
    rising past 1 when it is carrying more than it can. Returned as a
    MULTIPLIER on supply quality so callers do not each re-derive it. */
 function hubStrain(nat,pid){
+  if(!epochAtLeast("24.0"))return 1;
   const h=G.hubs&&G.hubs[nat], of=G.hubOf&&G.hubOf[nat];
   if(!h||!of)return 1;
   const hub=h[of[pid]];
@@ -2509,6 +2522,7 @@ function hubStrain(nat,pid){
 /* Charge every division to the hub that feeds it. One pass per tick,
    over divisions rather than provinces, so it is cheap. */
 function chargeHubs(){
+  if(!epochAtLeast("24.0"))return;
   if(!G.hubs)return;
   for(const nat in G.hubs) for(const id in G.hubs[nat]) G.hubs[nat][id].load=0;
   for(const u of G.units){
@@ -2724,6 +2738,9 @@ function sideArmor(arr){
    being hit; defenders use their defence stat, which armour does not
    modify -- being hard to kill is already in the armour term. */
 function divCombat(u,defending,eHard,eArm){
+  /* Before v24.0 a division fought on its type's flat attack and defence and
+     armour meant nothing -- which is exactly roleMul, still here for this. */
+  if(!epochAtLeast("24.0"))return roleMul(u,defending);
   const t=tplOf(u);
   if(defending)return t.def;
   const raw=t.soft*(1-eHard)+t.hard*eHard;
@@ -2806,6 +2823,10 @@ const uName=t=>(UTYPE[t]||UTYPE.inf).n;
 const roleMul=(u,defending)=>{const t=UTYPE[u.type]||UTYPE.inf;return defending?t.def:t.atk;};
 const uIcon=t=>(UTYPE[t]||UTYPE.inf).i;
 function addUnit(nat,pid,type,str){
+  /* Artillery and anti-air arrive in v9.0. Before it there is infantry and
+     armour, so a request for either is raised as infantry -- which covers the
+     AI, scripted spawns and old saves as well as the recruit panel. */
+  if((type==="art"||type==="aa")&&typeof epochAtLeast==="function"&&!epochAtLeast("9.0"))type="inf";
   if(MODS.mass)str=+(str*1.3).toFixed(1);
   const u={id:++G.uid,nat,at:pid,to:null,prog:0,type,str,hp:str*10,kind:"army",xp:MODS.elite?30:0,
            /* raised, not yet armed: it draws the rest out of the stockpile */
@@ -3079,7 +3100,7 @@ window.proposePeaceDeal=(a,b,terms)=>{
   return _proposePeaceDeal(a,b,terms);
 };
 let PEACE_TARGET=null,PEACE_SEL=new Set(),PEACE_REP=0,PEACE_PUP=false;
-function openPeaceConf(b){if(!G||!G.nations)return;
+function openPeaceConf(b){if(!G||!G.nations)return;if(!epochAtLeast("5.5"))return;
   PEACE_TARGET=b;PEACE_SEL=new Set();PEACE_REP=0;PEACE_PUP=false;
   curPanel="peace";renderPanel();
 }
@@ -3511,7 +3532,7 @@ function tick(){
     if(p.garrison>3)continue;
     if(G.units.some(u=>u.at===p.id&&u.nat===p.owner))continue;
     const shaky=(occ.stab<55?1.8:1)*(occ.atWar.size?1.6:1)*(1+G.tension/160);
-    if(Math.random()<0.0009*shaky){riseNewNation(p.id);break;}   // at most one a day
+    if(epochAtLeast("13.0")&&Math.random()<0.0009*shaky){riseNewNation(p.id);break;}   // at most one a day
   }
   if(G.stats){
     const st=G.stats,me0=G.nations[G.player];
@@ -3806,6 +3827,10 @@ window.toMainMenu=toMainMenu;
    the instant a province changes hands, because that is exactly when a line
    gets cut and the whole point is that you feel it immediately. */
 function supplyTick(){
+  /* Supply, attrition and starvation all arrive in v19.0. Before it an army
+     is fed wherever it stands; supplied() already answers yes when there is
+     no supply map, so leaving G.supply unbuilt is the whole of the gate. */
+  if(!epochAtLeast("19.0")){G.supply=null;return;}
   if(!G.supply||G.day%3===0)computeSupply();
   const lost={},starving={};
   for(const u of [...G.units]){
@@ -4195,7 +4220,7 @@ function battles(){
          side that already holds it, which is what makes mountains and cities
          worth defending and worth going around. */
       const wx=weatherAt(p);pa*=wx.atk;pb*=wx.atk;
-      const fortB=1+(p.fort||0)*0.12,terD=terOf(p).def*riverDef(p);
+      const fortB=1+(p.fort||0)*0.12,terD=epochAtLeast("19.0")?terOf(p).def*riverDef(p):1;
       if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
       /* AND THE DAY'S MARGIN MOVES THE LINE. pa and pb are the whole fight by
          this point -- frontage, veterancy, generals, supply, air, naval gunfire,
@@ -4289,6 +4314,7 @@ function sinkFleet(f){
 /* Worst-first: the freshest divisions hold the line and the mauled ones fall
    back into reserve, which is what a competent staff would do anyway. */
 function frontLine(arr,p,defending){
+  if(!epochAtLeast("20.0"))return {front:arr,rear:[]};   /* frontage arrives in v20.0 */
   const w=frontage(p,defending);
   if(arr.length<=w)return {front:arr,rear:[]};
   const sorted=arr.slice().sort((a,b)=>(b.hp/(b.str*10))-(a.hp/(a.str*10)));
@@ -5721,7 +5747,28 @@ const EPOCHS=[
  {id:"5.0",label:"v5.0 \u2014 3D Tabletop",desc:"The tilted 3D view arrives. Still no mods or extra map modes."},
  {id:"5.1",label:"v5.1 \u2014 Mods Introduced",desc:"12 mods and 4 extra map modes. The Horde does not exist yet. Start-screen flags are emoji."},
  {id:"5.2",label:"v5.2 \u2014 The Horde",desc:"All 21 mods, including the Zombie Horde. Start-screen flags are still emoji."},
- {id:"5.3",label:"v5.3 \u2014 Current",desc:"Everything \u2014 real drawn flags on the start screen, whole flags on every landmass, true star and crescent geometry."}
+ {id:"5.3",label:"v5.3 \u2014 Real Flags",desc:"Real drawn flags on the start screen, whole flags on every landmass, true star and crescent geometry."},
+ /* THE TIME MACHINE STOPPED HERE for eighteen major versions. v5.3 was
+    labelled "Current" while the game went on to v23, and because every gate
+    in the game is epochAtLeast(some id <= 5.3), nothing added after it was
+    gated at all: wind back to "v4.0 \u2014 The Original Build" and you still
+    had weather, supply, trenches, fleets of four hull types, manpower, the
+    resource economy and division templates. The epochs below are the major
+    milestones since, each with the systems it introduced actually gated.
+    Every id here must stay a real epoch: epochIdx() maps an UNKNOWN id to the
+    last one, so a gate written against a version that is not in this list
+    reads as "only in the current build" rather than failing. */
+ {id:"5.5",label:"v5.5 \u2014 Peace Conferences",desc:"Wars end at a negotiating table: war score, provinces, reparations, puppets. Still only the original five eras."},
+ {id:"5.8",label:"v5.8 \u2014 Cold War & Civil War",desc:"Two new eras: the Cold War (1945\u20131989) with NATO, the Warsaw Pact and the bomb, and the American Civil War (1861\u20131865)."},
+ {id:"9.0",label:"v9.0 \u2014 Artillery & Anti-Air",desc:"Two new division types: guns that hit 60% harder in the assault and fold on defence, and anti-air. Before this, infantry and armour only."},
+ {id:"13.0",label:"v13.0 \u2014 New Nations Rise",desc:"Conquered land can declare itself something new: a thinly held occupation can throw up a state that never existed before."},
+ {id:"16.0",label:"v16.0 \u2014 Stand in the Line",desc:"The first-person view: no map, no counters, a camera at eye height in one of your provinces."},
+ {id:"19.0",label:"v19.0 \u2014 Ground, Weather & Supply",desc:"Ten terrain types from real geography, weather that moves with the seasons, supply lines, attrition and starvation."},
+ {id:"20.0",label:"v20.0 \u2014 Sea, Sky & the Front",desc:"Four hull types and four airframes that beat each other in a cycle, and a front only so many divisions wide."},
+ {id:"21.0",label:"v21.0 \u2014 Manpower",desc:"A war costs men. Every country draws divisions from a manpower pool its actual population sets."},
+ {id:"22.0",label:"v22.0 \u2014 The Resource Economy",desc:"Steel, oil, rubber, tungsten and aluminium, equipment drawn by each arm, shortages and blockades that bite."},
+ {id:"23.0",label:"v23.0 \u2014 Real Country Colours",desc:"Eighty-one nations in their accurate colours, and borders that follow real frontiers."},
+ {id:"24.0",label:"v24.0 \u2014 Current",desc:"Everything \u2014 division templates built from battalions, with armour and piercing; supply hubs that can be overloaded; states; the world\u2019s real rivers and lakes."}
 ];
 function epochIdx(id){const i=EPOCHS.findIndex(e=>e.id===id);return i<0?EPOCHS.length-1:i;}
 /* ------------------------------ ACHIEVEMENTS -------------------------------
@@ -5758,7 +5805,7 @@ const ACH=[
  {id:"mushroom_cloud",n:"Mushroom Cloud",i:"\u{1F4A5}",d:"Launch a nuclear strike."},
  {id:"undying",n:"Undying",i:"\u{1F9DF}",d:"Destroy the Zombie Horde after it has spread to 10+ provinces."},
  {id:"mod_master",n:"Mad Scientist",i:"\u{1F9EA}",d:"Start a campaign with 10 or more mods active at once."},
- {id:"time_traveler",n:"Time Traveler",i:"\u23F3",d:"Play a campaign at every Time Machine version, v4.0 through v5.5."},
+ {id:"time_traveler",n:"Time Traveler",i:"\u23F3",d:"Play a campaign at every Time Machine version, v4.0 through the current build."},
  {id:"occupier",n:"Boots on the Ground",i:"\u{1F6A9}",d:"Complete a province-by-province occupation."},
  {id:"world_conqueror",n:"World Conqueror",i:"\u{1F30D}",d:"Win a campaign by Domination or Hegemony."},
  {id:"survivor",n:"Survivor",i:"\u{1F6E1}",d:"Win a campaign after your capital was once occupied."},
@@ -5816,8 +5863,21 @@ function checkAchievements(){
   else G.loyalEmpireDay=null;
   if(G.zom)G.zomPeak=Math.max(G.zomPeak||0,Object.values(G.prov).filter(p=>p.owner==="ZOM").length);
 }
-let EPOCH="5.3";
-try{const e=localStorage.getItem("if_epoch");if(e&&EPOCHS.some(x=>x.id===e))EPOCH=e;}catch(err){}
+const EPOCH_CURRENT=EPOCHS[EPOCHS.length-1].id;
+let EPOCH=EPOCH_CURRENT;
+/* MIGRATION. Until v24.0 the last epoch was "5.3" and it was labelled
+   Current, and it was the default -- so a saved "5.3" is overwhelmingly a
+   player who opened Settings once and never touched the Time Machine, not one
+   who chose to live in v5.3. Honouring it literally would silently strip
+   eighteen versions of features from everyone who ever saved a setting. It is
+   read as "current" once, and rewritten, so a deliberate choice of v5.3 made
+   from now on is respected. */
+try{
+  let e=localStorage.getItem("if_epoch");
+  if(e==="5.3"&&!localStorage.getItem("if_epoch_v24")){e=EPOCH_CURRENT;localStorage.setItem("if_epoch",e);}
+  try{localStorage.setItem("if_epoch_v24","1");}catch(err2){}
+  if(e&&EPOCHS.some(x=>x.id===e))EPOCH=e;
+}catch(err){}
 function epochAtLeast(id){return epochIdx(EPOCH)>=epochIdx(id);}
 function setEpoch(id){
   /* Same reasoning as setDiff: every feature gate in the game runs through
@@ -5827,7 +5887,10 @@ function setEpoch(id){
   EPOCH=id;
   try{localStorage.setItem("if_epoch",id);}catch(err){}
   if(!epochAtLeast("5.1"))clearMods();
-  if(!epochAtLeast("5.0")){setView3D(false);if(typeof setViewFrame==="function")setViewFrame("none");if(typeof setFPV==="function")setFPV(false);}
+  if(!epochAtLeast("5.0")){setView3D(false);if(typeof setViewFrame==="function")setViewFrame("none");}
+  if(!epochAtLeast("16.0")&&typeof setFPV==="function")setFPV(false);
+  /* the Cold War and Civil War eras do not exist yet */
+  if(!epochAtLeast("5.8")&&(ERA==="coldwar"||ERA==="civilwar")){ERA="ww2";if(typeof eraDefYear==="function")YEAR=eraDefYear("ww2");}
   if(!epochAtLeast("4.8"))FLAGSTYLE="national";
   if(!epochAtLeast("5.1")&&["political","ideology","diplomacy","threat"].includes(MAPSTYLE))setMapStyle("flags");
   if(!epochAtLeast("4.6"))SLOWCONQ=false;
@@ -11359,7 +11422,9 @@ function setFPV(v){
      v5.0. Without this you could wind the Time Machine back to v4.0 and still
      be in the trench, with every vantage silently refusing itself \u2014 a state
      nothing else in the game can be in. */
-  if(v&&typeof epochAtLeast==="function"&&!epochAtLeast("5.0"))return;
+  /* Standing in the line arrived in v16.0. It used to be gated to v5.0, the 3D
+     view it is built on, because v5.3 was as far as the Time Machine went. */
+  if(v&&typeof epochAtLeast==="function"&&!epochAtLeast("16.0"))return;
   FPV=!!v;
   if(FPV){
     if(typeof VIEW3D!=="undefined"&&!VIEW3D)setView3D(true);
@@ -14410,8 +14475,8 @@ function renderPanel(){
     <button class="bbtn" ${me.pp<20||(me.mp||0)<MP_COST.inf||!haveRes(G.player,"inf")||!deployable?"disabled":""} onclick="buy('inf')">■ Infantry Division — 20 PP + ${MP_COST.inf}K \u{1F465}${resCostText("inf")}<small>STR 3. The backbone. Ready in ${buildDays(G.player,"inf")} days.</small></button>
     <div style="display:flex;gap:4px;margin:-2px 0 5px">${[3,5,10].map(n=>`<button class="tbtn" style="flex:1;font-size:10px;padding:4px" ${me.pp<20*n||!deployable?"disabled":""} onclick="buyN('inf',${n})">\u00d7${n} — ${20*n} PP</button>`).join("")}</div>
     <button class="bbtn" ${me.pp<35||me.oil<armOil()||(me.mp||0)<MP_COST.arm||!haveRes(G.player,"arm")||!deployable?"disabled":""} onclick="buy('arm')">▲ ${armName()} — 35 PP${armOil()?" + "+armOil()+" 🛢":""} + ${MP_COST.arm}K \u{1F465}${resCostText("arm")}<small>STR 4. ${armourEra()?"Spearhead.":"The fast arm, before the tank."} Ready in ${buildDays(G.player,"arm")} days.</small></button>
-    <button class="bbtn" ${me.pp<30||(me.mp||0)<MP_COST.art||!haveRes(G.player,"art")||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP + ${MP_COST.art}K \u{1F465}${resCostText("art")}<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
-    <button class="bbtn" ${me.pp<25||(me.mp||0)<MP_COST.aa||!haveRes(G.player,"aa")||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP + ${MP_COST.aa}K \u{1F465}${resCostText("aa")}<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
+    <button class="bbtn" ${epochAtLeast("9.0")?"":'style="display:none"'} ${me.pp<30||(me.mp||0)<MP_COST.art||!haveRes(G.player,"art")||!deployable?"disabled":""} onclick="buy('art')">◆ Artillery Division — 30 PP + ${MP_COST.art}K \u{1F465}${resCostText("art")}<small>STR 3. Hits at ×1.60 attacking and ×0.55 defending — devastating in a bombardment, helpless caught alone. Ready in ${buildDays(G.player,"art")} days.</small></button>
+    <button class="bbtn" ${epochAtLeast("9.0")?"":'style="display:none"'} ${me.pp<25||(me.mp||0)<MP_COST.aa||!haveRes(G.player,"aa")||!deployable?"disabled":""} onclick="buy('aa')">✳ Anti-Air Division — 25 PP + ${MP_COST.aa}K \u{1F465}${resCostText("aa")}<small>STR 2. Barely fights on the ground; tears into bombers overhead. Ready in ${buildDays(G.player,"aa")} days.</small></button>
     <h3>⚓ SHIPYARD${sel.coastal?"":" — needs a port"}</h3>
     ${Object.keys(SHIPS).map(c=>{const e=SHIPS[c],t="s_"+c;
       return `<button class="bbtn" ${me.pp<e.cost[0]||me.oil<e.cost[1]||(me.mp||0)<mpCostOf(t)||!haveRes(G.player,t)||!deployable||!sel.coastal?"disabled":""} onclick="buy('${t}')">${e.i} ${e.n} — ${e.cost[0]} PP + ${e.cost[1]} 🛢 + ${mpCostOf(t)}K \u{1F465}${resCostText(t)}<small>STR ${e.str}. ${e.d} Ready in ${buildDays(G.player,t)} days.</small></button>`;}).join("")}
@@ -14948,7 +15013,7 @@ function renderPanel(){
       const n=G.nations[w];if(!n.alive)continue;
       h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} (${natProvs(w).length})</span>
       <span style="display:flex;gap:3px"><button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 WHITE PEACE</button>
-      <button class="tbtn" style="font-size:10px;padding:3px 7px;border-color:var(--amber);color:var(--amber)" onclick="openPeaceConf('${w}')">📜 NEGOTIATE</button></span></div>`;
+      ${epochAtLeast("5.5")?`<button class="tbtn" style="font-size:10px;padding:3px 7px;border-color:var(--amber);color:var(--amber)" onclick="openPeaceConf('${w}')">📜 NEGOTIATE</button>`:""}</span></div>`;
     }
     const pupN=Object.keys(G.nations).filter(k=>G.nations[k].alive&&G.nations[k].puppet===G.player).length;
     const score=natProvs(G.player).length*10+pupN*15+[...me.allies].length*5+me.nukes*8;
@@ -15435,7 +15500,16 @@ function showManual(){
 window.showManual=showManual;
 /* ============================== UPDATE LOG ============================== */
 const CHANGELOG=[
- ["v23.2 \u2014 THE NEWS, AND THE LABORATORY (current)",[
+ ["v24.0 \u2014 THE TIME MACHINE CATCHES UP (current)",[
+  "\u23F3 THE TIME MACHINE HAD STOPPED AT v5.3 while the game went on to v23. v5.3 was still labelled Current, and because every feature gate in the game compared against an epoch no later than 5.3, nothing added in eighteen major versions was gated at all: wind back to v4.0 \u2014 The Original Build \u2014 and you still had weather, supply, trenches, four hull types, manpower, the resource economy and armoured divisions. Eleven new epochs now cover the major milestones since \u2014 Peace Conferences, the Cold War and Civil War eras, Artillery and Anti-Air, New Nations, Stand in the Line, Ground Weather and Supply, the Width of a Front, Manpower, the Resource Economy, Real Colours and this build \u2014 and each one takes away what it introduced. Every gate was tested on both sides of its epoch, and a full war year was played at eight of them",
+  "\u{1F4BE} IF YOU HAD EVER SAVED A SETTING, you were about to be stranded in v5.3: it was the default, so it was the value stored for nearly everyone. A stored v5.3 from before this build is read as Current once and rewritten; choose v5.3 deliberately from now on and it is kept",
+  "\u{1F441} STAND IN THE LINE now arrives in v16.0, the version it actually came in, rather than v5.0, which was as far as the Time Machine reached when it was gated",
+  "\u{1F6E1} DIVISIONS ARE BUILT FROM BATTALIONS. Infantry and armour were literally identical \u2014 attack 1.00, defence 1.00 \u2014 and differed by their icon. A division is now a template of battalions, and its manpower, equipment, supply, speed, width, organisation, soft and hard attack, armour and piercing all follow from what is in it. An attack that cannot pierce the target's armour does two-thirds damage. The four stock templates reproduce the old numbers exactly, so every existing army carries over unchanged",
+  "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
+  "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
+  "\u{1F5D1} THE SCREENSHOT UNDER THE MAP IS GONE, and the sea is recoloured against the real water it was imitating: lighter, and a third less blue"
+ ]],
+ ["v23.2 \u2014 THE NEWS, AND THE LABORATORY",[
   "\u{1F4F0} A NEWS EVENT IS A FRONT PAGE NOW. It used to be a small box with a coloured border and two buttons in it \u2014 functional, and it told you nothing about the WEIGHT of what had happened. A country finds out it is at war from a newspaper, and now so do you: a masthead, a photograph, the headline across the top, the copy underneath and the decisions set out along the bottom as though the cabinet were taking them. The paper is your own, and WHICH paper says something about who is allowed to print it \u2014 a Chronicle under a democracy, a People's Daily under a commissar, a Court Gazette under a king.",
   "\u{1F4F7} AND EVERY STORY CARRIES A PICTURE, because a headline without one is a memo. There are no image files here and there is not going to be a download, so the photograph is DRAWN: a crowd under banners, a factory floor, a line of infantry, a fleet at sea, a chamber of government \u2014 with grain, a vignette and a little sepia over the top, which is what makes it read as something taken on film in 1936. The picture is chosen off the story's own words, so a new event needs nothing added to come out with the right one.",
   "\u{1F52C} THE RESEARCH SCREEN IS A TREE. Four progress bars in a column told you what you were researching and nothing else \u2014 not what came before it, not what it leads to, not how far along the road you are. There is a branch per column and a rung per level now, each one legible at a glance: what is done, what the laboratory is on, what you may start today, and what is still up the road. Above them sits the slot, carrying whatever is being worked on with the DAYS REMAINING on it \u2014 read off the tick that actually does the work, so it is a real answer rather than one that drifts as soon as a province changes hands.",
@@ -17238,6 +17312,8 @@ function renderStart(){
     const box=$("#eraButtons");
     const order=["mongol","napoleon","civilwar","ww1","ww2","coldwar","modern"].filter(id=>ERAS[id]);
     for(const id of Object.keys(ERAS))if(!order.includes(id))order.push(id);
+    /* the Cold War and the Civil War arrive together in the v5.8 epoch */
+    if(!epochAtLeast("5.8"))for(const x of ["coldwar","civilwar"]){const i=order.indexOf(x);if(i>=0)order.splice(i,1);}
     box.innerHTML="";
     for(const id of order){
       const b=document.createElement("button");
