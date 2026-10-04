@@ -688,3 +688,39 @@ Settings -> CREDITS lists what the game is built from.
 - Harnesses are unaffected: the card is DOM over the canvas, so
   `check100.js` (which reads pixels) still scores 62, and every suite
   passes. Multiplayer guests do not get it; the host runs the clock.
+
+### Painted backdrops and the wider quote list
+
+Asked to "search up images for the eras". Searched: every photo archive
+is blocked from this environment (Wikimedia Commons and upload, LoC,
+NARA's catalog, NASA, the Met, the Art Institute, Cleveland, SMK,
+Rijksmuseum, Europeana, archive.org, Flickr). github.com clones DO work,
+but no repository found held archive photographs with provenance good
+enough to credit, and an uncredited photo cannot go in by this file's own
+rule. So the briefing now paints its own:
+
+- `paintScene(era,W,H,seed,lift)` draws an original silhouette scene per
+  era -- sky, sun and halo, cloud banks, ridgelines into haze, smoke,
+  then the era's figures from a small kit (`SceneKit`: man with seven kinds
+  of headgear, horse and rider, tank, four aircraft, field gun, ship of the
+  line, yurt, missile, radar, skyline, searchlights, wire, dead trees).
+  The dice place everything, so no two are alike; arrowing to the next
+  quote paints a new one. Player photos still take precedence.
+- `lift` raises horizon and figures: at the default the action sat exactly
+  where the caption goes and the caption's dark overlay hid it. Painted
+  scenes also get a lighter overlay than photographs do.
+- **Check helper names against the whole file.** The first cut defined
+  `_mix`, which already exists at ~12940 with a different signature (it
+  accepts rgb() strings). Function declarations hoist and the later one
+  wins, so it silently replaced the map's colour mixer. Renamed to
+  `_scMix`/`_scRgba`/`_scRng`/`SceneKit`. grep `function NAME` before adding
+  any short helper.
+
+Quotes went 22 -> 85, and no longer only leaders, as asked: Austen,
+Douglass, Darwin, Dickinson, Cavell, Owen, Sassoon, Lou Gehrig, Einstein,
+Murrow, Anne Frank, Salk, Gagarin, King, Ali, Armstrong, Sagan, Malala and
+others. Same bar as before: each names its occasion and date, translations
+name the translator, and recollections say so. The Mongol era, which had
+none, now has four from its own century (Magna Carta, the Novgorod
+Chronicle on the Mongols' arrival, Dante, Marco Polo) -- still nothing
+pinned on Genghis Khan, and still no dictators.

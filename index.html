@@ -14803,8 +14803,10 @@ function renderPanel(){
     <div style="font-size:11px">TopoJSON — Mike Bostock (ISC licence)</div>
     <div style="font-size:11px">Firebase JavaScript SDK — Google (Apache License 2.0)</div>
     <h3>QUOTATIONS</h3>
-    <div style="color:var(--dim);font-size:11px">From public speeches, broadcasts, orders and dispatches, each attributed on screen to its occasion and date.</div>
+    <div style="color:var(--dim);font-size:11px">From speeches, broadcasts, orders, letters, diaries, poems and books, each attributed on screen to its occasion and date.</div>
     <div style="font-size:11px">${speakers.join(" · ")}</div>
+    <h3>BRIEFING ARTWORK</h3>
+    <div style="font-size:11px">The battle scenes behind the briefings are painted by the game itself, fresh each time. Original artwork.</div>
     <h3>PHOTOGRAPHS</h3>`;
     if(PD_PHOTOS.length) for(const ph of PD_PHOTOS)
       h+=`<div style="font-size:11px">${ph.title} — ${ph.credit} <span style="color:var(--dim)">(${ph.licence})</span></div>`;
@@ -14992,7 +14994,7 @@ function renderPanel(){
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${(epochAtLeast("4.9")?ERAS[ERA].years:(ORIG_YEARS[ERA]||ERAS[ERA].years)).map(y=>
       `<button class="tbtn ${y===YEAR?"on":""}" style="font-size:10px" onclick="restartYear(${y})">${y}</button>`).join("")}</div>
     <h3>\u{1F4DC} BRIEFINGS</h3>
-    <div style="color:var(--dim);font-size:11px">A line from a leader of the era, over a photograph, when a campaign begins. Every quote is attributed to the occasion and date it was spoken.</div>
+    <div style="color:var(--dim);font-size:11px">A line from someone who lived through the era \u2014 leaders, soldiers, poets, scientists, athletes \u2014 over a battle scene painted fresh for it, when a campaign begins. ${LEADER_QUOTES.length} quotes, each attributed to the occasion and date. \u25C2 \u25B8 or the arrow keys flip through them.</div>
     <div class="row" style="gap:4px">
       <button class="tbtn ${BRIEF_ON?"on":""}" style="flex:1" onclick="setBriefings(true)">ON</button>
       <button class="tbtn ${BRIEF_ON?"":"on"}" style="flex:1" onclick="setBriefings(false)">OFF</button>
@@ -15661,6 +15663,7 @@ const CHANGELOG=[
   "\u{1F6E1} DIVISIONS ARE BUILT FROM BATTALIONS. Infantry and armour were literally identical \u2014 attack 1.00, defence 1.00 \u2014 and differed by their icon. A division is now a template of battalions, and its manpower, equipment, supply, speed, width, organisation, soft and hard attack, armour and piercing all follow from what is in it. An attack that cannot pierce the target's armour does two-thirds damage. The four stock templates reproduce the old numbers exactly, so every existing army carries over unchanged",
   "\u{1F3AF} TRAINING. Experience could only be earned in combat, so every division ever raised arrived green and a country at peace could do nothing to prepare for war. ARMY \u2192 TRAINING now drills divisions holding in their own territory: TRAIN ALL IDLE, per army group, or everything at the selected province. A training division gains experience every day up to 30 xp (\u2605) and wears out equipment in exercises, which is replaced from the stockpile \u2014 so a trained army costs you the reserve you would have gone to war with. Seasoned and elite are still earned only in battle. Marching or fighting ends the order; being cut off pauses it",
   "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
+  "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
   "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
   "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
@@ -17573,8 +17576,12 @@ let GAMECLOCK=null;      // the single daily-tick interval; see startGame
    "an army marches on its stomach", "war is hell", most of what is pinned
    on Genghis Khan -- and a misattributed quote on a loading screen is a
    small lie told to every player. So each entry names where and when it
-   was said, and an era with nothing that meets that bar (the Mongols)
-   borrows from the others rather than invent something.
+   was said. Nothing is pinned on Genghis Khan: the Mongol era speaks
+   through the chroniclers and poets of its century instead.
+
+   Not only generals. A war is fought by a whole country, so the briefing
+   quotes whoever its era actually heard: poets, scientists, a baseball
+   player, a broadcaster, a girl in hiding in Amsterdam.
 
    Deliberately no lines from the dictators. The real game quotes them;
    this one does not have to, and a loading screen is the wrong place to
@@ -17587,53 +17594,473 @@ let GAMECLOCK=null;      // the single daily-tick interval; see startGame
        it -- empty until this environment can reach an archive;
      - photographs the player adds themselves, which stay in their own
        browser and are never sent anywhere.
-   Without either, the card falls back to a toned film backdrop. */
+   Without either, the card paints its own: an original silhouette scene for
+   the era (paintScene below), drawn fresh each time, so nothing to credit. */
 const LEADER_QUOTES=[
+ /* ---- the age of revolution and Napoleon ---- */
+ {era:["napoleon"],  who:"Thomas Paine",          when:"The American Crisis, 23 December 1776",
+  q:"These are the times that try men's souls."},
+ {era:["napoleon"],  who:"Thomas Jefferson",      when:"first inaugural address, 4 March 1801",
+  q:"We are all Republicans, we are all Federalists."},
  {era:["napoleon"],  who:"Horatio Nelson",        when:"signal to the fleet at Trafalgar, 21 October 1805",
   q:"England expects that every man will do his duty."},
+ {era:["napoleon"],  who:"William Wordsworth",    when:"on the French Revolution, published in The Friend, 1809",
+  q:"Bliss was it in that dawn to be alive, but to be young was very heaven!"},
+ {era:["napoleon"],  who:"Jane Austen",           when:"Pride and Prejudice, 1813",
+  q:"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."},
+ {era:["napoleon"],  who:"Oliver Hazard Perry",   when:"dispatch after the Battle of Lake Erie, 10 September 1813",
+  q:"We have met the enemy and they are ours."},
+ {era:["napoleon"],  who:"Francis Scott Key",     when:"written at Baltimore, September 1814",
+  q:"O say does that star-spangled banner yet wave o'er the land of the free and the home of the brave?"},
+ {era:["napoleon"],  who:"Duke of Wellington",    when:"to Thomas Creevey, Brussels, 19 June 1815",
+  q:"It has been a damned nice thing — the nearest run thing you ever saw in your life."},
+ {era:["napoleon"],  who:"Lord Byron",            when:"Childe Harold's Pilgrimage, on the eve of Waterloo, 1816",
+  q:"There was a sound of revelry by night."},
+ {era:["napoleon"],  who:"Percy Bysshe Shelley",  when:"Ozymandias, 1818",
+  q:"My name is Ozymandias, King of Kings; look on my Works, ye Mighty, and despair!"},
+ {era:["napoleon"],  who:"Mary Shelley",          when:"Frankenstein, 1818",
+  q:"Beware; for I am fearless, and therefore powerful."},
+ /* ---- a house divided ---- */
+ {era:["civilwar"],  who:"Frederick Douglass",    when:"Rochester, New York, 5 July 1852",
+  q:"What, to the American slave, is your 4th of July? I answer: a day that reveals to him, more than all other days in the year, the gross injustice and cruelty to which he is the constant victim."},
  {era:["civilwar"],  who:"Abraham Lincoln",       when:"Springfield, Illinois, 16 June 1858",
   q:"A house divided against itself cannot stand."},
+ {era:["civilwar"],  who:"Charles Darwin",        when:"On the Origin of Species, 1859",
+  q:"From so simple a beginning endless forms most beautiful and most wonderful have been, and are being, evolved."},
+ {era:["civilwar"],  who:"Emily Dickinson",       when:"poem, c. 1861",
+  q:"\"Hope\" is the thing with feathers — that perches in the soul."},
+ {era:["civilwar"],  who:"Julia Ward Howe",       when:"The Battle Hymn of the Republic, February 1862",
+  q:"Mine eyes have seen the glory of the coming of the Lord."},
  {era:["civilwar"],  who:"Ulysses S. Grant",      when:"to General Buckner at Fort Donelson, 16 February 1862",
   q:"No terms except an unconditional and immediate surrender can be accepted."},
+ {era:["civilwar"],  who:"Robert E. Lee",         when:"at Fredericksburg, 13 December 1862, as recorded by John Esten Cooke",
+  q:"It is well that war is so terrible, or we should grow too fond of it."},
  {era:["civilwar"],  who:"Abraham Lincoln",       when:"Gettysburg, 19 November 1863",
   q:"…that government of the people, by the people, for the people, shall not perish from the earth."},
+ {era:["civilwar"],  who:"William T. Sherman",    when:"letter to the Mayor of Atlanta, 12 September 1864",
+  q:"War is cruelty, and you cannot refine it."},
  {era:["civilwar"],  who:"Abraham Lincoln",       when:"Second Inaugural Address, 4 March 1865",
   q:"With malice toward none, with charity for all, with firmness in the right as God gives us to see the right, let us strive on to finish the work we are in."},
+ {era:["civilwar"],  who:"Ulysses S. Grant",      when:"Appomattox, 9 April 1865, recalled in his Personal Memoirs",
+  q:"The war is over; the rebels are our countrymen again."},
+ {era:["civilwar"],  who:"Walt Whitman",          when:"on the death of Lincoln, 1865",
+  q:"O Captain! my Captain! our fearful trip is done."},
+ /* ---- the Great War ---- */
  {era:["ww1"],       who:"Sir Edward Grey",       when:"3 August 1914, as recalled in his memoirs",
   q:"The lamps are going out all over Europe; we shall not see them lit again in our lifetime."},
+ {era:["ww1"],       who:"Laurence Binyon",       when:"For the Fallen, The Times, 21 September 1914",
+  q:"They shall grow not old, as we that are left grow old: age shall not weary them, nor the years condemn."},
+ {era:["ww1"],       who:"Rupert Brooke",         when:"The Soldier, 1914",
+  q:"If I should die, think only this of me: that there's some corner of a foreign field that is for ever England."},
+ {era:["ww1"],       who:"John McCrae",           when:"written at Ypres, May 1915",
+  q:"In Flanders fields the poppies blow between the crosses, row on row."},
+ {era:["ww1"],       who:"Edith Cavell",          when:"to the chaplain, Brussels, the night before her execution, 11 October 1915",
+  q:"Patriotism is not enough. I must have no hatred or bitterness towards anyone."},
  {era:["ww1"],       who:"Woodrow Wilson",        when:"address to Congress, 2 April 1917",
   q:"The world must be made safe for democracy."},
+ {era:["ww1"],       who:"Charles E. Stanton",    when:"at Lafayette's tomb, Paris, 4 July 1917",
+  q:"Lafayette, we are here!"},
+ {era:["ww1"],       who:"Siegfried Sassoon",     when:"A Soldier's Declaration, July 1917",
+  q:"I am making this statement as an act of wilful defiance of military authority, because I believe that the war is being deliberately prolonged by those who have the power to end it."},
+ {era:["ww1"],       who:"Wilfred Owen",          when:"Dulce et Decorum Est, 1917",
+  q:"My friend, you would not tell with such high zest to children ardent for some desperate glory, the old Lie: Dulce et decorum est pro patria mori."},
  {era:["ww1"],       who:"Woodrow Wilson",        when:"the Fourteen Points, 8 January 1918",
   q:"Open covenants of peace, openly arrived at."},
+ {era:["ww1"],       who:"Sir Douglas Haig",      when:"order of the day, 11 April 1918",
+  q:"With our backs to the wall and believing in the justice of our cause each one of us must fight on to the end."},
+ {era:["ww1"],       who:"David Lloyd George",    when:"Wolverhampton, 24 November 1918",
+  q:"What is our task? To make Britain a fit country for heroes to live in."},
+ /* ---- the Second World War ---- */
+ {era:["ww2"],       who:"Neville Chamberlain",   when:"Downing Street, 30 September 1938",
+  q:"I believe it is peace for our time."},
+ {era:["ww2"],       who:"Lou Gehrig",            when:"Yankee Stadium, 4 July 1939",
+  q:"Today I consider myself the luckiest man on the face of the earth."},
+ {era:["ww2"],       who:"Albert Einstein",       when:"letter to President Roosevelt, 2 August 1939",
+  q:"…it may become possible to set up a nuclear chain reaction in a large mass of uranium, by which vast amounts of power… would be generated."},
  {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 13 May 1940",
   q:"I have nothing to offer but blood, toil, tears and sweat."},
  {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 4 June 1940",
   q:"We shall fight on the beaches, we shall fight on the landing grounds, we shall fight in the fields and in the streets, we shall fight in the hills; we shall never surrender."},
+ {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 18 June 1940",
+  q:"…if the British Empire and its Commonwealth last for a thousand years, men will still say, \"This was their finest hour.\""},
  {era:["ww2"],       who:"Charles de Gaulle",     when:"BBC broadcast from London, 18 June 1940",
   q:"Whatever happens, the flame of French resistance must not be extinguished and will not be extinguished."},
  {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 20 August 1940",
   q:"Never in the field of human conflict was so much owed by so many to so few."},
+ {era:["ww2"],       who:"Edward R. Murrow",      when:"his opening to CBS broadcasts from the Blitz, 1940",
+  q:"This… is London."},
  {era:["ww2"],       who:"Franklin D. Roosevelt", when:"fireside chat, 29 December 1940",
   q:"We must be the great arsenal of democracy."},
  {era:["ww2"],       who:"Franklin D. Roosevelt", when:"address to Congress, 8 December 1941",
   q:"Yesterday, December 7th, 1941 — a date which will live in infamy — the United States of America was suddenly and deliberately attacked."},
  {era:["ww2"],       who:"Douglas MacArthur",     when:"Terowie, South Australia, 20 March 1942",
   q:"I came through and I shall return."},
+ {era:["ww2"],       who:"Winston Churchill",     when:"Mansion House, 10 November 1942",
+  q:"Now this is not the end. It is not even the beginning of the end. But it is, perhaps, the end of the beginning."},
  {era:["ww2"],       who:"Dwight D. Eisenhower",  when:"order of the day, 6 June 1944",
   q:"You are about to embark upon the Great Crusade, toward which we have striven these many months. The eyes of the world are upon you."},
+ {era:["ww2"],       who:"Anne Frank",            when:"her diary, 15 July 1944 (tr. B. M. Mooyaart)",
+  q:"…in spite of everything I still believe that people are really good at heart."},
+ {era:["ww2"],       who:"Anthony McAuliffe",     when:"reply to a German demand for surrender, Bastogne, 22 December 1944",
+  q:"NUTS!"},
  {era:["ww2"],       who:"Chester W. Nimitz",     when:"communiqué on Iwo Jima, 16 March 1945",
   q:"Among the Americans who served on Iwo Island, uncommon valor was a common virtue."},
+ {era:["ww2"],       who:"J. Robert Oppenheimer", when:"recalling the Trinity test of 16 July 1945, in a 1965 broadcast",
+  q:"Now I am become Death, the destroyer of worlds."},
+ {era:["ww2"],       who:"Harry S. Truman",       when:"statement on Hiroshima, 6 August 1945",
+  q:"It is a harnessing of the basic power of the universe."},
+ /* ---- the Cold War ---- */
  {era:["coldwar"],   who:"Winston Churchill",     when:"Fulton, Missouri, 5 March 1946",
   q:"From Stettin in the Baltic to Trieste in the Adriatic, an iron curtain has descended across the Continent."},
+ {era:["coldwar"],   who:"Harry S. Truman",       when:"address to Congress, 12 March 1947",
+  q:"I believe that it must be the policy of the United States to support free peoples who are resisting attempted subjugation by armed minorities or by outside pressures."},
+ {era:["coldwar"],   who:"Bernard Baruch",        when:"Columbia, South Carolina, 16 April 1947",
+  q:"Let us not be deceived — we are today in the midst of a cold war."},
+ {era:["coldwar"],   who:"George Orwell",         when:"Nineteen Eighty-Four, 1949",
+  q:"Big Brother is watching you."},
+ {era:["coldwar"],   who:"Douglas MacArthur",     when:"farewell address to Congress, 19 April 1951",
+  q:"Old soldiers never die; they just fade away."},
+ {era:["coldwar"],   who:"Jonas Salk",            when:"asked who owned the polio vaccine, 12 April 1955",
+  q:"Well, the people, I would say. There is no patent. Could you patent the sun?"},
+ {era:["coldwar"],   who:"Eleanor Roosevelt",     when:"You Learn by Living, 1960",
+  q:"You must do the thing you think you cannot do."},
  {era:["coldwar"],   who:"Dwight D. Eisenhower",  when:"farewell address, 17 January 1961",
   q:"We must guard against the acquisition of unwarranted influence, whether sought or unsought, by the military-industrial complex."},
  {era:["coldwar"],   who:"John F. Kennedy",       when:"inaugural address, 20 January 1961",
   q:"Ask not what your country can do for you — ask what you can do for your country."},
+ {era:["coldwar"],   who:"Yuri Gagarin",          when:"at lift-off, Baikonur, 12 April 1961",
+  q:"Poyekhali! — Let's go!"},
+ {era:["coldwar"],   who:"John F. Kennedy",       when:"Rice University, 12 September 1962",
+  q:"We choose to go to the Moon in this decade and do the other things, not because they are easy, but because they are hard."},
  {era:["coldwar"],   who:"John F. Kennedy",       when:"West Berlin, 26 June 1963",
   q:"Ich bin ein Berliner."},
+ {era:["coldwar"],   who:"Martin Luther King Jr.",when:"Lincoln Memorial, 28 August 1963",
+  q:"I have a dream that my four little children will one day live in a nation where they will not be judged by the color of their skin but by the content of their character."},
+ {era:["coldwar"],   who:"Nelson Mandela",        when:"from the dock at the Rivonia Trial, 20 April 1964",
+  q:"It is an ideal which I hope to live for and to achieve. But if needs be, it is an ideal for which I am prepared to die."},
+ {era:["coldwar"],   who:"Muhammad Ali",          when:"to reporters, Miami, 17 February 1966",
+  q:"I ain't got no quarrel with them Viet Cong."},
+ {era:["coldwar"],   who:"Walter Cronkite",       when:"CBS Evening News, 27 February 1968",
+  q:"…it seems now more certain than ever that the bloody experience of Vietnam is to end in a stalemate."},
+ {era:["coldwar"],   who:"Neil Armstrong",        when:"the Sea of Tranquility, 20 July 1969",
+  q:"That's one small step for man, one giant leap for mankind."},
+ {era:["coldwar"],   who:"Jack Swigert",          when:"Apollo 13, 14 April 1970",
+  q:"Okay, Houston, we've had a problem here."},
+ {era:["coldwar"],   who:"Margaret Thatcher",     when:"Conservative Party conference, 10 October 1980",
+  q:"You turn if you want to. The lady's not for turning."},
  {era:["coldwar"],   who:"Ronald Reagan",         when:"Brandenburg Gate, 12 June 1987",
-  q:"Mr. Gorbachev, tear down this wall!"}
+  q:"Mr. Gorbachev, tear down this wall!"},
+ /* ---- the present ---- */
+ {era:["modern"],    who:"Carl Sagan",            when:"Pale Blue Dot, 1994",
+  q:"Look again at that dot. That's here. That's home. That's us."},
+ {era:["modern"],    who:"Nelson Mandela",        when:"inaugural address, Pretoria, 10 May 1994",
+  q:"Never, never and never again shall it be that this beautiful land will again experience the oppression of one by another."},
+ {era:["modern"],    who:"George W. Bush",        when:"address to Congress, 20 September 2001",
+  q:"Every nation, in every region, now has a decision to make. Either you are with us, or you are with the terrorists."},
+ {era:["modern"],    who:"Steve Jobs",            when:"Stanford commencement address, 12 June 2005",
+  q:"Stay hungry. Stay foolish."},
+ {era:["modern"],    who:"Barack Obama",          when:"Nashua, New Hampshire, 8 January 2008",
+  q:"Yes, we can."},
+ {era:["modern"],    who:"Tim Berners-Lee",       when:"London Olympic opening ceremony, 27 July 2012",
+  q:"This is for everyone."},
+ {era:["modern"],    who:"Malala Yousafzai",      when:"United Nations, 12 July 2013",
+  q:"One child, one teacher, one book, one pen can change the world."},
+ /* ---- the thirteenth century: chroniclers and poets, not the Khan ---- */
+ {era:["mongol"],    who:"The Magna Carta",       when:"Runnymede, 15 June 1215, clause 40",
+  q:"To no one will we sell, to no one deny or delay right or justice."},
+ {era:["mongol"],    who:"The Chronicle of Novgorod",when:"on the Mongols' first arrival, 1224 (tr. Michell and Forbes)",
+  q:"For our sins, there came unknown tribes. No one exactly knows who they are, nor whence they came out, nor what their language is, nor of what race they are, nor what their faith is."},
+ {era:["mongol"],    who:"Dante Alighieri",       when:"Inferno, canto III, c. 1308–1320",
+  q:"Abandon all hope, ye who enter here."},
+ {era:["mongol"],    who:"Marco Polo",            when:"on his deathbed, 1324, as reported by Jacopo d'Acqui",
+  q:"I did not write half of what I saw."}
 ];
+/* Painted briefing backdrops. Original art made at run time on a canvas --
+   no photograph, no download, nothing to credit -- so every era gets a
+   scene even where no archive can be reached. Silhouettes against a lit
+   sky: the composition carries it, so the detail can stay simple. */
+const SCENE_PAL={
+  ww1:     {sky:["#2a2218","#6b4a2a","#c08a4a","#e6b46a"],sun:"#ffd28a",haze:"#a8794a",land:"#1a140e",smoke:"#5b4a3a"},
+  ww2:     {sky:["#1c1512","#5a2b1a","#b8521f","#f0a040"],sun:"#ffcc66",haze:"#9a4a22",land:"#120d0a",smoke:"#3a2a22"},
+  coldwar: {sky:["#0c1520","#1f3446","#4f7287","#a8c0c8"],sun:"#e8f0f0",haze:"#56707e",land:"#0a1016",smoke:"#2c3a44",night:1},
+  civilwar:{sky:["#1e1a1c","#4a3536","#9a6a4a","#e0a868"],sun:"#ffe0a0",haze:"#8a6450",land:"#151012",smoke:"#5a4c48"},
+  napoleon:{sky:["#1c1a24","#4a3a4a","#b0704a","#f2c070"],sun:"#fff0b0",haze:"#a07058",land:"#141016",smoke:"#6a5a5a"},
+  mongol:  {sky:["#1a0f12","#5a1f22","#b0442a","#f08a3a"],sun:"#ffd070",haze:"#a0502e",land:"#140a0a",smoke:"#5a3028"},
+  modern:  {sky:["#070b14","#14223a","#2e4a6a","#6a8aa8"],sun:"#cfe0ff",haze:"#3a5070",land:"#05080e",smoke:"#1e2a3a",night:1}
+};
+function _scRng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function _scRgba(h,a){return"rgba("+[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)).join(",")+","+a+")";}
+function _scMix(a,b,t){const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));const A=p(a),B=p(b);
+  return"rgb("+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(",")+")";}
+function paintScene(era,W,H,seed,lift){
+  lift=lift||0;   /* raises the horizon and the figures, to clear a caption below */
+  const P=SCENE_PAL[era]||SCENE_PAL.ww2, R=_scRng(seed||((Math.random()*1e9)|0));
+  const c=document.createElement("canvas");c.width=W;c.height=H;
+  const g=c.getContext("2d"), S=H/900, hz=H*(0.6+R()*0.06-lift);
+  const sunX=W*(0.25+R()*0.5), sunY=hz-H*(0.04+R()*0.1);
+  /* sky */
+  let gr=g.createLinearGradient(0,0,0,hz);
+  gr.addColorStop(0,P.sky[0]);gr.addColorStop(0.45,P.sky[1]);gr.addColorStop(0.82,P.sky[2]);gr.addColorStop(1,P.sky[3]);
+  g.fillStyle=gr;g.fillRect(0,0,W,H);
+  /* the sun and its halo */
+  gr=g.createRadialGradient(sunX,sunY,0,sunX,sunY,H*0.75);
+  gr.addColorStop(0,P.sun);gr.addColorStop(0.05,_scRgba(P.sun,.8));gr.addColorStop(0.2,_scRgba(P.sky[3],.4));gr.addColorStop(1,_scRgba(P.sky[3],0));
+  g.fillStyle=gr;g.fillRect(0,0,W,H);
+  /* light shafts */
+  g.save();g.globalCompositeOperation="lighter";
+  for(let i=0;i<(P.night?0:5);i++){const a=-Math.PI/2+(R()-0.5)*2.2,w=0.02+R()*0.05,L=H*1.1;
+    gr=g.createRadialGradient(sunX,sunY,0,sunX,sunY,L);gr.addColorStop(0,_scRgba(P.sun,.12));gr.addColorStop(1,_scRgba(P.sun,0));
+    g.fillStyle=gr;g.beginPath();g.moveTo(sunX,sunY);g.arc(sunX,sunY,L,a-w,a+w);g.closePath();g.fill();}
+  g.restore();
+  /* clouds: banks of soft blobs, lit from below on the sun side */
+  const cloud=(cx,cy,rw,rh,col,al)=>{for(let i=0;i<26;i++){const x=cx+(R()-0.5)*rw,y=cy+(R()-0.5)*rh*0.6,r=rh*(0.3+R()*0.5);
+      const q=g.createRadialGradient(x,y,0,x,y,r);q.addColorStop(0,_scRgba(col,1));q.addColorStop(1,_scRgba(col,0));
+      g.globalAlpha=al*(0.5+R()*0.5);g.fillStyle=q;g.beginPath();g.arc(x,y,r,0,7);g.fill();}g.globalAlpha=1;};
+  for(let i=0;i<6;i++)cloud(R()*W,H*(0.08+R()*0.32),W*(0.25+R()*0.3),H*(0.08+R()*0.08),P.sky[i%2?0:1],0.5);
+  for(let i=0;i<4;i++)cloud(sunX+(R()-0.5)*W*0.6,sunY-H*(0.08+R()*0.15),W*0.25,H*0.05,P.sky[3],0.25);
+  /* ridgelines receding into haze */
+  const ridge=(base,amp,rough,col)=>{g.fillStyle=col;g.beginPath();g.moveTo(0,H);
+    const n=Math.ceil(W/(4*S))+1,ph=[0,1,2,3,4].map(()=>R()*7),fr=[1.3,3.1,7.3,17,41];
+    for(let i=0;i<=n;i++){const x=i*W/n,u=x/W;let v=0;
+      for(let k=0;k<5;k++)v+=Math.sin(u*fr[k]*Math.PI+ph[k])/(k<2?1:k*(1.6-rough));
+      g.lineTo(x,base-amp*(0.55+0.3*v));}
+    g.lineTo(W,H);g.closePath();g.fill();};
+  ridge(hz,H*0.07,0.35,_scMix(P.haze,P.sky[2],0.45));
+  ridge(hz+H*0.03,H*0.05,0.4,_scMix(P.haze,P.land,0.35));
+  /* smoke columns */
+  const smokeCol=(x,y,hgt)=>{for(let i=0;i<40;i++){const t=i/40,r=(10+t*90)*S*(0.7+R()*0.6);
+      const px=x+t*hgt*0.35+(R()-0.5)*30*S*t,py=y-t*hgt;
+      const q=g.createRadialGradient(px,py,0,px,py,r);q.addColorStop(0,_scRgba(P.smoke,1));q.addColorStop(1,_scRgba(P.smoke,0));
+      g.globalAlpha=0.35*(1-t*0.6);g.fillStyle=q;g.beginPath();g.arc(px,py,r,0,7);g.fill();}g.globalAlpha=1;};
+  if(era!=="mongol"||R()<0.5)for(let i=0;i<2+R()*3;i++)smokeCol(W*(0.05+R()*0.9),hz+H*0.02,H*(0.3+R()*0.3));
+  /* mid ground and a foreground rise */
+  ridge(hz+H*0.07,H*0.04,0.3,_scMix(P.haze,P.land,0.7));
+  /* mist band over the middle distance */
+  gr=g.createLinearGradient(0,hz-H*0.04,0,hz+H*0.12);
+  gr.addColorStop(0,_scRgba(P.haze,0));gr.addColorStop(0.5,_scRgba(P.haze,.33));gr.addColorStop(1,_scRgba(P.haze,0));
+  g.fillStyle=gr;g.fillRect(0,hz-H*0.04,W,H*0.16);
+
+  g.fillStyle=P.land;g.strokeStyle=P.land;g.lineCap="round";g.lineJoin="round";
+  const ground=[];   /* foreground contour, sampled so figures stand on it */
+  {const base=H*(0.8+R()*0.04-lift),a=H*0.05,o=R()*10,f=1+R();g.beginPath();g.moveTo(0,H);
+   for(let x=0;x<=W;x+=4){const y=base-a*Math.sin(x/W*Math.PI*f+o)-a*0.3*Math.sin(x/W*13+o);ground.push(y);g.lineTo(x,y);}
+   g.lineTo(W,H);g.closePath();g.fill();}
+  const gy=x=>ground[Math.max(0,Math.min(ground.length-1,Math.round(x/4)))];
+  const SC=new SceneKit(g,R,S,P);
+  SCENE_ART[era]&&SCENE_ART[era](SC,W,H,hz,gy,R,S);
+  /* grade: low-sun warmth and a vignette are left to the overlay */
+  return c;
+}
+/* the silhouette kit */
+function SceneKit(g,R,S,P){this.g=g;this.R=R;this.S=S;this.P=P;}
+SceneKit.prototype.at=function(x,y,s,flip,fn){const g=this.g;g.save();g.translate(x,y);g.scale(flip?-s:s,s);fn(g);g.restore();};
+/* a man on foot, origin at his feet, 100 units tall */
+SceneKit.prototype.man=function(x,y,s,o){o=o||{};const R=this.R,st=R()*0.6;
+  this.at(x,y,s,o.flip,g=>{
+    g.lineCap="round";g.lineJoin="round";
+    const lean=o.lean!=null?o.lean:12, hipX=lean*0.3, hipY=-48;
+    g.lineWidth=11;g.beginPath();   /* legs mid-stride */
+    g.moveTo(hipX,hipY);g.lineTo(hipX+14+st*8,-24);g.lineTo(hipX+20+st*10,-2);
+    g.moveTo(hipX,hipY);g.lineTo(hipX-10,-26);g.lineTo(hipX-24-st*6,-6);g.stroke();
+    g.lineWidth=17;g.beginPath();g.moveTo(hipX,hipY);g.lineTo(lean,-80);g.stroke();   /* torso */
+    if(o.pack){g.beginPath();g.ellipse(lean-12,-70,9,14,0.2,0,7);g.fill();}
+    g.beginPath();g.arc(lean+2,-91,8,0,7);g.fill();   /* head */
+    const hx=lean+2,hy=-95;g.beginPath();   /* headgear */
+    switch(o.hat){
+      case"brodie":g.ellipse(hx,hy,15,3.5,0,0,7);g.fill();g.beginPath();g.arc(hx,hy,8.5,Math.PI,0);break;
+      case"stahl":g.moveTo(hx-12,hy+6);g.quadraticCurveTo(hx-12,hy-10,hx,hy-10);g.quadraticCurveTo(hx+11,hy-10,hx+11,hy+3);g.lineTo(hx+13,hy+7);break;
+      case"m1":g.moveTo(hx-12,hy+5);g.quadraticCurveTo(hx-11,hy-11,hx,hy-11);g.quadraticCurveTo(hx+11,hy-11,hx+12,hy+5);break;
+      case"kepi":g.rect(hx-7,hy-12,13,13);g.moveTo(hx+5,hy);g.lineTo(hx+14,hy+2);g.lineTo(hx+5,hy+3);break;
+      case"slouch":g.ellipse(hx,hy+1,15,3,0,0,7);g.fill();g.beginPath();g.ellipse(hx,hy-3,8,7,0,Math.PI,0);break;
+      case"shako":g.moveTo(hx-8,hy+2);g.lineTo(hx-9,hy-18);g.lineTo(hx+9,hy-18);g.lineTo(hx+8,hy+2);g.rect(hx-2,hy-28,4,10);break;
+      case"bicorne":g.ellipse(hx,hy-3,17,7,0,Math.PI,0);break;
+      case"helmetM":g.arc(hx,hy+2,10,Math.PI*1.05,-0.05);g.lineTo(hx+11,hy+6);break;
+      default:break;}
+    g.fill();
+    /* arms and the weapon */
+    g.lineWidth=7;g.beginPath();
+    if(o.flag){g.moveTo(lean,-76);g.lineTo(lean+14,-100);g.stroke();
+      g.lineWidth=3;g.beginPath();g.moveTo(lean+14,-60);g.lineTo(lean+16,-175);g.stroke();
+      const fx=lean+16,fy=-175,w=60,h=36,ph=R()*6;g.beginPath();g.moveTo(fx,fy);
+      for(let i=0;i<=10;i++)g.lineTo(fx-i/10*w,fy+Math.sin(i*0.7+ph)*5+i*0.6);
+      for(let i=10;i>=0;i--)g.lineTo(fx-i/10*w+(i>7?(R()-0.5)*8:0),fy+h+Math.sin(i*0.7+ph)*5+i*0.6);g.closePath();g.fill();return;}
+    if(o.sabre){g.moveTo(lean,-76);g.lineTo(lean+18,-96);g.stroke();g.lineWidth=2.5;g.beginPath();g.moveTo(lean+18,-96);g.quadraticCurveTo(lean+30,-130,lean+22,-150);g.stroke();return;}
+    g.moveTo(lean,-76);g.lineTo(lean+16,-62);g.moveTo(lean-2,-74);g.lineTo(lean+8,-58);g.stroke();
+    if(o.rifle!==false){g.lineWidth=3.5;g.beginPath();const a=o.aim?-0.15:-0.7;
+      g.moveTo(lean-10,-50);g.lineTo(lean-10+Math.cos(a)*62,-50+Math.sin(a)*62);g.stroke();
+      if(o.bayonet){g.lineWidth=1.5;g.beginPath();g.moveTo(lean-10+Math.cos(a)*62,-50+Math.sin(a)*62);g.lineTo(lean-10+Math.cos(a)*80,-50+Math.sin(a)*80);g.stroke();}}
+  });};
+SceneKit.prototype.horse=function(x,y,s,o){o=o||{};const R=this.R,ph=R();
+  this.at(x,y,s,o.flip,g=>{
+    g.lineCap="round";g.lineJoin="round";
+    g.beginPath();g.ellipse(0,-72,40,18,-0.04,0,7);g.fill();   /* barrel */
+    g.beginPath();g.ellipse(-28,-74,20,19,0,0,7);g.fill();   /* rump */
+    g.beginPath();g.ellipse(26,-76,20,20,0,0,7);g.fill();   /* chest */
+    g.beginPath();g.moveTo(24,-92);g.quadraticCurveTo(40,-112,50,-124);g.lineTo(60,-128);   /* neck and head */
+    g.quadraticCurveTo(70,-124,82,-106);g.quadraticCurveTo(84,-99,76,-98);g.lineTo(62,-106);
+    g.quadraticCurveTo(52,-90,44,-66);g.closePath();g.fill();
+    g.beginPath();g.moveTo(52,-122);g.lineTo(50,-136);g.lineTo(58,-126);g.fill();   /* ear */
+    g.beginPath();g.moveTo(48,-122);g.quadraticCurveTo(34,-112,26,-92);g.lineTo(32,-96);g.quadraticCurveTo(40,-110,50,-118);g.fill();   /* mane */
+    /* galloping legs: thick at the body, thin at the hoof */
+    const leg=(x0,y0,x1,y1,x2,y2)=>{g.lineWidth=11;g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();
+      g.lineWidth=5.5;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();
+      g.beginPath();g.ellipse(x2,y2,4.5,3,0,0,7);g.fill();};
+    const k=ph*0.6;
+    leg(34,-66,54+k*8,-42,72+k*8,-36);
+    leg(24,-62,32,-36,46,-20+k*6);
+    leg(-32,-66,-50,-44,-74,-40-k*6);
+    leg(-38,-64,-38,-38,-26,-16);
+    g.lineWidth=7;g.beginPath();g.moveTo(-44,-82);g.quadraticCurveTo(-66,-84,-80,-62);g.stroke();   /* tail */
+    g.lineWidth=3;g.beginPath();g.moveTo(-44,-80);g.quadraticCurveTo(-70,-78,-86,-56);g.stroke();
+    /* rider */
+    g.lineWidth=13;g.beginPath();g.moveTo(-2,-86);g.lineTo(6,-128);g.stroke();
+    g.lineWidth=8;g.beginPath();g.moveTo(-2,-86);g.lineTo(14,-74);g.lineTo(12,-56);g.stroke();
+    g.beginPath();g.arc(8,-140,8,0,7);g.fill();
+    if(o.hat==="mongol"){g.beginPath();g.moveTo(-2,-142);g.quadraticCurveTo(8,-162,18,-142);g.closePath();g.fill();
+      g.beginPath();g.ellipse(8,-142,12,3,0,0,7);g.fill();}
+    else if(o.hat==="shako"){g.fillRect(1,-162,14,18);g.fillRect(6,-172,4,10);}
+    else if(o.hat==="bicorne"){g.beginPath();g.ellipse(8,-146,16,7,0,Math.PI,0);g.fill();}
+    else if(o.hat==="kepi"){g.fillRect(2,-158,12,12);}
+    g.lineWidth=5;g.beginPath();
+    if(o.bow){g.moveTo(6,-122);g.lineTo(30,-124);g.stroke();g.lineWidth=2.5;g.beginPath();
+      g.arc(26,-124,24,-1.45,1.45);g.stroke();g.lineWidth=1;g.beginPath();g.moveTo(26+24*Math.cos(-1.45),-124+24*Math.sin(-1.45));
+      g.lineTo(8,-124);g.lineTo(26+24*Math.cos(1.45),-124+24*Math.sin(1.45));g.stroke();}
+    else if(o.lance){g.moveTo(6,-122);g.lineTo(20,-112);g.stroke();g.lineWidth=2.5;g.beginPath();g.moveTo(-40,-170);g.lineTo(80,-80);g.stroke();
+      g.beginPath();g.moveTo(-40,-170);g.lineTo(-22,-152);g.lineTo(-30,-170);g.fill();}
+    else{g.moveTo(6,-122);g.lineTo(22,-140);g.stroke();g.lineWidth=2.5;g.beginPath();g.moveTo(22,-140);g.quadraticCurveTo(36,-168,30,-190);g.stroke();}
+  });};
+SceneKit.prototype.tank=function(x,y,s,o){o=o||{};
+  this.at(x,y,s,o.flip,g=>{
+    g.beginPath();g.moveTo(-95,-8);g.quadraticCurveTo(-110,-8,-110,-24);g.lineTo(-100,-40);g.lineTo(100,-40);
+    g.lineTo(112,-24);g.quadraticCurveTo(110,-8,95,-8);g.closePath();g.fill();   /* tracks */
+    g.beginPath();g.moveTo(-104,-40);g.lineTo(-90,-62);g.lineTo(84,-62);g.lineTo(108,-44);g.closePath();g.fill();   /* hull */
+    g.beginPath();g.moveTo(-50,-62);g.lineTo(-44,-92);g.lineTo(30,-94);g.lineTo(44,-62);g.closePath();g.fill();   /* turret */
+    g.fillRect(-20,-104,24,12);
+    g.lineWidth=7;g.beginPath();g.moveTo(40,-80);g.lineTo(150,-84);g.stroke();
+    g.fillRect(146,-88,12,8);
+    if(o.ant){g.lineWidth=1.5;g.beginPath();g.moveTo(-36,-94);g.lineTo(-48,-150);g.stroke();}
+  });};
+SceneKit.prototype.plane=function(x,y,s,kind,flip){
+  this.at(x,y,s,flip,g=>{g.lineCap="round";
+    if(kind==="bi"){g.beginPath();g.ellipse(0,0,36,6,0,0,7);g.fill();g.fillRect(-34,-14,6,14);
+      g.beginPath();g.moveTo(-34,-14);g.lineTo(-40,-22);g.lineTo(-28,-8);g.fill();
+      g.fillRect(-6,-18,22,3);g.fillRect(-6,6,22,3);g.lineWidth=1.5;g.beginPath();g.moveTo(0,-16);g.lineTo(0,8);g.moveTo(14,-16);g.lineTo(14,8);g.stroke();
+      g.fillRect(34,-8,3,16);}
+    else if(kind==="bomber"){g.beginPath();g.ellipse(0,0,60,7,0,0,7);g.fill();
+      g.beginPath();g.moveTo(-8,-2);g.lineTo(-24,-78);g.lineTo(-10,-78);g.lineTo(18,-2);g.lineTo(18,2);g.lineTo(-10,78);g.lineTo(-24,78);g.lineTo(-8,2);g.fill();
+      for(const yy of[-26,-52,26,52]){g.beginPath();g.ellipse(-4+Math.abs(yy)*-0.15+18,yy,10,3.5,0,0,7);g.fill();}
+      g.beginPath();g.moveTo(-52,-2);g.lineTo(-62,-24);g.lineTo(-54,-24);g.lineTo(-42,0);g.lineTo(-54,24);g.lineTo(-62,24);g.closePath();g.fill();}
+    else if(kind==="fighter"){g.beginPath();g.ellipse(0,0,34,5,0,0,7);g.fill();
+      g.beginPath();g.moveTo(4,-1);g.lineTo(-6,-36);g.lineTo(2,-36);g.lineTo(14,-1);g.lineTo(14,1);g.lineTo(2,36);g.lineTo(-6,36);g.lineTo(4,1);g.fill();
+      g.beginPath();g.moveTo(-28,0);g.lineTo(-36,-12);g.lineTo(-30,-12);g.lineTo(-22,0);g.lineTo(-30,12);g.lineTo(-36,12);g.fill();}
+    else if(kind==="jet"){g.beginPath();g.moveTo(44,0);g.lineTo(20,-4);g.lineTo(-30,-4);g.lineTo(-40,0);g.lineTo(-30,4);g.lineTo(20,4);g.fill();
+      g.beginPath();g.moveTo(14,-3);g.lineTo(-14,-38);g.lineTo(-22,-38);g.lineTo(-10,-3);g.lineTo(-10,3);g.lineTo(-22,38);g.lineTo(-14,38);g.lineTo(14,3);g.fill();
+      g.beginPath();g.moveTo(-26,-3);g.lineTo(-40,-16);g.lineTo(-36,0);g.lineTo(-40,16);g.lineTo(-26,3);g.fill();}
+    else if(kind==="heli"){g.beginPath();g.ellipse(0,0,26,11,0,0,7);g.fill();g.fillRect(-60,-3,40,5);
+      g.fillRect(-64,-12,6,14);g.lineWidth=2;g.beginPath();g.moveTo(-70,-20);g.lineTo(70,-18);g.stroke();g.fillRect(-3,-18,6,8);
+      g.beginPath();g.moveTo(-12,12);g.lineTo(-16,18);g.lineTo(18,18);g.lineTo(12,12);g.stroke();}
+  });};
+SceneKit.prototype.gun=function(x,y,s,flip){   /* muzzle-loading field gun */
+  this.at(x,y,s,flip,g=>{g.lineWidth=7;g.beginPath();g.moveTo(-60,-2);g.lineTo(10,-26);g.stroke();
+    g.lineWidth=9;g.beginPath();g.moveTo(0,-30);g.lineTo(70,-46);g.stroke();
+    g.lineWidth=4;g.beginPath();g.arc(8,-24,22,0,7);g.stroke();
+    for(let i=0;i<8;i++){const a=i*Math.PI/4;g.beginPath();g.moveTo(8,-24);g.lineTo(8+Math.cos(a)*22,-24+Math.sin(a)*22);g.lineWidth=2;g.stroke();}
+    g.beginPath();g.arc(8,-24,4,0,7);g.fill();});};
+SceneKit.prototype.puff=function(x,y,r){const g=this.g,R=this.R;
+  for(let i=0;i<14;i++){const px=x+(R()-0.3)*r*1.6,py=y-(R())*r*0.8,rr=r*(0.3+R()*0.5);
+    const q=g.createRadialGradient(px,py,0,px,py,rr);q.addColorStop(0,"rgba(235,225,205,.55)");q.addColorStop(1,"rgba(235,225,205,0)");
+    g.fillStyle=q;g.beginPath();g.arc(px,py,rr,0,7);g.fill();}g.fillStyle=this.P.land;};
+SceneKit.prototype.flash=function(x,y,r){const g=this.g;const q=g.createRadialGradient(x,y,0,x,y,r);
+  q.addColorStop(0,"rgba(255,240,190,.95)");q.addColorStop(0.25,"rgba(255,160,60,.6)");q.addColorStop(1,"rgba(255,120,40,0)");
+  g.save();g.globalCompositeOperation="lighter";g.fillStyle=q;g.beginPath();g.arc(x,y,r,0,7);g.fill();g.restore();g.fillStyle=this.P.land;};
+SceneKit.prototype.deadTree=function(x,y,s){const R=this.R;this.at(x,y,s,false,g=>{g.lineCap="round";
+  const br=(x0,y0,a,l,w,d)=>{if(d>4||l<6)return;const x1=x0+Math.cos(a)*l,y1=y0+Math.sin(a)*l;g.lineWidth=w;g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();
+    if(R()<0.8)br(x1,y1,a-0.4-R()*0.4,l*0.62,w*0.6,d+1);if(R()<0.7)br(x1,y1,a+0.3+R()*0.4,l*0.55,w*0.6,d+1);};
+  br(0,0,-Math.PI/2+(R()-0.5)*0.3,60+R()*40,10,0);});};
+SceneKit.prototype.wire=function(x0,x1,gy){const g=this.g,S=this.S,R=this.R;g.lineWidth=2.5*S;
+  for(let x=x0;x<x1;x+=70*S){const y=gy(x);g.beginPath();g.moveTo(x-6*S,y);g.lineTo(x+4*S,y-36*S);g.moveTo(x+6*S,y);g.lineTo(x-4*S,y-36*S);g.stroke();}
+  g.lineWidth=1.2*S;for(let k=0;k<3;k++){g.beginPath();for(let x=x0;x<x1;x+=6*S){const y=gy(x)-12*S-k*9*S+Math.sin(x*0.25+k)*7*S;x===x0?g.moveTo(x,y):g.lineTo(x,y);}g.stroke();}};
+SceneKit.prototype.ship=function(x,y,s,flip){this.at(x,y,s,flip,g=>{
+  g.beginPath();g.moveTo(-120,-30);g.lineTo(130,-34);g.lineTo(110,0);g.lineTo(-100,0);g.closePath();g.fill();
+  g.beginPath();g.moveTo(-120,-30);g.lineTo(-128,-52);g.lineTo(-96,-36);g.fill();
+  g.lineWidth=2;g.beginPath();g.moveTo(130,-34);g.lineTo(190,-70);g.stroke();
+  for(const[mx,h]of[[-70,190],[10,230],[80,180]]){g.lineWidth=3;g.beginPath();g.moveTo(mx,-30);g.lineTo(mx,-30-h);g.stroke();
+    for(let k=0;k<3;k++){const yy=-50-k*h*0.3,w=(56-k*10);g.beginPath();g.moveTo(mx-w,yy-h*0.24);g.quadraticCurveTo(mx,yy-h*0.2,mx+w,yy-h*0.24);
+      g.lineTo(mx+w*0.92,yy);g.quadraticCurveTo(mx,yy+8,mx-w*0.92,yy);g.closePath();g.globalAlpha=0.92;g.fill();g.globalAlpha=1;}}
+  g.beginPath();g.moveTo(130,-34);g.lineTo(80,-200);g.lineTo(80,-60);g.closePath();g.fill();});};
+SceneKit.prototype.tent=function(x,y,s,yurt){this.at(x,y,s,false,g=>{g.beginPath();
+  if(yurt){g.moveTo(-40,0);g.lineTo(-40,-26);g.quadraticCurveTo(0,-56,40,-26);g.lineTo(40,0);}
+  else{g.moveTo(-34,0);g.lineTo(0,-40);g.lineTo(34,0);}g.closePath();g.fill();});};
+SceneKit.prototype.missile=function(x,y,s){this.at(x,y,s,false,g=>{g.beginPath();g.moveTo(-8,-10);g.lineTo(-8,-170);g.quadraticCurveTo(0,-200,8,-170);g.lineTo(8,-10);g.closePath();g.fill();
+  g.beginPath();g.moveTo(-8,-10);g.lineTo(-20,0);g.lineTo(-8,-40);g.moveTo(8,-10);g.lineTo(20,0);g.lineTo(8,-40);g.fill();
+  g.lineWidth=4;g.beginPath();g.moveTo(-30,0);g.lineTo(-14,-150);g.moveTo(30,0);g.lineTo(14,-150);g.stroke();});};
+SceneKit.prototype.radar=function(x,y,s){this.at(x,y,s,false,g=>{g.lineWidth=4;g.beginPath();g.moveTo(0,0);g.lineTo(0,-60);g.moveTo(-20,0);g.lineTo(0,-40);g.lineTo(20,0);g.stroke();
+  g.beginPath();g.ellipse(0,-80,40,14,-0.6,0,7);g.fill();});};
+SceneKit.prototype.skyline=function(x0,x1,gy,maxH){const g=this.g,R=this.R,S=this.S;let x=x0;
+  while(x<x1){const w=(20+R()*50)*S,h=(30+R()*maxH)*S,y=gy(x+w/2);g.fillRect(x,y-h,w,h+40*S);
+    if(R()<0.2)g.fillRect(x+w/2-1.5*S,y-h-30*S,3*S,30*S);
+    g.save();g.fillStyle="rgba(255,214,140,.55)";for(let wy=y-h+6*S;wy<y-8*S;wy+=9*S)for(let wx=x+4*S;wx<x+w-4*S;wx+=7*S)if(R()<0.12)g.fillRect(wx,wy,3*S,4*S);g.restore();
+    x+=w+R()*4*S;}};
+SceneKit.prototype.searchlights=function(W,hz,n){const g=this.g,R=this.R;g.save();g.globalCompositeOperation="lighter";
+  for(let i=0;i<n;i++){const x=W*(0.1+R()*0.8),a=-Math.PI/2+(R()-0.5)*1.1,L=hz*1.3;
+    const q=g.createLinearGradient(x,hz,x+Math.cos(a)*L,hz+Math.sin(a)*L);q.addColorStop(0,"rgba(220,230,255,.22)");q.addColorStop(1,"rgba(220,230,255,0)");
+    g.fillStyle=q;g.beginPath();g.moveTo(x-3,hz);g.lineTo(x+Math.cos(a-0.035)*L,hz+Math.sin(a-0.035)*L);g.lineTo(x+Math.cos(a+0.035)*L,hz+Math.sin(a+0.035)*L);g.lineTo(x+3,hz);g.fill();}
+  g.restore();};
+
+/* one composition per era; the dice place everything, so no two are alike */
+const SCENE_ART={
+  ww1(K,W,H,hz,gy,R,S){
+    for(let i=0;i<3;i++)K.flash(W*(0.1+R()*0.8),hz+H*0.01,60*S+R()*80*S);
+    for(let i=0;i<3;i++)K.deadTree(W*(0.05+R()*0.9),gy(W*0.5)-R()*10*S,S*(0.8+R()*0.5));
+    for(let i=0;i<2;i++)K.plane(W*(0.15+R()*0.7),H*(0.12+R()*0.2),S*(0.5+R()*0.4),"bi",R()<0.5);
+    K.wire(0,W,gy);
+    const n=5+(R()*4|0);for(let i=0;i<n;i++){const x=W*(0.06+0.88*i/n)+(R()-0.5)*50*S,s=S*(1.25+R()*0.45);
+      K.man(x,gy(x)+4*S,s,{hat:"brodie",bayonet:true,pack:true,flag:i===Math.floor(n/2)&&R()<0.6});}},
+  ww2(K,W,H,hz,gy,R,S){
+    for(let i=0;i<5+R()*4;i++)K.plane(W*(0.1+R()*0.8),H*(0.08+R()*0.22),S*(0.35+R()*0.3),"bomber",false);
+    for(let i=0;i<2;i++)K.plane(W*(0.1+R()*0.8),H*(0.2+R()*0.15),S*0.5,"fighter",R()<0.5);
+    for(let i=0;i<2;i++)K.flash(W*(0.1+R()*0.8),hz+H*0.02,70*S+R()*60*S);
+    const tx=W*(0.2+R()*0.6),fl=R()<0.5;K.tank(tx,gy(tx)+6*S,S*(1.4+R()*0.3),{flip:fl,ant:true});
+    const n=4+(R()*4|0);for(let i=0;i<n;i++){const x=W*(0.05+0.9*i/n)+(R()-0.5)*40*S;if(Math.abs(x-tx)<220*S)continue;
+      K.man(x,gy(x)+4*S,S*(1.2+R()*0.4),{hat:"m1",pack:true,flip:fl});}},
+  coldwar(K,W,H,hz,gy,R,S){
+    K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.55);K.skyline(0,W,x=>hz+H*0.05,90);K.g.fillStyle=K.P.land;
+    K.searchlights(W,hz+H*0.05,4);
+    for(let i=0;i<3;i++)K.plane(W*(0.15+R()*0.7),H*(0.12+R()*0.25),S*(0.6+R()*0.3),"jet",R()<0.5);
+    const mx=W*(0.15+R()*0.7);K.missile(mx,gy(mx)+4*S,S*2.1);
+    const rx=mx+(R()<0.5?-1:1)*W*0.22;K.radar(rx,gy(rx)+4*S,S*1.3);
+    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-mx)<90*S)continue;K.man(x,gy(x)+4*S,S*1.2,{hat:"helmetM",lean:4,aim:false});}},
+  civilwar(K,W,H,hz,gy,R,S){
+    for(let i=0;i<4;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.07,S*(0.6+R()*0.3));
+    const gx=W*(0.15+R()*0.25),fl=R()<0.5;K.gun(gx,gy(gx)+4*S,S*1.5,fl);K.puff(gx+(fl?-110:110)*S,gy(gx)-60*S,90*S);
+    for(let i=0;i<3;i++)K.flash(W*(0.4+R()*0.55),hz+H*0.04,40*S+R()*40*S);
+    const n=5+(R()*3|0);for(let i=0;i<n;i++){const x=W*(0.3+0.65*i/n)+(R()-0.5)*40*S;
+      K.man(x,gy(x)+4*S,S*(1.2+R()*0.4),{hat:R()<0.5?"kepi":"slouch",bayonet:true,flag:i===1});}
+    const hx=W*(0.08+R()*0.15);K.horse(hx,gy(hx)+6*S,S*1.2,{hat:"kepi"});},
+  napoleon(K,W,H,hz,gy,R,S){
+    if(R()<0.5){   /* the line of battle at sea */
+      const g=K.g;g.fillStyle=_scMix(K.P.haze,K.P.land,0.5);g.fillRect(0,hz+H*0.05,W,H);
+      g.save();g.globalCompositeOperation="lighter";const q=g.createLinearGradient(0,hz,0,H);q.addColorStop(0,K.P.sun+"40");q.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=q;g.fillRect(W*0.3,hz+H*0.05,W*0.4,H);g.restore();
+      g.fillStyle=K.P.land;
+      for(let i=0;i<4;i++){const x=W*(0.1+i*0.24+R()*0.06),y=hz+H*(0.1+i*0.06),s=S*(0.55+i*0.25);K.ship(x,y,s,R()<0.3);K.puff(x+(R()-0.5)*80*S,y-20*S,60*S*s/S);}
+      return;}
+    const gx=W*(0.6+R()*0.3);K.gun(gx,gy(gx)+4*S,S*1.5,true);K.puff(gx-120*S,gy(gx)-60*S,100*S);
+    for(let i=0;i<3;i++){const x=W*(0.08+i*0.14)+R()*30*S;K.horse(x,gy(x)+6*S,S*(1.15+R()*0.25),{hat:R()<0.5?"shako":"bicorne",lance:i===2});}
+    for(let i=0;i<4;i++){const x=W*(0.45+i*0.06);K.man(x,gy(x)+4*S,S*1.2,{hat:"shako",bayonet:true,flag:i===0,lean:6});}},
+  mongol(K,W,H,hz,gy,R,S){
+    for(let i=0;i<6;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.075,S*(0.4+R()*0.3),true);
+    const n=6+(R()*4|0),fl=R()<0.5;for(let i=0;i<n;i++){const x=W*(0.04+0.92*i/n)+(R()-0.5)*40*S;
+      K.horse(x,gy(x)+6*S,S*(1.0+R()*0.4),{hat:"mongol",bow:R()<0.7,lance:R()<0.3,flip:fl});}
+    /* the tug -- a horsetail standard */
+    const sx=W*(0.3+R()*0.4),g=K.g;g.lineWidth=4*S;g.beginPath();g.moveTo(sx,gy(sx));g.lineTo(sx,gy(sx)-330*S);g.stroke();
+    for(let k=0;k<9;k++){g.lineWidth=2*S;g.beginPath();g.moveTo(sx,gy(sx)-320*S);g.quadraticCurveTo(sx-20*S-k*3*S,gy(sx)-270*S,sx-40*S-k*4*S,gy(sx)-220*S+k*4*S);g.stroke();}},
+  modern(K,W,H,hz,gy,R,S){
+    K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.5);K.skyline(0,W,x=>hz+H*0.05,200);K.g.fillStyle=K.P.land;
+    for(let i=0;i<3;i++)K.plane(W*(0.15+R()*0.7),H*(0.15+R()*0.2),S*(0.6+R()*0.3),"heli",R()<0.5);
+    K.plane(W*(0.2+R()*0.6),H*0.1,S*0.6,"jet",R()<0.5);
+    const tx=W*(0.2+R()*0.6),fl=R()<0.5;K.tank(tx,gy(tx)+6*S,S*1.3,{flip:fl});
+    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-tx)<220*S)continue;K.man(x,gy(x)+4*S,S*1.25,{hat:"helmetM",pack:true,lean:6,aim:true,flip:fl});}}
+};
 /* Public-domain photographs, each with where it came from and why it is
    free to use. Empty until an archive is reachable from this environment;
    CREDITS reads this list, so nothing can be shown that is not credited. */
@@ -17714,18 +18141,25 @@ function showBriefing(era,force){
   el.id="briefing"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Briefing"); el.tabIndex=-1;
   const tint=BRIEF_TINT[era]||"#22261e";
   const photo=photos.length?photos[Math.floor(Math.random()*photos.length)]:null;
+  const sceneURL=()=>{try{const k=Math.min(1,1920/Math.max(1,innerWidth));
+    return paintScene(era,Math.round(innerWidth*k),Math.round(innerHeight*k),0,0.12).toDataURL("image/jpeg",0.86);}catch(e){return null;}};
+  const painted=photo?null:sceneURL();
   el.style.cssText="position:fixed;inset:0;z-index:300;display:flex;align-items:flex-end;justify-content:center;"+
     "cursor:pointer;opacity:0;transition:opacity .35s ease;overflow:hidden;background:"+tint+";";
   el.innerHTML=
-    `<div style="position:absolute;inset:-4%;${photo
+    `<div id="briefBg" style="position:absolute;inset:-4%;${photo
       ?`background:url('${photo}') center/cover no-repeat;filter:grayscale(.85) sepia(.35) contrast(1.15) brightness(.62);`
+      :painted?`background:url('${painted}') center/cover no-repeat;filter:brightness(.9);`
       :`background:radial-gradient(ellipse 70% 55% at 50% 38%, rgba(255,236,190,.16), transparent 70%),
          linear-gradient(115deg, transparent 38%, rgba(255,240,200,.07) 46%, transparent 54%),
          linear-gradient(65deg, transparent 52%, rgba(255,240,200,.05) 58%, transparent 64%), ${tint};`}
       animation:briefDrift 26s ease-in-out infinite alternate"></div>
     <div id="briefGrain" style="position:absolute;inset:0;background:url('${grainURL()}');opacity:.55;pointer-events:none"></div>
-    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.78) 100%),
-         linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.15) 100%);pointer-events:none"></div>
+    <div style="position:absolute;inset:0;background:${painted
+      ?`radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.55) 100%),
+         linear-gradient(to top, rgba(0,0,0,.8) 0%, rgba(0,0,0,.45) 28%, rgba(0,0,0,0) 48%)`
+      :`radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.78) 100%),
+         linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.15) 100%)`};pointer-events:none"></div>
     <div style="position:relative;max-width:min(880px,92vw);margin:0 auto 9vh;padding:0 16px;text-align:center;color:#efe6cf">
       <div style="font:600 11px/1 var(--font,monospace);letter-spacing:5px;color:#c9a54e;margin-bottom:18px">◆ ${(ERAS[era]&&ERAS[era].label)||"BRIEFING"} ◆</div>
       <div id="briefQ" style="font:italic 400 clamp(20px,3.1vw,36px)/1.32 Georgia,'Times New Roman',serif;text-shadow:0 2px 14px rgba(0,0,0,.8)"></div>
@@ -17751,6 +18185,7 @@ function showBriefing(era,force){
     el.querySelector("#briefWho").textContent="— "+x.who.toUpperCase()+" · "+x.when;};
   paint();
   window.briefNext=d=>{if(!_brief)return;_brief.qi=(_brief.qi+d+_brief.pool.length)%_brief.pool.length;paint();
+    if(painted){const u=sceneURL(),bg=el.querySelector("#briefBg");if(u&&bg)bg.style.backgroundImage="url('"+u+"')";}
     _brief.t0=performance.now();clearTimeout(_brief.timer);_brief.timer=setTimeout(closeBriefing,DUR);};
   b.onKey=e=>{if(e.key==="ArrowRight"){briefNext(1);}else if(e.key==="ArrowLeft"){briefNext(-1);}else closeBriefing();
     e.preventDefault();e.stopPropagation();};
