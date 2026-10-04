@@ -795,3 +795,36 @@ had a correct drawn `FLAG[k]` (checked on a rendered sheet of all 91), so
 emoji are now used only for a nation with no drawn flag. Releasables got
 `REL_FLAG` (Saltire, Ulster Banner, Senyera, Ikurrina, Fleurdelise,
 Kurdish sun; the rest reuse the modern drawn flag), restored on load too.
+
+## Foreign countries: new ground, every era, puppets and colonies
+
+Owner asked for all three of: the eleven list countries that had no
+province, releasables beyond WWII, and HOI4-style foreign puppets/colonies.
+
+- **Eleven provinces** (`P.push` after LINKS): bxl, ams, lxm, prs, tsp,
+  dam, kbl, srn, tpe, lhs, buk, with land/sea links and terrain. Owner for
+  EVERY era is explicit in `NEWPROV_OWN` (merged into `ERAS[e].owners`), so
+  nothing turns up where it never was -- verified per era: Napoleonic
+  Brussels is French, Mongol Damascus Ayyubid, WWI Bougainville German.
+- **Six new nations**: BEL, HOL, LUX, AFG (1861-2026 eras), SYR and TAW
+  (Cold War and modern). WWII 1941 starts and WWI 1914 starts hand the Low
+  Countries to Germany via yearOwners, as happened.
+- **Releasables per era**: `REL_ERAS` (ww1 15, ww2 22, coldwar 18,
+  modern 11) over one `RELEASABLES` table. A people appears only where it
+  had no state in that era.
+- **Restore**: a dead nation whose home provinces you hold -> WARS panel
+  "Restore X as a puppet".
+- **Colonies**: provinces on another continent from the capital AND not
+  reachable overland through the owner's own provinces (`coloniesOf`),
+  grouped by overland connection. Grant independence (puppet) or they
+  break free in `breakawayTick` (0.05%/check x shakiness). Named from
+  REBIRTH, which gained colonial names (Sudan, Gold Coast, Malaya...).
+
+Measured: 4 simulated years produce 1-4 breakaways per game and several
+are re-conquered; check100 still 62/75; all suites pass.
+
+Fault caught: `REL_FLAG` entries written as `sV([...])` call the stripe
+helper at definition time, ~6,000 lines before `const sV` exists -- a TDZ
+error that stopped the whole script at boot. Wrap as `(u,v)=>sV(...)(u,v)`.
+A boot-time error shows only as `__ifStage` stuck short of "booted", so
+check that after any edit to a top-level table.

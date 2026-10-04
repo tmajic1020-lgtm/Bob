@@ -752,6 +752,14 @@ SEA:{n:"Siam",f:"🏴",c:"#90e272",cap:"bkk",play:1,desc:"Never colonised, and m
 SCA:{n:"Scandinavia",f:"🏴",c:"#2179a2",cap:"sto",play:1,desc:"Iron ore and a long cold coast",eras:["civilwar","ww1","ww2","coldwar"]},
 /* modern-day successor / independent states (only appear in the Modern Day scenario) */
 UKR:{n:"Ukraine",f:"🇺🇦",c:"#957ee6",cap:"kie",play:1,desc:"The defiant front",era:"modern"},
+/* v24: the Low Countries, Afghanistan, Syria and Taiwan, in the eras they
+   stood on their own (the owner's country list). Colours as that list gives them. */
+BEL:{n:"Belgium",f:"🇧🇪",c:"#a16207",cap:"bxl",play:1,desc:"The road to Paris runs through it",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+HOL:{n:"Netherlands",f:"🇳🇱",c:"#c2410c",cap:"ams",play:1,desc:"Dykes, ships and an empire in the Indies",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+LUX:{n:"Luxembourg",f:"🇱🇺",c:"#7dd3fc",cap:"lxm",play:1,desc:"A grand duchy on the invasion route",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+AFG:{n:"Afghanistan",f:"🇦🇫",c:"#cca37a",cap:"kbl",play:1,desc:"The graveyard of empires",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+SYR:{n:"Syria",f:"🇸🇾",c:"#14532d",cap:"dam",play:1,desc:"Damascus, after Assad",eras:["coldwar","modern"]},
+TAW:{n:"Taiwan",f:"🇹🇼",c:"#60a5fa",cap:"tpe",play:1,desc:"An island and a question",eras:["coldwar","modern"]},
 BLR:{n:"Belarus",f:"🇧🇾",c:"#97b774",cap:"min",play:1,desc:"Forests and a long Russian shadow",era:"modern"},
 KAZ:{n:"Kazakhstan",f:"🇰🇿",c:"#15a3c4",cap:"alm",play:1,desc:"Steppe, uranium and the launch pads",era:"modern"},
 AUT:{n:"Austria",f:"🇦🇹",c:"#df9681",cap:"vie",play:1,desc:"The last stand of independence",eras:["civilwar","ww2","coldwar","modern"]},
@@ -962,6 +970,35 @@ const LINKS=[
 ["kin","kis"],["kis","bgi"],["bgi","kano"],["kis","kmp"],["kin","mbm"],["mbm","lbs"],["lua","hmb"],["hmb","mbm"],["hmb","wind"],
 ["jhb","mpt"],["mpt","dur"],["mpt","beir"],["beir","har2"],["har2","lus"],["lus","lbs"],["lus","dsm"],["cpt","pez"],["pez","dur"],["pez","blo"],["blo","jhb"],["blo","cpt"]
 ];
+/* v24: eleven provinces for the countries on the owner's list that had no
+   ground of their own on this map. Each lists its owner for every era below
+   (NEWPROV_OWN), so none turns up somewhere it never was. */
+P.push(
+ ["bxl","Brussels",4.35,50.85,"BEL",1,2],["ams","Amsterdam",4.9,52.37,"HOL",1,2],["lxm","Luxembourg",6.13,49.61,"LUX",0,1],
+ ["prs","Kosovo",21.17,42.67,"SRB",0,1],["tsp","Transnistria",29.63,46.84,"SOV",0,1],["dam","Damascus",36.29,33.51,"FRA",0,2],
+ ["kbl","Kabul",69.17,34.53,"AFG",0,1],["srn","Kashmir",74.8,34.08,"UK",0,1],["tpe","Taipei",121.56,25.03,"JAP",1,2],
+ ["lhs","Lhasa",91.1,29.65,"CHN",0,1],["buk","Bougainville",155.5,-6.2,"AUS",1,1]);
+LINKS.push(
+ ["bxl","lil"],["bxl","rhi"],["bxl","ams"],["bxl","lxm"],["bxl","lon",1],
+ ["ams","rhi"],["ams","ham"],["ams","ncl",1],
+ ["lxm","lil"],["lxm","rhi"],["lxm","fra"],
+ ["prs","bel"],["prs","tir"],["prs","sof"],["prs","slk"],
+ ["tsp","ode"],["tsp","kish"],["tsp","kie"],
+ ["dam","ada"],["dam","bag"],["dam","sue"],
+ ["kbl","lah"],["kbl","dus"],["kbl","ash"],["kbl","teh"],
+ ["srn","lah"],["srn","del"],["srn","xin"],["srn","kbl"],
+ ["tpe","sha",1],["tpe","can",1],["tpe","fuk",1],
+ ["lhs","chq"],["lhs","kun"],["lhs","xin"],["lhs","cal"],["lhs","srn"],
+ ["buk","dar",1],["buk","bri",1]);
+const NEWPROV_OWN={
+ napoleon:{bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
+ civilwar:{prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ ww2:{},
+ coldwar:{tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ modern:{tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ mongol:{bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
+};
 
 /* ============================== ERAS & THEMES ============================== */
 const ERAS={
@@ -978,7 +1015,7 @@ const ERAS={
     1938:{vie:"GER",wuh:"JAP",can:"JAP"},             // Anschluss; Wuhan and Canton fall
     1939:{pra:"GER",bra:"GER"},                       // Prague occupied, Slovakia a German client
     1940:{war:"GER",poz:"GER",gda:"GER",kra:"GER",lub:"GER",bra:"GER",lwo:"SOV"},   // Poland partitioned
-    1941:{par:"GER",lil:"GER",nan:"GER",bor:"GER",osl:"GER",cph:"GER",brg:"GER",trd:"GER",nar:"GER",
+    1941:{bxl:"GER",ams:"GER",lxm:"GER",par:"GER",lil:"GER",nan:"GER",bor:"GER",osl:"GER",cph:"GER",brg:"GER",trd:"GER",nar:"GER",
           han:"JAP",sgn:"JAP"},                       // France, Denmark, Norway; Japan into Indochina
     1942:{min:"GER",kie:"GER",ode:"GER",bel:"GER",zag:"ITA",sarj:"ITA",ath:"GER",slk:"GER",ptr:"GER",cre:"GER",
           sin:"JAP",kul:"JAP",rgn:"JAP",mdl:"JAP",pnh:"JAP",bkk:"JAP",hue:"JAP",cmi:"JAP",mtr:"ITA"}, // Barbarossa, the Balkans, the Japanese tide
@@ -1026,7 +1063,7 @@ const ERAS={
      1915 — which the game now lets you play out rather than assuming. */
   alliances:[["GER","AUH","ITA"],["FRA","RUS","UK"]],
   yearOwners:{
-    1914:{lil:"GER",lwo:"RUS"},                            // the race to the sea; Russia takes Lemberg
+    1914:{lil:"GER",bxl:"GER",lxm:"GER",lwo:"RUS"},                            // the race to the sea; Russia takes Lemberg
     1915:{war:"GER",lub:"GER",lwo:"AUH"},                  // Gorlice-Tarnow: Poland lost
     1916:{lwo:"RUS",erz:"RUS"},                            // Brusilov claws back Galicia; Erzurum falls
     1917:{lwo:"AUH",bag:"UK"},                             // Russia falters; Baghdad taken
@@ -1175,6 +1212,7 @@ mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],caps:{BYZ:"izm"}
      Constantinople. The old bloc had Song China allied to France. */
   alliances:[["LAT","HRE","FRK","ITK"]]}
 };
+for(const e in NEWPROV_OWN)if(ERAS[e]){ERAS[e].owners=ERAS[e].owners||{};for(const id in NEWPROV_OWN[e])if(ERAS[e].owners[id]===undefined)ERAS[e].owners[id]=NEWPROV_OWN[e][id];}
 let ERA="ww2";
 let YEAR=1939;
 /* Oil-rich provinces */
@@ -1445,6 +1483,7 @@ const PTERRAIN={};
    "phx","psud","ria","sue","tas","tij","tob","trp","wind","zar",);
  _t("jungle","abi","acc","bgi","dar","hmb","kin","kis","kul","lag","man","mbm","rgn","yuc",);
  _t("marsh","bas","bkk","cal","dac","han","lil","mia","min","pnh","sgn","ven",);
+ _t("mtn","kbl","srn","lhs","prs");_t("jungle","buk");_t("urban","ams","bxl");
  _t("tundra","anc","arc","nuk","rey","sco2","thu","yak","yel",);
  _t("urban","bei","ber","bom","bue","chi","cph","del","lon","mex","mos","nyc","osa","par","sha","sin",
    "tok","wash",);
@@ -1927,7 +1966,11 @@ const REBIRTH={
   cph:"Denmark", hel:"Finland", nyc:"New England", chi:"Great Lakes Republic", dal:"Texas", la:"California",
   sea:"Cascadia", atl:"Dixie", mex:"Mexico", ott:"Canada", van:"Pacifica",
   lag:"Nigeria", kin:"Congo Republic", nai:"East Africa", alg:"Numidia", trp:"Tripolitania", dak:"Senegambia", add:"Abyssinia",
-  syd:"Australia", man:"Philippines"
+  syd:"Australia", man:"Philippines",
+  /* colonies granted or breaking free (v24) */
+  khartoum:"Sudan", sue:"Sinai", mtr:"Western Desert", acc:"Gold Coast", abi:"Ivory Coast", cas:"Morocco", tun:"Tunisia",
+  sin:"Malaya", kul:"Malaya", rgn:"Burma", asm:"Eritrea", mog:"Somalia", lua:"Angola", mpt:"Mozambique", har2:"Rhodesia",
+  dsm:"Tanganyika", kmp:"Uganda", lus:"Zambia", beir:"Mozambique", hmb:"Angola", wind:"South West Africa", pnh:"Cambodia"
 };
 function _rebirthName(p){
   if(REBIRTH[p.id])return REBIRTH[p.id];
@@ -1970,71 +2013,99 @@ function riseNewNation(pid){
     occ===G.player?"war":"good");
   return key;
 }
-/* ===================== RELEASABLE NATIONS (WORLD WAR II) =====================
-   The real game's releasables: peoples who had no state of their own in 1936
-   but can get one. Two roads, as there: a power that holds their land can
-   RELEASE them as a puppet, and in a war or a crisis they can BREAK AWAY on
-   their own and fight for it. Names and colours from the owner's own table;
-   cores are the provinces of this map that stand on that ground.
-   Belgium, the Netherlands, Luxembourg, Kosovo, Transnistria, Syria,
-   Afghanistan, Kashmir, Taiwan, Tibet and Bougainville were on the list too,
-   but this 251-province map has no province on their ground to give them. */
+/* ===================== RELEASABLE NATIONS =====================
+   The real game's releasables: peoples with no state of their own who can
+   get one. Two roads, as there: a power that holds their land can RELEASE
+   them as a puppet, and in a war or a crisis they can BREAK AWAY on their
+   own and fight for it. Names and colours from the owner's own list;
+   cores are the provinces of this map that stand on that ground. Which of
+   them exist in which era is REL_ERAS below -- a people only appears where
+   it had no state of its own in that era. */
 const RELEASABLES=[
  {id:"SCO",n:"Scotland",        f:"\u{1F3F4}",c:"#3a6073",cores:["sco"],sep:1,d:"An old kingdom inside the Union"},
  {id:"NIR",n:"Northern Ireland",f:"☘️",c:"#4d7c0f",cores:["bfs"],sep:1,d:"Six counties and an open question"},
+ {id:"IRE",n:"Ireland",         f:"\u{1F1EE}\u{1F1EA}",c:"#169b62",cores:["dub"],sep:1,d:"The island wants its own parliament"},
  {id:"CAT",n:"Catalonia",       f:"\u{1F3F4}",c:"#b45309",cores:["bcn"],sep:1,d:"Barcelona, and its own parliament"},
  {id:"BAS",n:"Basque Country",  f:"\u{1F3F4}",c:"#15803d",cores:["bil"],sep:1,d:"Euskadi, on the Bay of Biscay"},
  {id:"POR",n:"Portugal",        f:"\u{1F1F5}\u{1F1F9}",c:"#14532d",cores:["lis","opo"],d:"The oldest border in Europe"},
+ {id:"POL",n:"Poland",          f:"\u{1F1F5}\u{1F1F1}",c:"#fda4af",cores:["war","lub","poz","kra"],d:"A nation partitioned, waiting"},
+ {id:"FIN",n:"Finland",         f:"\u{1F1EB}\u{1F1EE}",c:"#8fb8e8",cores:["hel","tku"],d:"A grand duchy that wants to be a republic"},
+ {id:"EST",n:"Estonia",         f:"\u{1F1EA}\u{1F1EA}",c:"#0072ce",cores:["tal"],d:"The northernmost Baltic"},
+ {id:"LVA",n:"Latvia",          f:"\u{1F1F1}\u{1F1FB}",c:"#9e3039",cores:["rig"],d:"Riga and the Daugava"},
+ {id:"LTU",n:"Lithuania",       f:"\u{1F1F1}\u{1F1F9}",c:"#006a44",cores:["vil"],d:"Vilnius, and a grand duchy remembered"},
  {id:"UKR",n:"Ukraine",         f:"\u{1F1FA}\u{1F1E6}",c:"#eab308",cores:["kie","ode","lwo"],d:"The breadbasket wants its own flag"},
  {id:"BLR",n:"Belarus",         f:"\u{1F1E7}\u{1F1FE}",c:"#166534",cores:["min"],d:"Forest and marsh between the giants"},
+ {id:"CZE",n:"Czechoslovakia",  f:"\u{1F1E8}\u{1F1FF}",c:"#78350f",cores:["pra","bra"],d:"Bohemia, Moravia and Slovakia"},
  {id:"SVK",n:"Slovakia",        f:"\u{1F1F8}\u{1F1F0}",c:"#9a3412",cores:["bra"],d:"The other half of Czechoslovakia"},
  {id:"MDA",n:"Moldova",         f:"\u{1F1F2}\u{1F1E9}",c:"#115e59",cores:["kish"],d:"Bessarabia, between Romania and Russia"},
+ {id:"GEO",n:"Georgia",         f:"\u{1F1EC}\u{1F1EA}",c:"#b91c1c",cores:["tbi"],d:"The Caucasus, and its own church"},
+ {id:"KAZ",n:"Kazakhstan",      f:"\u{1F1F0}\u{1F1FF}",c:"#15a3c4",cores:["alm"],d:"The steppe, and the launch pads"},
+ {id:"KOS",n:"Kosovo",          f:"\u{1F1FD}\u{1F1F0}",c:"#1e3a8a",cores:["prs"],sep:1,d:"A partially recognised state"},
+ {id:"TRN",n:"Transnistria",    f:"\u{1F3F4}",c:"#be123c",cores:["tsp"],sep:1,d:"A breakaway strip on the Dniester"},
  {id:"QUE",n:"Quebec",          f:"⚜️",c:"#1e40af",cores:["mtl"],sep:1,d:"French America"},
  {id:"KUR",n:"Kurdistan",       f:"☀️",c:"#15803d",cores:["erz"],sep:1,d:"A people across four borders"},
+ {id:"SYR",n:"Syria",           f:"\u{1F1F8}\u{1F1FE}",c:"#14532d",cores:["dam"],d:"Damascus under a mandate"},
+ {id:"HEJ",n:"Hejaz",           f:"\u{1F3F4}",c:"#2e7d46",cores:["jed"],d:"The Arab Revolt and the holy cities"},
  {id:"IRQ",n:"Iraq",            f:"\u{1F1EE}\u{1F1F6}",c:"#7f1d1d",cores:["bag","bas"],d:"Mesopotamia, and its oil"},
  {id:"PAK",n:"Pakistan",        f:"\u{1F1F5}\u{1F1F0}",c:"#065f46",cores:["lah"],d:"The Punjab and the Indus"},
  {id:"IND",n:"India",           f:"\u{1F1EE}\u{1F1F3}",c:"#808000",cores:["del","bom","cal","mad2","hyd","dac"],d:"Four hundred million, and the Raj"},
- {id:"KOR",n:"Korea",           f:"\u{1F1F0}\u{1F1F7}",c:"#1e3a8a",cores:["seo","pus","pyo"],d:"A peninsula under Japanese rule"}
+ {id:"KAS",n:"Kashmir",         f:"\u{1F3F4}",c:"#16a34a",cores:["srn"],sep:1,d:"The most disputed valley on earth"},
+ {id:"TIB",n:"Tibet",           f:"\u{1F3F4}",c:"#f97316",cores:["lhs"],sep:1,d:"The roof of the world"},
+ {id:"TAW",n:"Taiwan",          f:"\u{1F1F9}\u{1F1FC}",c:"#60a5fa",cores:["tpe"],d:"Formosa, across the strait"},
+ {id:"KOR",n:"Korea",           f:"\u{1F1F0}\u{1F1F7}",c:"#1e3a8a",cores:["seo","pus","pyo"],d:"A peninsula under foreign rule"},
+ {id:"BOU",n:"Bougainville",    f:"\u{1F3F4}",c:"#6b21a8",cores:["buk"],sep:1,d:"Voted for independence"}
 ];
+const REL_ERAS={
+ ww1:["IRE","POL","FIN","EST","LVA","LTU","UKR","CZE","GEO","SYR","HEJ","KUR","KOR","IND","TAW"],
+ ww2:["SCO","NIR","CAT","BAS","POR","UKR","BLR","SVK","MDA","QUE","KUR","IRQ","PAK","IND","KOR","KOS","TRN","KAS","TIB","TAW","SYR","BOU"],
+ coldwar:["SCO","NIR","CAT","BAS","QUE","KUR","KAS","TIB","EST","LVA","LTU","UKR","BLR","GEO","KAZ","MDA","KOS","BOU"],
+ modern:["SCO","NIR","CAT","BAS","QUE","KUR","KOS","TRN","KAS","TIB","BOU"]
+};
 const REL_BY={};for(const r of RELEASABLES)REL_BY[r.id]=r;
-/* Real flags for the releasables -- all of them stripes, crosses and a
-   charge or two, so each is drawn the same way every other flag here is. */
+/* Real flags for the releasables -- stripes, crosses and a charge or two, so
+   each is drawn the same way every other flag here is. */
 const _diag=(u,v,w)=>{const x=u*1.5,y=v;return Math.abs(x-y*1.5)<w*1.5||Math.abs(x-(1-y)*1.5)<w*1.5;};
 const REL_FLAG={
  SCO:(u,v)=>_diag(u,v,0.075)?"#f2efe6":"#0065bd",                          /* the Saltire */
  NIR:(u,v)=>{if(inStar(u,v,0.5,0.5,0.13,0,6))return inCircle(u,v,0.5,0.52,0.05)?"#c0392b":"#f2efe6";
    return (Math.abs(u-0.5)<0.07||Math.abs(v-0.5)<0.1)?"#c0392b":"#f2efe6";},  /* the Ulster Banner */
+ IRE:(u,v)=>sV(["#169b62","#f2efe6","#ff883e"])(u,v),
  CAT:(u,v)=>Math.floor(v*9)%2?"#c8102e":"#fcdd09",                          /* the Senyera */
  BAS:(u,v)=>(Math.abs(u-0.5)<0.05||Math.abs(v-0.5)<0.075)?"#f2efe6":_diag(u,v,0.06)?"#009b48":"#d52b1e",  /* the Ikurrina */
- POR:(u,v)=>FLAG.POR(u,v),
- UKR:(u,v)=>FLAG.UKR(u,v),
- BLR:(u,v)=>FLAG.BLR(u,v),
- SVK:(u,v)=>FLAG.SVK(u,v),
- MDA:(u,v)=>FLAG.MDA(u,v),
+ POL:(u,v)=>sH(["#f2efe6","#dc143c"])(u,v),
  QUE:(u,v)=>{if(Math.abs(u-0.5)<0.06||Math.abs(v-0.5)<0.09)return"#f2efe6";   /* the Fleurdelise */
    const cx=u<0.5?0.22:0.78,cy=v<0.5?0.22:0.78;
    return (inCircle(u,v,cx,cy,0.055)||(Math.abs(u-cx)<0.012&&Math.abs(v-cy)<0.13)||(Math.abs(v-cy-0.03)<0.02&&Math.abs(u-cx)<0.07))?"#f2efe6":"#003da5";},
  KUR:(u,v)=>inStar(u,v,0.5,0.5,0.16,0,21)?"#fcd116":sH(["#ed2024","#f2efe6","#278e43"])(u,v),
- IRQ:(u,v)=>FLAG.IRQ(u,v),
- PAK:(u,v)=>FLAG.PAK(u,v),
- IND:(u,v)=>(inRing(u,v,0.5,0.5,0.115,0.078)||inCircle(u,v,0.5,0.5,0.026)||(inCircle(u,v,0.5,0.5,0.115)&&Math.floor((Math.atan2(v-0.5,(u-0.5)*FAR)+Math.PI)/(Math.PI/12))%2===0))?"#2a4d9e":sH(["#e08214","#f2efe6","#2e7d46"])(u,v),
- KOR:(u,v)=>FLAG.KOR(u,v)
+ KOS:(u,v)=>{if(v>0.12&&v<0.32&&[0.3,0.38,0.46,0.54,0.62,0.7].some(x=>inStar(u,v,x,0.24-Math.abs(x-0.5)*0.12,0.04)))return"#f2efe6";
+   return (Math.abs(u-0.5)<0.2&&v>0.36&&v<0.72&&((u-0.3)*1.2+(v-0.36)*0.4)<0.5)?"#d0a650":"#244aa5";},   /* the map in gold, six stars */
+ TRN:(u,v)=>v>1/3&&v<2/3?"#00924a":"#d22730",
+ KAS:(u,v)=>u<0.25?(Math.floor(u*24)%2?"#f2efe6":"#c0392b"):"#c0392b",   /* the old state flag: red, three white bands at the hoist */
+ TIB:(u,v)=>{   /* the snow lion flag, reduced: rays from a rising sun over a white mountain */
+   if(v>0.62-Math.abs(u-0.5)*0.9&&v>0.55)return"#f2efe6";
+   if(inCircle(u,v,0.5,0.42,0.1))return"#fcd116";
+   const a=Math.atan2(v-0.42,(u-0.5)*1.5);return Math.floor((a+Math.PI)/(Math.PI/6))%2?"#c0392b":"#1d3a93";},
+ HEJ:(u,v)=>(u<0.33&&Math.abs(v-0.5)<(0.33-u)*1.5)?"#c0392b":sH(["#1a1a1a","#2e7d46","#f2efe6"])(u,v),
+ TAW:(u,v)=>FLAG.TAW(u,v),
+ SYR:(u,v)=>FLAG.SYR(u,v),
+ BOU:(u,v)=>inCircle(u,v,0.5,0.5,0.2)?(inCircle(u,v,0.5,0.5,0.12)?"#f2efe6":"#1a1a1a"):(v>0.82?"#2e7d46":"#1d3a93"),
+ IND:(u,v)=>(inRing(u,v,0.5,0.5,0.115,0.078)||inCircle(u,v,0.5,0.5,0.026)||(inCircle(u,v,0.5,0.5,0.115)&&Math.floor((Math.atan2(v-0.5,(u-0.5)*FAR)+Math.PI)/(Math.PI/12))%2===0))?"#2a4d9e":sH(["#e08214","#f2efe6","#2e7d46"])(u,v)
 };
-
+/* the rest fly the modern drawn flag of the same country */
+for(const id of["POR","UKR","BLR","SVK","MDA","IRQ","PAK","KOR","FIN","EST","LVA","LTU","GEO","KAZ","CZE"])
+  if(!REL_FLAG[id])REL_FLAG[id]=(u,v)=>FLAG[id](u,v);
 const relKey=id=>SHARD+"r"+id;
 function relAlive(id){const n=G&&G.nations[relKey(id)];return !!(n&&n.alive);}
-function relOn(){return ERA==="ww2"&&typeof epochAtLeast==="function"&&epochAtLeast("24.0");}
-/* Create the nation on whichever of its cores `from` holds. by = the power
-   releasing it (it becomes that power's puppet); null = it breaks away from
-   `from` and goes to war with it. */
-function spawnReleasable(id,from,by){
-  const r=REL_BY[id];if(!r||!G||relAlive(id))return null;
-  const took=r.cores.map(c=>G.prov[c]).filter(p=>p&&p.owner===from);
-  if(!took.length||!G.nations[from]||!G.nations[from].alive)return null;
-  const key=relKey(id),cap=took[0].id;
-  NATIONS[key]={n:r.n,f:r.f,c:r.c,cap,play:0,desc:r.d,eras:[ERA]};
-  NAT_BASE[key]={n:r.n,f:r.f,c:r.c,cap};
-  FLAG[key]=REL_FLAG[id]||_shFlag(_shHash("rel:"+id),r.c);
+function relOn(){return !!REL_ERAS[ERA]&&typeof epochAtLeast==="function"&&epochAtLeast("24.0");}
+function relList(){return (REL_ERAS[ERA]||[]).map(id=>REL_BY[id]).filter(Boolean);}
+/* Build a nation on the given provinces. Shared by releasables and colonies.
+   by = the power releasing it (it becomes that power's puppet and ally);
+   null = it breaks away from `from` and goes to war with it. */
+function _spawnState(key,def,took,from,by){
+  const cap=took[0].id;
+  NATIONS[key]={n:def.n,f:def.f,c:def.c,cap,play:0,desc:def.d,eras:[ERA]};
+  NAT_BASE[key]={n:def.n,f:def.f,c:def.c,cap};
+  FLAG[key]=def.flag||_shFlag(_shHash("rel:"+key),def.c);
   const nn=makeNation(key,1,true);
   nn.pp=25;nn.rp=0;nn.oil=5;nn.stab=by?60:55;nn.warSup=by?50:75;nn.ideo=G.nations[from].ideo;
   G.nations[key]=nn;
@@ -2043,40 +2114,127 @@ function spawnReleasable(id,from,by){
   if(by){
     nn.puppet=by;G.nations[by].allies.add(key);nn.allies.add(by);
     G.nations[by].stab=Math.min(100,G.nations[by].stab+3);
-    logMsg(`\u{1F3F3} ${r.f} ${r.n} is RELEASED by ${NATIONS[by].n} and joins it as a puppet state.`,"good");
+    logMsg(`\u{1F3F3} ${def.f} ${def.n} is RELEASED by ${NATIONS[by].n} and joins it as a puppet state.`,"good");
   }else{
     declareWar(key,from);
-    logMsg(`\u{1F525} ${r.f} ${r.n} BREAKS AWAY from ${NATIONS[from].n} and fights for its independence!`,from===G.player?"war":"good");
+    logMsg(`\u{1F525} ${def.f} ${def.n} BREAKS AWAY from ${NATIONS[from].n} and fights for its independence!`,from===G.player?"war":"good");
     if(from===G.player&&typeof sfx==="function")sfx("war");
   }
   terDirty=true;
   if(typeof refreshFlagIcons==="function")refreshFlagIcons();
   return key;
 }
-/* What the player could release now: every releasable with a core in hand. */
+function spawnReleasable(id,from,by){
+  const r=REL_BY[id];if(!r||!G||relAlive(id))return null;
+  const took=r.cores.map(c=>G.prov[c]).filter(p=>p&&p.owner===from);
+  if(!took.length||!G.nations[from]||!G.nations[from].alive)return null;
+  return _spawnState(relKey(id),{n:r.n,f:r.f,c:r.c,d:r.d,flag:REL_FLAG[id]},took,from,by);
+}
+/* What the player could release now: every releasable of this era with a core in hand. */
 function releasableFor(k){
   if(!relOn())return [];
-  return RELEASABLES.filter(r=>!relAlive(r.id)&&r.cores.some(c=>G.prov[c]&&G.prov[c].owner===k));
+  return relList().filter(r=>!relAlive(r.id)&&r.cores.some(c=>G.prov[c]&&G.prov[c].owner===k));
 }
 window.releaseNation=function(id){if(!G||!G.nations)return;
   if(!releasableFor(G.player).some(r=>r.id===id))return;
   spawnReleasable(id,G.player,G.player);if(typeof sfx==="function")sfx("focus");
   renderPanel();refreshHUD();};
-/* Independence movements. A core breaks away when its holder is at war or
-   shaky, the province is thinly held and no division of the holder stands in
-   it; foreign occupation and separatist feeling make it likelier. At most one
-   a check, every eleven days. */
+
+/* ---------------- FOREIGN COUNTRIES: puppets and colonies ----------------
+   1. A country you have wiped off the map can be put back on it as YOUR
+      puppet, on its own home provinces you hold -- the real game's "release
+      as puppet" for a conquered nation.
+   2. COLONIES: land a power holds on another continent that it cannot reach
+      overland through its own provinces. It can be granted independence as
+      a puppet, and in a war or a crisis it can break free on its own. */
+function restorableFor(k){
+  if(!G||!epochAtLeast("24.0"))return [];
+  const out={};
+  for(const p of Object.values(G.prov)){
+    if(p.owner!==k||p.home===k||!p.home||!G.nations[p.home]||G.nations[p.home].alive)continue;
+    if(p.home.startsWith(SHARD)&&!p.home.startsWith(SHARD+"r"))continue;
+    (out[p.home]=out[p.home]||[]).push(p);
+  }
+  return Object.keys(out).map(n=>({k:n,provs:out[n]}));
+}
+window.restoreNation=function(n){if(!G||!G.nations)return;
+  const r=restorableFor(G.player).find(x=>x.k===n);if(!r)return;
+  const nn=makeNation(n,1,true);
+  nn.pp=25;nn.stab=55;nn.puppet=G.player;nn.ideo=G.nations[G.player].ideo;
+  G.nations[n]=nn;G.nations[G.player].allies.add(n);nn.allies.add(G.player);
+  for(const q of r.provs){q.owner=n;q.garrison=2;}
+  const cap=r.provs.find(q=>q.id===capOf(n))||r.provs[0];
+  addUnit(n,cap.id,"inf",3);
+  G.nations[G.player].stab=Math.min(100,G.nations[G.player].stab+4);
+  terDirty=true;if(typeof refreshFlagIcons==="function")refreshFlagIcons();
+  logMsg(`\u{1F3F3} ${NATIONS[n].f} ${NATIONS[n].n} is RESTORED by ${NATIONS[G.player].n} as a puppet state.`,"good");
+  if(typeof sfx==="function")sfx("focus");
+  renderPanel();refreshHUD();};
+/* the continent a point stands on, coarse but enough to tell an empire from its homeland */
+function _continent(p){
+  const lon=(p.x/MW)*360-180,lat=p.lat;
+  if(lon<-30)return"am";
+  if(lon>110&&lat<-10)return"oc";
+  if(lat<37&&(lon<33||(lat<12&&lon<52)))return"af";
+  if(lat>=35&&lon<60&&!(lon>45&&lat<42))return"eu";
+  return"as";
+}
+/* Colony provinces of k: on another continent from k's capital, and not
+   reachable from the capital overland through k's own provinces. */
+function coloniesOf(k){
+  const n=G.nations[k];if(!n||!n.alive)return [];
+  const cid=capOf(k),cap=G.prov[cid];if(!cap||cap.owner!==k)return [];
+  const home=new Set([cid]),q=[cid];
+  while(q.length){const id=q.pop();for(const j of G.prov[id].adj){const p=G.prov[j];if(p&&p.owner===k&&!home.has(j)){home.add(j);q.push(j);}}}
+  const cc=_continent(cap);
+  return Object.values(G.prov).filter(p=>p.owner===k&&!home.has(p.id)&&_continent(p)!==cc&&!relCore(p.id));
+}
+function relCore(pid){return relList().some(r=>r.cores.includes(pid));}
+/* Group a power's colonies into territories: overland-connected clusters. */
+function colonyGroups(k){
+  const col=coloniesOf(k),set=new Set(col.map(p=>p.id)),seen=new Set(),out=[];
+  for(const p of col){if(seen.has(p.id))continue;
+    const g=[],q=[p.id];seen.add(p.id);
+    while(q.length){const id=q.pop();g.push(G.prov[id]);for(const j of G.prov[id].adj)if(set.has(j)&&!seen.has(j)){seen.add(j);q.push(j);}}
+    out.push(g);}
+  return out;
+}
+function colKey(pid){return SHARD+"c"+pid;}
+function spawnColony(group,from,by){
+  const lead=group.slice().sort((a,b)=>(b.val||0)-(a.val||0))[0],key=colKey(lead.id);
+  if(NATIONS[key]&&G.nations[key]&&G.nations[key].alive)return null;
+  const h=_shHash("col:"+lead.id),col=_shColor(h);
+  const took=group.slice().sort((a,b)=>(b.val||0)-(a.val||0)).slice(0,4);
+  return _spawnState(key,{n:_rebirthName(lead),f:"\u{1F3F3}",c:col,d:"Once a colony of "+NATIONS[from].n},took,from,by);
+}
+window.grantIndependence=function(pid){if(!G||!G.nations)return;
+  const g=colonyGroups(G.player).find(gr=>gr.some(p=>p.id===pid));if(!g)return;
+  spawnColony(g,G.player,G.player);if(typeof sfx==="function")sfx("focus");
+  renderPanel();refreshHUD();};
+/* Independence movements, every eleven days: a core or colony whose holder
+   is at war or shaky, thinly held, with none of the holder's divisions on it. */
+function _shaky(p){
+  const h=G.nations[p.owner];if(!h||!h.alive||p.owner.startsWith(SHARD))return 0;
+  if(!(h.atWar.size||h.stab<45))return 0;
+  if(p.garrison>3||G.units.some(u=>u.at===p.id&&u.nat===p.owner))return 0;
+  return (h.stab<45?2:1)*(h.atWar.size?1.5:1)*(p.owner!==p.home?2:1);
+}
 function breakawayTick(){
-  if(!relOn())return;
-  for(const r of RELEASABLES){
+  if(!epochAtLeast("24.0"))return;
+  if(relOn())for(const r of relList()){
     if(relAlive(r.id))continue;
     for(const c of r.cores){
       const p=G.prov[c];if(!p)continue;
-      const h=G.nations[p.owner];if(!h||!h.alive||p.owner.startsWith(SHARD))continue;
-      if(!(h.atWar.size||h.stab<45))continue;
-      if(p.garrison>3||G.units.some(u=>u.at===p.id&&u.nat===p.owner))continue;
-      const pr=(r.sep?0.0015:0.001)*(h.stab<45?2:1)*(h.atWar.size?1.5:1)*(p.owner!==p.home?2:1);
-      if(Math.random()<pr){spawnReleasable(r.id,p.owner,null);return;}
+      const w=_shaky(p);if(!w)continue;
+      if(Math.random()<(r.sep?0.0015:0.001)*w){spawnReleasable(r.id,p.owner,null);return;}
+    }
+  }
+  /* colonies: per power, each territory gets one roll */
+  for(const k in G.nations){
+    if(!G.nations[k].alive||k.startsWith(SHARD))continue;
+    for(const g of colonyGroups(k)){
+      const w=Math.max(...g.map(_shaky));if(!w)continue;
+      if(Math.random()<0.0005*w){spawnColony(g,k,null);return;}
     }
   }
 }
@@ -9653,6 +9811,15 @@ Object.assign(FLAG,{
  }
 });
 FLAG.HUN=FLAG.HUN2;
+/* v24 nations: plain stripes, and Taiwan's sun in its canton */
+FLAG.BEL=sV(["#1a1a1a","#f2c500","#c8102e"]);
+FLAG.HOL=sH(["#ae1c28","#f2efe6","#21468b"]);
+FLAG.LUX=sH(["#ea141d","#f2efe6","#51add6"]);
+FLAG.AFG=(u,v)=>inRing(u,v,0.5,0.5,0.15,0.11)?"#f2efe6":sV(["#1a1a1a","#c0392b","#2e7d46"])(u,v);
+FLAG.SYR=(u,v)=>{   /* the independence flag, flown again since December 2024 */
+  if(Math.abs(v-0.5)<1/6&&(inStar(u,v,0.32,0.5,0.07)||inStar(u,v,0.5,0.5,0.07)||inStar(u,v,0.68,0.5,0.07)))return"#ce1126";
+  return sH(["#007a3d","#f2efe6","#1a1a1a"])(u,v);};
+FLAG.TAW=(u,v)=>(u<0.5&&v<0.5)?((inStar(u,v,0.25,0.25,0.15,0,12)&&!inRing(u,v,0.25,0.25,0.085,0.065))?"#f2efe6":"#000095"):"#fe0000";
 /* Puppet-state flags: historical where they exist, overlord livery otherwise */
 const PUPPET_FLAG={
  CHN:(u,v)=>(u<0.45&&v<0.5)?["#c0392b","#1d3a93","#f2efe6","#2a2a2a"][Math.min(3,Math.floor((v/0.5)*4))]:"#e6c229", // Manchukuo
@@ -15238,11 +15405,17 @@ function renderPanel(){
     <div class="row"><span>🌡 World tension</span><span style="color:${G.tension>70?"#ff8d7a":"var(--ink)"}">${Math.round(G.tension)}% ${G.tension>70?"— NUCLEAR DANGER":""}</span></div>
     <div class="row"><span>Your stability</span><span style="color:${me.stab<25?"#ff8d7a":"var(--ink)"}">${Math.max(0,me.stab).toFixed(0)}%</span></div>
     <div style="color:var(--dim);font-size:11px">Stability falls in long wars and when provinces fall. At 0% your government COLLAPSES and a new nation takes its place.</div>`;
-    {const rl=releasableFor(G.player);
+    {const rl=releasableFor(G.player),rs=restorableFor(G.player),cg=epochAtLeast("24.0")?colonyGroups(G.player):[];
      if(rl.length){h+=`<h3>\u{1F3F3} RELEASABLE NATIONS</h3>
       <div style="color:var(--dim);font-size:11px">Peoples on land you hold who could have a state of their own. Release one and its provinces become a puppet state at your side. Hold them badly in a war and they may break away by themselves.</div>`;
       for(const r of rl){const mine=r.cores.filter(c=>G.prov[c]&&G.prov[c].owner===G.player).map(c=>G.prov[c].name);
-        h+=`<button class="bbtn" style="border-left:4px solid ${r.c}" onclick="releaseNation('${r.id}')">${r.f} Release ${r.n}<small>${r.d}. Gives up ${mine.join(", ")}.</small></button>`;}}}
+        h+=`<button class="bbtn" style="border-left:4px solid ${r.c}" onclick="releaseNation('${r.id}')">${r.f} Release ${r.n}<small>${r.d}. Gives up ${mine.join(", ")}.</small></button>`;}}
+     if(rs.length){h+=`<h3>\u{1F30D} CONQUERED COUNTRIES</h3>
+      <div style="color:var(--dim);font-size:11px">Countries you have wiped off the map. Put one back on its own provinces as YOUR puppet: it fights at your side, and +4 stability.</div>`;
+      for(const r of rs)h+=`<button class="bbtn" style="border-left:4px solid ${NATIONS[r.k].c}" onclick="restoreNation('${r.k}')">${NATIONS[r.k].f} Restore ${NATIONS[r.k].n} as a puppet<small>Gives up ${r.provs.map(p=>p.name).join(", ")}.</small></button>`;}
+     if(cg.length){h+=`<h3>\u{1F6A2} COLONIES</h3>
+      <div style="color:var(--dim);font-size:11px">Land you hold on another continent that you cannot reach overland. Grant a territory independence and it becomes your puppet; hold it badly in a war and it may break free on its own.</div>`;
+      for(const g of cg)h+=`<button class="bbtn" onclick="grantIndependence('${g[0].id}')">\u{1F3F3} Grant independence to ${_rebirthName(g.slice().sort((a,b)=>(b.val||0)-(a.val||0))[0])}<small>${g.slice(0,4).map(p=>p.name).join(", ")}${g.length>4?` (and ${g.length-4} more stay yours)`:""}.</small></button>`;}}
     const tradeable=Object.keys(G.nations).filter(function(k){return k!==G.player&&G.nations[k].alive&&!atWar(G.player,k)&&!allied(G.player,k);});
     const myTrade=me.trade||new Set();
     const als=[...me.allies].filter(x=>G.nations[x].alive);
@@ -15803,6 +15976,7 @@ const CHANGELOG=[
   "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
   "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. Thirty scenes across the seven eras \u2014 the D-Day beaches, the Blitz under searchlights, paratroopers dropping by moonlight, the carrier war, Jutland, the Berlin Wall, helicopters over the jungle, the retreat from Moscow, the ironclads, a Mongol siege \u2014 in snow, storm, dawn and night as well as by day. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
   "\u{1F3F3} RELEASABLE NATIONS in World War II, as in the real game: Scotland, Northern Ireland, Catalonia, the Basque Country, Portugal, Ukraine, Belarus, Slovakia, Moldova, Quebec, Kurdistan, Iraq, Pakistan, India and Korea. Hold their land and you can RELEASE them as a puppet from the WARS panel; hold it badly in a war or a crisis and they BREAK AWAY and fight you for it",
+  "\u{1F30D} FOREIGN COUNTRIES, as in the real game. Eleven new provinces put Belgium, the Netherlands, Luxembourg, Afghanistan, Syria and Taiwan on the map in the eras they stood on their own, and give Kosovo, Transnistria, Kashmir, Tibet and Bougainville ground to rise on. Releasable nations now exist in World War I, the Cold War and the modern day too, each era with its own. A country you conquer can be RESTORED as your puppet, and a COLONY across the sea can be granted independence \u2014 or break free in a war",
   "\u{1F3F3}\uFE0F REAL FLAGS. Modern-day flags are now drawn by the game like every other era's, instead of left to your device's emoji \u2014 which on Windows showed every country as two letters. And the releasable nations fly their own: the Saltire, the Senyera, the Ikurri\u00f1a, the Fleurdelis\u00e9, the Kurdish sun and the rest",
   "\u{1F3B5} MUSIC that follows the war: Allies, Axis, Comintern or non-aligned, at peace or at war, and a theme for the menu. Fill each slot with your own music files (kept in your browser) or let it play an original score written for it",
   "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
