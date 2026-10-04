@@ -651,3 +651,40 @@ Faults caught on the way:
 - **A Playwright click on this panel needs `openPanel("army")` and a paused
   clock.** Setting `curPanel` alone leaves the panel hidden, and an
   unpaused game re-renders it every tick, detaching the button mid-click.
+
+## Briefings and credits
+
+A campaign opens on a full-screen card: a line from a leader of the era
+over a photograph, the clock stopped until the player continues (click,
+any key, or 11 seconds; arrows cycle quotes). Settings -> BRIEFINGS turns
+it off, shows one on demand, and takes the player's own photographs.
+Settings -> CREDITS lists what the game is built from.
+
+- **Every quote is tied to an occasion and a date** (`LEADER_QUOTES`).
+  War quotations are some of the most misattributed lines there are --
+  "an army marches on its stomach", "war is hell", nearly everything
+  pinned on Genghis Khan -- so none of those are in. An era with nothing
+  that meets the bar (the Mongols, the modern day) borrows from the
+  others. No lines from the dictators: a loading screen is the wrong
+  frame for a slogan.
+- **Photographs: public domain or the player's own, nothing else.**
+  `PD_PHOTOS` is for US federal works (Army, Navy, Coast Guard, White
+  House) and expired-copyright photographs, each with its source and
+  licence -- famous press photographs such as the Iwo Jima flag-raising
+  (AP) are NOT public domain. It is EMPTY because this environment's
+  network policy refuses commons.wikimedia.org, upload.wikimedia.org,
+  www.loc.gov and catalog.archives.gov (403 at the proxy). Open those in
+  the environment's Network access settings and the list can be filled.
+- **Player photos** are downscaled to 1600px JPEG in the browser and kept
+  in localStorage (`if_brief_photos`), newest first if the quota bites.
+  They never leave the machine, so a private screenshot is fine there in
+  a way it would not be in the shipped file.
+- **Credits are generated from the same tables** -- the speakers from
+  LEADER_QUOTES, the photographs from PD_PHOTOS -- so nothing can be shown
+  that is not credited. They name Natural Earth with its requested line,
+  TopoJSON (ISC) and the Firebase SDK (Apache 2.0), say plainly that the
+  81 national colours come from Hearts of Iron IV's colour table, and that
+  the game is inspired by it and not affiliated.
+- Harnesses are unaffected: the card is DOM over the canvas, so
+  `check100.js` (which reads pixels) still scores 62, and every suite
+  passes. Multiplayer guests do not get it; the host runs the clock.

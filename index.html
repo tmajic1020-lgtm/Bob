@@ -14784,6 +14784,36 @@ function renderPanel(){
       "One focus at a time, "+FOCUS_DAYS+" days each, each one taken once. A locked node needs the ones above it finished first."}</div>`;
     el.innerHTML=h;
   }
+  if(curPanel==="credits"){
+    /* Built from the same tables the game uses, so a quote or a photograph
+       cannot be added without appearing here. */
+    const speakers=[...new Set(LEADER_QUOTES.map(x=>x.who))];
+    const mine=myPhotos().length;
+    let h=`<h2>\u{1F39E} CREDITS</h2>
+    <h3>IRON FRONT</h3>
+    <div style="font-size:11px">Build ${BUILD}. A grand strategy game in one file.</div>
+    <div style="color:var(--dim);font-size:11px">Programmed with Claude, by Anthropic.</div>
+    <h3>INSPIRATION</h3>
+    <div style="font-size:11px">Inspired by <i>Hearts of Iron IV</i> by Paradox Interactive. Iron Front is not affiliated with or endorsed by Paradox Interactive. No Paradox artwork is used.</div>
+    <div style="color:var(--dim);font-size:11px;margin-top:4px">The colours of 81 nations are taken from <i>Hearts of Iron IV</i>'s country colour table.</div>
+    <h3>MAP DATA</h3>
+    <div style="font-size:11px">Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.</div>
+    <div style="color:var(--dim);font-size:11px">Coastlines, country borders, rivers, lakes and cities. Public domain.</div>
+    <h3>SOFTWARE</h3>
+    <div style="font-size:11px">TopoJSON — Mike Bostock (ISC licence)</div>
+    <div style="font-size:11px">Firebase JavaScript SDK — Google (Apache License 2.0)</div>
+    <h3>QUOTATIONS</h3>
+    <div style="color:var(--dim);font-size:11px">From public speeches, broadcasts, orders and dispatches, each attributed on screen to its occasion and date.</div>
+    <div style="font-size:11px">${speakers.join(" · ")}</div>
+    <h3>PHOTOGRAPHS</h3>`;
+    if(PD_PHOTOS.length) for(const ph of PD_PHOTOS)
+      h+=`<div style="font-size:11px">${ph.title} — ${ph.credit} <span style="color:var(--dim)">(${ph.licence})</span></div>`;
+    else h+=`<div style="color:var(--dim);font-size:11px">No archive photographs are included yet. Only public-domain photographs, each credited here, will be.</div>`;
+    if(mine) h+=`<div style="font-size:11px;margin-top:4px">${mine} of your own, kept in this browser only.</div>`;
+    h+=`<button class="bbtn" style="border-color:var(--amber);color:var(--amber);margin-top:10px" onclick="openSettingsOverlay('settings')">‹ BACK TO SETTINGS</button>`;
+    if(!G)h+=`<button class="bbtn" onclick="closeSettings()">✔ DONE — back to nation select</button>`;
+    el.innerHTML=h;
+  }
   if(curPanel==="mods"){
     if(!epochAtLeast("5.0")){el.innerHTML=`<h2>\u{1F9EA} MODS</h2><div style="color:var(--dim);font-size:11px">Mods do not exist yet at ${EPOCHS[epochIdx(EPOCH)].label}. Advance the TIME MACHINE in Settings to v5.0 or later.</div><button class="bbtn" onclick="openSettingsOverlay('settings')">\u2039 BACK TO SETTINGS</button>`;return;}
     const visible=MODLIST.filter(m=>epochAtLeast(m.since||"5.1"));
@@ -14961,6 +14991,19 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Restart this era in a different year. Every year has its own historical front line \u2014 the current campaign is abandoned.</div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${(epochAtLeast("4.9")?ERAS[ERA].years:(ORIG_YEARS[ERA]||ERAS[ERA].years)).map(y=>
       `<button class="tbtn ${y===YEAR?"on":""}" style="font-size:10px" onclick="restartYear(${y})">${y}</button>`).join("")}</div>
+    <h3>\u{1F4DC} BRIEFINGS</h3>
+    <div style="color:var(--dim);font-size:11px">A line from a leader of the era, over a photograph, when a campaign begins. Every quote is attributed to the occasion and date it was spoken.</div>
+    <div class="row" style="gap:4px">
+      <button class="tbtn ${BRIEF_ON?"on":""}" style="flex:1" onclick="setBriefings(true)">ON</button>
+      <button class="tbtn ${BRIEF_ON?"":"on"}" style="flex:1" onclick="setBriefings(false)">OFF</button>
+      <button class="tbtn" style="flex:2" onclick="showBriefing(ERA,true)">\u25B6 SHOW ONE NOW</button>
+    </div>
+    <div style="color:var(--dim);font-size:11px;margin-top:4px">Your own photos (${myPhotos().length}): they stay in this browser and are never uploaded.</div>
+    <div class="row" style="gap:4px">
+      <label class="tbtn" style="flex:2;text-align:center;cursor:pointer">\u{1F5BC} ADD PHOTOS<input type="file" accept="image/*" multiple style="display:none" onchange="addBriefPhotos(this.files)"></label>
+      <button class="tbtn" style="flex:1" ${myPhotos().length?"":"disabled"} onclick="clearBriefPhotos()">CLEAR</button>
+    </div>
+    <button class="bbtn" style="margin-top:6px" onclick="openSettingsOverlay('credits')">\u{1F39E} CREDITS<small>Who and what this game is built from</small></button>
     <h3>\u23F3 TIME MACHINE</h3>
     <div style="color:var(--dim);font-size:11px">Travel back to how Iron Front played at an earlier version. This is the SAME file \u2014 no download needed \u2014 it just locks out whatever came after the version you pick. Playing right now: <b style="color:var(--amber)">${EPOCHS[epochIdx(EPOCH)].label}</b>.</div>
     <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
@@ -15617,6 +15660,8 @@ const CHANGELOG=[
   "\u{1F441} STAND IN THE LINE now arrives in v16.0, the version it actually came in, rather than v5.0, which was as far as the Time Machine reached when it was gated",
   "\u{1F6E1} DIVISIONS ARE BUILT FROM BATTALIONS. Infantry and armour were literally identical \u2014 attack 1.00, defence 1.00 \u2014 and differed by their icon. A division is now a template of battalions, and its manpower, equipment, supply, speed, width, organisation, soft and hard attack, armour and piercing all follow from what is in it. An attack that cannot pierce the target's armour does two-thirds damage. The four stock templates reproduce the old numbers exactly, so every existing army carries over unchanged",
   "\u{1F3AF} TRAINING. Experience could only be earned in combat, so every division ever raised arrived green and a country at peace could do nothing to prepare for war. ARMY \u2192 TRAINING now drills divisions holding in their own territory: TRAIN ALL IDLE, per army group, or everything at the selected province. A training division gains experience every day up to 30 xp (\u2605) and wears out equipment in exercises, which is replaced from the stockpile \u2014 so a trained army costs you the reserve you would have gone to war with. Seasoned and elite are still earned only in battle. Marching or fighting ends the order; being cut off pauses it",
+  "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
+  "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
   "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
   "\u{1F5D1} THE SCREENSHOT UNDER THE MAP IS GONE, and the sea is recoloured against the real water it was imitating: lighter, and a third less blue"
@@ -17516,6 +17561,213 @@ function renderStart(){
     :`<div style="color:var(--dim);font-size:11px">No country picked yet \u2014 tap one below (its corner turns \u2714), then choose your year.</div>`;
 }
 let GAMECLOCK=null;      // the single daily-tick interval; see startGame
+/* ====================================================================
+   BRIEFINGS: the words of the people who were there, on the way in.
+
+   A full-screen card when a campaign opens, as the real game does on its
+   loading screens: a line from a leader of the era being played, over a
+   photograph. The clock is stopped while it is up.
+
+   EVERY QUOTE HERE IS ONE THAT CAN BE TIED TO AN OCCASION AND A DATE.
+   War quotations are one of the most misattributed things there are --
+   "an army marches on its stomach", "war is hell", most of what is pinned
+   on Genghis Khan -- and a misattributed quote on a loading screen is a
+   small lie told to every player. So each entry names where and when it
+   was said, and an era with nothing that meets that bar (the Mongols)
+   borrows from the others rather than invent something.
+
+   Deliberately no lines from the dictators. The real game quotes them;
+   this one does not have to, and a loading screen is the wrong place to
+   give a slogan a frame.
+
+   PHOTOGRAPHS. Only two sources are allowed:
+     - public domain (US federal works such as Army, Navy, Coast Guard and
+       White House photographs; anything old enough to have expired),
+       listed in PD_PHOTOS with its source and licence so CREDITS can name
+       it -- empty until this environment can reach an archive;
+     - photographs the player adds themselves, which stay in their own
+       browser and are never sent anywhere.
+   Without either, the card falls back to a toned film backdrop. */
+const LEADER_QUOTES=[
+ {era:["napoleon"],  who:"Horatio Nelson",        when:"signal to the fleet at Trafalgar, 21 October 1805",
+  q:"England expects that every man will do his duty."},
+ {era:["civilwar"],  who:"Abraham Lincoln",       when:"Springfield, Illinois, 16 June 1858",
+  q:"A house divided against itself cannot stand."},
+ {era:["civilwar"],  who:"Ulysses S. Grant",      when:"to General Buckner at Fort Donelson, 16 February 1862",
+  q:"No terms except an unconditional and immediate surrender can be accepted."},
+ {era:["civilwar"],  who:"Abraham Lincoln",       when:"Gettysburg, 19 November 1863",
+  q:"…that government of the people, by the people, for the people, shall not perish from the earth."},
+ {era:["civilwar"],  who:"Abraham Lincoln",       when:"Second Inaugural Address, 4 March 1865",
+  q:"With malice toward none, with charity for all, with firmness in the right as God gives us to see the right, let us strive on to finish the work we are in."},
+ {era:["ww1"],       who:"Sir Edward Grey",       when:"3 August 1914, as recalled in his memoirs",
+  q:"The lamps are going out all over Europe; we shall not see them lit again in our lifetime."},
+ {era:["ww1"],       who:"Woodrow Wilson",        when:"address to Congress, 2 April 1917",
+  q:"The world must be made safe for democracy."},
+ {era:["ww1"],       who:"Woodrow Wilson",        when:"the Fourteen Points, 8 January 1918",
+  q:"Open covenants of peace, openly arrived at."},
+ {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 13 May 1940",
+  q:"I have nothing to offer but blood, toil, tears and sweat."},
+ {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 4 June 1940",
+  q:"We shall fight on the beaches, we shall fight on the landing grounds, we shall fight in the fields and in the streets, we shall fight in the hills; we shall never surrender."},
+ {era:["ww2"],       who:"Charles de Gaulle",     when:"BBC broadcast from London, 18 June 1940",
+  q:"Whatever happens, the flame of French resistance must not be extinguished and will not be extinguished."},
+ {era:["ww2"],       who:"Winston Churchill",     when:"House of Commons, 20 August 1940",
+  q:"Never in the field of human conflict was so much owed by so many to so few."},
+ {era:["ww2"],       who:"Franklin D. Roosevelt", when:"fireside chat, 29 December 1940",
+  q:"We must be the great arsenal of democracy."},
+ {era:["ww2"],       who:"Franklin D. Roosevelt", when:"address to Congress, 8 December 1941",
+  q:"Yesterday, December 7th, 1941 — a date which will live in infamy — the United States of America was suddenly and deliberately attacked."},
+ {era:["ww2"],       who:"Douglas MacArthur",     when:"Terowie, South Australia, 20 March 1942",
+  q:"I came through and I shall return."},
+ {era:["ww2"],       who:"Dwight D. Eisenhower",  when:"order of the day, 6 June 1944",
+  q:"You are about to embark upon the Great Crusade, toward which we have striven these many months. The eyes of the world are upon you."},
+ {era:["ww2"],       who:"Chester W. Nimitz",     when:"communiqué on Iwo Jima, 16 March 1945",
+  q:"Among the Americans who served on Iwo Island, uncommon valor was a common virtue."},
+ {era:["coldwar"],   who:"Winston Churchill",     when:"Fulton, Missouri, 5 March 1946",
+  q:"From Stettin in the Baltic to Trieste in the Adriatic, an iron curtain has descended across the Continent."},
+ {era:["coldwar"],   who:"Dwight D. Eisenhower",  when:"farewell address, 17 January 1961",
+  q:"We must guard against the acquisition of unwarranted influence, whether sought or unsought, by the military-industrial complex."},
+ {era:["coldwar"],   who:"John F. Kennedy",       when:"inaugural address, 20 January 1961",
+  q:"Ask not what your country can do for you — ask what you can do for your country."},
+ {era:["coldwar"],   who:"John F. Kennedy",       when:"West Berlin, 26 June 1963",
+  q:"Ich bin ein Berliner."},
+ {era:["coldwar"],   who:"Ronald Reagan",         when:"Brandenburg Gate, 12 June 1987",
+  q:"Mr. Gorbachev, tear down this wall!"}
+];
+/* Public-domain photographs, each with where it came from and why it is
+   free to use. Empty until an archive is reachable from this environment;
+   CREDITS reads this list, so nothing can be shown that is not credited. */
+const PD_PHOTOS=[];
+const BRIEF_TINT={ww1:"#3b2d1a",ww2:"#262a1f",coldwar:"#1b2531",civilwar:"#30251a",
+                  napoleon:"#2c2416",mongol:"#2e2316",modern:"#1d2328"};
+let BRIEF_ON=true;
+try{BRIEF_ON=localStorage.getItem("if_brief")!=="0";}catch(e){}
+function quotesFor(era){
+  const own=LEADER_QUOTES.filter(x=>x.era.includes(era));
+  return own.length?own:LEADER_QUOTES;
+}
+/* The player's own photographs: downscaled in the browser and kept in its
+   storage. Private by construction -- they never leave the machine. */
+function myPhotos(){try{return JSON.parse(localStorage.getItem("if_brief_photos")||"[]");}catch(e){return [];}}
+function photoPool(era){
+  const pd=PD_PHOTOS.filter(p=>!p.era||p.era.includes(era)).map(p=>p.src);
+  return pd.concat(myPhotos().map(p=>p.data));
+}
+window.addBriefPhotos=function(files){
+  const list=myPhotos(), todo=[...files].slice(0,12);
+  let left=todo.length; if(!left)return;
+  for(const f of todo){
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        const k=Math.min(1,1600/Math.max(im.width,im.height));
+        const c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+        c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+        list.push({name:f.name.slice(0,60),data:c.toDataURL("image/jpeg",0.72)});
+        if(--left===0){
+          /* storage is a few megabytes; keep the newest that fit */
+          while(list.length){try{localStorage.setItem("if_brief_photos",JSON.stringify(list));break;}catch(e){list.shift();}}
+          if(typeof renderPanel==="function")renderPanel();
+        }
+      };
+      im.onerror=()=>{if(--left===0&&typeof renderPanel==="function")renderPanel();};
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(f);
+  }
+};
+window.clearBriefPhotos=function(){try{localStorage.removeItem("if_brief_photos");}catch(e){} if(typeof renderPanel==="function")renderPanel();};
+window.setBriefings=function(on){BRIEF_ON=!!on;try{localStorage.setItem("if_brief",on?"1":"0");}catch(e){} if(typeof renderPanel==="function")renderPanel();};
+
+/* Film grain, made once: tiled over the backdrop and nudged a few pixels a
+   frame, it reads as projected film rather than a flat colour. */
+let _grainURL=null;
+function grainURL(){
+  if(_grainURL)return _grainURL;
+  const c=document.createElement("canvas");c.width=c.height=160;
+  const g=c.getContext("2d"),im=g.createImageData(160,160),d=im.data;
+  for(let i=0;i<d.length;i+=4){const v=Math.random()*255|0;d[i]=d[i+1]=d[i+2]=v;d[i+3]=26;}
+  g.putImageData(im,0,0);
+  return _grainURL=c.toDataURL();
+}
+let _brief=null;
+function closeBriefing(){
+  if(!_brief)return;
+  const b=_brief; _brief=null;
+  clearTimeout(b.timer); cancelAnimationFrame(b.raf);
+  document.removeEventListener("keydown",b.onKey,true);
+  b.el.style.opacity="0";
+  setTimeout(()=>b.el.remove(),350);
+  if(G&&!b.wasPaused)G.paused=false;
+}
+window.closeBriefing=closeBriefing;
+function showBriefing(era,force){
+  if((!BRIEF_ON&&!force)||!document.body)return;
+  if(typeof MP!=="undefined"&&MP.role==="guest"&&!force)return;   /* the host runs the clock */
+  closeBriefing();
+  era=era||ERA;
+  const pool=quotesFor(era), photos=photoPool(era);
+  let qi=Math.floor(Math.random()*pool.length);
+  const wasPaused=!!(G&&G.paused); if(G)G.paused=true;
+  const el=document.createElement("div");
+  el.id="briefing"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Briefing"); el.tabIndex=-1;
+  const tint=BRIEF_TINT[era]||"#22261e";
+  const photo=photos.length?photos[Math.floor(Math.random()*photos.length)]:null;
+  el.style.cssText="position:fixed;inset:0;z-index:300;display:flex;align-items:flex-end;justify-content:center;"+
+    "cursor:pointer;opacity:0;transition:opacity .35s ease;overflow:hidden;background:"+tint+";";
+  el.innerHTML=
+    `<div style="position:absolute;inset:-4%;${photo
+      ?`background:url('${photo}') center/cover no-repeat;filter:grayscale(.85) sepia(.35) contrast(1.15) brightness(.62);`
+      :`background:radial-gradient(ellipse 70% 55% at 50% 38%, rgba(255,236,190,.16), transparent 70%),
+         linear-gradient(115deg, transparent 38%, rgba(255,240,200,.07) 46%, transparent 54%),
+         linear-gradient(65deg, transparent 52%, rgba(255,240,200,.05) 58%, transparent 64%), ${tint};`}
+      animation:briefDrift 26s ease-in-out infinite alternate"></div>
+    <div id="briefGrain" style="position:absolute;inset:0;background:url('${grainURL()}');opacity:.55;pointer-events:none"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.78) 100%),
+         linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.15) 100%);pointer-events:none"></div>
+    <div style="position:relative;max-width:min(880px,92vw);margin:0 auto 9vh;padding:0 16px;text-align:center;color:#efe6cf">
+      <div style="font:600 11px/1 var(--font,monospace);letter-spacing:5px;color:#c9a54e;margin-bottom:18px">◆ ${(ERAS[era]&&ERAS[era].label)||"BRIEFING"} ◆</div>
+      <div id="briefQ" style="font:italic 400 clamp(20px,3.1vw,36px)/1.32 Georgia,'Times New Roman',serif;text-shadow:0 2px 14px rgba(0,0,0,.8)"></div>
+      <div id="briefWho" style="margin-top:18px;font:600 clamp(12px,1.25vw,15px)/1.4 var(--font,monospace);letter-spacing:2px;color:#d9c79a"></div>
+      <div style="margin:26px auto 0;width:min(320px,70vw);height:2px;background:rgba(255,255,255,.12)"><div id="briefBar" style="height:100%;width:0;background:#c9a54e"></div></div>
+      <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;align-items:center;font:11px var(--font,monospace);letter-spacing:2px;color:#9d9378">
+        <button class="tbtn" style="font-size:11px" onclick="event.stopPropagation();briefNext(-1)" aria-label="Previous quote">◂</button>
+        <span>CLICK OR PRESS ANY KEY TO CONTINUE</span>
+        <button class="tbtn" style="font-size:11px" onclick="event.stopPropagation();briefNext(1)" aria-label="Next quote">▸</button>
+      </div>
+    </div>`;
+  if(!document.getElementById("briefStyle")){
+    const st=document.createElement("style");st.id="briefStyle";
+    st.textContent="@keyframes briefDrift{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.09) translate(-1.5%,-1%)}}"+
+      "@media (prefers-reduced-motion:reduce){#briefing *{animation:none!important}}";
+    document.head.appendChild(st);
+  }
+  document.body.appendChild(el);
+  const DUR=11000;
+  const b={el,wasPaused,timer:0,raf:0,t0:performance.now(),qi,pool,onKey:null};
+  const paint=()=>{const x=b.pool[b.qi];
+    el.querySelector("#briefQ").textContent="“"+x.q+"”";
+    el.querySelector("#briefWho").textContent="— "+x.who.toUpperCase()+" · "+x.when;};
+  paint();
+  window.briefNext=d=>{if(!_brief)return;_brief.qi=(_brief.qi+d+_brief.pool.length)%_brief.pool.length;paint();
+    _brief.t0=performance.now();clearTimeout(_brief.timer);_brief.timer=setTimeout(closeBriefing,DUR);};
+  b.onKey=e=>{if(e.key==="ArrowRight"){briefNext(1);}else if(e.key==="ArrowLeft"){briefNext(-1);}else closeBriefing();
+    e.preventDefault();e.stopPropagation();};
+  document.addEventListener("keydown",b.onKey,true);
+  el.addEventListener("click",closeBriefing);
+  const grain=el.querySelector("#briefGrain"), bar=el.querySelector("#briefBar");
+  const step=now=>{if(_brief!==b)return;
+    grain.style.backgroundPosition=((Math.random()*160)|0)+"px "+((Math.random()*160)|0)+"px";
+    bar.style.width=Math.min(100,(now-b.t0)/DUR*100)+"%";
+    b.raf=requestAnimationFrame(step);};
+  _brief=b;
+  b.raf=requestAnimationFrame(step);
+  b.timer=setTimeout(closeBriefing,DUR);
+  requestAnimationFrame(()=>{el.style.opacity="1";el.focus();});
+}
+window.showBriefing=showBriefing;
+
 function startGame(k){
   /* Refuse an unknown nation outright. The name is not read until the very
      last line of this function, so an unrecognised key used to build the whole
@@ -17534,6 +17786,8 @@ function startGame(k){
      start of a game. */
   {const bx=$("#eventBox");if(bx)bx.style.display="none";}
   newGame(k);window.G=G;terDirty=true;
+  /* the briefing card stops the clock while it is up */
+  try{showBriefing(ERA);}catch(e){}
   G.achAtStart=Object.keys(ACHU);        // snapshot for the end-of-campaign summary
   ACHSEEN[EPOCH]=1;try{localStorage.setItem("if_ach_epochs",JSON.stringify(ACHSEEN));}catch(e){}
   if(EPOCHS.every(e=>ACHSEEN[e.id]))unlockAch("time_traveler");
