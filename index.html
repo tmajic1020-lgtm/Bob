@@ -1970,6 +1970,92 @@ function riseNewNation(pid){
     occ===G.player?"war":"good");
   return key;
 }
+/* ===================== RELEASABLE NATIONS (WORLD WAR II) =====================
+   The real game's releasables: peoples who had no state of their own in 1936
+   but can get one. Two roads, as there: a power that holds their land can
+   RELEASE them as a puppet, and in a war or a crisis they can BREAK AWAY on
+   their own and fight for it. Names and colours from the owner's own table;
+   cores are the provinces of this map that stand on that ground.
+   Belgium, the Netherlands, Luxembourg, Kosovo, Transnistria, Syria,
+   Afghanistan, Kashmir, Taiwan, Tibet and Bougainville were on the list too,
+   but this 251-province map has no province on their ground to give them. */
+const RELEASABLES=[
+ {id:"SCO",n:"Scotland",        f:"\u{1F3F4}",c:"#3a6073",cores:["sco"],sep:1,d:"An old kingdom inside the Union"},
+ {id:"NIR",n:"Northern Ireland",f:"☘️",c:"#4d7c0f",cores:["bfs"],sep:1,d:"Six counties and an open question"},
+ {id:"CAT",n:"Catalonia",       f:"\u{1F3F4}",c:"#b45309",cores:["bcn"],sep:1,d:"Barcelona, and its own parliament"},
+ {id:"BAS",n:"Basque Country",  f:"\u{1F3F4}",c:"#15803d",cores:["bil"],sep:1,d:"Euskadi, on the Bay of Biscay"},
+ {id:"POR",n:"Portugal",        f:"\u{1F1F5}\u{1F1F9}",c:"#14532d",cores:["lis","opo"],d:"The oldest border in Europe"},
+ {id:"UKR",n:"Ukraine",         f:"\u{1F1FA}\u{1F1E6}",c:"#eab308",cores:["kie","ode","lwo"],d:"The breadbasket wants its own flag"},
+ {id:"BLR",n:"Belarus",         f:"\u{1F1E7}\u{1F1FE}",c:"#166534",cores:["min"],d:"Forest and marsh between the giants"},
+ {id:"SVK",n:"Slovakia",        f:"\u{1F1F8}\u{1F1F0}",c:"#9a3412",cores:["bra"],d:"The other half of Czechoslovakia"},
+ {id:"MDA",n:"Moldova",         f:"\u{1F1F2}\u{1F1E9}",c:"#115e59",cores:["kish"],d:"Bessarabia, between Romania and Russia"},
+ {id:"QUE",n:"Quebec",          f:"⚜️",c:"#1e40af",cores:["mtl"],sep:1,d:"French America"},
+ {id:"KUR",n:"Kurdistan",       f:"☀️",c:"#15803d",cores:["erz"],sep:1,d:"A people across four borders"},
+ {id:"IRQ",n:"Iraq",            f:"\u{1F1EE}\u{1F1F6}",c:"#7f1d1d",cores:["bag","bas"],d:"Mesopotamia, and its oil"},
+ {id:"PAK",n:"Pakistan",        f:"\u{1F1F5}\u{1F1F0}",c:"#065f46",cores:["lah"],d:"The Punjab and the Indus"},
+ {id:"IND",n:"India",           f:"\u{1F1EE}\u{1F1F3}",c:"#808000",cores:["del","bom","cal","mad2","hyd","dac"],d:"Four hundred million, and the Raj"},
+ {id:"KOR",n:"Korea",           f:"\u{1F1F0}\u{1F1F7}",c:"#1e3a8a",cores:["seo","pus","pyo"],d:"A peninsula under Japanese rule"}
+];
+const REL_BY={};for(const r of RELEASABLES)REL_BY[r.id]=r;
+const relKey=id=>SHARD+"r"+id;
+function relAlive(id){const n=G&&G.nations[relKey(id)];return !!(n&&n.alive);}
+function relOn(){return ERA==="ww2"&&typeof epochAtLeast==="function"&&epochAtLeast("24.0");}
+/* Create the nation on whichever of its cores `from` holds. by = the power
+   releasing it (it becomes that power's puppet); null = it breaks away from
+   `from` and goes to war with it. */
+function spawnReleasable(id,from,by){
+  const r=REL_BY[id];if(!r||!G||relAlive(id))return null;
+  const took=r.cores.map(c=>G.prov[c]).filter(p=>p&&p.owner===from);
+  if(!took.length||!G.nations[from]||!G.nations[from].alive)return null;
+  const key=relKey(id),cap=took[0].id;
+  NATIONS[key]={n:r.n,f:r.f,c:r.c,cap,play:0,desc:r.d,eras:[ERA]};
+  NAT_BASE[key]={n:r.n,f:r.f,c:r.c,cap};
+  FLAG[key]=_shFlag(_shHash("rel:"+id),r.c);
+  const nn=makeNation(key,1,true);
+  nn.pp=25;nn.rp=0;nn.oil=5;nn.stab=by?60:55;nn.warSup=by?50:75;nn.ideo=G.nations[from].ideo;
+  G.nations[key]=nn;
+  for(const q of took){q.owner=key;q.home=key;q.garrison=2;}
+  addUnit(key,cap,"inf",3);if(took.length>1)addUnit(key,took[1].id,"inf",3);
+  if(by){
+    nn.puppet=by;G.nations[by].allies.add(key);nn.allies.add(by);
+    G.nations[by].stab=Math.min(100,G.nations[by].stab+3);
+    logMsg(`\u{1F3F3} ${r.f} ${r.n} is RELEASED by ${NATIONS[by].n} and joins it as a puppet state.`,"good");
+  }else{
+    declareWar(key,from);
+    logMsg(`\u{1F525} ${r.f} ${r.n} BREAKS AWAY from ${NATIONS[from].n} and fights for its independence!`,from===G.player?"war":"good");
+    if(from===G.player&&typeof sfx==="function")sfx("war");
+  }
+  terDirty=true;
+  if(typeof refreshFlagIcons==="function")refreshFlagIcons();
+  return key;
+}
+/* What the player could release now: every releasable with a core in hand. */
+function releasableFor(k){
+  if(!relOn())return [];
+  return RELEASABLES.filter(r=>!relAlive(r.id)&&r.cores.some(c=>G.prov[c]&&G.prov[c].owner===k));
+}
+window.releaseNation=function(id){if(!G||!G.nations)return;
+  if(!releasableFor(G.player).some(r=>r.id===id))return;
+  spawnReleasable(id,G.player,G.player);if(typeof sfx==="function")sfx("focus");
+  renderPanel();refreshHUD();};
+/* Independence movements. A core breaks away when its holder is at war or
+   shaky, the province is thinly held and no division of the holder stands in
+   it; foreign occupation and separatist feeling make it likelier. At most one
+   a check, every eleven days. */
+function breakawayTick(){
+  if(!relOn())return;
+  for(const r of RELEASABLES){
+    if(relAlive(r.id))continue;
+    for(const c of r.cores){
+      const p=G.prov[c];if(!p)continue;
+      const h=G.nations[p.owner];if(!h||!h.alive||p.owner.startsWith(SHARD))continue;
+      if(!(h.atWar.size||h.stab<45))continue;
+      if(p.garrison>3||G.units.some(u=>u.at===p.id&&u.nat===p.owner))continue;
+      const pr=(r.sep?0.0015:0.001)*(h.stab<45?2:1)*(h.atWar.size?1.5:1)*(p.owner!==p.home?2:1);
+      if(Math.random()<pr){spawnReleasable(r.id,p.owner,null);return;}
+    }
+  }
+}
 function clearShards(){
   for(const k in NATIONS)if(k.startsWith(SHARD)){delete NATIONS[k];delete FLAG[k];delete NAT_BASE[k];}
 }
@@ -3617,6 +3703,7 @@ function tick(){
     const shaky=(occ.stab<55?1.8:1)*(occ.atWar.size?1.6:1)*(1+G.tension/160);
     if(epochAtLeast("13.0")&&Math.random()<0.0009*shaky){riseNewNation(p.id);break;}   // at most one a day
   }
+  if(G.day%11===5&&!MODS.shatter)breakawayTick();
   if(G.stats){
     const st=G.stats,me0=G.nations[G.player];
     st.peakProv=Math.max(st.peakProv,natProvs(G.player).length);
@@ -14993,6 +15080,24 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px">Restart this era in a different year. Every year has its own historical front line \u2014 the current campaign is abandoned.</div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${(epochAtLeast("4.9")?ERAS[ERA].years:(ORIG_YEARS[ERA]||ERAS[ERA].years)).map(y=>
       `<button class="tbtn ${y===YEAR?"on":""}" style="font-size:10px" onclick="restartYear(${y})">${y}</button>`).join("")}</div>
+    <h3>\u{1F3B5} MUSIC</h3>
+    <div style="color:var(--dim);font-size:11px">Changes with your situation, as in the real game: a theme for the Allies, the Axis, the Comintern and the non-aligned, at peace and at war, and one for the menu. Give a slot your own music files and it plays them; leave it empty and it plays an original score written for it.</div>
+    <div class="row" style="gap:4px">
+      <button class="tbtn ${MUS_ON?"on":""}" style="flex:1" onclick="setMusic(true)">ON</button>
+      <button class="tbtn ${MUS_ON?"":"on"}" style="flex:1" onclick="setMusic(false)">OFF</button>
+      <button class="tbtn" style="flex:2" onclick="musicNext()">⏭ NEXT TRACK</button>
+    </div>
+    <div class="row"><span>Volume</span><input type="range" min="0" max="1" step="0.05" value="${MUS_VOL}" oninput="setMusicVol(this.value)" style="flex:1;margin-left:8px"></div>
+    <div style="font-size:11px">Now: ${MUS_NOW.name?MUS_NOW.name:"— starts on your next click"}${MUS_NOW.mood?` <span style="color:var(--dim)">(${(MUS_SLOTS.find(x=>x.id===MUS_NOW.mood)||{n:""}).n})</span>`:""}</div>
+    ${MUS_SLOTS.map(sl=>{const n=MUS_LIST.filter(t=>t.slot===sl.id).length;return `<div class="row" style="gap:4px;align-items:center">
+      <span style="flex:3;font-size:11px">${sl.i} ${sl.n} <span style="color:var(--dim)">— ${n?n+" file"+(n>1?"s":""):"original score"}</span></span>
+      <label class="tbtn" style="flex:1;text-align:center;cursor:pointer;font-size:10px">+ ADD<input type="file" accept="audio/*,.ogg,.mp3,.wav,.m4a,.flac,.opus" multiple style="display:none" onchange="addMusic(this.files,'${sl.id}')"></label>
+      ${n?`<button class="tbtn" style="flex:1;font-size:10px" onclick="clearMusic('${sl.id}')">CLEAR</button>`:`<span style="flex:1"></span>`}</div>`;}).join("")}
+    <div class="row" style="gap:4px">
+      <label class="tbtn" style="flex:2;text-align:center;cursor:pointer">\u{1F4C2} ADD A WHOLE SOUNDTRACK<input type="file" accept="audio/*,.ogg,.mp3,.wav,.m4a,.flac,.opus" multiple style="display:none" onchange="addMusic(this.files,'auto')"></label>
+      ${MUS_LIST.length?`<button class="tbtn" style="flex:1" onclick="clearMusic()">CLEAR ALL</button>`:""}
+    </div>
+    <div style="color:var(--dim);font-size:11px">ADD A WHOLE SOUNDTRACK sorts files into slots by their names (allies, axis, comintern, neutral; war or peace). Your files stay in this browser and are never uploaded. The real game's soundtrack belongs to Paradox, so it is not included — if you own the game, its music files are in its install folder and can be added here.</div>
     <h3>\u{1F4DC} BRIEFINGS</h3>
     <div style="color:var(--dim);font-size:11px">A line from someone who lived through the era \u2014 leaders, soldiers, poets, scientists, athletes \u2014 over a battle scene painted fresh for it, when a campaign begins. ${LEADER_QUOTES.length} quotes, each attributed to the occasion and date. \u25C2 \u25B8 or the arrow keys flip through them.</div>
     <div class="row" style="gap:4px">
@@ -15105,6 +15210,11 @@ function renderPanel(){
     <div class="row"><span>🌡 World tension</span><span style="color:${G.tension>70?"#ff8d7a":"var(--ink)"}">${Math.round(G.tension)}% ${G.tension>70?"— NUCLEAR DANGER":""}</span></div>
     <div class="row"><span>Your stability</span><span style="color:${me.stab<25?"#ff8d7a":"var(--ink)"}">${Math.max(0,me.stab).toFixed(0)}%</span></div>
     <div style="color:var(--dim);font-size:11px">Stability falls in long wars and when provinces fall. At 0% your government COLLAPSES and a new nation takes its place.</div>`;
+    {const rl=releasableFor(G.player);
+     if(rl.length){h+=`<h3>\u{1F3F3} RELEASABLE NATIONS</h3>
+      <div style="color:var(--dim);font-size:11px">Peoples on land you hold who could have a state of their own. Release one and its provinces become a puppet state at your side. Hold them badly in a war and they may break away by themselves.</div>`;
+      for(const r of rl){const mine=r.cores.filter(c=>G.prov[c]&&G.prov[c].owner===G.player).map(c=>G.prov[c].name);
+        h+=`<button class="bbtn" style="border-left:4px solid ${r.c}" onclick="releaseNation('${r.id}')">${r.f} Release ${r.n}<small>${r.d}. Gives up ${mine.join(", ")}.</small></button>`;}}}
     const tradeable=Object.keys(G.nations).filter(function(k){return k!==G.player&&G.nations[k].alive&&!atWar(G.player,k)&&!allied(G.player,k);});
     const myTrade=me.trade||new Set();
     const als=[...me.allies].filter(x=>G.nations[x].alive);
@@ -15664,6 +15774,8 @@ const CHANGELOG=[
   "\u{1F3AF} TRAINING. Experience could only be earned in combat, so every division ever raised arrived green and a country at peace could do nothing to prepare for war. ARMY \u2192 TRAINING now drills divisions holding in their own territory: TRAIN ALL IDLE, per army group, or everything at the selected province. A training division gains experience every day up to 30 xp (\u2605) and wears out equipment in exercises, which is replaced from the stockpile \u2014 so a trained army costs you the reserve you would have gone to war with. Seasoned and elite are still earned only in battle. Marching or fighting ends the order; being cut off pauses it",
   "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
   "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. Thirty scenes across the seven eras \u2014 the D-Day beaches, the Blitz under searchlights, paratroopers dropping by moonlight, the carrier war, Jutland, the Berlin Wall, helicopters over the jungle, the retreat from Moscow, the ironclads, a Mongol siege \u2014 in snow, storm, dawn and night as well as by day. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
+  "\u{1F3F3} RELEASABLE NATIONS in World War II, as in the real game: Scotland, Northern Ireland, Catalonia, the Basque Country, Portugal, Ukraine, Belarus, Slovakia, Moldova, Quebec, Kurdistan, Iraq, Pakistan, India and Korea. Hold their land and you can RELEASE them as a puppet from the WARS panel; hold it badly in a war or a crisis and they BREAK AWAY and fight you for it",
+  "\u{1F3B5} MUSIC that follows the war: Allies, Axis, Comintern or non-aligned, at peace or at war, and a theme for the menu. Fill each slot with your own music files (kept in your browser) or let it play an original score written for it",
   "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
   "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
@@ -16636,6 +16748,226 @@ function sfx(k){
 window.sfx=sfx;
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest(".tbtn,.bbtn,.nat"))sfx("click");});
 window.setSnd=v=>{SND=v;try{localStorage.setItem("if_snd",v?"on":"off");}catch(e){}};
+
+window.__ifBoot("music");
+/* ============================== MUSIC ==============================
+   The real game changes its music with your situation: one set of themes for
+   the Allies, one for the Axis, one for the Comintern, one for the
+   non-aligned, each in a peacetime and a wartime mood, and a main theme on
+   the menu. This does the same, in nine slots.
+
+   The real soundtrack is Paradox's and is not shipped in this file, for the
+   same reason none of their artwork is. Each slot instead takes the PLAYER'S
+   OWN audio files -- a copy of the soundtrack they own, or anything else --
+   kept in this browser's IndexedDB and never sent anywhere. A slot with
+   nothing in it plays an ORIGINAL score composed here at run time (WebAudio:
+   strings, brass, horns, timpani and snare), written per side and per mood. */
+const MUS_SLOTS=[
+ {id:"menu",          n:"Main menu",          i:"\u{1F3BC}"},
+ {id:"allies_peace",  n:"Allies — peace",    i:"\u{1F5F3}"},
+ {id:"allies_war",    n:"Allies — war",      i:"\u{1F5F3}"},
+ {id:"axis_peace",    n:"Axis — peace",      i:"⚔️"},
+ {id:"axis_war",      n:"Axis — war",        i:"⚔️"},
+ {id:"comintern_peace",n:"Comintern — peace",i:"☭"},
+ {id:"comintern_war", n:"Comintern — war",   i:"☭"},
+ {id:"neutral_peace", n:"Non-aligned — peace",i:"\u{1F6E1}"},
+ {id:"neutral_war",   n:"Non-aligned — war", i:"\u{1F6E1}"}
+];
+let MUS_ON=true,MUS_VOL=0.5;
+try{MUS_ON=localStorage.getItem("if_music")!=="off";const v=parseFloat(localStorage.getItem("if_music_vol"));if(v>=0&&v<=1)MUS_VOL=v;}catch(e){}
+/* which slot the moment calls for */
+function musicMood(){
+  if(!G||!G.nations||!G.nations[G.player])return "menu";
+  const me=G.nations[G.player];
+  const side={dem:"allies",fas:"axis",rev:"axis",com:"comintern"}[me.ideo]||"neutral";
+  return side+"_"+(me.atWar&&me.atWar.size?"war":"peace");
+}
+/* ---------- the player's own tracks, in IndexedDB ---------- */
+let MUS_LIST=[];   /* {id,slot,name} -- blobs stay in the database until played */
+function _musDB(){return new Promise((ok,no)=>{
+  if(!window.indexedDB)return no(new Error("no IndexedDB"));
+  const rq=indexedDB.open("ironfront_music",1);
+  rq.onupgradeneeded=()=>rq.result.createObjectStore("tracks",{keyPath:"id",autoIncrement:true});
+  rq.onsuccess=()=>ok(rq.result);rq.onerror=()=>no(rq.error);});}
+async function musLoadList(){
+  try{const db=await _musDB();
+    MUS_LIST=await new Promise(ok=>{const out=[],tx=db.transaction("tracks").objectStore("tracks").openCursor();
+      tx.onsuccess=e=>{const c=e.target.result;if(c){out.push({id:c.value.id,slot:c.value.slot,name:c.value.name});c.continue();}else ok(out);};
+      tx.onerror=()=>ok(out);});
+  }catch(e){MUS_LIST=[];}
+  if(typeof renderPanel==="function"&&typeof curPanel!=="undefined"&&curPanel==="settings")renderPanel();
+}
+/* Sort a file into a slot by its name, so a whole folder can be added at
+   once: "allies", "axis", "comintern"/"soviet"/"commun", "neutral", and
+   "war"/"battle"/"combat" or "peace". The name alone cannot always tell; the
+   track then goes in the slot the button was pressed for. */
+function musGuessSlot(name,fallback){
+  const s=name.toLowerCase();
+  const side=/allie|allied|democr/.test(s)?"allies":/axis|fasc/.test(s)?"axis":/comintern|soviet|commun/.test(s)?"comintern":/neutral|non.?align/.test(s)?"neutral":null;
+  const mood=/war|battle|combat|attack|front/.test(s)?"war":/peace|morning|calm/.test(s)?"peace":null;
+  if(/main.?theme|menu|title/.test(s)&&!side)return "menu";
+  if(side&&mood)return side+"_"+mood;
+  if(side)return side+"_"+(fallback&&fallback.endsWith("war")?"war":"peace");
+  return fallback||"menu";
+}
+window.addMusic=async function(files,slot){
+  const db=await _musDB().catch(()=>null);if(!db){logMsg&&G&&logMsg("This browser cannot store music files.","war");return;}
+  for(const f of [...files]){
+    if(!/^audio\//.test(f.type)&&!/\.(ogg|mp3|wav|m4a|flac|opus|webm)$/i.test(f.name))continue;
+    const rec={slot:slot==="auto"?musGuessSlot(f.name,null):(slot||"menu"),name:f.name.slice(0,80),blob:f};
+    await new Promise(ok=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").add(rec);tx.oncomplete=ok;tx.onerror=ok;});
+  }
+  await musLoadList();musRetarget(true);
+};
+window.clearMusic=async function(slot){
+  const db=await _musDB().catch(()=>null);if(!db)return;
+  await new Promise(ok=>{const tx=db.transaction("tracks","readwrite"),st=tx.objectStore("tracks");
+    if(!slot)st.clear();else for(const t of MUS_LIST)if(t.slot===slot)st.delete(t.id);
+    tx.oncomplete=ok;tx.onerror=ok;});
+  await musLoadList();musRetarget(true);
+};
+async function _musBlob(id){const db=await _musDB();return new Promise(ok=>{
+  const rq=db.transaction("tracks").objectStore("tracks").get(id);rq.onsuccess=()=>ok(rq.result&&rq.result.blob);rq.onerror=()=>ok(null);});}
+/* tracks for a mood: the slot itself, else the same side in the other mood */
+function musPool(mood){
+  let p=MUS_LIST.filter(t=>t.slot===mood);
+  if(!p.length&&mood!=="menu"){const side=mood.split("_")[0];p=MUS_LIST.filter(t=>t.slot.startsWith(side+"_"));}
+  return p;
+}
+
+/* ---------- the original score ---------- */
+const SCORE={
+  /* root as a MIDI note, scale steps, chords as scale degrees, tempo, and
+     what the band does: snare march, timpani, brass or horn on the tune */
+  menu:     {root:50,scale:[0,2,3,5,7,8,10],prog:[0,5,2,6, 0,3,4,4],bpm:66,snare:0,timp:1,lead:"brass"},
+  allies_peace:{root:50,scale:[0,2,4,5,7,9,11],prog:[0,4,5,3, 0,3,4,4],bpm:72,snare:0,timp:0,lead:"horn"},
+  allies_war:  {root:50,scale:[0,2,4,5,7,9,11],prog:[0,4,5,3, 5,3,4,4],bpm:104,snare:1,timp:1,lead:"brass"},
+  axis_peace:  {root:48,scale:[0,2,3,5,7,8,10],prog:[0,5,3,6, 0,5,4,4],bpm:64,snare:0,timp:1,lead:"horn"},
+  axis_war:    {root:48,scale:[0,2,3,5,7,8,10],prog:[0,5,2,6, 0,3,4,4],bpm:96,snare:1,timp:1,lead:"brass"},
+  comintern_peace:{root:52,scale:[0,2,3,5,7,8,11],prog:[0,3,4,0, 5,3,4,0],bpm:60,snare:0,timp:0,lead:"horn"},
+  comintern_war:  {root:52,scale:[0,2,3,5,7,8,11],prog:[0,3,4,0, 5,2,4,4],bpm:100,snare:1,timp:1,lead:"brass"},
+  neutral_peace:{root:55,scale:[0,2,3,5,7,9,10],prog:[0,3,6,0, 4,3,6,0],bpm:70,snare:0,timp:0,lead:"horn"},
+  neutral_war:  {root:55,scale:[0,2,3,5,7,9,10],prog:[0,6,3,4, 0,6,4,4],bpm:92,snare:1,timp:1,lead:"brass"}
+};
+const _mtof=m=>440*Math.pow(2,(m-69)/12);
+let MUSG=null;   /* the synth graph, built on first use */
+function _musGraph(){
+  if(MUSG)return MUSG;
+  const ac=_ctx();if(!ac)return null;
+  const out=ac.createGain();out.gain.value=MUS_VOL;out.connect(ac.destination);
+  /* a hall: a convolver fed a decaying noise impulse */
+  const len=Math.floor(ac.sampleRate*2.8),ir=ac.createBuffer(2,len,ac.sampleRate);
+  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6);}
+  const rev=ac.createConvolver();rev.buffer=ir;const wet=ac.createGain();wet.gain.value=0.42;rev.connect(wet);wet.connect(out);
+  const bus=ac.createGain();bus.gain.value=0.8;bus.connect(out);bus.connect(rev);
+  const nb=ac.createBuffer(1,ac.sampleRate,ac.sampleRate),nd=nb.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+  MUSG={ac,out,bus,noise:nb,timer:0,next:0,step:0,mood:null,seed:1};
+  return MUSG;
+}
+function _env(g,t,a,peak,hold,rel){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);
+  g.gain.setValueAtTime(peak,t+a+hold);g.gain.exponentialRampToValueAtTime(0.0001,t+a+hold+rel);}
+function _voice(M,t,freq,dur,kind,vol){
+  const ac=M.ac,g=ac.createGain(),f=ac.createBiquadFilter();f.type="lowpass";
+  const osc=[];
+  if(kind==="strings"){for(const d of[-7,0,6]){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;o.detune.value=d;osc.push(o);}
+    f.frequency.value=1500;f.Q.value=0.3;_env(g,t,0.9,vol,Math.max(0.1,dur-0.9),1.6);}
+  else if(kind==="brass"){for(const d of[-4,4]){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;o.detune.value=d;osc.push(o);}
+    f.Q.value=1.2;f.frequency.setValueAtTime(380,t);f.frequency.exponentialRampToValueAtTime(2400,t+0.09);f.frequency.exponentialRampToValueAtTime(1100,t+0.5);
+    _env(g,t,0.06,vol,Math.max(0.05,dur-0.1),0.35);}
+  else if(kind==="horn"){const o=ac.createOscillator();o.type="triangle";o.frequency.value=freq;osc.push(o);
+    const o2=ac.createOscillator();o2.type="sawtooth";o2.frequency.value=freq;o2.detune.value=3;osc.push(o2);
+    f.frequency.value=900;_env(g,t,0.25,vol,Math.max(0.05,dur-0.25),0.9);}
+  else if(kind==="bass"){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;osc.push(o);
+    f.frequency.value=420;_env(g,t,0.08,vol,Math.max(0.05,dur-0.1),0.5);}
+  for(const o of osc){o.connect(f);o.start(t);o.stop(t+dur+2);}
+  f.connect(g);g.connect(M.bus);
+}
+function _timp(M,t,freq,vol){const ac=M.ac,o=ac.createOscillator(),g=ac.createGain();o.type="sine";
+  o.frequency.setValueAtTime(freq*1.5,t);o.frequency.exponentialRampToValueAtTime(freq,t+0.08);
+  _env(g,t,0.005,vol,0.02,1.3);o.connect(g);g.connect(M.bus);o.start(t);o.stop(t+1.6);}
+function _snare(M,t,vol){const ac=M.ac,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+  s.buffer=M.noise;f.type="bandpass";f.frequency.value=2600;f.Q.value=0.7;_env(g,t,0.002,vol,0.01,0.13);
+  s.connect(f);f.connect(g);g.connect(M.bus);s.start(t);s.stop(t+0.3);}
+/* One bar at a time, a little ahead of the clock. The tune is a seeded walk
+   over the chord's own notes and its neighbours, with a phrase every two
+   bars and a cadence on the fourth, so it sounds written rather than random. */
+function _musBar(M){
+  const sc=SCORE[M.mood]||SCORE.menu,beat=60/sc.bpm,t=M.next,bar=M.step;
+  const deg=sc.prog[bar%sc.prog.length],S=sc.scale;
+  const note=d=>sc.root+S[((d%7)+7)%7]+12*Math.floor(d/7);
+  const R=_scRng(M.seed*977+bar);
+  /* strings hold the chord, the bass moves on the beat */
+  for(const k of[0,2,4])_voice(M,t,_mtof(note(deg+k)+(k?0:-12)+12),beat*4,"strings",0.035);
+  for(let b=0;b<4;b++)if(sc.snare||b%2===0)_voice(M,t+b*beat,_mtof(note(deg)-12),beat*(sc.snare?0.8:1.8),"bass",sc.snare?0.07:0.05);
+  /* the tune: rests on the first bar of each eight, so it breathes */
+  if(bar%8!==0){
+    const rh=sc.snare?[[0,1],[1,0.5],[1.5,0.5],[2,1],[3,1]]:[[0,2],[2,1],[3,1]];
+    let d=deg+7+[0,2,4][Math.floor(R()*3)];
+    for(const[pos,len]of rh){
+      if(bar%4===3&&pos>=2){_voice(M,t+pos*beat,_mtof(note(deg+7)),beat*2,sc.lead,0.06);break;}   /* cadence */
+      d+=[-2,-1,-1,0,1,1,2][Math.floor(R()*7)];
+      _voice(M,t+pos*beat,_mtof(note(d)),beat*len*0.95,sc.lead,sc.lead==="brass"?0.05:0.06);
+    }
+  }
+  if(sc.timp){_timp(M,t,_mtof(note(deg)-24),0.22);if(sc.snare)_timp(M,t+2*beat,_mtof(note(deg)-24),0.14);}
+  if(sc.snare){const pat=[0,0.75,1,2,2.5,2.75,3,3.25,3.5,3.75];
+    for(const p of pat)_snare(M,t+p*beat,p%1===0?0.09:0.05);}
+  M.next=t+beat*4;M.step++;
+}
+function musScoreStart(mood){
+  const M=_musGraph();if(!M)return;
+  if(M.ac.state==="suspended")M.ac.resume();
+  M.mood=mood;
+  if(M.timer)return;
+  M.next=M.ac.currentTime+0.15;M.step=0;M.seed=(Math.random()*1e6)|0;
+  M.out.gain.cancelScheduledValues(M.ac.currentTime);M.out.gain.setValueAtTime(MUS_VOL,M.ac.currentTime);
+  M.timer=setInterval(()=>{while(M.next<M.ac.currentTime+0.6)_musBar(M);},120);
+}
+function musScoreStop(){
+  if(!MUSG||!MUSG.timer)return;const M=MUSG;clearInterval(M.timer);M.timer=0;
+  M.out.gain.setTargetAtTime(0.0001,M.ac.currentTime,0.4);
+  setTimeout(()=>{if(!M.timer)M.out.gain.value=MUS_VOL;},2500);
+}
+
+/* ---------- the player that chooses between them ---------- */
+let MUS_AUDIO=null,MUS_NOW={mood:null,src:null,name:""},_musURL=null,_musStarted=false;
+async function musPlayFile(t){
+  if(!MUS_AUDIO){MUS_AUDIO=new Audio();MUS_AUDIO.addEventListener("ended",()=>musRetarget(true));}
+  const blob=await _musBlob(t.id).catch(()=>null);if(!blob){musRetarget(true);return;}
+  if(_musURL)URL.revokeObjectURL(_musURL);_musURL=URL.createObjectURL(blob);
+  MUS_AUDIO.src=_musURL;MUS_AUDIO.volume=MUS_VOL;
+  MUS_AUDIO.play().catch(()=>{});
+}
+/* Called on a timer and on every change: keep playing what suits the moment.
+   A change of mood (war declared, a revolution) cuts to the new slot; the
+   same mood lets a track finish. force = choose again now. */
+function musRetarget(force){
+  if(!MUS_ON||!_musStarted){musScoreStop();if(MUS_AUDIO)MUS_AUDIO.pause();MUS_NOW={mood:null,src:null,name:""};return;}
+  const mood=musicMood();
+  if(!force&&mood===MUS_NOW.mood)return;
+  const pool=musPool(mood);
+  if(pool.length){
+    musScoreStop();
+    const t=pool.length>1?pool.filter(x=>x.name!==MUS_NOW.name)[Math.floor(Math.random()*(pool.length-1))]||pool[0]:pool[0];
+    MUS_NOW={mood,src:"file",name:t.name};musPlayFile(t);
+  }else{
+    if(MUS_AUDIO)MUS_AUDIO.pause();
+    MUS_NOW={mood,src:"score",name:"Original score — "+(MUS_SLOTS.find(s=>s.id===mood)||{n:mood}).n};
+    musScoreStart(mood);
+  }
+}
+window.setMusic=function(on){MUS_ON=!!on;try{localStorage.setItem("if_music",on?"on":"off");}catch(e){}
+  if(on)_musStarted=true;musRetarget(true);if(typeof renderPanel==="function")renderPanel();};
+window.setMusicVol=function(v){MUS_VOL=Math.max(0,Math.min(1,+v||0));try{localStorage.setItem("if_music_vol",String(MUS_VOL));}catch(e){}
+  if(MUS_AUDIO)MUS_AUDIO.volume=MUS_VOL;if(MUSG)MUSG.out.gain.value=MUS_VOL;};
+window.musicNext=function(){musRetarget(true);if(typeof renderPanel==="function")renderPanel();};
+/* Browsers will not start sound before the player touches the page, so the
+   music begins on the first click or key. */
+function _musKick(){if(_musStarted)return;_musStarted=true;musRetarget(true);}
+document.addEventListener("pointerdown",_musKick,{once:false,capture:true});
+document.addEventListener("keydown",_musKick,{once:false,capture:true});
+setInterval(()=>musRetarget(false),2500);
+musLoadList();
 
 window.__ifBoot("accounts");
 /* ============================== ACCOUNTS ============================== */

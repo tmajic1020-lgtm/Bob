@@ -750,3 +750,38 @@ Two faults found by looking at the renders, not by any check:
   the figures stand on;
 - light shafts belong to a clear sun; in snow, storm or at night they read
   as searchlights from nowhere, so they are off for those moods.
+
+## Releasable nations (WWII) and music
+
+The owner sent a list of nations with colours, separatists included, and
+said they are "for breakaway nations like in the actual game". So in the
+WWII era (epoch 24.0) `RELEASABLES` holds the fifteen on the list that had
+no state in 1936 AND have a province on this map: Scotland, Northern
+Ireland, Catalonia, Basque Country, Portugal (Iberia is one Spanish block
+here), Ukraine, Belarus, Slovakia, Moldova, Quebec, Kurdistan, Iraq
+(Persian on this map), Pakistan, India, Korea. The rest of the list
+(Belgium, Netherlands, Luxembourg, Kosovo, Transnistria, Syria,
+Afghanistan, Kashmir, Taiwan, Tibet, Bougainville) has no province to stand
+on in 251, and is recorded as such in the code comment.
+
+- RELEASE: WARS panel lists any releasable with a core you hold; it becomes
+  your puppet and ally with its cores as home ground.
+- BREAK AWAY: `breakawayTick()` every 11 days -- a core whose holder is at
+  war or under 45 stability, garrison <= 3, no holder division on it.
+  Separatists 0.15%, others 0.10% a check, doubled when shaky or under
+  foreign occupation. One a check at most.
+- Keys are `S_r<ID>` so `clearShards()` removes them at the next new game
+  like risen nations, and a save rebuilds them from name/flag/colour the
+  way it already rebuilds risen ones.
+- The existing nations' colours were NOT changed to the list's: they are
+  the HOI4 colour table the owner asked for earlier. The list's colours are
+  used for the releasables.
+
+Music (`MUS_SLOTS`, nine moods: menu + allies/axis/comintern/neutral x
+peace/war, side from ideology) -- the owner sent the HOI4 soundtrack on
+YouTube. That is Paradox's and is not shipped, same rule as the art. Each
+slot plays the player's own files from IndexedDB (`ironfront_music`), and
+"add a whole soundtrack" sorts files by name; an empty slot plays an
+original WebAudio score (`SCORE`, `_musBar`: strings, bass, brass/horn
+tune as a seeded walk with cadences, timpani, march snare in war). Starts
+on the first click or key (browser autoplay rules).
