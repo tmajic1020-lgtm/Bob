@@ -1997,6 +1997,30 @@ const RELEASABLES=[
  {id:"KOR",n:"Korea",           f:"\u{1F1F0}\u{1F1F7}",c:"#1e3a8a",cores:["seo","pus","pyo"],d:"A peninsula under Japanese rule"}
 ];
 const REL_BY={};for(const r of RELEASABLES)REL_BY[r.id]=r;
+/* Real flags for the releasables -- all of them stripes, crosses and a
+   charge or two, so each is drawn the same way every other flag here is. */
+const _diag=(u,v,w)=>{const x=u*1.5,y=v;return Math.abs(x-y*1.5)<w*1.5||Math.abs(x-(1-y)*1.5)<w*1.5;};
+const REL_FLAG={
+ SCO:(u,v)=>_diag(u,v,0.075)?"#f2efe6":"#0065bd",                          /* the Saltire */
+ NIR:(u,v)=>{if(inStar(u,v,0.5,0.5,0.13,0,6))return inCircle(u,v,0.5,0.52,0.05)?"#c0392b":"#f2efe6";
+   return (Math.abs(u-0.5)<0.07||Math.abs(v-0.5)<0.1)?"#c0392b":"#f2efe6";},  /* the Ulster Banner */
+ CAT:(u,v)=>Math.floor(v*9)%2?"#c8102e":"#fcdd09",                          /* the Senyera */
+ BAS:(u,v)=>(Math.abs(u-0.5)<0.05||Math.abs(v-0.5)<0.075)?"#f2efe6":_diag(u,v,0.06)?"#009b48":"#d52b1e",  /* the Ikurrina */
+ POR:(u,v)=>FLAG.POR(u,v),
+ UKR:(u,v)=>FLAG.UKR(u,v),
+ BLR:(u,v)=>FLAG.BLR(u,v),
+ SVK:(u,v)=>FLAG.SVK(u,v),
+ MDA:(u,v)=>FLAG.MDA(u,v),
+ QUE:(u,v)=>{if(Math.abs(u-0.5)<0.06||Math.abs(v-0.5)<0.09)return"#f2efe6";   /* the Fleurdelise */
+   const cx=u<0.5?0.22:0.78,cy=v<0.5?0.22:0.78;
+   return (inCircle(u,v,cx,cy,0.055)||(Math.abs(u-cx)<0.012&&Math.abs(v-cy)<0.13)||(Math.abs(v-cy-0.03)<0.02&&Math.abs(u-cx)<0.07))?"#f2efe6":"#003da5";},
+ KUR:(u,v)=>inStar(u,v,0.5,0.5,0.16,0,21)?"#fcd116":sH(["#ed2024","#f2efe6","#278e43"])(u,v),
+ IRQ:(u,v)=>FLAG.IRQ(u,v),
+ PAK:(u,v)=>FLAG.PAK(u,v),
+ IND:(u,v)=>(inRing(u,v,0.5,0.5,0.115,0.078)||inCircle(u,v,0.5,0.5,0.026)||(inCircle(u,v,0.5,0.5,0.115)&&Math.floor((Math.atan2(v-0.5,(u-0.5)*FAR)+Math.PI)/(Math.PI/12))%2===0))?"#2a4d9e":sH(["#e08214","#f2efe6","#2e7d46"])(u,v),
+ KOR:(u,v)=>FLAG.KOR(u,v)
+};
+
 const relKey=id=>SHARD+"r"+id;
 function relAlive(id){const n=G&&G.nations[relKey(id)];return !!(n&&n.alive);}
 function relOn(){return ERA==="ww2"&&typeof epochAtLeast==="function"&&epochAtLeast("24.0");}
@@ -2010,7 +2034,7 @@ function spawnReleasable(id,from,by){
   const key=relKey(id),cap=took[0].id;
   NATIONS[key]={n:r.n,f:r.f,c:r.c,cap,play:0,desc:r.d,eras:[ERA]};
   NAT_BASE[key]={n:r.n,f:r.f,c:r.c,cap};
-  FLAG[key]=_shFlag(_shHash("rel:"+id),r.c);
+  FLAG[key]=REL_FLAG[id]||_shFlag(_shHash("rel:"+id),r.c);
   const nn=makeNation(key,1,true);
   nn.pp=25;nn.rp=0;nn.oil=5;nn.stab=by?60:55;nn.warSup=by?50:75;nn.ideo=G.nations[from].ideo;
   G.nations[key]=nn;
@@ -9706,7 +9730,11 @@ function drawFlagIcon(cv,k){
      the first place. Using "the current flag of that country" for all of
      these was the actual bug \u2014 not the rendering method. */
   const dispW=cv.dataset.dw?+cv.dataset.dw:cv.width, dispH=cv.dataset.dh?+cv.dataset.dh:cv.height;
-  const useEmoji=(typeof ERA==="undefined"||ERA==="modern")&&FLAGSTYLE!=="cross"&&FLAGSTYLE!=="plain";
+  /* v24: the modern era now draws its flags too. The emoji route left them to
+     the device, and Windows has no flag emoji at all -- every country came out
+     as two letters, "US", "UA" -- while every modern flag here is drawn and
+     correct. Emoji survive only for a nation with no drawn flag. */
+  const useEmoji=!FLAG[k]&&FLAGSTYLE!=="cross"&&FLAGSTYLE!=="plain";
   cv.width=dispW;cv.height=dispH;
   cv.style.width=dispW+"px";cv.style.height=dispH+"px";
   const ctx2=cv.getContext("2d"),w=cv.width,h=cv.height;
@@ -15775,6 +15803,7 @@ const CHANGELOG=[
   "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
   "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. Thirty scenes across the seven eras \u2014 the D-Day beaches, the Blitz under searchlights, paratroopers dropping by moonlight, the carrier war, Jutland, the Berlin Wall, helicopters over the jungle, the retreat from Moscow, the ironclads, a Mongol siege \u2014 in snow, storm, dawn and night as well as by day. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
   "\u{1F3F3} RELEASABLE NATIONS in World War II, as in the real game: Scotland, Northern Ireland, Catalonia, the Basque Country, Portugal, Ukraine, Belarus, Slovakia, Moldova, Quebec, Kurdistan, Iraq, Pakistan, India and Korea. Hold their land and you can RELEASE them as a puppet from the WARS panel; hold it badly in a war or a crisis and they BREAK AWAY and fight you for it",
+  "\u{1F3F3}\uFE0F REAL FLAGS. Modern-day flags are now drawn by the game like every other era's, instead of left to your device's emoji \u2014 which on Windows showed every country as two letters. And the releasable nations fly their own: the Saltire, the Senyera, the Ikurri\u00f1a, the Fleurdelis\u00e9, the Kurdish sun and the rest",
   "\u{1F3B5} MUSIC that follows the war: Allies, Axis, Comintern or non-aligned, at peace or at war, and a theme for the menu. Fill each slot with your own music files (kept in your browser) or let it play an original score written for it",
   "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
@@ -17286,6 +17315,8 @@ function mpApplyState(S){
          every nation in the table from NAT_BASE, and this one would not be in
          it. A save carrying a successor state bricked the new-game button. */
       NAT_BASE[k]={n:NATIONS[k].n,f:NATIONS[k].f,c:NATIONS[k].c,cap};
+      const rid=k.startsWith(SHARD+"r")?k.slice(SHARD.length+1):null;
+      if(rid&&REL_FLAG[rid])FLAG[k]=REL_FLAG[rid];
     }
     if(!G.nations[k])G.nations[k]=makeNation(k,1,!!a[14]);
   }

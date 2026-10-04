@@ -785,3 +785,13 @@ slot plays the player's own files from IndexedDB (`ironfront_music`), and
 original WebAudio score (`SCORE`, `_musBar`: strings, bass, brass/horn
 tune as a seeded walk with cadences, timpani, march snare in war). Starts
 on the first click or key (browser autoplay rules).
+
+### Flags: modern drawn, releasables real
+
+`drawFlagIcon` used device emoji for the whole modern era. Windows has no
+flag emoji, so every modern country rendered as two letters ("US", "UA"),
+and every other platform drew its own design. Every modern nation already
+had a correct drawn `FLAG[k]` (checked on a rendered sheet of all 91), so
+emoji are now used only for a nation with no drawn flag. Releasables got
+`REL_FLAG` (Saltire, Ulster Banner, Senyera, Ikurrina, Fleurdelise,
+Kurdish sun; the rest reuse the modern drawn flag), restored on load too.
