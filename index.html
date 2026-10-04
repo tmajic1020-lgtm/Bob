@@ -15663,7 +15663,7 @@ const CHANGELOG=[
   "\u{1F6E1} DIVISIONS ARE BUILT FROM BATTALIONS. Infantry and armour were literally identical \u2014 attack 1.00, defence 1.00 \u2014 and differed by their icon. A division is now a template of battalions, and its manpower, equipment, supply, speed, width, organisation, soft and hard attack, armour and piercing all follow from what is in it. An attack that cannot pierce the target's armour does two-thirds damage. The four stock templates reproduce the old numbers exactly, so every existing army carries over unchanged",
   "\u{1F3AF} TRAINING. Experience could only be earned in combat, so every division ever raised arrived green and a country at peace could do nothing to prepare for war. ARMY \u2192 TRAINING now drills divisions holding in their own territory: TRAIN ALL IDLE, per army group, or everything at the selected province. A training division gains experience every day up to 30 xp (\u2605) and wears out equipment in exercises, which is replaced from the stockpile \u2014 so a trained army costs you the reserve you would have gone to war with. Seasoned and elite are still earned only in battle. Marching or fighting ends the order; being cut off pauses it",
   "\u{1F4DC} BRIEFINGS. A campaign now opens on a line from a leader of its era \u2014 Lincoln at Gettysburg, Grey on the lamps going out, Churchill on the beaches, Reagan at the Brandenburg Gate \u2014 over a photograph, with the clock stopped until you continue. Every quote is attributed to the occasion and date it was spoken. Add your own photographs in Settings \u2192 BRIEFINGS; they stay in your browser",
-  "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
+  "\u{1F3A8} PAINTED BRIEFINGS. Every era now has its own battle scene behind the briefing \u2014 men going over the top under biplanes, bombers above a tank at sunset, a missile on its gantry under searchlights, Mongol horse archers on the steppe, ships of the line under sail \u2014 painted by the game each time, so no two are alike. Thirty scenes across the seven eras \u2014 the D-Day beaches, the Blitz under searchlights, paratroopers dropping by moonlight, the carrier war, Jutland, the Berlin Wall, helicopters over the jungle, the retreat from Moscow, the ironclads, a Mongol siege \u2014 in snow, storm, dawn and night as well as by day. And 85 quotes instead of 22, not only from leaders: Jane Austen, Frederick Douglass, Edith Cavell, Lou Gehrig, Anne Frank, Yuri Gagarin, Muhammad Ali, Neil Armstrong, Malala Yousafzai and more",
   "\u{1F39E} CREDITS, in Settings: the map data, the software, the quotations and the photographs this game is built from, and the game it is inspired by",
   "\u{1F69A} A SUPPLY HUB CAN BE OVERLOADED. A depot used to feed any number of divisions equally well; twenty on one road now eat worse than two. States group the provinces an economy is run from",
   "\u{1F30A} THE WORLD'S REAL RIVERS AND LAKES. The rivers were worked out from a generated heightfield, so they were plausible rivers in the wrong places \u2014 and the defence bonus for holding a river was in the wrong places with them. They are Natural Earth's now: 1,031 rivers and 453 lakes, with the Rhine, the Vistula, the Danube and the Dnieper where an army actually has to cross them",
@@ -17795,9 +17795,11 @@ function _scRng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul
 function _scRgba(h,a){return"rgba("+[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)).join(",")+","+a+")";}
 function _scMix(a,b,t){const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));const A=p(a),B=p(b);
   return"rgb("+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(",")+")";}
-function paintScene(era,W,H,seed,lift){
+function paintScene(era,W,H,seed,lift,pick){
   lift=lift||0;   /* raises the horizon and the figures, to clear a caption below */
-  const P=SCENE_PAL[era]||SCENE_PAL.ww2, R=_scRng(seed||((Math.random()*1e9)|0));
+  const R=_scRng(seed||((Math.random()*1e9)|0)), comps=SCENE_ART[era]||SCENE_ART.ww2;
+  const comp=comps[pick!=null?pick%comps.length:Math.floor(R()*comps.length)];
+  const P=Object.assign({},SCENE_PAL[era]||SCENE_PAL.ww2,comp.mood?SCENE_MOOD[comp.mood]:null);
   const c=document.createElement("canvas");c.width=W;c.height=H;
   const g=c.getContext("2d"), S=H/900, hz=H*(0.6+R()*0.06-lift);
   const sunX=W*(0.25+R()*0.5), sunY=hz-H*(0.04+R()*0.1);
@@ -17805,13 +17807,18 @@ function paintScene(era,W,H,seed,lift){
   let gr=g.createLinearGradient(0,0,0,hz);
   gr.addColorStop(0,P.sky[0]);gr.addColorStop(0.45,P.sky[1]);gr.addColorStop(0.82,P.sky[2]);gr.addColorStop(1,P.sky[3]);
   g.fillStyle=gr;g.fillRect(0,0,W,H);
-  /* the sun and its halo */
-  gr=g.createRadialGradient(sunX,sunY,0,sunX,sunY,H*0.75);
+  const SC=new SceneKit(g,R,S,P);
+  if(P.night)SC.stars(W,hz,260);
+  /* the sun and its halo -- or, at night, the moon, high and small */
+  if(P.moon){const mx=W*(0.15+R()*0.7),my=H*(0.1+R()*0.12);
+    gr=g.createRadialGradient(mx,my,0,mx,my,H*0.35);gr.addColorStop(0,_scRgba(P.sun,.35));gr.addColorStop(1,_scRgba(P.sun,0));
+    g.fillStyle=gr;g.fillRect(0,0,W,H);g.fillStyle=P.sun;g.beginPath();g.arc(mx,my,18*S,0,7);g.fill();}
+  gr=g.createRadialGradient(sunX,sunY,0,sunX,sunY,H*(P.moon?0.4:0.75));
   gr.addColorStop(0,P.sun);gr.addColorStop(0.05,_scRgba(P.sun,.8));gr.addColorStop(0.2,_scRgba(P.sky[3],.4));gr.addColorStop(1,_scRgba(P.sky[3],0));
   g.fillStyle=gr;g.fillRect(0,0,W,H);
   /* light shafts */
   g.save();g.globalCompositeOperation="lighter";
-  for(let i=0;i<(P.night?0:5);i++){const a=-Math.PI/2+(R()-0.5)*2.2,w=0.02+R()*0.05,L=H*1.1;
+  for(let i=0;i<(P.night||P.snow||P.rain?0:5);i++){const a=-Math.PI/2+(R()-0.5)*2.2,w=0.02+R()*0.05,L=H*1.1;
     gr=g.createRadialGradient(sunX,sunY,0,sunX,sunY,L);gr.addColorStop(0,_scRgba(P.sun,.12));gr.addColorStop(1,_scRgba(P.sun,0));
     g.fillStyle=gr;g.beginPath();g.moveTo(sunX,sunY);g.arc(sunX,sunY,L,a-w,a+w);g.closePath();g.fill();}
   g.restore();
@@ -17835,22 +17842,25 @@ function paintScene(era,W,H,seed,lift){
       const px=x+t*hgt*0.35+(R()-0.5)*30*S*t,py=y-t*hgt;
       const q=g.createRadialGradient(px,py,0,px,py,r);q.addColorStop(0,_scRgba(P.smoke,1));q.addColorStop(1,_scRgba(P.smoke,0));
       g.globalAlpha=0.35*(1-t*0.6);g.fillStyle=q;g.beginPath();g.arc(px,py,r,0,7);g.fill();}g.globalAlpha=1;};
-  if(era!=="mongol"||R()<0.5)for(let i=0;i<2+R()*3;i++)smokeCol(W*(0.05+R()*0.9),hz+H*0.02,H*(0.3+R()*0.3));
+  if(comp.sea)SC.seaFill(W,H,hz+H*0.035);
+  if(!P.snow&&(era!=="mongol"||R()<0.5))for(let i=0;i<2+R()*3;i++)smokeCol(W*(0.05+R()*0.9),hz+H*0.02,H*(0.3+R()*0.3));
   /* mid ground and a foreground rise */
-  ridge(hz+H*0.07,H*0.04,0.3,_scMix(P.haze,P.land,0.7));
+  if(!comp.sea)ridge(hz+H*0.07,H*0.04,0.3,P.ground?_scMix(P.ground,P.haze,0.5):_scMix(P.haze,P.land,0.7));
   /* mist band over the middle distance */
   gr=g.createLinearGradient(0,hz-H*0.04,0,hz+H*0.12);
   gr.addColorStop(0,_scRgba(P.haze,0));gr.addColorStop(0.5,_scRgba(P.haze,.33));gr.addColorStop(1,_scRgba(P.haze,0));
   g.fillStyle=gr;g.fillRect(0,hz-H*0.04,W,H*0.16);
 
-  g.fillStyle=P.land;g.strokeStyle=P.land;g.lineCap="round";g.lineJoin="round";
-  const ground=[];   /* foreground contour, sampled so figures stand on it */
-  {const base=H*(0.8+R()*0.04-lift),a=H*0.05,o=R()*10,f=1+R();g.beginPath();g.moveTo(0,H);
+  g.fillStyle=P.ground||P.land;g.strokeStyle=P.land;g.lineCap="round";g.lineJoin="round";
+  const ground=[];   /* foreground contour, sampled so figures stand on it; at sea, a low beach or nothing */
+  {const base=comp.sea?(comp.beach?H*(0.9-lift*0.5):H*1.2):H*(0.8+R()*0.04-lift),a=comp.sea?H*0.01:H*0.05,o=R()*10,f=1+R();g.beginPath();g.moveTo(0,H);
    for(let x=0;x<=W;x+=4){const y=base-a*Math.sin(x/W*Math.PI*f+o)-a*0.3*Math.sin(x/W*13+o);ground.push(y);g.lineTo(x,y);}
    g.lineTo(W,H);g.closePath();g.fill();}
   const gy=x=>ground[Math.max(0,Math.min(ground.length-1,Math.round(x/4)))];
-  const SC=new SceneKit(g,R,S,P);
-  SCENE_ART[era]&&SCENE_ART[era](SC,W,H,hz,gy,R,S);
+  g.fillStyle=P.land;
+  comp.fn(SC,W,H,hz,gy,R,S);
+  if(P.snow)SC.snowfall(W,H,700);
+  if(P.rain)SC.rainfall(W,H,900);
   /* grade: low-sun warmth and a vignette are left to the overlay */
   return c;
 }
@@ -18010,59 +18020,239 @@ SceneKit.prototype.searchlights=function(W,hz,n){const g=this.g,R=this.R;g.save(
     g.fillStyle=q;g.beginPath();g.moveTo(x-3,hz);g.lineTo(x+Math.cos(a-0.035)*L,hz+Math.sin(a-0.035)*L);g.lineTo(x+Math.cos(a+0.035)*L,hz+Math.sin(a+0.035)*L);g.lineTo(x+3,hz);g.fill();}
   g.restore();};
 
-/* one composition per era; the dice place everything, so no two are alike */
+/* weather and light for a composition: overrides on the era palette */
+const SCENE_MOOD={
+  night:{sky:["#03050b","#0a1222","#17243a","#2c3c56"],sun:"#e6ecf6",haze:"#24324a",land:"#03050a",smoke:"#151c28",night:1,moon:1},
+  snow: {sky:["#262a32","#4c5460","#8a94a2","#c4ccd6"],sun:"#f2f4f8",haze:"#9aa4b2",land:"#14171c",ground:"#8e97a3",smoke:"#4a4e58",snow:1},
+  dawn: {sky:["#1a2030","#3a4a62","#c08a6a","#f4c890"],sun:"#fff2c8",haze:"#8a8090"},
+  desert:{sky:["#2a2018","#7a5a3a","#d09a5a","#f6d29a"],sun:"#fff0c0",haze:"#c09060",land:"#1e150c",smoke:"#7a6650"},
+  storm:{sky:["#101418","#262e36","#4a5560","#7a8690"],sun:"#d8e0e8",haze:"#5a6670",land:"#0a0d10",smoke:"#30383f",rain:1}
+};
+SceneKit.prototype.stars=function(W,H,n){const g=this.g,R=this.R;g.save();
+  for(let i=0;i<n;i++){const x=R()*W,y=R()*H*0.5,r=R()*1.4*this.S+0.3;g.globalAlpha=0.3+R()*0.7;g.fillStyle="#fff";g.beginPath();g.arc(x,y,r,0,7);g.fill();}
+  g.restore();g.fillStyle=this.P.land;};
+SceneKit.prototype.seaFill=function(W,H,top){const g=this.g,R=this.R,S=this.S,P=this.P;
+  const q=g.createLinearGradient(0,top,0,H);q.addColorStop(0,_scMix(P.haze,P.sky[2],0.4));q.addColorStop(0.25,_scMix(P.haze,P.land,0.55));q.addColorStop(1,P.land);
+  g.fillStyle=q;g.fillRect(0,top,W,H-top);
+  g.save();g.globalCompositeOperation="lighter";
+  for(let i=0;i<260;i++){const y=top+Math.pow(R(),1.6)*(H-top),w=(6+R()*40)*S*(1+(y-top)/(H-top)*3),x=R()*W;
+    g.globalAlpha=0.05+R()*0.12;g.fillStyle=P.sun;g.fillRect(x,y,w,1.2*S);}
+  g.restore();g.fillStyle=P.land;};
+SceneKit.prototype.snowfall=function(W,H,n){const g=this.g,R=this.R;g.save();g.fillStyle="#f4f6fa";
+  for(let i=0;i<n;i++){g.globalAlpha=0.35+R()*0.6;g.beginPath();g.arc(R()*W,R()*H,(0.6+R()*2.2)*this.S,0,7);g.fill();}g.restore();g.fillStyle=this.P.land;};
+SceneKit.prototype.rainfall=function(W,H,n){const g=this.g,R=this.R,S=this.S;g.save();g.strokeStyle="rgba(200,215,230,.18)";g.lineWidth=1*S;g.beginPath();
+  for(let i=0;i<n;i++){const x=R()*W,y=R()*H,l=(14+R()*18)*S;g.moveTo(x,y);g.lineTo(x-l*0.25,y+l);}g.stroke();g.restore();};
+SceneKit.prototype.fire=function(x,y,r){this.flash(x,y,r);const g=this.g,R=this.R;g.save();g.fillStyle="rgba(255,190,90,.8)";
+  for(let i=0;i<16;i++){g.beginPath();g.arc(x+(R()-0.5)*r,y-R()*r*1.4,R()*1.6*this.S+0.4,0,7);g.fill();}g.restore();g.fillStyle=this.P.land;};
+SceneKit.prototype.landingCraft=function(x,y,s,flip){const R=this.R;this.at(x,y,s,flip,g=>{
+  g.beginPath();g.moveTo(-80,0);g.lineTo(-84,-30);g.lineTo(70,-30);g.lineTo(80,0);g.closePath();g.fill();
+  g.fillRect(-84,-36,14,8);
+  for(let i=0;i<6;i++){g.beginPath();g.arc(-50+i*20+R()*4,-33,7,Math.PI,0);g.fill();}});};
+SceneKit.prototype.hedgehog=function(x,y,s){this.at(x,y,s,false,g=>{g.lineWidth=5;g.lineCap="butt";g.beginPath();
+  g.moveTo(-18,0);g.lineTo(18,-30);g.moveTo(18,0);g.lineTo(-18,-30);g.moveTo(0,0);g.lineTo(2,-34);g.stroke();});};
+SceneKit.prototype.carrier=function(x,y,s,flip){const R=this.R;this.at(x,y,s,flip,g=>{
+  g.beginPath();g.moveTo(-200,-26);g.lineTo(210,-26);g.lineTo(190,0);g.lineTo(-170,0);g.closePath();g.fill();
+  g.fillRect(-210,-32,430,7);
+  g.fillRect(60,-70,34,40);g.fillRect(66,-92,6,24);g.fillRect(80,-84,12,16);
+  for(let i=0;i<7;i++){const px=-180+i*30;g.beginPath();g.moveTo(px,-34);g.lineTo(px+16,-36);g.lineTo(px+22,-34);g.closePath();g.fill();g.fillRect(px+6,-40,3,6);}});};
+SceneKit.prototype.dreadnought=function(x,y,s,flip,firing){this.at(x,y,s,flip,g=>{
+  g.beginPath();g.moveTo(-190,-24);g.lineTo(200,-28);g.lineTo(178,0);g.lineTo(-170,0);g.closePath();g.fill();
+  g.fillRect(-40,-56,90,30);g.fillRect(-10,-96,8,40);g.fillRect(-14,-110,16,6);g.fillRect(70,-120,4,92);
+  g.fillRect(-20,-74,16,20);g.fillRect(14,-72,16,18);   /* funnels */
+  for(const tx of[-140,-90,110,150]){g.beginPath();g.arc(tx,-28,14,Math.PI,0);g.fill();g.lineWidth=4;g.beginPath();g.moveTo(tx,-34);g.lineTo(tx+(tx>0?42:-42),-38);g.stroke();}});
+  if(firing){const d=flip?-1:1;this.flash(x+d*190*s,y-38*s,90*s);this.puff(x+d*200*s,y-40*s,70*s);}};
+SceneKit.prototype.ironclad=function(x,y,s,flip,casemate){this.at(x,y,s,flip,g=>{
+  g.beginPath();g.moveTo(-120,-8);g.lineTo(130,-10);g.lineTo(118,0);g.lineTo(-110,0);g.closePath();g.fill();
+  if(casemate){g.beginPath();g.moveTo(-80,-10);g.lineTo(-60,-40);g.lineTo(60,-40);g.lineTo(80,-10);g.closePath();g.fill();g.fillRect(-6,-66,12,28);}
+  else{g.fillRect(-28,-36,56,28);g.fillRect(40,-22,10,14);g.fillRect(-90,-46,4,40);}});};
+SceneKit.prototype.walls=function(x0,x1,base,h,burn){const g=this.g,R=this.R,S=this.S;g.fillStyle=_scMix(this.P.haze,this.P.land,0.75);
+  g.fillRect(x0,base-h,x1-x0,h+40*S);
+  for(let x=x0;x<x1;x+=14*S)g.fillRect(x,base-h-9*S,8*S,10*S);
+  for(let x=x0+40*S;x<x1;x+=(110+R()*60)*S){const tw=(26+R()*14)*S,th=h*(1.4+R()*0.5);g.fillRect(x-tw/2,base-th,tw,th);
+    for(let k=-tw/2;k<tw/2;k+=10*S)g.fillRect(x+k,base-th-8*S,6*S,9*S);
+    if(R()<0.4){g.beginPath();g.moveTo(x-tw/2-4*S,base-th-8*S);g.lineTo(x,base-th-40*S);g.lineTo(x+tw/2+4*S,base-th-8*S);g.fill();}}
+  if(burn)for(let i=0;i<4;i++){const x=x0+R()*(x1-x0);this.fire(x,base-h*(1+R()*0.6),60*S+R()*50*S);g.fillStyle=_scMix(this.P.haze,this.P.land,0.75);}
+  g.fillStyle=this.P.land;};
+SceneKit.prototype.trebuchet=function(x,y,s,flip){this.at(x,y,s,flip,g=>{g.lineWidth=7;g.lineCap="round";g.beginPath();
+  g.moveTo(-40,0);g.lineTo(0,-90);g.lineTo(40,0);g.moveTo(-50,0);g.lineTo(50,0);g.stroke();
+  g.lineWidth=6;g.beginPath();g.moveTo(-36,-40);g.lineTo(70,-150);g.stroke();g.fillRect(-52,-44,28,26);
+  g.lineWidth=1.5;g.beginPath();g.moveTo(70,-150);g.lineTo(84,-110);g.stroke();});};
+SceneKit.prototype.wallBerlin=function(x0,x1,gy){const g=this.g,S=this.S;
+  for(let x=x0;x<x1;x+=24*S){const y=gy(x);g.fillRect(x,y-80*S,23*S,84*S);}
+  g.lineWidth=12*S;g.lineCap="round";g.beginPath();g.moveTo(x0,gy(x0)-82*S);for(let x=x0;x<x1;x+=24*S)g.lineTo(x+24*S,gy(x+24*S)-82*S);g.stroke();};
+SceneKit.prototype.watchtower=function(x,y,s){this.at(x,y,s,false,g=>{g.fillRect(-12,-150,24,150);g.fillRect(-26,-190,52,40);g.fillRect(-30,-196,60,8);
+  g.save();g.fillStyle="rgba(255,230,170,.7)";g.fillRect(-20,-182,40,14);g.restore();});};
+SceneKit.prototype.palm=function(x,y,s,flip){const R=this.R;this.at(x,y,s,flip,g=>{g.lineCap="round";g.lineWidth=9;g.beginPath();g.moveTo(0,0);g.quadraticCurveTo(10,-90,40,-170);g.stroke();
+  for(let i=0;i<7;i++){const a=-Math.PI+i*Math.PI/6+(R()-0.5)*0.3,l=60+R()*30;g.lineWidth=4;g.beginPath();g.moveTo(40,-170);
+    g.quadraticCurveTo(40+Math.cos(a)*l*0.6,-170+Math.sin(a)*l*0.6-14,40+Math.cos(a)*l,-170+Math.sin(a)*l*0.4+26);g.stroke();}});};
+SceneKit.prototype.jungle=function(W,base,h){const g=this.g,R=this.R,S=this.S;g.fillStyle=_scMix(this.P.haze,this.P.land,0.82);
+  for(let x=-20*S;x<W+20*S;x+=(16+R()*22)*S){const r=(20+R()*h)*S;g.beginPath();g.arc(x,base-r*0.4,r,0,7);g.fill();}g.fillRect(0,base,W,40*S);g.fillStyle=this.P.land;};
+SceneKit.prototype.chute=function(x,y,s){this.at(x,y,s,false,g=>{g.beginPath();g.ellipse(0,-60,40,22,0,Math.PI,0);g.lineTo(0,-60);g.closePath();g.fill();
+  g.lineWidth=1;g.beginPath();for(const dx of[-40,-20,0,20,40]){g.moveTo(dx,-60);g.lineTo(0,0);}g.stroke();
+  g.lineWidth=7;g.beginPath();g.moveTo(0,0);g.lineTo(0,22);g.stroke();g.beginPath();g.arc(0,-4,5,0,7);g.fill();});};
+SceneKit.prototype.dakota=function(x,y,s,flip){this.at(x,y,s,flip,g=>{g.beginPath();g.ellipse(0,0,46,7,0,0,7);g.fill();
+  g.beginPath();g.moveTo(8,-2);g.lineTo(-2,-62);g.lineTo(10,-62);g.lineTo(22,-2);g.lineTo(22,2);g.lineTo(10,62);g.lineTo(-2,62);g.lineTo(8,2);g.fill();
+  for(const yy of[-20,20]){g.beginPath();g.ellipse(18,yy,9,3.5,0,0,7);g.fill();}
+  g.beginPath();g.moveTo(-38,-2);g.lineTo(-46,-20);g.lineTo(-40,-20);g.lineTo(-30,0);g.lineTo(-40,20);g.lineTo(-46,20);g.closePath();g.fill();});};
+SceneKit.prototype.truck=function(x,y,s,flip){this.at(x,y,s,flip,g=>{g.fillRect(-60,-46,80,34);g.fillRect(20,-36,32,24);g.fillRect(24,-48,18,14);
+  for(const wx of[-44,-20,36]){g.beginPath();g.arc(wx,-10,10,0,7);g.fill();}});};
+SceneKit.prototype.kiteBalloon=function(x,y,s){this.at(x,y,s,false,g=>{g.beginPath();g.ellipse(0,0,40,16,0,0,7);g.fill();
+  g.beginPath();g.moveTo(-34,-4);g.lineTo(-52,-16);g.lineTo(-44,0);g.lineTo(-52,14);g.lineTo(-34,6);g.fill();g.fillRect(-4,14,8,8);
+  g.lineWidth=1;g.beginPath();g.moveTo(0,22);g.lineTo(30,600);g.stroke();});};
+SceneKit.prototype.camp=function(x,y,s){this.fire(x,y-6*s,40*s);this.at(x,y,s,false,g=>{g.lineWidth=4;g.beginPath();g.moveTo(-14,0);g.lineTo(14,-6);g.moveTo(14,0);g.lineTo(-14,-6);g.stroke();});};
+
+/* Several compositions per era, each a different moment: the dice pick one and
+   then place everything in it, so the same era rarely looks the same twice.
+   mood: weather/light from SCENE_MOOD; sea: open water instead of a hillside. */
 const SCENE_ART={
-  ww1(K,W,H,hz,gy,R,S){
+  ww1:[
+   {fn(K,W,H,hz,gy,R,S){   /* over the top */
     for(let i=0;i<3;i++)K.flash(W*(0.1+R()*0.8),hz+H*0.01,60*S+R()*80*S);
     for(let i=0;i<3;i++)K.deadTree(W*(0.05+R()*0.9),gy(W*0.5)-R()*10*S,S*(0.8+R()*0.5));
     for(let i=0;i<2;i++)K.plane(W*(0.15+R()*0.7),H*(0.12+R()*0.2),S*(0.5+R()*0.4),"bi",R()<0.5);
     K.wire(0,W,gy);
     const n=5+(R()*4|0);for(let i=0;i<n;i++){const x=W*(0.06+0.88*i/n)+(R()-0.5)*50*S,s=S*(1.25+R()*0.45);
-      K.man(x,gy(x)+4*S,s,{hat:"brodie",bayonet:true,pack:true,flag:i===Math.floor(n/2)&&R()<0.6});}},
-  ww2(K,W,H,hz,gy,R,S){
+      K.man(x,gy(x)+4*S,s,{hat:"brodie",bayonet:true,pack:true,flag:i===Math.floor(n/2)&&R()<0.6});}}},
+   {fn(K,W,H,hz,gy,R,S){   /* dogfight over the lines */
+    for(let i=0;i<2;i++)K.kiteBalloon(W*(0.1+R()*0.8),hz-H*(0.12+R()*0.1),S*0.7);
+    for(let i=0;i<5;i++)K.plane(W*(0.08+R()*0.84),H*(0.1+R()*0.38),S*(0.9+R()*1.3),"bi",R()<0.5);
+    K.wire(0,W,gy);for(let i=0;i<4;i++)K.deadTree(W*(0.05+R()*0.9),gy(W*R()),S*(0.7+R()*0.5));}},
+   {sea:1,fn(K,W,H,hz,gy,R,S){   /* the battle fleet */
+    for(let i=0;i<4;i++){const y=hz+H*(0.06+i*0.05);K.dreadnought(W*(0.12+i*0.22+R()*0.06),y,S*(0.45+i*0.2),R()<0.3,R()<0.6);}
+    K.plane(W*(0.2+R()*0.6),H*0.15,S*0.6,"bi",R()<0.5);}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* the winter line */
+    for(let i=0;i<3;i++)K.deadTree(W*(0.05+R()*0.9),gy(W*R()),S*(0.8+R()*0.4));K.wire(0,W,gy);
+    const n=6;for(let i=0;i<n;i++){const x=W*(0.1+0.8*i/n)+(R()-0.5)*40*S;K.man(x,gy(x)+4*S,S*(1.2+R()*0.3),{hat:"brodie",pack:true,lean:4});}}}
+  ],
+  ww2:[
+   {fn(K,W,H,hz,gy,R,S){   /* armour under the bombers */
     for(let i=0;i<5+R()*4;i++)K.plane(W*(0.1+R()*0.8),H*(0.08+R()*0.22),S*(0.35+R()*0.3),"bomber",false);
     for(let i=0;i<2;i++)K.plane(W*(0.1+R()*0.8),H*(0.2+R()*0.15),S*0.5,"fighter",R()<0.5);
     for(let i=0;i<2;i++)K.flash(W*(0.1+R()*0.8),hz+H*0.02,70*S+R()*60*S);
     const tx=W*(0.2+R()*0.6),fl=R()<0.5;K.tank(tx,gy(tx)+6*S,S*(1.4+R()*0.3),{flip:fl,ant:true});
     const n=4+(R()*4|0);for(let i=0;i<n;i++){const x=W*(0.05+0.9*i/n)+(R()-0.5)*40*S;if(Math.abs(x-tx)<220*S)continue;
-      K.man(x,gy(x)+4*S,S*(1.2+R()*0.4),{hat:"m1",pack:true,flip:fl});}},
-  coldwar(K,W,H,hz,gy,R,S){
+      K.man(x,gy(x)+4*S,S*(1.2+R()*0.4),{hat:"m1",pack:true,flip:fl});}}},
+   {sea:1,beach:1,mood:"dawn",fn(K,W,H,hz,gy,R,S){   /* the landing beaches */
+    for(let i=0;i<5;i++){const y=hz+H*(0.05+R()*0.1);K.landingCraft(W*(0.05+R()*0.9),y,S*(0.4+(y-hz)/H*3),R()<0.5);}
+    K.dreadnought(W*(0.1+R()*0.3),hz+H*0.035,S*0.35,false,true);
+    for(let i=0;i<6;i++){const x=W*(0.05+R()*0.9);K.hedgehog(x,gy(x)+2*S,S*(1+R()*0.4));}
+    for(let i=0;i<6;i++){const x=W*(0.08+R()*0.84);K.man(x,gy(x)+10*S,S*(1.15+R()*0.3),{hat:"m1",pack:true,lean:16});}
+    for(let i=0;i<3;i++)K.plane(W*R(),H*(0.08+R()*0.2),S*0.45,"fighter",R()<0.5);}},
+   {sea:1,fn(K,W,H,hz,gy,R,S){   /* the carrier war */
+    K.carrier(W*(0.35+R()*0.3),hz+H*0.11,S*1.2,R()<0.5);K.dreadnought(W*(0.1+R()*0.15),hz+H*0.04,S*0.4,false,false);
+    for(let i=0;i<8;i++)K.plane(W*R(),H*(0.08+R()*0.3),S*(0.3+R()*0.4),"fighter",R()<0.5);
+    if(R()<0.6){K.flash(W*(0.75+R()*0.2),hz+H*0.05,80*S);}}},
+   {mood:"night",fn(K,W,H,hz,gy,R,S){   /* the Blitz */
+    K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.4);K.skyline(0,W,x=>hz+H*0.06,130);K.g.fillStyle=K.P.land;
+    K.searchlights(W,hz+H*0.06,6);
+    for(let i=0;i<4;i++)K.fire(W*(0.05+R()*0.9),hz+H*0.04,70*S+R()*60*S);
+    for(let i=0;i<7;i++)K.plane(W*(0.1+R()*0.8),H*(0.08+R()*0.25),S*(0.3+R()*0.25),"bomber",false);
+    for(let i=0;i<3;i++){const x=W*(0.1+R()*0.8);K.man(x,gy(x)+4*S,S*1.15,{hat:"brodie",lean:2,rifle:false});}}},
+   {mood:"night",fn(K,W,H,hz,gy,R,S){   /* the airborne drop */
+    for(let i=0;i<5;i++)K.dakota(W*(0.1+R()*0.8),H*(0.08+R()*0.15),S*(0.5+R()*0.3),R()<0.2);
+    for(let i=0;i<14;i++)K.chute(W*(0.05+R()*0.9),H*(0.2+R()*0.38),S*(0.3+R()*0.5));
+    for(let i=0;i<3;i++)K.flash(W*(0.1+R()*0.8),hz+H*0.04,40*S+R()*40*S);}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* the eastern front in winter */
+    const tx=W*(0.25+R()*0.5),fl=R()<0.5;K.tank(tx,gy(tx)+6*S,S*1.4,{flip:fl});
+    K.tank(tx+(fl?1:-1)*W*0.3,gy(tx)+2*S,S*0.9,{flip:fl});
+    for(let i=0;i<6;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-tx)<200*S)continue;K.man(x,gy(x)+4*S,S*1.2,{hat:"stahl",pack:true,flip:fl,lean:6});}
+    for(let i=0;i<3;i++)K.deadTree(W*R(),gy(W*R()),S*0.8);}}
+  ],
+  coldwar:[
+   {fn(K,W,H,hz,gy,R,S){   /* missiles and the city */
     K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.55);K.skyline(0,W,x=>hz+H*0.05,90);K.g.fillStyle=K.P.land;
     K.searchlights(W,hz+H*0.05,4);
     for(let i=0;i<3;i++)K.plane(W*(0.15+R()*0.7),H*(0.12+R()*0.25),S*(0.6+R()*0.3),"jet",R()<0.5);
     const mx=W*(0.15+R()*0.7);K.missile(mx,gy(mx)+4*S,S*2.1);
     const rx=mx+(R()<0.5?-1:1)*W*0.22;K.radar(rx,gy(rx)+4*S,S*1.3);
-    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-mx)<90*S)continue;K.man(x,gy(x)+4*S,S*1.2,{hat:"helmetM",lean:4,aim:false});}},
-  civilwar(K,W,H,hz,gy,R,S){
-    for(let i=0;i<4;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.07,S*(0.6+R()*0.3));
+    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-mx)<90*S)continue;K.man(x,gy(x)+4*S,S*1.2,{hat:"helmetM",lean:4,aim:false});}}},
+   {mood:"night",fn(K,W,H,hz,gy,R,S){   /* the Wall */
+    K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.45);K.skyline(0,W,x=>hz+H*0.05,110);K.g.fillStyle=K.P.land;
+    K.searchlights(W,hz+H*0.05,3);
+    K.wallBerlin(0,W,x=>gy(x)-10*S);const tx=W*(0.2+R()*0.6);K.watchtower(tx,gy(tx)-6*S,S*1.2);
+    for(let i=0;i<2;i++){const x=W*(0.1+R()*0.8);K.man(x,gy(x)+6*S,S*1.2,{hat:"helmetM",lean:2,aim:false});}}},
+   {mood:"dawn",fn(K,W,H,hz,gy,R,S){   /* helicopters over the jungle */
+    K.jungle(W,hz+H*0.07,60);
+    for(let i=0;i<5;i++)K.plane(W*(0.05+R()*0.9),H*(0.12+R()*0.3),S*(0.7+R()*0.8),"heli",R()<0.5);
+    for(let i=0;i<5;i++)K.palm(W*(0.03+R()*0.94),gy(W*R())+10*S,S*(1+R()*0.6),R()<0.5);
+    for(let i=0;i<3;i++){const x=W*(0.1+R()*0.8);K.man(x,gy(x)+4*S,S*1.2,{hat:"helmetM",pack:true,lean:8});}}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* the frozen hills of Korea */
+    const n=7;for(let i=0;i<n;i++){const x=W*(0.08+0.84*i/n)+(R()-0.5)*40*S;K.man(x,gy(x)+4*S,S*(1.1+R()*0.3),{hat:"helmetM",pack:true,lean:3});}
+    const tx=W*(0.6+R()*0.3);K.tank(tx,gy(tx)+6*S,S*1.1,{flip:true});}}
+  ],
+  civilwar:[
+   {fn(K,W,H,hz,gy,R,S){   /* the line advances */
+    for(let i=0;i<4;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.09,S*(0.6+R()*0.3));
     const gx=W*(0.15+R()*0.25),fl=R()<0.5;K.gun(gx,gy(gx)+4*S,S*1.5,fl);K.puff(gx+(fl?-110:110)*S,gy(gx)-60*S,90*S);
     for(let i=0;i<3;i++)K.flash(W*(0.4+R()*0.55),hz+H*0.04,40*S+R()*40*S);
     const n=5+(R()*3|0);for(let i=0;i<n;i++){const x=W*(0.3+0.65*i/n)+(R()-0.5)*40*S;
       K.man(x,gy(x)+4*S,S*(1.2+R()*0.4),{hat:R()<0.5?"kepi":"slouch",bayonet:true,flag:i===1});}
-    const hx=W*(0.08+R()*0.15);K.horse(hx,gy(hx)+6*S,S*1.2,{hat:"kepi"});},
-  napoleon(K,W,H,hz,gy,R,S){
-    if(R()<0.5){   /* the line of battle at sea */
-      const g=K.g;g.fillStyle=_scMix(K.P.haze,K.P.land,0.5);g.fillRect(0,hz+H*0.05,W,H);
-      g.save();g.globalCompositeOperation="lighter";const q=g.createLinearGradient(0,hz,0,H);q.addColorStop(0,K.P.sun+"40");q.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=q;g.fillRect(W*0.3,hz+H*0.05,W*0.4,H);g.restore();
-      g.fillStyle=K.P.land;
-      for(let i=0;i<4;i++){const x=W*(0.1+i*0.24+R()*0.06),y=hz+H*(0.1+i*0.06),s=S*(0.55+i*0.25);K.ship(x,y,s,R()<0.3);K.puff(x+(R()-0.5)*80*S,y-20*S,60*S*s/S);}
-      return;}
+    const hx=W*(0.08+R()*0.15);K.horse(hx,gy(hx)+6*S,S*1.2,{hat:"kepi"});}},
+   {fn(K,W,H,hz,gy,R,S){   /* the cavalry charge */
+    const fl=R()<0.5;for(let i=0;i<6;i++){const x=W*(0.06+0.88*i/6)+(R()-0.5)*40*S;K.horse(x,gy(x)+6*S,S*(1.1+R()*0.3),{hat:R()<0.5?"kepi":"bicorne",flip:fl});}
+    for(let i=0;i<2;i++)K.puff(W*R(),gy(W*R())-40*S,80*S);}},
+   {sea:1,fn(K,W,H,hz,gy,R,S){   /* the ironclads */
+    K.ironclad(W*(0.25+R()*0.1),hz+H*0.2,S*2.2,false,false);K.ironclad(W*(0.68+R()*0.1),hz+H*0.12,S*1.5,true,true);
+    K.flash(W*0.47,hz+H*0.13,90*S);K.puff(W*0.47,hz+H*0.1,110*S);}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* winter quarters */
+    for(let i=0;i<8;i++)K.tent(W*(0.04+R()*0.92),gy(W*R())-R()*20*S,S*(0.7+R()*0.6));
+    for(let i=0;i<3;i++){const x=W*(0.1+R()*0.8);K.camp(x,gy(x),S*1.1);}
+    for(let i=0;i<4;i++){const x=W*(0.1+R()*0.8);K.man(x,gy(x)+4*S,S*1.15,{hat:"kepi",lean:2,aim:false});}}}
+  ],
+  napoleon:[
+   {sea:1,fn(K,W,H,hz,gy,R,S){   /* the line of battle at sea */
+    for(let i=0;i<4;i++){const x=W*(0.1+i*0.24+R()*0.06),y=hz+H*(0.1+i*0.06),s=S*(0.55+i*0.25);K.ship(x,y,s,R()<0.3);K.puff(x+(R()-0.5)*80*S,y-20*S,60*s);}}},
+   {fn(K,W,H,hz,gy,R,S){   /* the guns and the horse */
     const gx=W*(0.6+R()*0.3);K.gun(gx,gy(gx)+4*S,S*1.5,true);K.puff(gx-120*S,gy(gx)-60*S,100*S);
     for(let i=0;i<3;i++){const x=W*(0.08+i*0.14)+R()*30*S;K.horse(x,gy(x)+6*S,S*(1.15+R()*0.25),{hat:R()<0.5?"shako":"bicorne",lance:i===2});}
-    for(let i=0;i<4;i++){const x=W*(0.45+i*0.06);K.man(x,gy(x)+4*S,S*1.2,{hat:"shako",bayonet:true,flag:i===0,lean:6});}},
-  mongol(K,W,H,hz,gy,R,S){
-    for(let i=0;i<6;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.075,S*(0.4+R()*0.3),true);
+    for(let i=0;i<4;i++){const x=W*(0.45+i*0.06);K.man(x,gy(x)+4*S,S*1.2,{hat:"shako",bayonet:true,flag:i===0,lean:6});}}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* the retreat from Moscow */
+    for(let i=0;i<4;i++)K.deadTree(W*R(),gy(W*R()),S*(0.7+R()*0.5));
+    const n=7;for(let i=0;i<n;i++){const x=W*(0.06+0.88*i/n)+(R()-0.5)*40*S;K.man(x,gy(x)+4*S,S*(1.1+R()*0.3),{hat:R()<0.5?"shako":"bicorne",lean:2,flip:true,rifle:R()<0.6,flag:i===3});}
+    const hx=W*(0.7+R()*0.2);K.horse(hx,gy(hx)+6*S,S*1.1,{hat:"bicorne",flip:true});}},
+   {mood:"dawn",fn(K,W,H,hz,gy,R,S){   /* the squares hold */
+    for(let i=0;i<4;i++){const x=W*(0.08+R()*0.3);K.horse(x,gy(x)+6*S,S*(1.1+R()*0.2),{hat:"shako",lance:R()<0.5});}
+    for(let i=0;i<6;i++){const x=W*(0.55+i*0.06);K.man(x,gy(x)+4*S,S*1.2,{hat:"shako",bayonet:true,aim:true,flip:true,lean:2});}
+    K.puff(W*0.5,gy(W*0.5)-50*S,110*S);}}
+  ],
+  mongol:[
+   {fn(K,W,H,hz,gy,R,S){   /* the horde rides */
+    for(let i=0;i<6;i++)K.tent(W*(0.05+R()*0.9),hz+H*0.085,S*(0.4+R()*0.3),true);
     const n=6+(R()*4|0),fl=R()<0.5;for(let i=0;i<n;i++){const x=W*(0.04+0.92*i/n)+(R()-0.5)*40*S;
       K.horse(x,gy(x)+6*S,S*(1.0+R()*0.4),{hat:"mongol",bow:R()<0.7,lance:R()<0.3,flip:fl});}
-    /* the tug -- a horsetail standard */
     const sx=W*(0.3+R()*0.4),g=K.g;g.lineWidth=4*S;g.beginPath();g.moveTo(sx,gy(sx));g.lineTo(sx,gy(sx)-330*S);g.stroke();
-    for(let k=0;k<9;k++){g.lineWidth=2*S;g.beginPath();g.moveTo(sx,gy(sx)-320*S);g.quadraticCurveTo(sx-20*S-k*3*S,gy(sx)-270*S,sx-40*S-k*4*S,gy(sx)-220*S+k*4*S);g.stroke();}},
-  modern(K,W,H,hz,gy,R,S){
+    for(let k=0;k<9;k++){g.lineWidth=2*S;g.beginPath();g.moveTo(sx,gy(sx)-320*S);g.quadraticCurveTo(sx-20*S-k*3*S,gy(sx)-270*S,sx-40*S-k*4*S,gy(sx)-220*S+k*4*S);g.stroke();}}},
+   {fn(K,W,H,hz,gy,R,S){   /* the siege */
+    K.walls(W*0.35,W*1.05,hz+H*0.09,70*S,true);
+    const tx=W*(0.12+R()*0.12);K.trebuchet(tx,gy(tx)+4*S,S*1.3);
+    for(let i=0;i<5;i++){const x=W*(0.05+R()*0.6);if(Math.abs(x-tx)<120*S)continue;K.horse(x,gy(x)+6*S,S*(1+R()*0.3),{hat:"mongol",bow:true});}}},
+   {mood:"night",fn(K,W,H,hz,gy,R,S){   /* the camp on the steppe */
+    for(let i=0;i<9;i++)K.tent(W*(0.03+R()*0.94),gy(W*R())-R()*30*S,S*(0.8+R()*0.7),true);
+    for(let i=0;i<3;i++){const x=W*(0.1+R()*0.8);K.camp(x,gy(x),S*1.2);}
+    for(let i=0;i<2;i++){const x=W*(0.1+R()*0.8);K.horse(x,gy(x)+6*S,S*1.1,{hat:"mongol",lance:true});}}},
+   {mood:"snow",fn(K,W,H,hz,gy,R,S){   /* the winter campaign into Rus' */
+    for(let i=0;i<5;i++)K.deadTree(W*R(),gy(W*R()),S*(0.7+R()*0.5));
+    const n=6;for(let i=0;i<n;i++){const x=W*(0.06+0.88*i/n)+(R()-0.5)*40*S;K.horse(x,gy(x)+6*S,S*(1+R()*0.3),{hat:"mongol",bow:R()<0.6,lance:R()<0.4});}}}
+  ],
+  modern:[
+   {fn(K,W,H,hz,gy,R,S){   /* the city */
     K.g.fillStyle=_scMix(K.P.haze,K.P.land,0.5);K.skyline(0,W,x=>hz+H*0.05,200);K.g.fillStyle=K.P.land;
     for(let i=0;i<3;i++)K.plane(W*(0.15+R()*0.7),H*(0.15+R()*0.2),S*(0.6+R()*0.3),"heli",R()<0.5);
     K.plane(W*(0.2+R()*0.6),H*0.1,S*0.6,"jet",R()<0.5);
     const tx=W*(0.2+R()*0.6),fl=R()<0.5;K.tank(tx,gy(tx)+6*S,S*1.3,{flip:fl});
-    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-tx)<220*S)continue;K.man(x,gy(x)+4*S,S*1.25,{hat:"helmetM",pack:true,lean:6,aim:true,flip:fl});}}
+    for(let i=0;i<4;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-tx)<220*S)continue;K.man(x,gy(x)+4*S,S*1.25,{hat:"helmetM",pack:true,lean:6,aim:true,flip:fl});}}},
+   {mood:"desert",fn(K,W,H,hz,gy,R,S){   /* the armoured column */
+    const fl=R()<0.5;for(let i=0;i<4;i++){const x=W*(0.1+i*0.24)+(R()-0.5)*40*S;(i%2?K.truck.bind(K):(a,b,c,d)=>K.tank(a,b,c,{flip:d}))(x,gy(x)+6*S,S*(0.9+R()*0.4),fl);}
+    for(let i=0;i<2;i++)K.plane(W*R(),H*(0.1+R()*0.2),S*0.8,"heli",fl);
+    for(let i=0;i<3;i++)K.puff(W*R(),gy(W*R())-10*S,90*S);}},
+   {sea:1,fn(K,W,H,hz,gy,R,S){   /* the carrier group */
+    K.carrier(W*(0.3+R()*0.4),hz+H*0.12,S*1.3,R()<0.5);
+    for(let i=0;i<5;i++)K.plane(W*R(),H*(0.08+R()*0.3),S*(0.4+R()*0.5),"jet",R()<0.5);K.plane(W*R(),H*0.3,S*0.8,"heli",false);}},
+   {mood:"storm",fn(K,W,H,hz,gy,R,S){   /* the storm */
+    for(let i=0;i<3;i++)K.plane(W*R(),H*(0.15+R()*0.25),S*(0.8+R()*0.5),"heli",R()<0.5);
+    const tx=W*(0.3+R()*0.4);K.tank(tx,gy(tx)+6*S,S*1.4,{flip:R()<0.5});
+    for(let i=0;i<5;i++){const x=W*(0.05+R()*0.9);if(Math.abs(x-tx)<220*S)continue;K.man(x,gy(x)+4*S,S*1.2,{hat:"helmetM",pack:true,lean:10});}}}
+  ]
 };
 /* Public-domain photographs, each with where it came from and why it is
    free to use. Empty until an archive is reachable from this environment;

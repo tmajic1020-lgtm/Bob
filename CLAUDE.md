@@ -724,3 +724,29 @@ name the translator, and recollections say so. The Mongol era, which had
 none, now has four from its own century (Magna Carta, the Novgorod
 Chronicle on the Mongols' arrival, Dante, Marco Polo) -- still nothing
 pinned on Genghis Khan, and still no dictators.
+
+### Thirty scenes, and the archives still shut
+
+Asked again for real photographs. Re-tested: every archive and stock host
+is still refused (also NPS, defense.gov, DVIDS, army/navy/af.mil, nist.gov,
+picryl, rawpixel, Unsplash, Pexels, Pixabay, Kaggle, Zenodo, Hugging Face).
+github.com clones, bitbucket, gitlab's API, S3 and GCS answer, but GitHub's
+code search is refused (sessions are bound to their own repos), and web
+searches turn up no repository holding archive photographs with provenance.
+
+So `SCENE_ART[era]` is now a LIST of compositions, 4-6 per era, 30 in all,
+and `paintScene(era,W,H,seed,lift,pick)` picks one. A composition may set
+`mood` (night, snow, dawn, desert, storm -- palette overrides in
+`SCENE_MOOD`, with stars and a moon at night, falling snow, rain) and `sea`
+(open water from the horizon; `beach` adds a strip of shore in front).
+New kit pieces: landing craft, beach obstacles, carrier, dreadnought,
+ironclad, city walls with towers, trebuchet, the Berlin Wall and a
+watchtower, palms and jungle, parachutes, Dakotas, trucks, an observation
+balloon, campfires. Each paints in 2-9ms at 800x450.
+
+Two faults found by looking at the renders, not by any check:
+- a composition runs AFTER the foreground is drawn, so a backdrop element
+  (the jungle wall) must not fill downwards or it paints over the ground
+  the figures stand on;
+- light shafts belong to a clear sun; in snow, storm or at night they read
+  as searchlights from nowhere, so they are off for those moods.
