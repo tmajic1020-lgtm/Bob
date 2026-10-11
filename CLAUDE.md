@@ -828,3 +828,14 @@ helper at definition time, ~6,000 lines before `const sV` exists -- a TDZ
 error that stopped the whole script at boot. Wrap as `(u,v)=>sV(...)(u,v)`.
 A boot-time error shows only as `__ifStage` stuck short of "booted", so
 check that after any edit to a top-level table.
+
+### Benelux showed in German colour
+
+New nations need their real-country shapes routed too. The map paints each
+Natural Earth country by `natOfCountry(name)` (NAME2NAT plus per-era
+overrides); NAME2NAT still sent Netherlands/Belgium/Luxembourg to GER, so
+the new provinces existed but the ground around them was painted German.
+Routed to HOL/BEL/LUX (Napoleonic and Mongol overrides keep FEM/HRE). Owner
+asked for clearer colours: Netherlands orange #ec7a1c, Belgium yellow
+#e3b81c, Luxembourg blue #3d7fd6. When adding a nation, grep NAME2NAT and
+every *_OVERRIDE for its country name.
