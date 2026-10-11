@@ -889,3 +889,6 @@ Latvia dark red (not Soviet red), Estonia dark blue.
   #9a3a3e (Soviet is #7d0d18), EST #1f3d7a.
 - Also fixed on the way: ww2 bra (Slovakia) was POL in 1936-38 -> CZE;
   coldwar lwo POL -> SOV and bra POL -> CZE.
+- Czech-Slovak line (`_CZSK`) hidden while Czechoslovakia is one country:
+  ww2 starts before 1939 (`hidePre39`) and the whole coldwar era
+  (HIST_LINES.coldwar). From 1939 it shows, as Slovakia had split off.
