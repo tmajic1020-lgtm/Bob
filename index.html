@@ -6581,9 +6581,9 @@ const _GER14=[[14.0,54.2],[19.6,54.6],[19.4,53.3],[19.2,53.15],[18.95,52.95],[18
 const _KRESY_EDGE=[[22.85,54.38],[23.45,54.2],[23.95,54.1],[24.5,54.4],[24.9,54.88],[25.55,55.18],[26.05,55.5],[26.6,55.7],[27.2,55.85],[27.6,55.25],[27.25,54.6],[27.15,54.15],[26.95,53.75],[27.05,53.4],[27.6,52.6],[27.75,52.2],[27.5,51.6],[27.35,51.2],[27.4,50.7],[26.65,50.3],[26.1,49.8],[26.05,49.3],[26.2,48.8],[26.3,48.55],[25.7,48.62],[25.2,48.3],[24.65,48.05],[24.0,48.45],[23.4,48.95],[22.6,49.1]];
 const _KRESY=_KRESY_EDGE.concat([[22.3,49.1],[22.3,54.3]]);
 const HIST_REGIONS={
- ww2:[{poly:_KRESY,in:["Lithuania","Belarus","Ukraine"],anchor:"war"},{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939},{poly:_GER37,in:["Poland"],anchor:"ber"}],
- ww1:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}],
- civilwar:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}]
+ ww2:[{poly:_KRESY,in:["Lithuania","Belarus","Ukraine"],anchor:"war",cands:["vil","war","lub","lwo","kra"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939,cands:["kon"]},{poly:_GER37,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon"]}],
+ ww1:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}],
+ civilwar:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}]
 };
 /* And the LINES. The atlas outlines are today's, so in 1936 they ruled the
    Oder-Neisse line through Brandenburg and Silesia and Kaliningrad's border
@@ -6627,15 +6627,16 @@ function _histLine(lines){const p=new Path2D();for(const r of lines)r.forEach(([
 function _inPoly(p,lon,lat){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];
   if((a[1]>lat)!==(b[1]>lat)&&lon<(b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0])c=!c;}return c;}
 /* the nation whose soil this pixel is, or null to leave it to the shape's own routing */
-function histHome(name,lon,lat){
+function histRegion(name,lon,lat){
   const rs=HIST_REGIONS[ERA];if(!rs||!G||!G.prov)return null;
   for(const r of rs){
     if(r.from&&YEAR<r.from)continue;
     if(!r.in.includes(name))continue;
-    if(_inPoly(r.poly,lon,lat)){const a=G.prov[r.anchor];return a?a.home:null;}
+    if(_inPoly(r.poly,lon,lat))return r;
   }
   return null;
 }
+function histHome(name,lon,lat){const r=histRegion(name,lon,lat);const a=r&&G.prov[r.anchor];return a?a.home:null;}
 function natOfCountry(name){
   if(ERA==="modern"&&MODERN_OVERRIDE[name])return MODERN_OVERRIDE[name];
   if(ERA==="coldwar"&&COLDWAR_OVERRIDE[name])return COLDWAR_OVERRIDE[name];
@@ -10044,12 +10045,14 @@ function renderTerritory(){
   // pass 1: assign every land pixel to its nearest nation; grow boxes to the REAL territory
   const natKeys=Object.keys(NATIONS),natIdx={};natKeys.forEach((k,i)=>natIdx[k]=i+1);
   const owner=new Uint8Array(w*h);
+  window.__terOwner={owner,w,h,natKeys};   /* read-only handle for probes */
   for(const k in bb){const b=bb[k];b.x0=1e9;b.y0=1e9;b.x1=-1e9;b.y1=-1e9;}
   // group province points by their HOME nation (real soil), once
-  const byHome={},byOwner={};
+  const byHome={},byOwner={},byCountry={};
   for(const p of Object.values(G.prov)){
     (byHome[p.home]=byHome[p.home]||[]).push({x:p.x/TS,y:p.y/TS,owner:p.owner});
     (byOwner[p.owner]=byOwner[p.owner]||[]).push({x:p.x/TS,y:p.y/TS,owner:p.owner});
+    if(countryPix){const ci0=countryPix[Math.round(p.y/TS)*w+Math.round(p.x/TS)];if(ci0)(byCountry[ci0]=byCountry[ci0]||[]).push({x:p.x/TS,y:p.y/TS,owner:p.owner});}
   }
   /* Border shaping: the raw nearest-province test produces long straight
      bisectors that meet at sharp angles — the old "triangle" borders.
@@ -10081,13 +10084,24 @@ function renderTerritory(){
       const ci=countryPix[y*w+x];
       if(ci){
         const cname=countryNames[ci-1];
-        let home=null;
+        let home=null,hr=null;
         if(cname==="Poland"||cname==="Russia"||cname==="Lithuania"||cname==="Belarus"||cname==="Ukraine")
-          home=histHome(cname,(x*TS/MW)*360-180,90-(y*TS/MH)*180);
-        if(!home)home=natOfCountry(cname);
+          hr=histRegion(cname,(x*TS/MW)*360-180,90-(y*TS/MH)*180);
+        if(hr){
+          /* a historical region picks among ITS OWN named provinces, never by
+             "home": Vienna and Bohemia still carry home GER in the 1936 data,
+             so routing by home handed all of Silesia to Austria */
+          const hc=hr.cands.map(id=>G.prov[id]).filter(Boolean).map(p=>({x:p.x/TS,y:p.y/TS,owner:p.owner}));
+          if(hc.length)cand=hc;
+        }
+        if(!hr)home=natOfCountry(cname);
         if(home){
           if(byHome[home]&&byHome[home].length)cand=byHome[home];
           else if(byOwner[home]&&byOwner[home].length)cand=byOwner[home];
+          /* the nation is gone (Austria after 1938): its soil goes with the
+             provinces standing on it, not to the nearest province anywhere,
+             which put Graz in Yugoslavia */
+          else if(byCountry[ci]&&byCountry[ci].length)cand=byCountry[ci];
         }
       }
     }

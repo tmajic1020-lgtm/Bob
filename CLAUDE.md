@@ -892,3 +892,15 @@ Latvia dark red (not Soviet red), Estonia dark blue.
 - Czech-Slovak line (`_CZSK`) hidden while Czechoslovakia is one country:
   ww2 starts before 1939 (`hidePre39`) and the whole coldwar era
   (HIST_LINES.coldwar). From 1939 it shows, as Slovakia had split off.
+- **Never route a region by `home`.** In the 1936 data Vienna and Bohemia
+  are OWNED by AUT/CZE but their HOME is still GER (yearOwners sets owner
+  only), so "nearest GER-home province" sent all of Silesia to Vienna and
+  painted it Austrian. Each HIST_REGIONS entry now lists `cands`, the
+  provinces it may belong to, and takes the nearest one's owner.
+- And a dead nation's soil (Austria after 1938) now goes to the provinces
+  standing in its own shape (`byCountry`), not to the nearest province
+  anywhere (Graz was going to Zagreb).
+- `window.__terOwner` exposes the ownership grid for probes. Points within
+  ~40km of a frontier read the neighbour (Innsbruck, Klagenfurt, Kosice):
+  that is the 2-unit grid, not a bug -- check `countryNames[countryPix[i]]`
+  before believing a border city.
