@@ -953,3 +953,36 @@ COL, Bolivia to PERU, Chile to CHL (as the modern override already did).
 Uruguay and Paraguay still paint as ARG and the Guianas as BRA: they have
 no province of their own. Napoleonic 1803 stays Spanish colonies, which is
 right for that date.
+
+## The world as it was: Raj, Arabia, the Nordics, South America, Alaska
+
+Owner, looking at the 1936 world map: the Raj should be its own state,
+Persia did not rule the Middle East, Scandinavia was never a country, the
+rest of South America was independent, Alaska is tilted, and IRON FRONT
+should be written big across the bottom like the real game's title.
+
+- `ERA_FIX_OWN` (beside NEWPROV_OWN) is applied OVER the era owner tables,
+  not just into gaps, because those tables already named these provinces.
+  - Raj: del/bom/cal/mad2/lah/hyd/dac/srn -> IND in civilwar, ww1, ww2,
+    renamed "British Raj", and started as UK's puppet and ally through a new
+    `ERAS[e].puppets` hook in startGame. Verified it enters the war with
+    Britain on 3 September 1939. Cold War keeps the existing 1949 handover.
+  - Iraq (bag, bas) and Saudi Arabia (ria, jed) in ww2/coldwar; Ottoman in
+    1861 and 1914 (Nejd under Ibn Saud's house in 1861). Routing: Iraq,
+    Saudi, Afghanistan out of PER; Gulf sheikhdoms to UK; Yemen paints
+    Saudi in 1936 (it has no province).
+  - SCA is gone (eras:[]): 1861 Sweden-Norway + Denmark (Finland Russian),
+    1914 Norway/Sweden/Denmark, 1936 + Finland, Cold War + Iceland. The two
+    ww2 history events against "SCA" are now SOV-FIN, GER-NOR and GER-DEN,
+    and they fire on 30 Nov 1939 and 9 Apr 1940.
+- Seven new provinces: ccs Caracas, uio Quito, lpb La Paz, mvd Montevideo,
+  asu Asuncion, geo Georgetown, pbm Paramaribo, with nations VEN ECU BOL URU
+  PAR (1861-2026) and GUY SUR (modern; British and Dutch before), drawn
+  flags, links and terrain. All 26 probe cities paint correctly in all eras.
+- **Alaska's border slanted at world zoom** because `tileRings` thinned
+  rings by taking every Nth vertex, and the 141st meridian is two vertices:
+  dropping the St Elias corner drew a diagonal into the Yukon. Vertices at
+  either end of a segment over 2 world units are now always kept.
+- IRON FRONT is drawn at the end of the country-label pass, in NAMEFONT
+  over Antarctica at 58 world units, so it scales with the map.
+- Not done: Greenland is still its own nation (GRE) before the modern era.
