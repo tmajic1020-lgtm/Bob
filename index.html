@@ -782,7 +782,7 @@ SWD:{n:"Sweden",f:"🇸🇪",c:"#3d7fc9",cap:"sto",play:1,desc:"Two centuries of
 DEN:{n:"Denmark",f:"🇩🇰",c:"#e0645c",cap:"cph",play:1,desc:"The Sound, and Greenland",era:"modern"},
 FIN:{n:"Finland",f:"🇫🇮",c:"#8fb8e8",cap:"hel",play:1,desc:"1,340 km of border with Russia",era:"modern"},
 ISL:{n:"Iceland",f:"🇮🇸",c:"#4b6ea9",cap:"rey",play:1,desc:"A rock in the North Atlantic gap",era:"modern"},
-POR:{n:"Portugal",f:"🇵🇹",c:"#2f7d4f",cap:"lis",play:1,desc:"The Atlantic corner",era:"modern"},
+POR:{n:"Portugal",f:"🇵🇹",c:"#2f7d4f",cap:"lis",play:1,desc:"The Atlantic corner",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 IRE:{n:"Ireland",f:"🇮🇪",c:"#4caf7d",cap:"dub",play:1,desc:"Small, green, and done being ruled",era:"modern"},
 CRO:{n:"Croatia",f:"🇭🇷",c:"#d8604f",cap:"zag",play:1,desc:"A coastline shaped like a scythe",era:"modern"},
 BOS:{n:"Bosnia",f:"🇧🇦",c:"#3f5bb5",cap:"sarj",play:1,desc:"Three peoples, one set of mountains",era:"modern"},
@@ -886,7 +886,7 @@ OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:1,desc:"Sixty 
    Two traps in the mapping, both of which produce a plausible-looking wrong
    answer: their GRE is Greece and this game's GRE is Greenland, and their PRU
    is Peru while this game's PRU is Prussia. */
-const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#1f3d7a",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#e2c21e",LVA:"#9a3a3e",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#277446",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
+const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#1f3d7a",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#e2c21e",LVA:"#9a3a3e",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#8fd07a",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
 /* The colours each nation wore before v23.0, kept so the Time Machine can
    put them back rather than showing v23's palette in every earlier build. */
 const PRE23_COL={};
@@ -994,12 +994,12 @@ LINKS.push(
  ["kau","vil"],["kau","kon"],["kau","rig"],["kau","war"]);
 const NEWPROV_OWN={
  napoleon:{kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
- civilwar:{poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ civilwar:{lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
  /* 1936: the Baltic states independent, Wilno Polish (taken in 1920),
     Kaunas Lithuania's capital, and Slovakia Czechoslovak. */
- ww2:{rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
- coldwar:{lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ ww2:{lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
+ coldwar:{lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  modern:{kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  mongol:{kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
 };
@@ -1169,11 +1169,11 @@ coldwar:{label:"COLD WAR",sub:"THE IRON CURTAIN",start:[0,1],
     buc:"ROM",clj:"ROM",cta:"ROM",
     alg:"FRA",ora:"FRA",cst:"FRA",cas:"FRA",mrk:"FRA",tun:"FRA",dak:"FRA",abi:"FRA",kin:"FRA",
     lag:"UK",kano:"UK",acc:"UK",nai:"UK",mba:"UK",dsm:"UK",kmp:"UK",har2:"UK",sue:"UK",khartoum:"UK",psud:"UK",obd:"UK",
-    lua:"SPA",hmb:"SPA",beir:"SPA",mpt:"SPA",
+    lua:"POR",hmb:"POR",beir:"POR",mpt:"POR",
     han:"FRA",sgn:"FRA",hue:"FRA",pnh:"FRA",rgn:"UK",mdl:"UK",sin:"UK",kul:"UK"},
   rename:{SOV:["Soviet Union","☭"],GER:["West Germany","🇩🇪"],UK:["United Kingdom","🇬🇧"],
     SEA:["South Vietnam","🇻🇳"],KOR:["South Korea","🇰🇷"],
-    CHN:["People's Republic","🇨🇳"],SPA:["Portugal & Spain","🇵🇹"],SRB:["Yugoslavia","🇷🇸"],
+    CHN:["People's Republic","🇨🇳"],SRB:["Yugoslavia","🇷🇸"],
     CZE:["Czechoslovakia","🇨🇿"]}},
 mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],caps:{BYZ:"izm"},years:[1206,1211,1219,1227,1235,1241,1251,1259,1279,1294],
   yearOwners:{
@@ -2062,7 +2062,7 @@ const RELEASABLES=[
 ];
 const REL_ERAS={
  ww1:["IRE","POL","FIN","EST","LVA","LTU","UKR","CZE","GEO","SYR","HEJ","KUR","KOR","IND","TAW"],
- ww2:["SCO","NIR","CAT","BAS","POR","UKR","BLR","SVK","MDA","QUE","KUR","IRQ","PAK","IND","KOR","KOS","TRN","KAS","TIB","TAW","SYR","BOU"],
+ ww2:["SCO","NIR","CAT","BAS","UKR","BLR","SVK","MDA","QUE","KUR","IRQ","PAK","IND","KOR","KOS","TRN","KAS","TIB","TAW","SYR","BOU"],
  coldwar:["SCO","NIR","CAT","BAS","QUE","KUR","KAS","TIB","EST","LVA","LTU","UKR","BLR","GEO","KAZ","MDA","KOS","BOU"],
  modern:["SCO","NIR","CAT","BAS","QUE","KUR","KOS","TRN","KAS","TIB","BOU"]
 };
@@ -6407,7 +6407,7 @@ const NAME2NAT={
 "Argentina":"ARG","Chile":"ARG","Uruguay":"ARG","Paraguay":"ARG","Bolivia":"ARG","Peru":"ARG","Falkland Is.":"ARG",
 "United Kingdom":"UK","Ireland":"UK",
 "France":"FRA",
-"Spain":"SPA","Portugal":"SPA",
+"Spain":"SPA","Portugal":"POR",
 "Germany":"GER","Netherlands":"HOL","Belgium":"BEL","Luxembourg":"LUX","Switzerland":"SUI","Austria":"GER","Czechia":"GER",
 "Italy":"ITA","Slovenia":"ITA","Croatia":"ITA","Bosnia and Herz.":"ITA","Serbia":"ITA","Montenegro":"ITA","Albania":"ITA","Macedonia":"ITA","North Macedonia":"ITA","Kosovo":"ITA",
 "Poland":"POL","Lithuania":"POL","Slovakia":"POL",
@@ -6547,7 +6547,7 @@ const COLDWAR_OVERRIDE={
 "Serbia":"SRB","Croatia":"SRB","Slovenia":"SRB","Bosnia and Herz.":"SRB","Montenegro":"SRB","Macedonia":"SRB","North Macedonia":"SRB","Kosovo":"SRB",
 "Romania":"ROM","Moldova":"SOV","Albania":"ALB",
 "North Korea":"PRK","South Korea":"KOR","Korea":"KOR",
-"Vietnam":"NVN","Portugal":"SPA"
+"Vietnam":"NVN","Portugal":"POR","Angola":"POR","Mozambique":"POR"
 };
 const CIVILWAR_OVERRIDE={
 /* the Austrian Empire, six years before the Ausgleich */
@@ -7921,7 +7921,7 @@ function buildRivers(H,land,w,h,pidx){
 function riverDef(p){return 1+0.22*((p&&PROV_RIVER[p.id])||0);}
 function riverSlow(p){return 1-0.18*((p&&PROV_RIVER[p.id])||0);}
 let provEdgeCv=null, provTiles=null;
-let PROV_OUTLINE=null;   /* id -> Path2D outline of that province */
+let PROV_OUTLINE=null, PROV_CELLS=null;   /* id -> Path2D outline of that province */
 const PT_S=180;                    // world units per boundary tile
 let PT_W=0, PT_H=0;
 /* THE MOSAIC. Drawing the game's own province boundaries turned out to change
@@ -7947,9 +7947,11 @@ function buildProvEdges(pidx,land,w,h){
   const d=new Uint32Array(im.data.buffer);
   let landCount=0;
   for(let i=0;i<w*h;i++)if(land[i])landCount++;
-  /* About four thousand cells over the world's land, which is the density that
-     reads as a mosaic without turning into noise at the zoom you play at. */
-  const S=Math.max(4,Math.round(Math.sqrt(landCount/4000)));
+  /* About thirteen thousand cells over the world's land -- the real game's own
+     count of land provinces. At four thousand a country the size of France was
+     a dozen cells and read as a handful of blobs, not as a province map. Not
+     rounded: an integer spacing jumps straight from 4k to 9k to 17k. */
+  const S=Math.max(3,Math.sqrt(landCount/13000));
   const gw=Math.ceil(w/S)+1, gh=Math.ceil(h/S)+1;
   const px=new Float32Array(gw*gh), py=new Float32Array(gw*gh);
   const rnd=_fpRnd?_fpRnd(1337):null;
@@ -8128,6 +8130,25 @@ function buildProvEdges(pidx,land,w,h){
       const c2=chamfer(arr),p2=new Path2D();
       for(let k=0;k<c2.length;k+=4){p2.moveTo(c2[k],c2[k+1]);p2.lineTo(c2[k+2],c2[k+3]);}
       PROV_OUTLINE[id]=p2;}
+    /* and the small provinces inside each one, so a selected country shows
+       the mosaic it is made of and not just its dozen big pieces */
+    const cel=new Map();
+    const addc=(p,seg)=>{let L=cel.get(p);if(!L)cel.set(p,L=[]);L.push(...seg);};
+    for(let x=0;x<w-1;x++){let rs=-1,rp=0;
+      for(let y=0;y<=h;y++){const i=y*w+x,j=i+1;
+        const on=y<h&&land[i]&&land[j]&&pidx[i]===pidx[j]&&sub[i]!==sub[j];
+        if(rs>=0&&(!on||pidx[i]!==rp)){addc(rp,[(x+1)*TS,rs*TS,(x+1)*TS,y*TS]);rs=-1;}
+        if(on&&rs<0){rs=y;rp=pidx[i];}}}
+    for(let y=0;y<h-1;y++){let rs=-1,rp=0;
+      for(let x=0;x<=w;x++){const i=y*w+x,j=i+w;
+        const on=x<w&&land[i]&&land[j]&&pidx[i]===pidx[j]&&sub[i]!==sub[j];
+        if(rs>=0&&(!on||pidx[i]!==rp)){addc(rp,[rs*TS,(y+1)*TS,x*TS,(y+1)*TS]);rs=-1;}
+        if(on&&rs<0){rs=x;rp=pidx[i];}}}
+    PROV_CELLS={};
+    for(const [pi,arr] of cel){const id=ids[pi];if(!id)continue;
+      const c2=chamfer(arr),p2=new Path2D();
+      for(let k=0;k<c2.length;k+=4){p2.moveTo(c2[k],c2[k+1]);p2.lineTo(c2[k+2],c2[k+3]);}
+      PROV_CELLS[id]=p2;}
   }
   PT_W=Math.ceil(MW/PT_S);PT_H=Math.ceil(MH/PT_S);
   provTiles=new Array(PT_W*PT_H);
@@ -11069,6 +11090,8 @@ function _drawFrame(){
     const own=G.prov[G.sel].owner;
     const mine=Object.values(G.prov).filter(p=>p.owner===own);
     ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+    if(PROV_CELLS){ctx.strokeStyle="rgba(255,226,170,0.42)";ctx.lineWidth=0.9/z;
+      for(const p of mine){const o=PROV_CELLS[p.id];if(o)ctx.stroke(o);}}
     ctx.strokeStyle="rgba(10,10,12,0.55)";ctx.lineWidth=3.4/z;
     for(const p of mine){const o=PROV_OUTLINE[p.id];if(o)ctx.stroke(o);}
     ctx.strokeStyle="rgba(255,214,140,0.85)";ctx.lineWidth=1.5/z;

@@ -919,3 +919,25 @@ select and centre on that province.
   them again collided. Also, `var(--x)` is NOT valid in a canvas font
   string -- the assignment silently fails and the previous font (the huge
   country-label font) stays, which is what the first cut showed.
+
+## Smaller provinces, and Portugal
+
+- **The mosaic is the real game's density now.** `buildProvEdges` spaced
+  its Voronoi cells for ~4,000 over the world's land (S=6), so France was a
+  dozen cells. Now ~13,000 (measured 14,688, S=3.11, not rounded -- an
+  integer spacing only offers 4k, 9k or 17k), which is HOI4's own count of
+  land provinces. Costs ~250ms once at world build (425-517ms -> 650-782ms,
+  A/B in the same run); nothing per frame beyond more hairlines in view.
+- The 251 gameplay provinces are unchanged -- they now play the part of
+  HOI4's states, and the cells the part of its provinces. A selected
+  country also strokes its cells (`PROV_CELLS[id]`, built beside
+  `PROV_OUTLINE`) in faint gold, so its small provinces show.
+- **Portugal was Spain.** lis/opo were SPA in every era but modern, and
+  NAME2NAT sent the Portugal shape to SPA, so it was painted Spanish yellow.
+  POR now exists 1861-2026 (`eras`), owns lis/opo via NEWPROV_OWN, is light
+  green (HOI4COL #8fd07a, at the owner's request) and is no longer a ww2
+  releasable. Cold War: the "Portugal & Spain" rename is gone and Angola
+  and Mozambique are Portuguese until 1979. In 1861-1945 those colonies
+  still belong to whoever the era table gave them (CON/SAF/UK) -- untouched.
+- Probe pitfall: headless frame times drop MAPQ below 2, which turns off
+  the vector mosaic entirely. `setMapQuality(3)` before screenshotting it.
