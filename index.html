@@ -7921,6 +7921,7 @@ function buildRivers(H,land,w,h,pidx){
 function riverDef(p){return 1+0.22*((p&&PROV_RIVER[p.id])||0);}
 function riverSlow(p){return 1-0.18*((p&&PROV_RIVER[p.id])||0);}
 let provEdgeCv=null, provTiles=null;
+let PROV_OUTLINE=null;   /* id -> Path2D outline of that province */
 const PT_S=180;                    // world units per boundary tile
 let PT_W=0, PT_H=0;
 /* THE MOSAIC. Drawing the game's own province boundaries turned out to change
@@ -8104,6 +8105,30 @@ function buildProvEdges(pidx,land,w,h){
     return out;
   };
   const segCs=chamfer(segC), segLs=chamfer(segL);
+  /* EACH PROVINCE'S OWN OUTLINE, for showing a country's provinces when it is
+     clicked: every boundary run goes to the province on each side of it (a
+     coast to the land side only), cornered off by the same chamfer. */
+  {
+    const per=new Map();
+    const add=(p,a)=>{if(p<0)return;let L=per.get(p);if(!L)per.set(p,L=[]);L.push(...a);};
+    const side=(i,j)=>{const li=land[i],lj=land[j];if(!li&&!lj)return null;const a=li?pidx[i]:-1,b=lj?pidx[j]:-1;return a===b?null:[a,b];};
+    for(let x=0;x<w-1;x++){let rs=-1,ra=0,rb=0;
+      for(let y=0;y<=h;y++){const s2=y<h?side(y*w+x,y*w+x+1):null;
+        const same=s2&&rs>=0&&s2[0]===ra&&s2[1]===rb;
+        if(rs>=0&&!same){const seg=[(x+1)*TS,rs*TS,(x+1)*TS,y*TS];add(ra,seg);add(rb,seg);rs=-1;}
+        if(s2&&rs<0){rs=y;ra=s2[0];rb=s2[1];}}}
+    for(let y=0;y<h-1;y++){let rs=-1,ra=0,rb=0;
+      for(let x=0;x<=w;x++){const s2=x<w?side(y*w+x,(y+1)*w+x):null;
+        const same=s2&&rs>=0&&s2[0]===ra&&s2[1]===rb;
+        if(rs>=0&&!same){const seg=[rs*TS,(y+1)*TS,x*TS,(y+1)*TS];add(ra,seg);add(rb,seg);rs=-1;}
+        if(s2&&rs<0){rs=x;ra=s2[0];rb=s2[1];}}}
+    const ids=Object.keys(G?G.prov:{});
+    PROV_OUTLINE={};
+    for(const [pi,arr] of per){const id=ids[pi];if(!id)continue;
+      const c2=chamfer(arr),p2=new Path2D();
+      for(let k=0;k<c2.length;k+=4){p2.moveTo(c2[k],c2[k+1]);p2.lineTo(c2[k+2],c2[k+3]);}
+      PROV_OUTLINE[id]=p2;}
+  }
   PT_W=Math.ceil(MW/PT_S);PT_H=Math.ceil(MH/PT_S);
   provTiles=new Array(PT_W*PT_H);
   const bin=(arr,key)=>{
@@ -10020,6 +10045,9 @@ function drawFlagIcon(cv,k){
   ctx2.drawImage(off,0,0,w2,h2);
 }
 window.drawFlagIcon=drawFlagIcon;
+/* select a province from a list and bring it into view */
+window.goProv=function(id){if(!G||!G.prov[id])return;const p=G.prov[id];G.sel=id;G.selUnit=null;
+  centerOn(p.x,p.y);openPanel("prov");};
 const _hexCache={};
 function hex2rgb(h){
   let c=_hexCache[h];
@@ -11031,6 +11059,24 @@ function _drawFrame(){
       ctx.drawImage(natEdgeCv,0,0,MW,MH);
       ctx.globalAlpha=1;
     }
+  }
+  /* CLICK A COUNTRY, SEE ITS PROVINCES. Whatever province is selected, every
+     province of the same owner is outlined in gold (the map's own labels
+     already name them; a second set only collided), and the one
+     clicked is drawn brighter, so a country's shape resolves into the pieces
+     it is actually made of. */
+  if(G.sel&&PROV_OUTLINE&&G.prov[G.sel]){
+    const own=G.prov[G.sel].owner;
+    const mine=Object.values(G.prov).filter(p=>p.owner===own);
+    ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+    ctx.strokeStyle="rgba(10,10,12,0.55)";ctx.lineWidth=3.4/z;
+    for(const p of mine){const o=PROV_OUTLINE[p.id];if(o)ctx.stroke(o);}
+    ctx.strokeStyle="rgba(255,214,140,0.85)";ctx.lineWidth=1.5/z;
+    for(const p of mine){const o=PROV_OUTLINE[p.id];if(o&&p.id!==G.sel)ctx.stroke(o);}
+    const so=PROV_OUTLINE[G.sel];
+    if(so){ctx.strokeStyle="rgba(10,10,12,0.7)";ctx.lineWidth=5/z;ctx.stroke(so);
+      ctx.strokeStyle="#ffe7a8";ctx.lineWidth=2.6/z;ctx.stroke(so);}
+    ctx.restore();
   }
   // internal state/province borders (Nevada, Alberta, ...) when toggled
   if(SHOWPROV){
@@ -14740,6 +14786,7 @@ function renderPanel(){
     const p=G.sel?provOf(G.sel):null;
     if(!p){G.sel=null;el.innerHTML="<h2>PROVINCE</h2><div style='color:var(--dim)'>Click a province on the map.</div>";return;}
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
+    const _same=Object.values(G.prov).filter(q=>q.owner===p.owner).sort((a,b)=>(b.val-a.val)||a.name.localeCompare(b.name));
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
@@ -14752,6 +14799,8 @@ function renderPanel(){
       <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
     ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${Math.round(100*p.push)}%</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
+    h+=`<h3>\u{1F5FA} PROVINCES OF ${NATIONS[p.owner].n.toUpperCase()} (${_same.length})</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${_same.map(q=>`<button class="tbtn ${q.id===p.id?"on":""}" style="font-size:10px;padding:2px 6px" onclick="goProv('${q.id}')">${capOf(q.owner)===q.id?"\u2605 ":""}${q.name}</button>`).join("")}</div>`;
     if(p.owner===G.player){
       /* THE SITES, GENERATED FROM THE TABLE. Three hand-written buttons could
          not show what the province already had under construction, so the only

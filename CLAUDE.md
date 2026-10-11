@@ -904,3 +904,18 @@ Latvia dark red (not Soviet red), Estonia dark blue.
   ~40km of a frontier read the neighbour (Innsbruck, Klagenfurt, Kosice):
   that is the 2-unit grid, not a bug -- check `countryNames[countryPix[i]]`
   before believing a border city.
+
+## Click a country, see its provinces
+
+Selecting any province outlines every province of the same owner in gold,
+the clicked one brighter, and the province panel lists them all
+("PROVINCES OF X (N)", capital starred) as buttons that `goProv(id)` to
+select and centre on that province.
+
+- `PROV_OUTLINE[id]` is a Path2D per province, built in `buildProvEdges`
+  from the same `pidx` boundary runs as the mesh: land/land edges go to both
+  sides, coast edges to the land side, all chamfered like the mesh.
+- No second set of names: the map already labels provinces, and drawing
+  them again collided. Also, `var(--x)` is NOT valid in a canvas font
+  string -- the assignment silently fails and the previous font (the huge
+  country-label font) stays, which is what the first cut showed.
