@@ -6576,9 +6576,9 @@ const HIST_REGIONS={
    across the middle of East Prussia. Those stretches are masked out (thin
    bands that cover only the modern line) and the historical frontier is
    stroked in their place, at the same weight. */
-const _ODER=[[14.62,50.97],[15.2,51.0],[14.95,51.6],[14.85,52.1],[14.85,52.6],[14.55,53.0],[14.6,53.5],[14.5,54.25],[13.9,54.25],[14.0,53.5],[13.95,53.0],[14.25,52.6],[14.35,52.1],[14.5,51.6],[14.62,51.15]];
-const _KALI=[[19.3,54.25],[22.7,54.25],[22.7,54.55],[19.3,54.55]];
-const _NEMAN=[[21.1,54.95],[22.95,54.95],[22.95,55.35],[21.1,55.35]];
+const _ODER=[[14.62,50.97],[15.2,51.0],[14.95,51.6],[14.85,52.1],[14.85,52.6],[14.55,53.0],[14.6,53.5],[14.45,53.52],[14.05,53.52],[14.0,53.5],[13.95,53.0],[14.25,52.6],[14.35,52.1],[14.5,51.6],[14.62,51.15]];
+const _KALI=[[19.95,54.27],[22.72,54.27],[22.72,54.48],[19.95,54.48]];
+const _NEMAN=[[21.38,54.95],[22.95,54.95],[22.95,55.35],[21.38,55.35]];
 const HIST_LINES={
  ww2:{hide:[_ODER,_KALI],hide39:[_NEMAN],lines:[
    [[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9]],
@@ -6589,6 +6589,13 @@ const HIST_LINES={
 };
 HIST_LINES.civilwar=HIST_LINES.ww1;
 function _histPath(polys){const p=new Path2D();for(const r of polys){r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});p.closePath();}return p;}
+/* the clip that hides those stretches this era, or null */
+function _histClip(){
+  const HL=HIST_LINES[ERA];if(!HL)return null;
+  const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[]);
+  const clip=new Path2D();clip.rect(-MW,-MH,MW*3,MH*3);clip.addPath(_histPath(hide));
+  return clip;
+}
 function _histLine(lines){const p=new Path2D();for(const r of lines)r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});return p;}
 function _inPoly(p,lon,lat){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];
   if((a[1]>lat)!==(b[1]>lat)&&lon<(b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0])c=!c;}return c;}
@@ -10871,7 +10878,12 @@ function _drawFrame(){
      are bevelled instead of growing spikes. Free: it is state, not work. */
   ctx.lineJoin="miter";ctx.miterLimit=2.5;
   ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);
-  if(coastTiles)strokeTiles(coastTiles,z); else ctx.stroke(landPath);
+  /* The coast pass strokes each country's whole outer ring, land frontiers
+     included, so the modern Oder-Neisse line came from HERE as much as from
+     the border pass. Same mask. */
+  {const hc=_histClip();if(hc){ctx.save();ctx.clip(hc,"evenodd");}
+   if(coastTiles)strokeTiles(coastTiles,z); else ctx.stroke(landPath);
+   if(hc)ctx.restore();}
   /* THE PICTURE GOES ON HERE: over the ground, the national colour and the
      coastline, and under everything that has to stay readable — the frontiers,
      the province markers, the counters and the names. Where its own interface
@@ -11021,9 +11033,7 @@ function _drawFrame(){
     ctx.lineJoin="miter";ctx.miterLimit=2.5;
     const HL=HIST_LINES[ERA];
     if(HL){
-      const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[]);
-      const clip=new Path2D();clip.rect(-MW,-MH,MW*3,MH*3);clip.addPath(_histPath(hide));
-      ctx.save();ctx.clip(clip,"evenodd");strokeTiles(borderTiles,z);ctx.restore();
+      ctx.save();ctx.clip(_histClip(),"evenodd");strokeTiles(borderTiles,z);ctx.restore();
       ctx.stroke(_histLine(HL.lines));
     }else strokeTiles(borderTiles,z);
   }

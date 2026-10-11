@@ -858,3 +858,12 @@ Soviet), Masuria/Pomerania/Silesia inside Poland's (-> Polish). Same fault in
   those modern stretches are clipped out (evenodd clip) and the historical
   frontier is stroked in their place at the same weight.
 - poz owner: ww1 and civilwar now GER (in 1861 GER is Prussia).
+- **The coast pass draws land frontiers too.** `coastTiles` strokes every
+  country's outer ring, so the modern Oder-Neisse and Kaliningrad lines were
+  drawn by the COAST pass (thick, T.coast) even after the border pass was
+  masked. `_histClip()` now masks both. Bands are trimmed off the Szczecin,
+  Vistula and Curonian lagoons so no real coastline is erased. Found by
+  colour-coding strokes; the dark line left along the Oder is the river.
+- Map scale: MW=2000 for 360 degrees, so zoom 6 still shows ~36 degrees.
+  A close look at a frontier needs G.cam.z ~14 (set after startGame's own
+  camera fit has run, ~2s).
