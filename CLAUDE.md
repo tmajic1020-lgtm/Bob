@@ -839,3 +839,22 @@ Routed to HOL/BEL/LUX (Napoleonic and Mongol overrides keep FEM/HRE). Owner
 asked for clearer colours: Netherlands orange #ec7a1c, Belgium yellow
 #e3b81c, Luxembourg blue #3d7fd6. When adding a nation, grep NAME2NAT and
 every *_OVERRIDE for its country name.
+
+### Germany's eastern frontiers (East Prussia, Pomerania, Silesia)
+
+Owner: "Germany is supposed to have Prussia and Konigsberg". The Konigsberg
+PROVINCE was German in 1936, but the paint routes each pixel by its modern
+Natural Earth country: Kaliningrad is inside Russia's shape (-> painted
+Soviet), Masuria/Pomerania/Silesia inside Poland's (-> Polish). Same fault in
+1914, where the Posen PROVINCE was also Russian (SUBPARENT poz->war).
+
+- `HIST_REGIONS` (ww2 = 1937 border, ww1 and civilwar = 1914 border, Memel
+  from 1939): [lon,lat] polygons; a pixel of Poland/Russia/Lithuania inside
+  one routes to the HOME of an anchor province (kon or ber), so it follows
+  conquest like any other land. Checked against 20 cities: every German and
+  Polish/Russian town on the right side in 1936, 1939 and 1914.
+- `HIST_LINES`: the atlas outlines are always stroked, so the Oder-Neisse and
+  Kaliningrad lines were ruled through 1936 Germany. Thin bands over just
+  those modern stretches are clipped out (evenodd clip) and the historical
+  frontier is stroked in their place at the same weight.
+- poz owner: ww1 and civilwar now GER (in 1861 GER is Prussia).

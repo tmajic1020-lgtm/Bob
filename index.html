@@ -992,8 +992,8 @@ LINKS.push(
  ["buk","dar",1],["buk","bri",1]);
 const NEWPROV_OWN={
  napoleon:{bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
- civilwar:{prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ civilwar:{poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
  ww2:{},
  coldwar:{tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  modern:{tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
@@ -6552,6 +6552,56 @@ const CIVILWAR_OVERRIDE={
 /* colonies of the day, not yet nations */
 "Australia":"UK","New Zealand":"UK","Canada":"UK","South Africa":"UK","India":"UK","Pakistan":"UK","Bangladesh":"UK","Myanmar":"UK","Sri Lanka":"UK"
 };
+/* GERMANY'S EASTERN FRONTIERS. Natural Earth draws today's borders, so East
+   Prussia was inside Russia's shape (Kaliningrad) and Poland's (Allenstein,
+   Masuria), and Pomerania, Silesia and East Brandenburg inside Poland's. Every
+   one of those pixels was being painted Soviet or Polish in 1936 though the
+   Konigsberg province itself was German. These are the historical lines, as
+   [lon,lat] polygons; a pixel of the named shapes that falls inside one is
+   routed to the home nation of the anchor province instead. 1937 border for
+   the Second World War, 1914 border (Posen, West Prussia, Danzig, all of Upper
+   Silesia) for the First and for 1861. Accurate to some tens of kilometres --
+   finer than a province here. */
+const _EPR=[[18.9,53.7],[19.05,54.35],[19.6,54.47],[20.0,55.0],[21.3,55.3],[22.9,55.05],[22.85,54.35],[22.4,53.85],[21.8,53.5],[21.0,53.35],[20.4,53.3],[20.0,53.15],[19.4,53.35]];
+const _MEMEL=[[20.9,55.25],[21.0,56.05],[21.6,55.95],[22.15,55.6],[22.2,55.05],[21.3,55.25]];
+const _GER37=[[14.0,54.2],[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9],[17.5,49.8],[16.0,50.2],[14.8,50.8],[14.0,51.0]];
+const _GER14=[[14.0,54.2],[19.6,54.6],[19.4,53.3],[19.2,53.15],[18.95,52.95],[18.75,52.75],[18.4,52.55],[17.85,52.3],[17.85,52.1],[18.0,51.9],[17.95,51.6],[18.1,51.3],[18.4,51.05],[18.65,50.75],[19.0,50.45],[19.17,50.25],[18.85,49.95],[18.3,49.95],[17.5,49.8],[16.0,50.2],[14.8,50.8],[14.0,51.0]];
+const HIST_REGIONS={
+ ww2:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939},{poly:_GER37,in:["Poland"],anchor:"ber"}],
+ ww1:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}],
+ civilwar:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}]
+};
+/* And the LINES. The atlas outlines are today's, so in 1936 they ruled the
+   Oder-Neisse line through Brandenburg and Silesia and Kaliningrad's border
+   across the middle of East Prussia. Those stretches are masked out (thin
+   bands that cover only the modern line) and the historical frontier is
+   stroked in their place, at the same weight. */
+const _ODER=[[14.62,50.97],[15.2,51.0],[14.95,51.6],[14.85,52.1],[14.85,52.6],[14.55,53.0],[14.6,53.5],[14.5,54.25],[13.9,54.25],[14.0,53.5],[13.95,53.0],[14.25,52.6],[14.35,52.1],[14.5,51.6],[14.62,51.15]];
+const _KALI=[[19.3,54.25],[22.7,54.25],[22.7,54.55],[19.3,54.55]];
+const _NEMAN=[[21.1,54.95],[22.95,54.95],[22.95,55.35],[21.1,55.35]];
+const HIST_LINES={
+ ww2:{hide:[_ODER,_KALI],hide39:[_NEMAN],lines:[
+   [[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9]],
+   [[19.35,54.3],[18.95,53.75],[19.4,53.35],[20.0,53.15],[20.4,53.3],[21.0,53.35],[21.8,53.5],[22.4,53.85],[22.79,54.36]]]},
+ ww1:{hide:[_ODER,_KALI,_NEMAN],lines:[
+   [[22.79,54.36],[22.4,53.85],[21.8,53.5],[21.0,53.35],[20.4,53.3],[20.0,53.15],[19.4,53.3],[19.2,53.15],[18.95,52.95],[18.75,52.75],[18.4,52.55],[17.85,52.3],[17.85,52.1],[18.0,51.9],[17.95,51.6],[18.1,51.3],[18.4,51.05],[18.65,50.75],[19.0,50.45],[19.17,50.25],[18.85,49.95]]]},
+ civilwar:null
+};
+HIST_LINES.civilwar=HIST_LINES.ww1;
+function _histPath(polys){const p=new Path2D();for(const r of polys){r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});p.closePath();}return p;}
+function _histLine(lines){const p=new Path2D();for(const r of lines)r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});return p;}
+function _inPoly(p,lon,lat){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];
+  if((a[1]>lat)!==(b[1]>lat)&&lon<(b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0])c=!c;}return c;}
+/* the nation whose soil this pixel is, or null to leave it to the shape's own routing */
+function histHome(name,lon,lat){
+  const rs=HIST_REGIONS[ERA];if(!rs||!G||!G.prov)return null;
+  for(const r of rs){
+    if(r.from&&YEAR<r.from)continue;
+    if(!r.in.includes(name))continue;
+    if(_inPoly(r.poly,lon,lat)){const a=G.prov[r.anchor];return a?a.home:null;}
+  }
+  return null;
+}
 function natOfCountry(name){
   if(ERA==="modern"&&MODERN_OVERRIDE[name])return MODERN_OVERRIDE[name];
   if(ERA==="coldwar"&&COLDWAR_OVERRIDE[name])return COLDWAR_OVERRIDE[name];
@@ -9996,7 +10046,11 @@ function renderTerritory(){
     if(countryPix){
       const ci=countryPix[y*w+x];
       if(ci){
-        const home=natOfCountry(countryNames[ci-1]);
+        const cname=countryNames[ci-1];
+        let home=null;
+        if(cname==="Poland"||cname==="Russia"||cname==="Lithuania")
+          home=histHome(cname,(x*TS/MW)*360-180,90-(y*TS/MH)*180);
+        if(!home)home=natOfCountry(cname);
         if(home){
           if(byHome[home]&&byHome[home].length)cand=byHome[home];
           else if(byOwner[home]&&byOwner[home].length)cand=byOwner[home];
@@ -10965,7 +11019,13 @@ function _drawFrame(){
        keeps the 1.25 it was measured against. */
     ctx.lineWidth=terr?1.1/Math.sqrt(z):(z<2.4?1.25:Math.min(2.8,1.9+(z-2.4)*0.06))/z;
     ctx.lineJoin="miter";ctx.miterLimit=2.5;
-    strokeTiles(borderTiles,z);
+    const HL=HIST_LINES[ERA];
+    if(HL){
+      const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[]);
+      const clip=new Path2D();clip.rect(-MW,-MH,MW*3,MH*3);clip.addPath(_histPath(hide));
+      ctx.save();ctx.clip(clip,"evenodd");strokeTiles(borderTiles,z);ctx.restore();
+      ctx.stroke(_histLine(HL.lines));
+    }else strokeTiles(borderTiles,z);
   }
   /* THE FRONT LINE, AND IT IS NOT A BORDER. A border says who owns what; a
      front says where the fighting has got to, and the two stop being the same
