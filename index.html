@@ -817,6 +817,8 @@ CAM:{n:"Cambodia",f:"🇰🇭",c:"#3a5fd6",cap:"pnh",play:1,desc:"Angkor remembe
 COL:{n:"Colombia",f:"🇨🇴",c:"#e0c03a",cap:"bog",play:1,desc:"The northern gate of the continent",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 PERU:{n:"Peru",f:"🇵🇪",c:"#d6504a",cap:"lim",play:1,desc:"The Pacific spine",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 CHL:{n:"Chile",f:"🇨🇱",c:"#4a6fd6",cap:"scl",play:1,desc:"Copper, and the long coast",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+YEM:{n:"Yemen",f:"🇾🇪",c:"#b8574a",cap:"sna",play:1,desc:"The highland kingdom at the mouth of the Red Sea",eras:["ww2","coldwar","modern"]},
+OMN:{n:"Oman",f:"🇴🇲",c:"#8a4a78",cap:"msc",play:1,desc:"The sultanate on the Strait of Hormuz",eras:["napoleon","civilwar","ww1","ww2","coldwar","modern"]},
 VEN:{n:"Venezuela",f:"🇻🇪",c:"#a8475a",cap:"ccs",play:1,desc:"Oil under the Maracaibo basin",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 ECU:{n:"Ecuador",f:"🇪🇨",c:"#4f9a8a",cap:"uio",play:1,desc:"A capital in the clouds",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 BOL:{n:"Bolivia",f:"🇧🇴",c:"#d2ae62",cap:"lpb",play:1,desc:"Tin, silver and the high Altiplano",eras:["civilwar","ww1","ww2","coldwar","modern"]},
@@ -988,7 +990,8 @@ P.push(
  ["kau","Kaunas",23.9,54.9,"SOV",0,1],
  ["ccs","Caracas",-66.9,10.5,"VEN",1,2],["uio","Quito",-78.5,-0.2,"ECU",1,1],["lpb","La Paz",-68.1,-16.5,"BOL",0,1],
  ["mvd","Montevideo",-56.2,-34.9,"URU",1,1],["asu","Asuncion",-57.6,-25.3,"PAR",0,1],
- ["geo","Georgetown",-58.2,6.8,"GUY",1,1],["pbm","Paramaribo",-55.2,5.85,"SUR",1,1]);
+ ["geo","Georgetown",-58.2,6.8,"GUY",1,1],["pbm","Paramaribo",-55.2,5.85,"SUR",1,1],
+ ["sna","Yemen",44.2,15.35,"YEM",1,1],["msc","Muscat",58.4,23.6,"OMN",1,1]);
 LINKS.push(
  ["bxl","lil"],["bxl","rhi"],["bxl","ams"],["bxl","lxm"],["bxl","lon",1],
  ["ams","rhi"],["ams","ham"],["ams","ncl",1],
@@ -1005,17 +1008,18 @@ LINKS.push(
  ["ccs","bog"],["ccs","man"],["ccs","geo"],["uio","bog"],["uio","lim"],["uio","man"],
  ["lpb","lim"],["lpb","scl"],["lpb","cor"],["lpb","cui"],["lpb","asu"],["lpb","man"],
  ["asu","cui"],["asu","cor"],["asu","poa"],["asu","bue"],["mvd","bue"],["mvd","poa"],
- ["geo","pbm"],["geo","man"],["pbm","man"]);
+ ["geo","pbm"],["geo","man"],["pbm","man"],
+ ["sna","jed"],["sna","ria"],["sna","asm",1],["sna","mog",1],["msc","ria"],["msc","bas",1],["msc","bom",1]);
 const NEWPROV_OWN={
- napoleon:{ccs:"SPN",uio:"SPN",lpb:"SPN",mvd:"SPN",asu:"SPN",geo:"GBR",pbm:"GBR",kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
- civilwar:{ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ napoleon:{sna:"OTE",msc:"OMN",ccs:"SPN",uio:"SPN",lpb:"SPN",mvd:"SPN",asu:"SPN",geo:"GBR",pbm:"GBR",kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
+ civilwar:{sna:"TUR",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{sna:"OTT",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
  /* 1936: the Baltic states independent, Wilno Polish (taken in 1920),
     Kaunas Lithuania's capital, and Slovakia Czechoslovak. */
- ww2:{ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
- coldwar:{ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ ww2:{sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
+ coldwar:{sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  modern:{kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
- mongol:{ccs:"AMR",uio:"AMR",lpb:"AMR",mvd:"AMR",asu:"AMR",geo:"AMR",pbm:"AMR",kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
+ mongol:{sna:"AYY",msc:"AYY",ccs:"AMR",uio:"AMR",lpb:"AMR",mvd:"AMR",asu:"AMR",geo:"AMR",pbm:"AMR",kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
 };
 
 /* ============================== ERAS & THEMES ============================== */
@@ -1060,7 +1064,7 @@ const ERAS={
     bel:"SRB",zag:"SRB",sarj:"SRB",tir:"SRB",     // Yugoslavia, not Italy
     buc:"ROM",clj:"ROM",cta:"ROM"},               // Romania, not Hungary
   rename:{UK:["British Empire","🇬🇧"],SRB:["Yugoslavia","🇷🇸"],
-    CZE:["Czechoslovakia","🇨🇿"],IND:["British Raj","🇮🇳"]}},
+    CZE:["Czechoslovakia","🇨🇿"],IND:["British Raj","🇮🇳"],OMN:["Muscat and Oman","🇴🇲"],YEM:["Kingdom of Yemen","🇾🇪"],CAN:["Dominion of Canada","🇨🇦"]}},
  modern:{label:"MODERN DAY",sub:"A NEW COLD WAR",start:[0,1],years:[2015,2020,2026,2030],def:2026,
   owners:{kie:"UKR",ode:"UKR",min:"BLR",alm:"KAZ",vie:"AUT",pra:"CZE",bel:"SRB",kon:"SOV",seo:"KOR",pus:"KOR",pyo:"PRK",
     buc:"ROM",clj:"ROM",cta:"ROM",tir:"ALB",han:"NVN",sgn:"NVN",hue:"NVN",
@@ -1097,7 +1101,7 @@ const ERAS={
     mos:"RUS",len:"RUS",sta:"RUS",kie:"RUS",ura:"RUS",nov:"RUS",irk:"RUS",vla:"RUS",
     min:"RUS",ros:"RUS",ode:"RUS",arc:"RUS",oms:"RUS",yak:"RUS",kha:"RUS",alm:"RUS",
     cai:"UK",ale:"UK",asw:"UK",khartoum:"UK",del:"UK",bom:"UK",cal:"UK",mad2:"UK",lah:"UK",hyd:"UK",dac:"UK",trp:"ITA"},
-  rename:{GER:["German Empire","🦅"],ITA:["Kingdom of Italy","🇮🇹"],UK:["British Empire","🇬🇧"],IND:["British Raj","🇮🇳"],
+  rename:{GER:["German Empire","🦅"],ITA:["Kingdom of Italy","🇮🇹"],UK:["British Empire","🇬🇧"],IND:["British Raj","🇮🇳"],OMN:["Muscat and Oman","🇴🇲"],CAN:["Dominion of Canada","🇨🇦"],
     JAP:["Empire of Japan","🇯🇵"],CHN:["Republic of China","🇨🇳"],FRA:["French Republic","🇫🇷"],
     SRB:["Kingdom of Serbia","🇷🇸"],ROM:["Kingdom of Romania","🇷🇴"]}},
  napoleon:{label:"NAPOLEONIC WARS",sub:"THE EMPEROR'S EUROPE",start:[4,18],years:[1803,1805,1806,1807,1809,1810,1812,1813,1814,1815],
@@ -1161,7 +1165,7 @@ const ERAS={
     ott:"UK",van:"UK",win:"UK",hal:"UK",cgy:"UK",reg:"UK",tor:"UK",mtl:"UK",yel:"UK", // Canadian confederation was 1867
     cpt:"UK",jhb:"UK",dur:"UK",blo:"UK",pez:"UK"},                   // the Union of South Africa was 1910
   caps:{ITA:"trn"},   // Turin was the capital from 1861 and Florence from 1865; Rome only became one in 1871
-  rename:{SOV:["Russian Empire","🦅"],GER:["Prussia","🦅"],TUR:["Ottoman Empire","☪️"],IND:["British Raj","🇮🇳"],SWD:["Sweden-Norway","🇸🇪"],SAU:["Emirate of Nejd","🏴"],
+  rename:{SOV:["Russian Empire","🦅"],GER:["Prussia","🦅"],TUR:["Ottoman Empire","☪️"],IND:["British Raj","🇮🇳"],SWD:["Sweden-Norway","🇸🇪"],SAU:["Emirate of Nejd","🏴"],OMN:["Muscat and Oman","🇴🇲"],
     ITA:["Kingdom of Italy","🇮🇹"],UK:["British Empire","🇬🇧"],AUT:["Austrian Empire","🇦🇹"],
     JAP:["Tokugawa Japan","🎌"],CHN:["Qing China","🐉"],FRA:["Second Empire","🇫🇷"],EGY:["Khedivate of Egypt","🇪🇬"]}},
 coldwar:{label:"COLD WAR",sub:"THE IRON CURTAIN",start:[0,1],
@@ -1517,7 +1521,7 @@ const PTERRAIN={};
    "phx","psud","ria","sue","tas","tij","tob","trp","wind","zar",);
  _t("jungle","abi","acc","bgi","dar","hmb","kin","kis","kul","lag","man","mbm","rgn","yuc",);
  _t("marsh","bas","bkk","cal","dac","han","lil","mia","min","pnh","sgn","ven",);
- _t("mtn","kbl","srn","lhs","prs","uio","lpb");_t("jungle","geo","pbm");_t("jungle","buk");_t("urban","ams","bxl");
+ _t("mtn","kbl","srn","lhs","prs","uio","lpb");_t("jungle","geo","pbm");_t("mtn","sna");_t("desert","msc");_t("jungle","buk");_t("urban","ams","bxl");
  _t("tundra","anc","arc","nuk","rey","sco2","thu","yak","yel",);
  _t("urban","bei","ber","bom","bue","chi","cph","del","lon","mex","mos","nyc","osa","par","sha","sin",
    "tok","wash",);
@@ -6449,7 +6453,7 @@ const NAME2NAT={
 "Norway":"NOR","Sweden":"SWD","Finland":"FIN","Denmark":"DEN","Iceland":"DEN",
 "Turkey":"TUR","Greece":"GRC","Bulgaria":"BUL","Cyprus":"TUR","N. Cyprus":"TUR",
 "Egypt":"EGY","Sudan":"EGY","Israel":"EGY","Palestine":"EGY","Jordan":"EGY","Lebanon":"EGY","Syria":"EGY",
-"Iran":"PER","Iraq":"IRQ","Afghanistan":"AFG","Saudi Arabia":"SAU","Yemen":"SAU","Oman":"UK","United Arab Emirates":"UK","Qatar":"UK","Kuwait":"UK",
+"Iran":"PER","Iraq":"IRQ","Afghanistan":"AFG","Saudi Arabia":"SAU","Yemen":"YEM","Oman":"OMN","United Arab Emirates":"UK","Qatar":"UK","Kuwait":"UK",
 "India":"IND","Pakistan":"IND","Bangladesh":"IND","Nepal":"IND","Bhutan":"IND","Sri Lanka":"IND",
 "China":"CHN","Taiwan":"CHN",
 "Japan":"JAP","South Korea":"JAP","North Korea":"JAP",
@@ -6489,7 +6493,7 @@ const MODERN_OVERRIDE={
 "Czechia":"CZE","Austria":"AUT",
 "Serbia":"SRB","Montenegro":"SRB","Kosovo":"SRB","Macedonia":"SRB","North Macedonia":"SRB",
 "Iran":"IRN","Iraq":"IRQ","Kuwait":"IRQ",
-"Saudi Arabia":"SAU","Yemen":"SAU","Oman":"SAU","United Arab Emirates":"SAU","Qatar":"SAU","Bahrain":"SAU",
+"Saudi Arabia":"SAU","Yemen":"YEM","Oman":"OMN","United Arab Emirates":"SAU","Qatar":"SAU","Bahrain":"SAU",
 "Pakistan":"PAK","Afghanistan":"AFG","Bangladesh":"BAN",
 /* v14.1: the blocs split into real countries, so the coastlines and borders
    the map draws in 2026 are the ones that exist in 2026. */
@@ -6535,7 +6539,7 @@ const NAPO_OVERRIDE={
 "Norway":"SWE","Sweden":"SWE","Finland":"RUE","Denmark":"SWE","Iceland":"SWE",
 "Turkey":"OTE","Greece":"OTE","Bulgaria":"OTE","Cyprus":"OTE","N. Cyprus":"OTE",
 "Egypt":"OTE","Sudan":"OTE","Israel":"OTE","Palestine":"OTE","Jordan":"OTE","Lebanon":"OTE","Syria":"OTE",
-"Iran":"QAJ","Iraq":"OTE","Afghanistan":"QAJ","Saudi Arabia":"OTE","Yemen":"OTE","Oman":"OTE","United Arab Emirates":"OTE","Qatar":"OTE","Kuwait":"OTE",
+"Iran":"QAJ","Iraq":"OTE","Afghanistan":"QAJ","Saudi Arabia":"OTE","Yemen":"OTE","Oman":"OMN","United Arab Emirates":"OTE","Qatar":"OTE","Kuwait":"OTE",
 "India":"GBR","Pakistan":"GBR","Bangladesh":"GBR","Nepal":"GBR","Bhutan":"GBR","Sri Lanka":"GBR",
 "China":"QIN","Taiwan":"QIN",
 "Japan":"TOK","South Korea":"QIN","North Korea":"QIN",
@@ -6615,8 +6619,25 @@ const _GER14=[[14.0,54.2],[19.6,54.6],[19.4,53.3],[19.2,53.15],[18.95,52.95],[18
    with Czechoslovakia. */
 const _KRESY_EDGE=[[22.85,54.38],[23.45,54.2],[23.95,54.1],[24.5,54.4],[24.9,54.88],[25.55,55.18],[26.05,55.5],[26.6,55.7],[27.2,55.85],[27.6,55.25],[27.25,54.6],[27.15,54.15],[26.95,53.75],[27.05,53.4],[27.6,52.6],[27.75,52.2],[27.5,51.6],[27.35,51.2],[27.4,50.7],[26.65,50.3],[26.1,49.8],[26.05,49.3],[26.2,48.8],[26.3,48.55],[25.7,48.62],[25.2,48.3],[24.65,48.05],[24.0,48.45],[23.4,48.95],[22.6,49.1]];
 const _KRESY=_KRESY_EDGE.concat([[22.3,49.1],[22.3,54.3]]);
+/* FINLAND BEFORE THE WINTER WAR. Natural Earth draws the border of 1944, so
+   in 1936 the Karelian Isthmus up to the Sestra, Ladoga Karelia, Salla and the
+   Petsamo corridor to the Arctic were all painted Soviet. The isthmus, Ladoga
+   and Salla went in March 1940, Petsamo in 1944. The old line is hand-placed
+   from the 1920 Tartu frontier and lies inland, where a few km cannot be seen. */
+const _bandOf=(L,w)=>{const a=[],b=[];
+  for(let i=0;i<L.length;i++){const p=L[Math.max(0,i-1)],q=L[Math.min(L.length-1,i+1)];
+    let dx=q[0]-p[0],dy=q[1]-p[1];const n=Math.hypot(dx,dy)||1;dx/=n;dy/=n;
+    a.push([L[i][0]-dy*w,L[i][1]+dx*w]);b.push([L[i][0]+dy*w,L[i][1]-dx*w]);}
+  return a.concat(b.reverse());};
+const _FIRU_S=[[27.863,60.531],[28.406,60.906],[29.688,61.531],[31.188,62.469],[31.531,62.938]],_FIRU_SALLA=[[29.938,66.031],[29.094,66.844],[29.375,67.188],[29.75,67.438]],_FIRU_N=[[29.063,68.125],[28.688,68.188],[28.469,68.5],[28.719,68.875],[28.406,68.906],[28.906,69]];
+const _FIN20_S=[[29.98,60.17],[30.1,60.24],[30.3,60.38],[30.55,60.5],[30.95,60.62],[31.6,60.95],[32.25,61.2],[32.3,61.5],[32.5,61.85],[32.75,62.2],[32.4,62.6],[31.9,62.85],[31.531,62.938]];
+const _FIN20_SALLA=[[29.938,66.031],[30.1,66.4],[30.12,66.8],[30.05,67.2],[29.75,67.438]];
+const _FIN20_N=[[29.063,68.125],[29.6,68.45],[30.6,68.95],[31.4,69.3],[31.8,69.65],[32.1,69.88]];
+const _FINKAR=_FIN20_S.concat([[31.5,63.3],[26.5,63.3],[26.5,59.9],[29.6,59.95]]);
+const _FINSAL=_FIN20_SALLA.concat([[28.3,67.45],[28.3,66.0]]);
+const _FINPET=_FIN20_N.concat([[32.6,70.3],[27.5,70.3],[27.5,68.1]]);
 const HIST_REGIONS={
- ww2:[{poly:_KRESY,in:["Lithuania","Belarus","Ukraine"],anchor:"war",cands:["vil","war","lub","lwo","kra"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939,cands:["kon"]},{poly:_GER37,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon"]}],
+ ww2:[{poly:_FINKAR,in:["Russia"],anchor:"hel",until:1940,cands:["hel","tku"]},{poly:_FINSAL,in:["Russia"],anchor:"hel",until:1940,cands:["hel","tku"]},{poly:_FINPET,in:["Russia"],anchor:"hel",until:1944,cands:["hel","tku"]},{poly:_KRESY,in:["Lithuania","Belarus","Ukraine"],anchor:"war",cands:["vil","war","lub","lwo","kra"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939,cands:["kon"]},{poly:_GER37,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon"]}],
  ww1:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}],
  civilwar:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}]
 };
@@ -6637,7 +6658,9 @@ const _BYUA=[[23.6,51.3],[27.45,51.3],[27.45,52.05],[23.6,52.05]];
    again 1945-1992. Stops short of the Austrian and Polish tripoints. */
 const _CZSK=[[16.9,48.68],[17.15,48.62],[17.45,48.82],[17.85,49.02],[18.2,49.25],[18.6,49.36],[18.78,49.44],[18.8,49.56],[18.5,49.6],[18.05,49.58],[17.65,49.26],[17.25,49.05],[16.95,48.88],[16.82,48.76]];
 const HIST_LINES={
- ww2:{hide:[_ODER,_KALI,_PLLT,_PLBY,_PLUA,_LTBY,_BYUA],hide39:[_NEMAN],hidePre39:[_CZSK],lines:[
+ ww2:{hide:[_ODER,_KALI,_PLLT,_PLBY,_PLUA,_LTBY,_BYUA],hide39:[_NEMAN],hidePre39:[_CZSK],
+   hideUntil:[[1940,_bandOf(_FIRU_S,0.12)],[1940,_bandOf(_FIRU_SALLA,0.12)],[1944,_bandOf(_FIRU_N,0.12)]],
+   linesUntil:[[1940,_FIN20_S.slice(0,5)],[1940,_FIN20_S.slice(6)],[1940,_FIN20_SALLA],[1944,_FIN20_N]],lines:[
    _KRESY_EDGE,
    [[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9]],
    [[19.35,54.3],[18.95,53.75],[19.4,53.35],[20.0,53.15],[20.4,53.3],[21.0,53.35],[21.8,53.5],[22.4,53.85],[22.79,54.36]]]},
@@ -6654,7 +6677,8 @@ function _histPath(polys){const p=new Path2D();for(const r of polys){r.forEach((
    any place two bands overlap again. */
 function _histClip(){
   const HL=HIST_LINES[ERA];if(!HL)return null;
-  const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[],YEAR<1939&&HL.hidePre39?HL.hidePre39:[]);
+  const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[],YEAR<1939&&HL.hidePre39?HL.hidePre39:[],
+    (HL.hideUntil||[]).filter(h=>YEAR<h[0]).map(h=>h[1]));
   return hide.map(b=>{const c=new Path2D();c.rect(-MW,-MH,MW*3,MH*3);c.addPath(_histPath([b]));return c;});
 }
 function _applyHistClip(cl){for(const c of cl)ctx.clip(c,"evenodd");}
@@ -6666,6 +6690,7 @@ function histRegion(name,lon,lat){
   const rs=HIST_REGIONS[ERA];if(!rs||!G||!G.prov)return null;
   for(const r of rs){
     if(r.from&&YEAR<r.from)continue;
+    if(r.until&&YEAR>=r.until)continue;
     if(!r.in.includes(name))continue;
     if(_inPoly(r.poly,lon,lat))return r;
   }
@@ -7262,6 +7287,7 @@ async function loadRealMap(){
     const bp=new Path2D();
     for(const l of atlasBorders())addRing(bp,l,false);
     landPath=land;icePath=ice;borderPath=bp;realMap=true;
+    try{_landTiles=buildLandTiles(feats);}catch(e){_landTiles=null;}
     {
       const rings=[];
       for(const f of feats)for(const poly of f.geometry.coordinates)rings.push(poly[0]);
@@ -7294,6 +7320,112 @@ const TS=2; // 1 cell = TS world units — the OWNERSHIP grid (who holds this pi
 const TSUP=TS; // paint the flags at 1 texel per world unit
 terCv.width=MW/TS*TSUP;terCv.height=MH/TS*TSUP;
 let terImg=null;
+/* THE WASH, CUT TO THE REAL COAST. The political layer is one texel per world
+   unit with its sea and land decided on the two-unit ownership grid, so close
+   in its edge was a staircase of fourteen-pixel blocks running out over the
+   Channel while the drawn coastline sat somewhere else -- the world view looked
+   finished and every zoom you actually play at looked like a different, worse
+   map. So: a copy of the layer grown three texels out over the coarse "sea"
+   (which also fills the bays the grid thought were water), cut back to the
+   vector coastline on a screen-sized canvas that is only redrawn when the
+   camera or the borders change. */
+let terDil=null,_coastIdx=null,_terVer=0;
+function _buildTerDil(img,ow,oh){
+  const c=_dilateCoast(img,ow,oh,terDil);if(c){terDil=c;_terVer++;}
+}
+function _dilateCoast(img,ow,oh,cv){
+  if(!landMask||ow!==MW/TS*2||oh!==MH/TS*2)return null;
+  const mw=MW/TS;
+  if(!_coastIdx){
+    const isL=(x,y)=>x>=0&&y>=0&&x<ow&&y<oh&&landMask[(((y>>1)*mw)+(x>>1))*4+3]>127;
+    const out=[];
+    for(let y=0;y<oh;y++)for(let x=0;x<ow;x++){
+      if(isL(x,y))continue;
+      let near=false;
+      for(let dy=-3;dy<=3&&!near;dy++)for(let dx=-3;dx<=3;dx++)if(isL(x+dx,y+dy)){near=true;break;}
+      if(near)out.push(y*ow+x);
+    }
+    _coastIdx=Int32Array.from(out);
+  }
+  const a=new Uint32Array(img.data.buffer.slice(0));
+  for(let pass=0;pass<3;pass++){
+    const src=a.slice(0);
+    for(let k=0;k<_coastIdx.length;k++){
+      const i=_coastIdx[k];if(src[i]>>>24)continue;
+      const x=i%ow;
+      const n=(x>0&&src[i-1]>>>24)?src[i-1]:(x<ow-1&&src[i+1]>>>24)?src[i+1]:(i>=ow&&src[i-ow]>>>24)?src[i-ow]:(i+ow<a.length&&src[i+ow]>>>24)?src[i+ow]:0;
+      if(n)a[i]=n;
+    }
+  }
+  if(!cv)cv=document.createElement("canvas");
+  cv.width=ow;cv.height=oh;
+  cv.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(a.buffer),ow,oh),0,0);
+  return cv;
+}
+/* The same cut for the painted ground, whose land texture and beach were also
+   laid down on the coarse grid and stood out over the water in blocks. */
+let groundDil=null,_groundVer=0;
+/* THE LAND CUT INTO TILES, for the mask above. Filling the whole world's
+   coastline to cut a screen's worth of map cost a hundred and fifty
+   milliseconds every time the camera moved; each ring is clipped once, at
+   load, into 25-unit tiles, and a frame fills only the tiles it can see. */
+let _landTiles=null;
+function buildLandTiles(feats){
+  const T=25,TW=Math.ceil(MW/T),TH=Math.ceil(MH/T),tiles=new Array(TW*TH);
+  const clipE=(pts,inside,cross)=>{const out=[];
+    for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length],ia=inside(a),ib=inside(b);
+      if(ia)out.push(a);if(ia!==ib)out.push(cross(a,b));}
+    return out;};
+  const clip=(pts,x0,y0,x1,y1)=>{
+    const cx=(a,b,x)=>[x,a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0])];
+    const cy=(a,b,y)=>[a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]),y];
+    pts=clipE(pts,p=>p[0]>=x0,(a,b)=>cx(a,b,x0));if(pts.length<3)return pts;
+    pts=clipE(pts,p=>p[0]<=x1,(a,b)=>cx(a,b,x1));if(pts.length<3)return pts;
+    pts=clipE(pts,p=>p[1]>=y0,(a,b)=>cy(a,b,y0));if(pts.length<3)return pts;
+    return clipE(pts,p=>p[1]<=y1,(a,b)=>cy(a,b,y1));};
+  const addPoly=pts=>{
+    let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
+    for(const p of pts){if(p[0]<mnx)mnx=p[0];if(p[0]>mxx)mxx=p[0];if(p[1]<mny)mny=p[1];if(p[1]>mxy)mxy=p[1];}
+    const tx0=Math.max(0,Math.floor(mnx/T)),tx1=Math.min(TW-1,Math.floor(mxx/T));
+    const ty0=Math.max(0,Math.floor(mny/T)),ty1=Math.min(TH-1,Math.floor(mxy/T));
+    for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){
+      const c=(tx===tx0&&tx===tx1&&ty===ty0&&ty===ty1&&mnx>=tx*T&&mxx<=(tx+1)*T&&mny>=ty*T&&mxy<=(ty+1)*T)
+        ?pts:clip(pts,tx*T,ty*T,(tx+1)*T,(ty+1)*T);
+      if(c.length<3)continue;
+      const P=tiles[ty*TW+tx]||(tiles[ty*TW+tx]=new Path2D());
+      P.moveTo(c[0][0],c[0][1]);for(let i=1;i<c.length;i++)P.lineTo(c[i][0],c[i][1]);P.closePath();
+    }
+  };
+  const ring=r0=>{const r=unwrap(r0);
+    let mn=1e9,mx=-1e9;for(const p of r){mn=Math.min(mn,p[0]);mx=Math.max(mx,p[0]);}
+    const shifts=[0];if(mn<-180)shifts.push(360);if(mx>180)shifts.push(-360);
+    for(const sh of shifts)addPoly(r.map(p=>PX(p[0]+sh,p[1])));};
+  for(const f of feats){
+    const nm=(f.properties&&f.properties.name)||"";if(nm==="Antarctica")continue;
+    const g=f.geometry;if(!g)continue;
+    if(g.type==="Polygon")for(const r of g.coordinates)ring(r);
+    else if(g.type==="MultiPolygon")for(const p of g.coordinates)for(const r of p)ring(r);
+  }
+  return {tiles,TW,TH,T};
+}
+let _ltKey="",_ltPath=null;
+function _visibleLand(){
+  const L=_landTiles;if(!L)return landPath;
+  const tx0=Math.max(0,Math.floor(G.cam.x/L.T)-1),tx1=Math.min(L.TW-1,Math.floor((G.cam.x+W/G.cam.z)/L.T)+1);
+  const ty0=Math.max(0,Math.floor(G.cam.y/L.T)-1),ty1=Math.min(L.TH-1,Math.floor((G.cam.y+H/G.cam.z)/L.T)+1);
+  const k=tx0+","+tx1+","+ty0+","+ty1;
+  if(k!==_ltKey){_ltKey=k;_ltPath=new Path2D();
+    for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){const P=L.tiles[ty*L.TW+tx];if(P)_ltPath.addPath(P);}}
+  return _ltPath;
+}
+function _drawWashMasked(z){return _maskedBlit("wash",terDil,_terVer,z);}
+function _maskedBlit(slot,src,ver,z){
+  if(z<2.2||!landPath||!src||!realMap||!_landTiles)return false;
+  ctx.save();ctx.clip(_visibleLand(),"evenodd");
+  ctx.drawImage(src,0,0,MW,MH);
+  ctx.restore();
+  return true;
+}
 const _LE=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
 let terDirty=true;
 let landMask=null;
@@ -8864,6 +8996,8 @@ function buildGround(){
     }
     groundCv.getContext("2d").putImageData(img,0,0);
   }
+  {const gi=groundCv.getContext("2d").getImageData(0,0,groundCv.width,groundCv.height);
+   const c=_dilateCoast(gi,groundCv.width,groundCv.height,groundDil);if(c){groundDil=c;_groundVer++;}}
   /* THE PROVINCE MOSAIC. This is what a map like this actually LOOKS like at a
      glance and the thing the game had none of: the land is not smooth country
      shapes, it is thousands of small cells with a thin line between each of
@@ -9921,6 +10055,9 @@ Object.assign(FLAG,{
  VEN:(u,v)=>{for(let i=0;i<8;i++){const a=Math.PI*(0.15+0.7*i/7);if(inStar(u,v,0.5-0.17*Math.cos(a),0.62-0.17*Math.sin(a),0.028))return "#f2efe6";}return sH(["#f4c300","#00247d","#cf142b"])(u,v);},
  ECU:(u,v)=>inCircle(u,v,0.5,0.5,0.12)?"#8a6a2a":v<0.5?"#ffd100":v<0.75?"#034ea2":"#ed1c24",
  BOL:sH(["#d52b1e","#f9e300","#007934"]),
+ YEM:(u,v)=>ERA==="modern"?sH(["#ce1126","#f2efe6","#1a1a1a"])(u,v)
+   :(Math.abs(v-0.55)<0.05&&u>0.25&&u<0.78)||(inStar(u,v,0.32,0.3,0.06))||(inStar(u,v,0.5,0.25,0.06))||(inStar(u,v,0.68,0.3,0.06))?"#f2efe6":"#c8102e",
+ OMN:(u,v)=>ERA==="modern"?(u<0.3?"#db161b":sH(["#f2efe6","#db161b","#008000"])(u,v)):"#c8102e",
  PAR:(u,v)=>inCircle(u,v,0.5,0.5,0.1)&&!inCircle(u,v,0.5,0.5,0.075)?"#2a6a2a":sH(["#d52b1e","#f2efe6","#0038a8"])(u,v),
  URU:(u,v)=>(u<0.36&&v<0.56)?(inCircle(u,v,0.18,0.28,0.11)?"#fcd116":"#f2efe6"):(Math.floor(v*9)%2?"#0038a8":"#f2efe6"),
  GUY:(u,v)=>{const d=Math.abs(v-0.5);
@@ -10708,6 +10845,7 @@ function renderTerritory(){
     }
   }
   terCtx.putImageData(img,0,0);
+  _buildTerDil(img,ow,oh);
   /* A half-size copy for world zoom, exactly as the ground has. Rescaling two
      million texels down to a thumbnail every frame is work whose result nobody
      can see. */
@@ -10838,7 +10976,7 @@ function _drawFrame(){
        the same mean local gradient but a median of 7.95 against 11.79, which is
        flat ground with hard lines on it. The right question is not how far in
        you are, it is whether the copy is being shrunk or blown up. */
-    ctx.drawImage(_useSmall(groundSm,z)?groundSm:groundCv,0,0,MW,MH);
+    if(!_maskedBlit("ground",groundDil,_groundVer,z))ctx.drawImage(_useSmall(groundSm,z)?groundSm:groundCv,0,0,MW,MH);
     ctx.globalAlpha=1;
     /* THE RIVERS, on the ground and under the national colour — a river is part
        of the country, not a line ruled over the top of it. */
@@ -11003,9 +11141,15 @@ function _drawFrame(){
   /* Over the picture this is the only thing that says who holds a province, so
      it stays — but thin, because the picture is the point. */
   ctx.globalAlpha=(terr?0.30:polA)*mo;
-  ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
+  if(!_drawWashMasked(z))ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
   ctx.restore();
+  /* LAKES. The real map's land polygons are solid across Ladoga, Onega, the
+     Great Lakes and Victoria, and the lake layer was only ever drawn on the
+     fallback map -- so with the real coastline in, the biggest lakes in the
+     world were painted over as dry land in the national colour. */
+  if(realMap&&lakePath){ctx.save();ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);
+    ctx.globalAlpha=0.75;ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=0.55/Math.sqrt(z);ctx.stroke(lakePath);ctx.restore();}
   /* A BEACH. Land does not simply stop at the water: there is a pale strand
      all the way round it, and it is that bright rim against the dark shelf
      that makes a coastline read at a glance. */
@@ -11204,7 +11348,7 @@ function _drawFrame(){
     const HL=HIST_LINES[ERA];
     if(HL){
       ctx.save();_applyHistClip(_histClip());strokeTiles(borderTiles,z);ctx.restore();
-      ctx.stroke(_histLine(HL.lines));
+      ctx.stroke(_histLine(HL.lines.concat((HL.linesUntil||[]).filter(l=>YEAR<l[0]).map(l=>l[1]))));
     }else strokeTiles(borderTiles,z);
   }
   /* THE FRONT LINE, AND IT IS NOT A BORDER. A border says who owns what; a

@@ -986,3 +986,40 @@ should be written big across the bottom like the real game's title.
 - IRON FRONT is drawn at the end of the country-label pass, in NAMEFONT
   over Antarctica at 58 world units, so it scales with the map.
 - Not done: Greenland is still its own nation (GRE) before the modern era.
+
+## Yemen, Oman, Finland 1939, the Dominion, and the close-up map
+
+- **Yemen (sna) and Oman (msc)** are provinces and nations now. Yemen is
+  Ottoman in 1861 and 1914 and the Kingdom of Yemen from 1936; Oman ("Muscat
+  and Oman" in 1861/1914/1936) exists in every era but the Mongol one.
+  Routing sends the Yemen and Oman shapes to YEM/OMN everywhere. Aden is not
+  a province, so the 1936 British colony there still paints Yemeni.
+- **Finland's 1920-1940 border.** Natural Earth gives the post-1944 line, so
+  1936 painted Viipuri, Ladoga Karelia, Salla and Petsamo Soviet.
+  HIST_REGIONS gained `until` (Karelia and Salla until 1940, Petsamo until
+  1944, cands hel/tku), HIST_LINES gained `hideUntil`/`linesUntil`, and the
+  bands that hide today's line are built by `_bandOf()` from a
+  Douglas-Peucker'd copy of the atlas line. Verified: Vyborg, Terijoki,
+  Sortavala, Suojarvi, Salmi, Kuolajarvi and Pechenga Finnish in 1936/39,
+  only Pechenga in 1941, none in 1944; Leningrad, Petrozavodsk, Murmansk
+  Soviet throughout. The old line is not drawn across Ladoga.
+- The dark soft spots along the Karelian Isthmus in 1936 are NOT a border
+  artefact -- they are the Vuoksi lakes in the painted ground, visible only
+  because that ground is now Finnish pale rather than Soviet maroon. Ruled
+  out by switching off the coast, border and mesh passes one at a time.
+- Canada is "Dominion of Canada" in ww1 and ww2.
+- **The close-up map was a different, worse map.** Two coarse layers
+  (political wash and painted ground) were drawn at one texel per world unit
+  with land/sea decided on the 2-unit grid, so up close their edge was a
+  staircase of blocks running out over the sea while the vector coastline
+  sat elsewhere. Now, from zoom 2.2: each layer has a copy grown three
+  texels out over coarse "sea" (`_dilateCoast`), drawn clipped to the vector
+  land (`_maskedBlit`). The clip is built from `_landTiles` (each land ring
+  Sutherland-Hodgman-clipped into 25-unit tiles at load) so a frame clips to
+  the few tiles in view.
+  - First version composed through a screen-sized offscreen canvas and cost
+    150-270ms per camera move (the blit back flushed the deferred work).
+    Clipping ctx directly measured the same as no mask in the same run.
+- **Lakes were never drawn on the real map** -- only on the fallback one --
+  so Ladoga, Onega, the Great Lakes and Victoria were dry land in national
+  colour. They are filled with the sea colour after the wash now.
