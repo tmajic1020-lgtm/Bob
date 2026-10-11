@@ -814,9 +814,9 @@ MMR:{n:"Myanmar",f:"🇲🇲",c:"#c9a03a",cap:"rgn",play:1,desc:"The road to Ind
 MYS:{n:"Malaysia",f:"🇲🇾",c:"#3a4f9c",cap:"kul",play:1,desc:"Astride the strait",era:"modern"},
 SGP:{n:"Singapore",f:"🇸🇬",c:"#e0505a",cap:"sin",play:1,desc:"One island, all the shipping",era:"modern"},
 CAM:{n:"Cambodia",f:"🇰🇭",c:"#3a5fd6",cap:"pnh",play:1,desc:"Angkor remembers being an empire",era:"modern"},
-COL:{n:"Colombia",f:"🇨🇴",c:"#e0c03a",cap:"bog",play:1,desc:"The northern gate of the continent",era:"modern"},
-PERU:{n:"Peru",f:"🇵🇪",c:"#d6504a",cap:"lim",play:1,desc:"The Pacific spine",era:"modern"},
-CHL:{n:"Chile",f:"🇨🇱",c:"#4a6fd6",cap:"scl",play:1,desc:"Copper, and the long coast",era:"modern"},
+COL:{n:"Colombia",f:"🇨🇴",c:"#e0c03a",cap:"bog",play:1,desc:"The northern gate of the continent",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+PERU:{n:"Peru",f:"🇵🇪",c:"#d6504a",cap:"lim",play:1,desc:"The Pacific spine",eras:["civilwar","ww1","ww2","coldwar","modern"]},
+CHL:{n:"Chile",f:"🇨🇱",c:"#4a6fd6",cap:"scl",play:1,desc:"Copper, and the long coast",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 /* The fifteen republics did not stay one country. Central Asia, the Caucasus
    and the Baltic were all still painted in Russian red on the 2026 map. */
 UZB:{n:"Uzbekistan",f:"🇺🇿",c:"#2fa8b5",cap:"tas",play:1,desc:"The heart of Central Asia",era:"modern"},
@@ -994,12 +994,12 @@ LINKS.push(
  ["kau","vil"],["kau","kon"],["kau","rig"],["kau","war"]);
 const NEWPROV_OWN={
  napoleon:{kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
- civilwar:{lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ civilwar:{lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
  /* 1936: the Baltic states independent, Wilno Polish (taken in 1920),
     Kaunas Lithuania's capital, and Slovakia Czechoslovak. */
- ww2:{lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
- coldwar:{lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ ww2:{lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
+ coldwar:{lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  modern:{kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
  mongol:{kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
 };
@@ -6403,8 +6403,8 @@ const NAME2NAT={
 "United States of America":"USA","Puerto Rico":"USA",
 "Canada":"CAN","Greenland":"GRE",
 "Mexico":"MEX","Guatemala":"MEX","Belize":"MEX","Honduras":"MEX","El Salvador":"MEX","Nicaragua":"MEX","Costa Rica":"MEX","Panama":"MEX","Cuba":"MEX","Haiti":"MEX","Dominican Rep.":"MEX","Jamaica":"MEX","Bahamas":"MEX",
-"Brazil":"BRA","Colombia":"BRA","Venezuela":"BRA","Guyana":"BRA","Suriname":"BRA","Ecuador":"BRA","Trinidad and Tobago":"BRA",
-"Argentina":"ARG","Chile":"ARG","Uruguay":"ARG","Paraguay":"ARG","Bolivia":"ARG","Peru":"ARG","Falkland Is.":"ARG",
+"Brazil":"BRA","Colombia":"COL","Venezuela":"COL","Guyana":"BRA","Suriname":"BRA","Ecuador":"COL","Trinidad and Tobago":"BRA",
+"Argentina":"ARG","Chile":"CHL","Uruguay":"ARG","Paraguay":"ARG","Bolivia":"PERU","Peru":"PERU","Falkland Is.":"ARG",
 "United Kingdom":"UK","Ireland":"UK",
 "France":"FRA",
 "Spain":"SPA","Portugal":"POR",

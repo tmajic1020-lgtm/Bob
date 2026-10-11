@@ -941,3 +941,15 @@ select and centre on that province.
   still belong to whoever the era table gave them (CON/SAF/UK) -- untouched.
 - Probe pitfall: headless frame times drop MAPQ below 2, which turns off
   the vector mosaic entirely. `setMapQuality(3)` before screenshotting it.
+
+### South America was independent
+
+Owner: "all of South America was independent". Before the modern era the
+Peru and Chile provinces were owned by ARG and Colombia by BRA, and
+NAME2NAT painted Chile/Peru/Bolivia Argentine and Colombia/Venezuela/
+Ecuador Brazilian. COL, PERU and CHL now exist 1861-2026 (`eras`), own
+bog/lim/scl via NEWPROV_OWN, and NAME2NAT routes Venezuela and Ecuador to
+COL, Bolivia to PERU, Chile to CHL (as the modern override already did).
+Uruguay and Paraguay still paint as ARG and the Guianas as BRA: they have
+no province of their own. Napoleonic 1803 stays Spanish colonies, which is
+right for that date.
