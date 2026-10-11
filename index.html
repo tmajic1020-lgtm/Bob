@@ -638,7 +638,7 @@ const P=[
 // own countries from 1991 — which is what the Modern Day scenario needs.
 ["tas","Uzbekistan",69.2,41.3,"SOV",0,2],["ash","Turkmenistan",58.4,37.9,"SOV",1,1],["fru","Kyrgyzstan",74.6,42.9,"SOV",0,1],["dus","Tajikistan",68.8,38.6,"SOV",0,1],
 ["tbi","Georgia",44.8,41.7,"SOV",1,1],["yer","Armenia",44.5,40.2,"SOV",0,1],["bak","Azerbaijan",49.9,40.4,"SOV",1,2],["uln","Mongolia",106.9,47.9,"SOV",0,1],
-["rig","Latvia",24.1,56.9,"SOV",1,1],["tal","Estonia",24.7,59.4,"SOV",1,1],["vil","Lithuania",25.3,54.7,"SOV",0,1],["kish","Moldova",28.9,47.0,"SOV",0,1],
+["rig","Latvia",24.1,56.9,"SOV",1,1],["tal","Estonia",24.7,59.4,"SOV",1,1],["vil","Vilnius",25.3,54.7,"SOV",0,1],["kish","Moldova",28.9,47.0,"SOV",0,1],
 ["min","Belarus",27.6,53.9,"SOV",0,2],["ros","Rostov",39.7,47.2,"SOV",0,2],["ode","Odessa",30.7,46.5,"SOV",1,2],["arc","Arkhangelsk",40.5,64.5,"SOV",1,1],["oms","Omsk",73.4,55,"SOV",0,1],["yak","Yakutia",129.7,62,"SOV",0,1],["kha","Khabarovsk",135.1,48.5,"SOV",1,1],["alm","Kazakhstan",76.9,43.2,"SOV",0,1],
 // China more
 ["wuh","Wuhan",114.3,30.6,"CHN",0,2],["xan","Xian",108.9,34.3,"CHN",0,2],["har","Manchuria",126.6,45.8,"CHN",0,2],["kun","Yunnan",102.7,25,"CHN",0,1],
@@ -827,9 +827,9 @@ GEO:{n:"Georgia",f:"🇬🇪",c:"#d67a7a",cap:"tbi",play:1,desc:"The Caucasus co
 ARM:{n:"Armenia",f:"🇦🇲",c:"#e08a3c",cap:"yer",play:1,desc:"Older than most of its neighbours",era:"modern"},
 AZE:{n:"Azerbaijan",f:"🇦🇿",c:"#3a9c9c",cap:"bak",play:1,desc:"Caspian oil",era:"modern"},
 MON:{n:"Mongolia",f:"🇲🇳",c:"#b5432f",cap:"uln",play:1,desc:"The steppe that once took everything",era:"modern"},
-LVA:{n:"Latvia",f:"🇱🇻",c:"#9c3f4f",cap:"rig",play:1,desc:"A Baltic port and a hard border",era:"modern"},
-EST:{n:"Estonia",f:"🇪🇪",c:"#5a8fd6",cap:"tal",play:1,desc:"Wired, western-facing and small",era:"modern"},
-LTU:{n:"Lithuania",f:"🇱🇹",c:"#c9c03a",cap:"vil",play:1,desc:"Once the largest state in Europe",era:"modern"},
+LVA:{n:"Latvia",f:"🇱🇻",c:"#9c3f4f",cap:"rig",play:1,desc:"A Baltic port and a hard border",eras:["ww2","modern"]},
+EST:{n:"Estonia",f:"🇪🇪",c:"#5a8fd6",cap:"tal",play:1,desc:"Wired, western-facing and small",eras:["ww2","modern"]},
+LTU:{n:"Lithuania",f:"🇱🇹",c:"#c9c03a",cap:"vil",play:1,desc:"Once the largest state in Europe",eras:["ww2","modern"]},
 MDA:{n:"Moldova",f:"🇲🇩",c:"#7a5fb5",cap:"kish",play:1,desc:"Squeezed between two bigger stories",era:"modern"},
 /* ===== NAPOLEONIC WARS (1803–1815) ===== */
 FEM:{n:"French Empire",f:"🇫🇷",c:"#5473f3",cap:"par",play:1,desc:"L'Empereur",eras:["napoleon"]},
@@ -886,7 +886,7 @@ OCE:{n:"Aboriginal Australia",f:"🪃",c:"#6cd225",cap:"syd",play:1,desc:"Sixty 
    Two traps in the mapping, both of which produce a plausible-looking wrong
    answer: their GRE is Greece and this game's GRE is Greenland, and their PRU
    is Peru while this game's PRU is Prussia. */
-const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#3287af",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#dbdb77",LVA:"#4b4dba",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#277446",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
+const HOI4COL={AGO:"#258c3d",ALB:"#952d66",ARG:"#919dec",ARM:"#b066b4",AUE:"#c2c6d7",AUH:"#c2c6d7",AUS:"#398f61",AUT:"#c2c6d7",AZE:"#459731",BLR:"#b4dcbe",BRA:"#4c913f",BUL:"#339b00",CAM:"#644796",CAN:"#773027",CHL:"#9b656b",CHN:"#dae65c",COD:"#989fd1",COL:"#debb5b",CRO:"#e646b4",CZE:"#36a79c",DEN:"#99745d",EGY:"#e6e646",EST:"#1f3d7a",ETH:"#9882bf",FEM:"#3971e4",FIN:"#cdd4e4",FRA:"#3971e4",GBR:"#c9385d",GEO:"#ff9696",GER:"#666057",GRC:"#5db5e3",HUN:"#f97e62",IND:"#aa0a0a",IRE:"#509f5a",IRN:"#477161",IRQ:"#b27263",ISL:"#647daf",ITA:"#437f3f",JAP:"#ffc9b2",KEN:"#91670e",LBY:"#c8b45a",LTU:"#e2c21e",LVA:"#9a3a3e",MEX:"#689853",MON:"#666057",MOZ:"#703e5a",MYS:"#d5a979",NOR:"#6f4747",OTE:"#abbe98",OTT:"#abbe98",PAK:"#152642",PER:"#477161",PERU:"#c4bdcc",POL:"#c55c6a",POR:"#277446",QAJ:"#477161",QIN:"#dae65c",ROM:"#d7c448",RUE:"#7d0d18",RUS:"#7d0d18",SAF:"#9882bf",SAU:"#abbe98",SEA:"#abbe98",SIA:"#abbe98",SOV:"#7d0d18",SPA:"#f2cd5e",SPN:"#f2cd5e",SRB:"#48497e",SUI:"#e00505",SVK:"#9ea1bc",SWD:"#2484f7",SWE:"#2484f7",THA:"#abbe98",TOK:"#ffc9b2",TUR:"#abbe98",TZA:"#9882bf",UK:"#c9385d",UKR:"#0050e6",USA:"#1485ed",USE:"#1485ed",ZWE:"#0707ef"};
 /* The colours each nation wore before v23.0, kept so the Time Machine can
    put them back rather than showing v23's palette in every earlier build. */
 const PRE23_COL={};
@@ -977,7 +977,8 @@ P.push(
  ["bxl","Brussels",4.35,50.85,"BEL",1,2],["ams","Amsterdam",4.9,52.37,"HOL",1,2],["lxm","Luxembourg",6.13,49.61,"LUX",0,1],
  ["prs","Kosovo",21.17,42.67,"SRB",0,1],["tsp","Transnistria",29.63,46.84,"SOV",0,1],["dam","Damascus",36.29,33.51,"FRA",0,2],
  ["kbl","Kabul",69.17,34.53,"AFG",0,1],["srn","Kashmir",74.8,34.08,"UK",0,1],["tpe","Taipei",121.56,25.03,"JAP",1,2],
- ["lhs","Lhasa",91.1,29.65,"CHN",0,1],["buk","Bougainville",155.5,-6.2,"AUS",1,1]);
+ ["lhs","Lhasa",91.1,29.65,"CHN",0,1],["buk","Bougainville",155.5,-6.2,"AUS",1,1],
+ ["kau","Kaunas",23.9,54.9,"SOV",0,1]);
 LINKS.push(
  ["bxl","lil"],["bxl","rhi"],["bxl","ams"],["bxl","lxm"],["bxl","lon",1],
  ["ams","rhi"],["ams","ham"],["ams","ncl",1],
@@ -989,15 +990,18 @@ LINKS.push(
  ["srn","lah"],["srn","del"],["srn","xin"],["srn","kbl"],
  ["tpe","sha",1],["tpe","can",1],["tpe","fuk",1],
  ["lhs","chq"],["lhs","kun"],["lhs","xin"],["lhs","cal"],["lhs","srn"],
- ["buk","dar",1],["buk","bri",1]);
+ ["buk","dar",1],["buk","bri",1],
+ ["kau","vil"],["kau","kon"],["kau","rig"],["kau","war"]);
 const NEWPROV_OWN={
- napoleon:{bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
+ napoleon:{kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
  civilwar:{poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
- ww2:{},
- coldwar:{tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
- modern:{tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
- mongol:{bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
+ ww1:{kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ /* 1936: the Baltic states independent, Wilno Polish (taken in 1920),
+    Kaunas Lithuania's capital, and Slovakia Czechoslovak. */
+ ww2:{rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
+ coldwar:{lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ modern:{kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ mongol:{kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
 };
 
 /* ============================== ERAS & THEMES ============================== */
@@ -1014,8 +1018,8 @@ const ERAS={
     1937:{bei:"JAP",sha:"JAP"},                       // Marco Polo Bridge: the war in China opens
     1938:{vie:"GER",wuh:"JAP",can:"JAP"},             // Anschluss; Wuhan and Canton fall
     1939:{pra:"GER",bra:"GER"},                       // Prague occupied, Slovakia a German client
-    1940:{war:"GER",poz:"GER",gda:"GER",kra:"GER",lub:"GER",bra:"GER",lwo:"SOV"},   // Poland partitioned
-    1941:{bxl:"GER",ams:"GER",lxm:"GER",par:"GER",lil:"GER",nan:"GER",bor:"GER",osl:"GER",cph:"GER",brg:"GER",trd:"GER",nar:"GER",
+    1940:{war:"GER",poz:"GER",gda:"GER",kra:"GER",lub:"GER",bra:"GER",lwo:"SOV",vil:"LTU"},   // Poland partitioned; Wilno handed to Lithuania
+    1941:{kau:"SOV",vil:"SOV",rig:"SOV",tal:"SOV",bxl:"GER",ams:"GER",lxm:"GER",par:"GER",lil:"GER",nan:"GER",bor:"GER",osl:"GER",cph:"GER",brg:"GER",trd:"GER",nar:"GER",
           han:"JAP",sgn:"JAP"},                       // France, Denmark, Norway; Japan into Indochina
     1942:{min:"GER",kie:"GER",ode:"GER",bel:"GER",zag:"ITA",sarj:"ITA",ath:"GER",slk:"GER",ptr:"GER",cre:"GER",
           sin:"JAP",kul:"JAP",rgn:"JAP",mdl:"JAP",pnh:"JAP",bkk:"JAP",hue:"JAP",cmi:"JAP",mtr:"ITA"}, // Barbarossa, the Balkans, the Japanese tide
@@ -1213,6 +1217,7 @@ mongol:{label:"MONGOL EMPIRE",sub:"THE HORDE RIDES",start:[4,1],caps:{BYZ:"izm"}
   alliances:[["LAT","HRE","FRK","ITK"]]}
 };
 for(const e in NEWPROV_OWN)if(ERAS[e]){ERAS[e].owners=ERAS[e].owners||{};for(const id in NEWPROV_OWN[e])if(ERAS[e].owners[id]===undefined)ERAS[e].owners[id]=NEWPROV_OWN[e][id];}
+ERAS.ww2.caps=Object.assign(ERAS.ww2.caps||{},{LTU:"kau"});   /* Kaunas, the interwar capital: Wilno was Polish */
 let ERA="ww2";
 let YEAR=1939;
 /* Oil-rich provinces */
@@ -6442,7 +6447,9 @@ const WW2_OVERRIDE={
 "Liberia":"CON",
 /* these were routed to Italy and Hungary before Yugoslavia and Romania existed */
 "Serbia":"SRB","Croatia":"SRB","Slovenia":"SRB","Bosnia and Herz.":"SRB","Montenegro":"SRB","Macedonia":"SRB","North Macedonia":"SRB","Kosovo":"SRB",
-"Romania":"ROM","Moldova":"ROM","Albania":"ALB","Austria":"AUT","Czechia":"CZE","Slovakia":"CZE"
+"Romania":"ROM","Moldova":"ROM","Albania":"ALB","Austria":"AUT","Czechia":"CZE","Slovakia":"CZE",
+/* independent until June 1940 */
+"Lithuania":"LTU","Latvia":"LVA","Estonia":"EST"
 };
 const MODERN_OVERRIDE={
 "Ukraine":"UKR","Belarus":"BLR","Kazakhstan":"KAZ",
@@ -6566,8 +6573,15 @@ const _EPR=[[18.9,53.7],[19.05,54.35],[19.6,54.47],[20.0,55.0],[21.3,55.3],[22.9
 const _MEMEL=[[20.9,55.25],[21.0,56.05],[21.6,55.95],[22.15,55.6],[22.2,55.05],[21.3,55.25]];
 const _GER37=[[14.0,54.2],[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9],[17.5,49.8],[16.0,50.2],[14.8,50.8],[14.0,51.0]];
 const _GER14=[[14.0,54.2],[19.6,54.6],[19.4,53.3],[19.2,53.15],[18.95,52.95],[18.75,52.75],[18.4,52.55],[17.85,52.3],[17.85,52.1],[18.0,51.9],[17.95,51.6],[18.1,51.3],[18.4,51.05],[18.65,50.75],[19.0,50.45],[19.17,50.25],[18.85,49.95],[18.3,49.95],[17.5,49.8],[16.0,50.2],[14.8,50.8],[14.0,51.0]];
+/* POLAND'S 1937 EAST: Wilno, Grodno, Polesie, Volhynia, Lwow. Bounded by the
+   1923 demarcation with Lithuania (Wilno Polish, Kaunas Lithuanian), the Riga
+   line with the USSR (Stolpce and Korets Polish, Minsk and Zviahel Soviet),
+   the Zbruch, the Dniester and Cheremosh with Romania and the Carpathian crest
+   with Czechoslovakia. */
+const _KRESY_EDGE=[[22.85,54.38],[23.45,54.2],[23.95,54.1],[24.5,54.4],[24.9,54.88],[25.55,55.18],[26.05,55.5],[26.6,55.7],[27.2,55.85],[27.6,55.25],[27.25,54.6],[27.15,54.15],[26.95,53.75],[27.05,53.4],[27.6,52.6],[27.75,52.2],[27.5,51.6],[27.35,51.2],[27.4,50.7],[26.65,50.3],[26.1,49.8],[26.05,49.3],[26.2,48.8],[26.3,48.55],[25.7,48.62],[25.2,48.3],[24.65,48.05],[24.0,48.45],[23.4,48.95],[22.6,49.1]];
+const _KRESY=_KRESY_EDGE.concat([[22.3,49.1],[22.3,54.3]]);
 const HIST_REGIONS={
- ww2:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939},{poly:_GER37,in:["Poland"],anchor:"ber"}],
+ ww2:[{poly:_KRESY,in:["Lithuania","Belarus","Ukraine"],anchor:"war"},{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939},{poly:_GER37,in:["Poland"],anchor:"ber"}],
  ww1:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}],
  civilwar:[{poly:_EPR,in:["Russia","Poland"],anchor:"kon"},{poly:_MEMEL,in:["Lithuania"],anchor:"kon"},{poly:_GER14,in:["Poland"],anchor:"ber"}]
 };
@@ -6579,8 +6593,14 @@ const HIST_REGIONS={
 const _ODER=[[14.62,50.97],[15.2,51.0],[14.95,51.6],[14.85,52.1],[14.85,52.6],[14.55,53.0],[14.6,53.5],[14.45,53.52],[14.05,53.52],[14.0,53.5],[13.95,53.0],[14.25,52.6],[14.35,52.1],[14.5,51.6],[14.62,51.15]];
 const _KALI=[[19.95,54.27],[22.72,54.27],[22.72,54.48],[19.95,54.48]];
 const _NEMAN=[[21.38,54.95],[22.95,54.95],[22.95,55.35],[21.38,55.35]];
+const _PLLT=[[22.73,54.2],[22.85,54.48],[23.6,54.1],[23.5,53.85]];
+const _PLBY=[[23.2,54.05],[23.75,54.05],[24.25,53.2],[23.95,52.65],[24.0,51.5],[22.9,51.5],[22.85,52.3],[23.45,53.2]];
+const _PLUA=[[23.3,51.6],[23.95,51.6],[24.45,50.85],[23.75,50.1],[23.0,49.45],[22.95,49.1],[22.6,49.15],[22.5,49.5],[23.2,50.35],[23.75,50.85]];
+const _LTBY=[[23.45,53.75],[24.4,53.7],[25.1,53.95],[26.0,54.2],[26.5,54.9],[26.85,55.5],[26.45,55.6],[25.95,55.1],[25.5,54.5],[24.9,54.35],[24.35,54.1],[23.5,54.15]];
+const _BYUA=[[23.6,51.3],[27.45,51.3],[27.45,52.05],[23.6,52.05]];
 const HIST_LINES={
- ww2:{hide:[_ODER,_KALI],hide39:[_NEMAN],lines:[
+ ww2:{hide:[_ODER,_KALI,_PLLT,_PLBY,_PLUA,_LTBY,_BYUA],hide39:[_NEMAN],lines:[
+   _KRESY_EDGE,
    [[17.65,54.85],[17.55,54.4],[17.4,54.05],[17.05,53.65],[16.95,53.25],[16.3,52.85],[15.9,52.55],[16.0,52.2],[16.3,51.95],[16.6,51.75],[17.2,51.6],[17.6,51.3],[18.15,51.15],[18.4,50.8],[18.65,50.55],[18.95,50.4],[18.75,50.15],[18.55,49.9]],
    [[19.35,54.3],[18.95,53.75],[19.4,53.35],[20.0,53.15],[20.4,53.3],[21.0,53.35],[21.8,53.5],[22.4,53.85],[22.79,54.36]]]},
  ww1:{hide:[_ODER,_KALI,_NEMAN],lines:[
@@ -6590,12 +6610,15 @@ const HIST_LINES={
 HIST_LINES.civilwar=HIST_LINES.ww1;
 function _histPath(polys){const p=new Path2D();for(const r of polys){r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});p.closePath();}return p;}
 /* the clip that hides those stretches this era, or null */
+/* One clip per band, applied in turn: successive clips intersect, so the
+   result hides the UNION of the bands. A single even-odd path would show
+   any place two bands overlap again. */
 function _histClip(){
   const HL=HIST_LINES[ERA];if(!HL)return null;
   const hide=HL.hide.concat(YEAR>=1939&&HL.hide39?HL.hide39:[]);
-  const clip=new Path2D();clip.rect(-MW,-MH,MW*3,MH*3);clip.addPath(_histPath(hide));
-  return clip;
+  return hide.map(b=>{const c=new Path2D();c.rect(-MW,-MH,MW*3,MH*3);c.addPath(_histPath([b]));return c;});
 }
+function _applyHistClip(cl){for(const c of cl)ctx.clip(c,"evenodd");}
 function _histLine(lines){const p=new Path2D();for(const r of lines)r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});return p;}
 function _inPoly(p,lon,lat){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];
   if((a[1]>lat)!==(b[1]>lat)&&lon<(b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0])c=!c;}return c;}
@@ -10055,7 +10078,7 @@ function renderTerritory(){
       if(ci){
         const cname=countryNames[ci-1];
         let home=null;
-        if(cname==="Poland"||cname==="Russia"||cname==="Lithuania")
+        if(cname==="Poland"||cname==="Russia"||cname==="Lithuania"||cname==="Belarus"||cname==="Ukraine")
           home=histHome(cname,(x*TS/MW)*360-180,90-(y*TS/MH)*180);
         if(!home)home=natOfCountry(cname);
         if(home){
@@ -10881,7 +10904,7 @@ function _drawFrame(){
   /* The coast pass strokes each country's whole outer ring, land frontiers
      included, so the modern Oder-Neisse line came from HERE as much as from
      the border pass. Same mask. */
-  {const hc=_histClip();if(hc){ctx.save();ctx.clip(hc,"evenodd");}
+  {const hc=_histClip();if(hc){ctx.save();_applyHistClip(hc);}
    if(coastTiles)strokeTiles(coastTiles,z); else ctx.stroke(landPath);
    if(hc)ctx.restore();}
   /* THE PICTURE GOES ON HERE: over the ground, the national colour and the
@@ -11033,7 +11056,7 @@ function _drawFrame(){
     ctx.lineJoin="miter";ctx.miterLimit=2.5;
     const HL=HIST_LINES[ERA];
     if(HL){
-      ctx.save();ctx.clip(_histClip(),"evenodd");strokeTiles(borderTiles,z);ctx.restore();
+      ctx.save();_applyHistClip(_histClip());strokeTiles(borderTiles,z);ctx.restore();
       ctx.stroke(_histLine(HL.lines));
     }else strokeTiles(borderTiles,z);
   }

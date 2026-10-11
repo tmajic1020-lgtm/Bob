@@ -867,3 +867,25 @@ Soviet), Masuria/Pomerania/Silesia inside Poland's (-> Polish). Same fault in
 - Map scale: MW=2000 for 360 degrees, so zoom 6 still shows ~36 degrees.
   A close look at a frontier needs G.cam.z ~14 (set after startGame's own
   camera fit has run, ~2s).
+
+### Poland's 1937 east, and the Baltic states in WWII
+
+Owner: "give Poland its original borders like in ww2", Lithuania yellow,
+Latvia dark red (not Soviet red), Estonia dark blue.
+
+- `_KRESY` (HIST_REGIONS.ww2, anchor `war`): Lithuania/Belarus/Ukraine
+  shape pixels west of the 1923 demarcation and the Riga line route to
+  Poland. Checked: Wilno, Grodno, Brest, Pinsk, Baranowicze, Lwow, Rowne,
+  Tarnopol Polish; Kaunas, Minsk, Kiev, Zhytomyr, Chernivtsi, Uzhhorod not.
+- Hide bands for today's PL-LT, PL-BY, PL-UA, LT-BY and BY-UA lines;
+  `_KRESY_EDGE` stroked as the 1937 frontier. The bands now OVERLAP, so the
+  clip is one path per band applied in sequence (clips intersect = hides the
+  union); a single even-odd path re-shows any overlap.
+- LTU/LVA/EST exist in ww2 (eras ["ww2","modern"]); WW2_OVERRIDE routes their
+  shapes to them. New province `kau` Kaunas = Lithuania's ww2 capital
+  (ERAS.ww2.caps); `vil` renamed "Vilnius" and owned by POL in 1936-39,
+  LTU in 1940, SOV from 1941 with the three Baltic states.
+- Colours set in HOI4COL (which overrides NATIONS.c): LTU #e2c21e, LVA
+  #9a3a3e (Soviet is #7d0d18), EST #1f3d7a.
+- Also fixed on the way: ww2 bra (Slovakia) was POL in 1936-38 -> CZE;
+  coldwar lwo POL -> SOV and bra POL -> CZE.
