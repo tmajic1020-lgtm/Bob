@@ -1036,3 +1036,49 @@ and today's Slovak-Ukrainian line is hidden while both sides are one state.
 Verified Uzhhorod, Mukachevo, Khust: CZE 1936, HUN 1939-44, SOV 1945, UKR
 2026. Not touched: Galicia (Lviv) still paints Russian in 1914, though it
 was Austrian.
+
+## Exact territory, Siam, Central America and the Caribbean
+
+**"Remove the pieces of territory on borders, they're squares."** The
+political layer is one texel per world unit (~20 km) read off a 2-unit
+ownership grid, so every frontier was a staircase a texel either side of the
+drawn border (Belgium yellow round Lille, France blue into the Saarland).
+From zoom 2.2 the wash is now drawn EXACT (`_drawWashExact`):
+- per 32-unit tile at 4/8/16 px per unit, cached until a border moves
+  (`_exTiles`, ~16M px LRU, at most 6 builds a frame, the old masked raster
+  fills tiles not built yet);
+- in a tile, each modern country is clipped to its own atlas outline
+  (`_featPath`, kept from rasterizeCountries) and painted from its own
+  owners, texels across the border taking this country's dominant colour --
+  so frontiers between countries are the atlas line, exactly;
+- where a country is split by a HIST_REGIONS polygon (1936 Poland holds
+  German Pomerania/Silesia), each side whose colour holds 80% of its texels
+  is filled flat inside the polygon, so that frontier is exact too. Only
+  splits with no polygon (a conquest mid-war) are still the grid, smoothed;
+- the frontier-strong alpha is applied as a mask (`_exAlpha`).
+Measured in the same run, panning at zoom 14 got cheaper (the exact tiles
+replace a 2000x1000 upscale); what remains slow is the ground layer's own
+upscale, which was there before.
+
+Two routing faults the exact wash exposed:
+- Bohemia carries home GER in 1936, so Saxony's edge routed to Prague and
+  painted Czech inside Germany. A shape now prefers its home nation's
+  provinces STANDING IN IT (`_bch`) before byHome anywhere.
+- A country with nothing of its own in the shape (Laos under France) took
+  the nearest French-HOME province, which could be on another continent.
+  Now byHome plus byOwner, so Laos goes to French Hanoi.
+- Islands too small for the coarse grid (Jamaica) took the nearest province
+  across the water; their fine texels now ask natOfCountry.
+- Routing token "*": share the shape between the provinces standing in it
+  by distance (1861 Burma: British Rangoon, royal Mandalay).
+
+**Siam** held Burma, Indochina and Malaya in every era. Now: 1914/1936 Burma
+in the Raj, Indochina French, Malaya British; 1861 Lower Burma British,
+Upper Burma "Kingdom of Burma" (MMR), Cochinchina and Cambodia French,
+Tonkin/Annam "Dai Nam" (NVN), Laos Siamese.
+
+**Central America and the Caribbean** had no provinces, so Mexico painted
+over all of it. Nine provinces and nations: GUA HON ELS NIC CRI (1861-),
+PAN (1914-, Colombian 1861), CUB (1914-, Spanish 1861), HAI DOM, with drawn
+flags. Belize, Jamaica, the Bahamas and Trinidad are British before the
+modern era.
