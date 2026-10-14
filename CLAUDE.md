@@ -1082,3 +1082,30 @@ over all of it. Nine provinces and nations: GUA HON ELS NIC CRI (1861-),
 PAN (1914-, Colombian 1861), CUB (1914-, Spanish 1861), HAI DOM, with drawn
 flags. Belize, Jamaica, the Bahamas and Trinidad are British before the
 modern era.
+
+## The 1936 audit
+
+Asked to "continue and update a lot": every province's 1936 owner was
+listed and checked against history, and everything wrong was fixed:
+
+- Ethiopia (add) independent, Italian from a 1937 start; history event
+  ITA-ETH war on 1936-01-02. Ireland (dub) the Irish Free State. Albania
+  (tir) independent, Italian from 1939. Greenland Danish (GRE retired).
+  Mongolia (uln) MON, Soviet puppet. Manchuria (har) MANCHUKUO (MAN, new),
+  Japanese puppet. Tibet (lhs) TBT (new; the releasable TIB stays for the
+  other eras). Angola/Mozambique Portuguese, the Congo Belgian (until 1961
+  in the Cold War), Bangui French. Indies Dutch, Philippines American,
+  Papua Australian, Timor Portuguese. Bessarabia and northern Bukovina
+  Romanian until 1940 (`_BESS_UA`, `_TRANSN`, today's RO-UA and MD-UA lines
+  hidden, `_ROM40_EDGE` drawn along the Dniester). 1914 Galicia Austrian
+  (`_GALICIA`). History event JAP-CHN on 1937-07-07 (fires on the day).
+- **The region check was a hard-coded list of five countries** (Poland,
+  Russia, Lithuania, Belarus, Ukraine) in renderTerritory, so Manchukuo,
+  Tibet, Moldova -- and Finland's Karelia, which happened to be in Russia --
+  only worked when their shape was on it. Now `_hrNames` from the era's
+  HIST_REGIONS.
+- Shape with nothing of its own: byOwner first, then byHome. byHome first
+  sent the Dutch Indies to Germany the moment Amsterdam fell.
+- Verified 30 probe cities across 1861/1913/1936/1939/1941/1945; Bangui
+  and Izmail read the neighbour because they sit on a border river (the
+  40-km grid, not data).
