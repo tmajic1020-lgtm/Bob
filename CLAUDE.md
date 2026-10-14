@@ -1023,3 +1023,16 @@ should be written big across the bottom like the real game's title.
 - **Lakes were never drawn on the real map** -- only on the fallback one --
   so Ladoga, Onega, the Great Lakes and Victoria were dry land in national
   colour. They are filled with the sea colour after the wash now.
+
+### Carpathian Ruthenia
+
+Owner: the isolated part of Ukraine between Poland, Czechoslovakia and
+Romania should be Czechoslovak. Zakarpattia is inside today's Ukraine shape,
+so it painted Soviet in every ww2 start. `_RUTH` (HIST_REGIONS) routes it to
+`bra` (Czechoslovakia) before 1939 and to `deb`/`bud` (Hungary) from 1939,
+and to Hungary/Austria-Hungary in 1861 and 1914. `_RUTH_EDGE`, the
+Carpathian crest, is stroked as the frontier (no admin-0 line carries it),
+and today's Slovak-Ukrainian line is hidden while both sides are one state.
+Verified Uzhhorod, Mukachevo, Khust: CZE 1936, HUN 1939-44, SOV 1945, UKR
+2026. Not touched: Galicia (Lviv) still paints Russian in 1914, though it
+was Austrian.
