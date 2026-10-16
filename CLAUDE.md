@@ -1109,3 +1109,30 @@ listed and checked against history, and everything wrong was fixed:
 - Verified 30 probe cities across 1861/1913/1936/1939/1941/1945; Bangui
   and Izmail read the neighbour because they sit on a border river (the
   40-km grid, not data).
+
+### Real borders from admin-1, not ruled lines
+
+Owner: "don't make just line borders, make real borders". The historical
+regions added for 1936 were 7-15 point hand polygons. Most of those
+frontiers are TODAY'S PROVINCIAL BOUNDARIES, and Natural Earth's
+`ne_10m_admin_1_states_provinces` (public domain, fetched from the
+nvkelso mirror, 40MB) carries them. Built offline (`a1build.py` in the
+scratchpad, no shapely -- admin-1 units share vertices, so a union is the
+edges that appear once):
+- Ruthenia = Zakarpattia; Bessarabia/Bukovina in Ukraine = Chernivtsi +
+  the Budjak (Odessa oblast west of the Dniester liman -- the liman is the
+  one hand edge); Transnistria = Moldova's left-bank districts; 1914
+  Galicia = Lviv + Ternopil + Ivano-Frankivsk + Chernivtsi; interwar Polish
+  Volhynia/Galicia = Volyn + Rivne + Lviv + Ternopil + Ivano-Frankivsk;
+  Tibet = Xizang; Manchukuo = Heilongjiang + Jilin + Liaoning + a hand
+  polygon for Jehol and the Hinggan (no province line there).
+- `_A1.<R>.rings` route pixels (`_inRegion`, bbox-filtered); `.lines` are
+  only the INTERNAL edges -- shared with another province of the same
+  country -- since the atlas draws the foreign ones. The 1940 hide set
+  (`HIDE_ROUA`) is classified the same way: every MD-UA and RO-UA edge
+  except Moldova-proper against Vinnytsia, which is the Dniester and was
+  the real 1936 Romania-USSR frontier.
+- Region rings are wound one way so nonzero is their union; exclusion
+  clips one ring at a time (`_clipOut`).
+Still hand-placed: the Belarus/Lithuania part of the Kresy, Germany's
+1937 line in Poland, Finland's 1920-40 line, Jehol/Hinggan.
