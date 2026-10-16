@@ -1192,3 +1192,38 @@ centre is on screen:
 - What remains missing at the world view (Bulgaria, Hungary, Netherlands,
   Luxembourg, El Salvador) is countries packed tighter than letters; one
   zoom step in, they come through.
+
+## Construction tab, adding divisions to army groups, the PROVINCES button
+
+Owner: "a construction tab for forts, add divisions like add army group, and
+make the province button work faster".
+
+- **🏛 PROVINCES took 7,980ms and then ran at 1.0 fps.** `loadStates`
+  downloaded Natural Earth's 10m admin-1 LINES (tens of MB) from a CDN and
+  stroked every vertex every frame. It now shows the game's own province
+  borders: `provBordersPath()` joins the `PROV_OUTLINE` paths
+  `buildProvEdges` already traces for the selection highlight, once per
+  outline set. Click to visible: 1ms. A/B in the same run, off/on/off/on:
+  1.25 / 1.25 / 1.5 / 1.25 fps -- no measurable cost (this container's
+  absolute fps is meaningless; only the comparison is). The local Voronoi
+  fallback stays for when the outlines are not built. No download remains.
+- **CONSTRUCTION side tab** (`curPanel==="con"`): sites working/waiting,
+  every site under construction with progress and call-off, and a tab per
+  BUILDINGS entry (forts, factories, depots) listing every province you hold
+  in bands -- FRONT LINE (faces an enemy at war), BORDERS (faces a foreign
+  power that is not an ally/puppet), COAST, INTERIOR -- with level pips
+  (built / building / free) and a build button. Forts also get "Fortify the
+  front" and "Fortify all borders": one level each, front first, until the
+  PP runs out (`conBuildBand`). Uses the same `G.build` queue as the
+  province panel's construction rows, so nothing new to save.
+- **Army groups made first, filled after.** Groups were fixed at four and
+  only appeared once something was in one. Now up to `GROUP_MAX`=8, with
+  NEW ARMY GROUP, and per group "Add divisions": infantry, armour (and
+  artillery/AA from v9.0) raised straight into the group at the selected
+  province or the capital, x3 infantry, and "add the selected division".
+  A queue order carries `grp` (saved as queue field a[6], sent with the MP
+  "buy" message); `productionTick` puts the new unit in the group if the
+  group still exists. Verified: 2 ordered for a group, save, load, 120
+  production days -> 2 divisions in that group.
+- The province panel itself was measured too in case that was the "button":
+  8.8ms to open, goProv 0.2ms. Not the problem.

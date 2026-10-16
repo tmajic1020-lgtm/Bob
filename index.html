@@ -319,6 +319,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn" data-p="prov">PROVINCE</button>
   <button class="tbtn" data-p="army">ARMY</button>
   <button class="tbtn" data-p="build">RECRUIT</button>
+  <button class="tbtn" data-p="con">CONSTRUCTION</button>
   <button class="tbtn" data-p="research">RESEARCH</button>
   <button class="tbtn" data-p="air">AIR COMMAND</button>
   <button class="tbtn" data-p="focus">FOCUS</button>
@@ -5453,6 +5454,48 @@ function hireGeneral(uid){if(!G||!G.nations)return;
   renderPanel();refreshHUD();
 }
 window.hireGeneral=hireGeneral;
+/* Eight groups, created on demand. The panel used to offer exactly four, and
+   a group only appeared once something had been put into it, so there was no
+   way to make one first and fill it after. */
+const GROUP_MAX=8;
+function myGroups(){
+  const out=[];G.groups=G.groups||{};
+  for(let g=1;g<=GROUP_MAX;g++){
+    const grp=G.groups[g];
+    if((grp&&grp.nat===G.player)||G.units.some(u=>u.nat===G.player&&u.grp===g))out.push(g);
+  }
+  return out;
+}
+window.newArmyGroup=()=>{
+  if(!G)return 0;
+  G.groups=G.groups||{};
+  for(let g=1;g<=GROUP_MAX;g++){
+    if(G.groups[g]||G.units.some(u=>u.grp===g))continue;
+    ensureGroup(g);
+    logMsg(`\u{1F396} Army Group ${g} formed. Add divisions to it below.`,"good");
+    renderPanel();return g;
+  }
+  logMsg(`High command is full \u2014 ${GROUP_MAX} army groups.`,"war");
+  return 0;
+};
+/* ADD A DIVISION TO A GROUP: raise a new one straight into it, at the
+   selected province if it is yours and the capital otherwise. */
+window.addDivToGroup=(g,t,n)=>{
+  if(!G||!G.nations)return 0;
+  ensureGroup(g);
+  n=n||1;let got=0;
+  for(let i=0;i<n;i++){
+    if(MP.role==="guest"){MP.send({type:"buy",nat:G.player,t,pid:G.sel,grp:g});got++;continue;}
+    if(!buyFor(G.player,t,G.sel,g))break;
+    got++;
+  }
+  if(got){
+    const d=buildDays(G.player,t);
+    logMsg(`${got} \u00d7 ${BUILD_N[t]} raising for Army Group ${g} \u2014 ready in ${d} day${d>1?"s":""}.`,"good");sfx("coin");
+  }else logMsg(`Cannot raise ${BUILD_N[t].toLowerCase()} \u2014 short of production, manpower or materials.`,"war");
+  renderPanel();refreshHUD();
+  return got;
+};
 function ensureGroup(g){
   G.groups=G.groups||{};
   if(!G.groups[g])G.groups[g]={nat:G.player,stance:"hold",target:null,name:"Army Group "+g};
@@ -5587,6 +5630,47 @@ function buildIn(pid,what){
   renderPanel();refreshHUD();
 }
 window.buildIn=buildIn;
+/* THE CONSTRUCTION TAB. Forts could only be ordered one province at a time
+   from that province's own panel, so fortifying a frontier meant clicking
+   along it province by province and remembering which ones were done. This
+   lists every province you hold, front line first, with what stands there and
+   what is being built. */
+let CON_TAB="fort";
+window.setConTab=k=>{if(BUILDINGS[k])CON_TAB=k;renderPanel();};
+function conFrontOf(p){
+  /* 2 = faces an enemy, 1 = faces a foreign power that is not a friend,
+     0 = coast only, -1 = interior */
+  let f=-1;
+  for(const j of (p.adj||[])){
+    const q=G.prov[j];if(!q||q.owner===p.owner)continue;
+    if(atWar(p.owner,q.owner))return 2;
+    const n=G.nations[q.owner];
+    if(!allied(p.owner,q.owner)&&!(n&&n.puppet===p.owner)&&!(G.nations[p.owner].puppet===q.owner))f=1;
+  }
+  if(f<0&&p.coastal)f=0;
+  return f;
+}
+function conQueued(pid,what){return (G.build||[]).filter(o=>o.nat===G.player&&o.at===pid&&o.what===what).length;}
+/* Fortify every province of a band at once, cheapest first, until the money
+   runs out. One level each per press: a second press adds the next. */
+window.conBuildBand=(what,minF)=>{
+  if(!G)return;
+  const B=BUILDINGS[what],me=G.nations[G.player];if(!B)return;
+  const ps=natProvs(G.player).filter(p=>conFrontOf(p)>=minF&&B.have(p)+conQueued(p.id,what)<B.cap(p))
+    .sort((a,b)=>conFrontOf(b)-conFrontOf(a)||(B.have(a)+conQueued(a.id,what))-(B.have(b)+conQueued(b.id,what))||b.val-a.val);
+  let n=0;
+  for(const p of ps){
+    if(me.pp<B.pp)break;
+    me.pp-=B.pp;
+    const d=conDays(G.player,what);
+    G.build=G.build||[];
+    G.build.push({bid:++G.uid,nat:G.player,at:p.id,what,left:d,total:d});
+    n++;
+  }
+  if(n){sfx("good");logMsg(`${B.i} ${n} ${B.n.toLowerCase()} site${n>1?"s":""} begun \u2014 ${n*B.pp} PP.`,"good");}
+  else logMsg(ps.length?`${B.n} costs ${B.pp} PP.`:"Nothing left to build there.","war");
+  renderPanel();refreshHUD();
+};
 window.setMilShare=v=>{
   if(!G||!G.nations||!G.nations[G.player])return;
   G.nations[G.player].milShare=Math.max(0,Math.min(1,+v||0));
@@ -6352,14 +6436,23 @@ function shade(hex,f){
 }
 
 let landPath=null,lakePath=null,icePath=null,borderPath=null,realMap=false;
-let statePath=null,stateLoading=false;
-const STATE_URLS=[
- // worldwide states/provinces (10m admin-1 lines), multiple mirrors, then US+Canada fallback
- "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson/10m/cultural/ne_10m_admin_1_states_provinces_lines.json",
- "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces_lines.geojson",
- "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
- "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson/50m/cultural/ne_50m_admin_1_states_provinces_lines.json"
-];
+let stateLoading=false;
+/* THE PROVINCES BUTTON WAS EIGHT SECONDS AND THEN ONE FRAME A SECOND. It
+   downloaded Natural Earth's 10m admin-1 lines -- tens of megabytes -- and
+   stroked every vertex of them every frame: measured 7,980ms from the click
+   to anything on screen and 1.0 fps after. The borders it now shows are the
+   game's own provinces, whose outlines buildProvEdges already traced for the
+   selection highlight; joining them is one pass over 251 paths, done once. */
+let _provAllSrc=null,_provAllPath=null;
+function provBordersPath(){
+  if(!PROV_OUTLINE)return null;
+  if(_provAllSrc!==PROV_OUTLINE){
+    const all=new Path2D();
+    for(const id in PROV_OUTLINE)all.addPath(PROV_OUTLINE[id]);
+    _provAllSrc=PROV_OUTLINE;_provAllPath=all;
+  }
+  return _provAllPath;
+}
 let provCellPath=null;
 function buildProvinceCells(){
   // Voronoi cells of the game's provinces, clipped to land — generated on-device, no downloads
@@ -6385,32 +6478,12 @@ function buildProvinceCells(){
   }
   provCellPath=path;
 }
-async function loadStates(){
-  if(statePath||stateLoading)return;
+function loadStates(){
+  /* only when the outlines are not built (lowest map quality): cells of the
+     game's provinces, generated here, no download */
+  if(provBordersPath()||provCellPath||stateLoading)return;
   stateLoading=true;
-  for(const url of STATE_URLS){
-    try{
-      const r=await fetch(url);
-      if(!r.ok)continue;
-      const gj=await r.json();
-      if(!gj.features||!gj.features.length)continue;
-      const p=new Path2D();
-      for(const f of gj.features){
-        const g=f.geometry;if(!g)continue;
-        if(g.type==="LineString")addRing(p,g.coordinates,false);
-        else if(g.type==="MultiLineString")for(const l of g.coordinates)addRing(p,l,false);
-        else if(g.type==="Polygon")for(const ring of g.coordinates)addRing(p,ring,false);
-        else if(g.type==="MultiPolygon")for(const poly of g.coordinates)for(const ring of poly)addRing(p,ring,false);
-      }
-      statePath=p;
-      if(G)logMsg("State & province borders loaded ("+gj.features.length+" regions).","good");
-      break;
-    }catch(e){/* try next source */}
-  }
-  if(!statePath){
-    buildProvinceCells();
-    if(G)logMsg(provCellPath?"Real state data unreachable — generated province shapes locally instead.":"Couldn't build province shapes.","war");
-  }
+  buildProvinceCells();
   stateLoading=false;
 }
 function poly2path(polys){
@@ -11643,7 +11716,7 @@ function _drawFrame(){
   }
   // internal state/province borders (Nevada, Alberta, ...) when toggled
   if(SHOWPROV){
-    const sp=statePath||provCellPath;
+    const sp=provBordersPath()||provCellPath;
     if(sp){ctx.strokeStyle="#000000";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke(sp);}
   }
   // real country borders
@@ -15420,7 +15493,7 @@ $("#bAuto").onclick=()=>{
 $("#bPause").onclick=()=>{G.paused=!G.paused;$("#bPause").textContent=G.paused?"▶ RESUME":"⏸ PAUSE";
   logMsg(G.paused?"Game paused.":"Game resumed.");};
 $("#bProv").onclick=()=>{SHOWPROV=!SHOWPROV;$("#bProv").classList.toggle("on",SHOWPROV);
-  if(SHOWPROV){loadStates();if(!statePath)logMsg("Loading state & province borders...");}};
+  if(SHOWPROV)loadStates();};
 $("#bZoomIn").onclick=()=>zoomAt(W/2,H/2,G.cam.z*1.4);
 $("#bZoomOut").onclick=()=>zoomAt(W/2,H/2,G.cam.z/1.4);
 document.querySelectorAll(".spd").forEach(b=>b.onclick=()=>{G.speed=+b.dataset.s;document.querySelectorAll(".spd").forEach(x=>x.classList.toggle("on",x===b));});
@@ -15524,6 +15597,49 @@ function renderPanel(){
     }
     el.innerHTML=h;
   }
+  if(curPanel==="con"){
+    const B=BUILDINGS[CON_TAB]||BUILDINGS.fort;
+    const sites=conSites(G.player),slots=conSlots(G.player);
+    let h=`<h2>CONSTRUCTION</h2>
+    <div class="row"><span>Building sites</span><span>${Math.min(sites.length,slots)}/${slots} working${sites.length>slots?` \u00b7 <span style="color:var(--amber)">${sites.length-slots} waiting</span>`:""}</span></div>
+    <div class="row"><span>Production</span><span>${Math.floor(me.pp)} PP</span></div>
+    <div style="color:var(--dim);font-size:11px">More sites come from industry research and standing factories, and from putting the country on civilian work (RECRUIT \u2192 INDUSTRY).</div>`;
+    if(sites.length){
+      h+=`<h3>UNDER CONSTRUCTION (${sites.length})</h3>`;
+      sites.forEach((o,i)=>{
+        const Bo=BUILDINGS[o.what],pr=G.prov[o.at];if(!Bo||!pr)return;
+        const pct=Math.round(100*(o.total-o.left)/o.total),working=i<slots;
+        h+=`<div class="row"><span><a href="#" style="color:var(--ink)" onclick="goProv('${o.at}');return false">${Bo.i} ${Bo.n} \u00b7 ${pr.name}</a></span>
+          <span style="color:${working?"var(--amber)":"var(--dim)"}">${working?pct+"% \u00b7 "+o.left+"d":"waiting"} <button class="tbtn" style="font-size:9px;padding:1px 5px" title="Call off: half the outlay comes back" onclick="cancelBuild(${o.bid})">\u2716</button></span></div>
+          <div class="bar" style="margin-bottom:3px"><i style="width:${pct}%;background:${working?"var(--amber)":"#5a6355"}"></i></div>`;
+      });
+    }
+    h+=`<div class="row" style="gap:3px;margin-top:8px">${Object.keys(BUILDINGS).map(k=>
+      `<button class="tbtn ${k===CON_TAB?"on":""}" style="flex:1;font-size:10px" onclick="setConTab('${k}')">${BUILDINGS[k].i} ${BUILDINGS[k].n.toUpperCase()}</button>`).join("")}</div>
+    <div style="color:var(--dim);font-size:11px">${B.d} ${B.pp} PP \u00b7 ${conDays(G.player,CON_TAB)} days${B.cap({})>1?" \u00b7 up to "+B.cap({})+" levels":""}.</div>`;
+    const ps=natProvs(G.player).map(p=>({p,f:conFrontOf(p),q:conQueued(p.id,CON_TAB),had:B.have(p),cap:B.cap(p)}));
+    if(CON_TAB==="fort"){
+      const nFront=ps.filter(r=>r.f>=2&&r.had+r.q<r.cap).length,nBorder=ps.filter(r=>r.f>=1&&r.had+r.q<r.cap).length;
+      h+=`<div class="row" style="gap:3px;margin-top:4px">
+        <button class="tbtn" style="flex:1;font-size:10px" ${nFront&&me.pp>=B.pp?"":"disabled"} onclick="conBuildBand('fort',2)">\u2694 Fortify the front (${nFront})</button>
+        <button class="tbtn" style="flex:1;font-size:10px" ${nBorder&&me.pp>=B.pp?"":"disabled"} onclick="conBuildBand('fort',1)">\u{1F3F0} Fortify all borders (${nBorder})</button></div>
+        <div style="color:var(--dim);font-size:10px">One level each, front line first, until the production runs out.</div>`;
+    }
+    const BANDS=[[2,"\u2694 FRONT LINE","#e25e3a"],[1,"BORDERS","var(--amber)"],[0,"COAST","#7fa8c8"],[-1,"INTERIOR","var(--dim)"]];
+    for(const[f,lab,col]of BANDS){
+      const rows=ps.filter(r=>r.f===f).sort((a,b)=>(a.had+a.q)-(b.had+b.q)||b.p.val-a.p.val||a.p.name.localeCompare(b.p.name));
+      if(!rows.length)continue;
+      h+=`<h3 style="color:${col}">${lab} (${rows.length})</h3>`;
+      for(const r of rows){
+        const pips=Array.from({length:r.cap},(_,i)=>i<r.had?"\u25A0":i<r.had+r.q?"\u25A3":"\u25A1").join("");
+        const full=r.had+r.q>=r.cap;
+        h+=`<div class="row" style="align-items:center"><span><a href="#" style="color:var(--ink)" onclick="goProv('${r.p.id}');return false">${capOf(G.player)===r.p.id?"\u2605 ":""}${r.p.name}</a> <span style="color:var(--dim);font-size:10px">${terOf(r.p).i}</span></span>
+          <span><span title="built / being built / free" style="letter-spacing:1px;color:${r.had?"var(--amber)":"var(--dim)"}">${pips}</span>
+          <button class="tbtn" style="font-size:9px;padding:1px 6px;margin-left:4px" ${full||me.pp<B.pp?"disabled":""} onclick="buildIn('${r.p.id}','${CON_TAB}')">${full?"\u2713":"+ "+B.pp+" PP"}</button></span></div>`;
+      }
+    }
+    el.innerHTML=h;
+  }
   if(curPanel==="army"){
     /* ORDER OF BATTLE — the whole force in one list, ordered by what needs you
        most, because on a 178-province map a mauled division on another
@@ -15588,11 +15704,14 @@ function renderPanel(){
       h+=`<h3>\u{1F396} HIGH COMMAND</h3>
       <div style="color:var(--dim);font-size:11px">Assign divisions to a group, give the group a stance, and it fights itself. Anything not in a group still answers to AUTO CAPTURE.</div>`;
       const foes=Object.keys(G.nations).filter(k=>G.nations[k].alive&&atWar(G.player,k));
-      for(let g=1;g<=4;g++){
+      const _gs=myGroups();
+      const _me=G.nations[G.player];
+      const _at=(G.sel&&G.prov[G.sel]&&G.prov[G.sel].owner===G.player)?G.prov[G.sel]:G.prov[capOf(G.player)];
+      for(const g of _gs){
         const grp=G.groups[g],roster=mine.filter(u=>groupOf(u)===g);
-        if(!grp&&!roster.length)continue;
+        const raising=(G.queue||[]).filter(o=>o.nat===G.player&&o.grp===g).length;
         const st=STANCES[(grp&&grp.stance)||"hold"];
-        h+=`<div class="row" style="margin-top:6px"><span><b>Army Group ${g}</b> \u00b7 ${roster.length} division${roster.length===1?"":"s"}</span>
+        h+=`<div class="row" style="margin-top:6px"><span><b>Army Group ${g}</b> \u00b7 ${roster.length} division${roster.length===1?"":"s"}${raising?` <span style="color:var(--amber)">+${raising} raising</span>`:""}</span>
           <span style="color:var(--amber)">${st.i} ${st.n}</span></div>
         <div class="row" style="gap:3px">${Object.keys(STANCES).map(k=>
           `<button class="tbtn" style="flex:1;font-size:10px" ${((grp&&grp.stance)||"hold")===k?"disabled":""} onclick="setStance(${g},'${k}')">${STANCES[k].i} ${STANCES[k].n}</button>`).join("")}</div>
@@ -15603,14 +15722,29 @@ function renderPanel(){
           const gi=roster.filter(u=>!u.train&&canTrain(u)).length;
           if(gi)h+=`<button class="tbtn" style="font-size:10px" onclick="trainGroup(${g})">\u{1F3AF} Train group ${g} (${gi})</button>`;
         }
-        if(roster.length)h+=`<button class="tbtn" style="font-size:10px" onclick="disbandGroup(${g})">\u2715 Disband group ${g}</button>`;
+        /* ADD DIVISIONS: new ones raised straight into the group */
+        {
+          const can=t=>{const c=buyCost(t);return c&&_me.pp>=c[0]&&_me.oil>=c[1]&&(_me.mp||0)>=mpCostOf(t)&&haveRes(G.player,t)&&_at&&_at.owner===G.player;};
+          const kinds=[["inf","\u25A0 Infantry"],["arm","\u25B2 "+armName().replace(/ Division$/,"")]]
+            .concat(epochAtLeast("9.0")?[["art","\u25C6 Artillery"],["aa","\u2733 Anti-air"]]:[]);
+          h+=`<div style="color:var(--dim);font-size:10px;margin-top:3px">\u2795 Add divisions \u2014 raised at ${_at?_at.name:"\u2014"}:</div>
+          <div class="row" style="gap:3px;flex-wrap:wrap">${kinds.map(([t,lab])=>
+            `<button class="tbtn" style="flex:1;font-size:10px" ${can(t)?"":"disabled"} onclick="addDivToGroup(${g},'${t}',1)">${lab} \u00b7 ${buyCost(t)[0]} PP</button>`).join("")}
+            <button class="tbtn" style="flex:1;font-size:10px" ${can("inf")?"":"disabled"} onclick="addDivToGroup(${g},'inf',3)">\u25A0 \u00d73 \u00b7 60 PP</button></div>`;
+          const su=G.selUnit;
+          if(su&&su.kind==="army"&&su.nat===G.player&&groupOf(su)!==g)
+            h+=`<button class="tbtn" style="font-size:10px" onclick="assignGroup(${su.id},${g})">\u2795 Add the selected division (${uName(su.type)} at ${G.prov[su.at]?G.prov[su.at].name:"?"})</button>`;
+        }
+        h+=`<button class="tbtn" style="font-size:10px" onclick="disbandGroup(${g})">\u2715 Disband group ${g}</button>`;
       }
+      h+=`<button class="bbtn" style="margin-top:6px" ${_gs.length>=GROUP_MAX?"disabled":""} onclick="newArmyGroup()">\u2795 NEW ARMY GROUP<small>${_gs.length}/${GROUP_MAX} formed. Make one, then add divisions to it \u2014 new ones raised for it, or ones you already have.</small></button>`;
       const unassigned=mine.filter(u=>!groupOf(u)).length;
       h+=`<div class="row"><span style="color:var(--dim)">Unassigned</span><span style="color:var(--dim)">${unassigned} division${unassigned===1?"":"s"}</span></div>`;
       if(G.sel&&G.prov[G.sel]){
         const hereN=mine.filter(u=>u.at===G.sel).length;
         if(hereN)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><span style="width:100%;color:var(--dim);font-size:11px">Put all ${hereN} at ${G.prov[G.sel].name} into:</span>${
-          [1,2,3,4].map(g=>`<button class="tbtn" style="flex:1;font-size:10px" onclick="assignHereToGroup('${G.sel}',${g})">AG ${g}</button>`).join("")}
+          _gs.map(g=>`<button class="tbtn" style="flex:1;font-size:10px" onclick="assignHereToGroup('${G.sel}',${g})">AG ${g}</button>`).join("")}
+          ${_gs.length<GROUP_MAX?`<button class="tbtn" style="flex:1;font-size:10px" onclick="{const g=newArmyGroup();if(g)assignHereToGroup('${G.sel}',g);}">\u2795 New group</button>`:""}
           <button class="tbtn" style="flex:1;font-size:10px" onclick="assignHereToGroup('${G.sel}',0)">None</button></div>`;
       }
     }
@@ -16384,7 +16518,7 @@ function buyCost(t){
   }
   return {inf:[20,0],arm:[35,armOil()],art:[30,0],aa:[25,0],nuke:[100,25]}[t];
 }
-function buyFor(nat,t,pid){
+function buyFor(nat,t,pid,grp){
   /* Saves and network orders written before the fleet and air rebuild still
      say "ship" and "wing". Map them onto the workhorse of each arm rather
      than silently dropping an order somebody already paid for. */
@@ -16404,7 +16538,7 @@ function buyFor(nat,t,pid){
   me.pp-=c[0];me.oil-=c[1];spendMP(nat,mp);spendRes(nat,t);
   const d=buildDays(nat,t);
   G.queue=G.queue||[];
-  G.queue.push({oid:++G.uid,nat,t,at:t.startsWith("a_")?cap.id:sel.id,left:d,total:d});
+  G.queue.push({oid:++G.uid,nat,t,at:t.startsWith("a_")?cap.id:sel.id,left:d,total:d,grp:grp||0});
   return true;
 }
 function productionTick(){
@@ -16421,10 +16555,14 @@ function productionTick(){
     let at=(G.prov[o.at]&&G.prov[o.at].owner===o.nat)?o.at:null;
     if(!at){const ps=natProvs(o.nat);if(!ps.length)continue;
       at=(G.prov[capOf(o.nat)]&&G.prov[capOf(o.nat)].owner===o.nat)?capOf(o.nat):ps[0].id;}
-    if(o.t==="inf")addUnit(o.nat,at,"inf",3);
-    else if(o.t==="arm")addUnit(o.nat,at,"arm",4);
-    else if(o.t==="art")addUnit(o.nat,at,"art",3);
-    else if(o.t==="aa")addUnit(o.nat,at,"aa",2);
+    let nu=null;
+    if(o.t==="inf")nu=addUnit(o.nat,at,"inf",3);
+    else if(o.t==="arm")nu=addUnit(o.nat,at,"arm",4);
+    else if(o.t==="art")nu=addUnit(o.nat,at,"art",3);
+    else if(o.t==="aa")nu=addUnit(o.nat,at,"aa",2);
+    /* raised for an army group: it reports to that group the day it exists,
+       if the group is still standing */
+    if(nu&&o.grp&&G.groups&&G.groups[o.grp]&&G.groups[o.grp].nat===o.nat)nu.grp=o.grp;
     else if(o.t.startsWith("s_")){const c=o.t.slice(2);addFleet(o.nat,at,SHIPS[c]?SHIPS[c].str:2,c);}
     else if(o.t.startsWith("a_")){const c=o.t.slice(2);addWing(o.nat,WINGTYPES[c]?WINGTYPES[c].str:2,c);}
     else if(o.t==="nuke")n.nukes++;
@@ -18261,7 +18399,7 @@ function mpSerialize(){
     groups:G.groups||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
-    queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total]),
+    queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total,o.grp||0]),
     /* construction sites (v23.15+); older saves simply have none */
     build:(G.build||[]).map(o=>[o.bid,o.nat,o.at,o.what,o.left,o.total])};
 }
@@ -18276,7 +18414,7 @@ function mpApplyState(S){
     MODS.view3d=myView3d;                        // never let the host override it
   }
   G.day=S.day;G.date=new Date(S.date);G.tension=S.tension;G.collapsed=S.collapsed||{};
-  G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5]}));
+  G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5],grp:a[6]||0}));
   G.build=(S.build||[]).filter(a=>BUILDINGS[a[3]]).map(a=>({bid:a[0],nat:a[1],at:a[2],what:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
   for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb]=S.prov[id];
@@ -18377,7 +18515,7 @@ function mpApplyOrder(o){
     if(u){const path=findPath(u.at,o.to,u.kind==="fleet"?"fleet":"army",nat);
       if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;}}
   }
-  if(o.type==="buy")buyFor(nat,o.t,o.pid);
+  if(o.type==="buy")buyFor(nat,o.t,o.pid,o.grp|0);
   if(o.type==="res"){const n=G.nations[nat];if(!n.researching){n.researching=o.k;n.resProg=0;}}
   if(o.type==="war")declareWar(nat,o.target);
   if(o.type==="ally")proposeAlliance(nat,o.target);
