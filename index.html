@@ -10749,6 +10749,7 @@ function renderTerritory(){
   const comp=new Int32Array(w*h);
   const cbb=[null];
   for(const k in NATLABEL)delete NATLABEL[k];
+  const _lblComps={};
   {
     const stack=new Int32Array(w*h);
     let cid=0;
@@ -10784,8 +10785,7 @@ function renderTerritory(){
          Sweden. */
       const bnm=natKeys[oid-1];
       if(bnm){
-        const cur=NATLABEL[bnm];
-        if(!cur||area>cur.area){
+        {
           const mx=sx/area,my=sy/area;
           const cxx=Math.max(0,sxx/area-mx*mx), cyy=Math.max(0,syy/area-my*my), cxy=sxy/area-mx*my;
           /* eigenvalues of the 2x2 covariance: the spread along the long axis
@@ -10796,11 +10796,41 @@ function renderTerritory(){
           const l1=tr+det, l2=Math.max(0,tr-det);
           let ang=0.5*Math.atan2(2*cxy,cxx-cyy);
           if(!isFinite(ang))ang=0;
-          NATLABEL[bnm]={x:mx*TS,y:my*TS,
-                         w:(x1-x0+1)*TS,h:(y1-y0+1)*TS,area,
-                         ang, along:Math.sqrt(l1)*4*TS, across:Math.sqrt(l2)*4*TS};
+          (_lblComps[bnm]||(_lblComps[bnm]=[])).push({x:mx*TS,y:my*TS,
+                         w:(x1-x0+1)*TS,h:(y1-y0+1)*TS,area,cid,
+                         ang, along:Math.sqrt(l1)*4*TS, across:Math.sqrt(l2)*4*TS});
         }
       }
+    }
+    /* THE NAME GOES ON THE HOMELAND. It used to go on the nation's largest
+       landmass, and for an empire that is a colony: FRANCE was written across
+       the Sahara and ITALY across Libya, with nothing on France or Italy. The
+       landmass holding the capital carries the name now; any OTHER landmass
+       big enough to carry it at full size (French West Africa, Canada's
+       Arctic, Alaska) gets it too, as the real game does, but only where it
+       fits -- a colony never gets a small squeezed copy. */
+    for(const k in _lblComps){
+      const cs=_lblComps[k];
+      cs.sort((a,b)=>b.area-a.area);
+      let home=cs[0];
+      const cp=G.prov[capOf(k)];
+      if(cp&&cp.owner===k){
+        const cx=Math.min(w-1,Math.max(0,(cp.x/TS)|0)), cy=Math.min(h-1,Math.max(0,(cp.y/TS)|0));
+        let hc=comp[cy*w+cx];
+        /* the capital's own cell can be coast or a neighbour's on the 40-km
+           grid: take the nearest cell of this nation's around it */
+        if(!hc||owner[cy*w+cx]!==natIdx[k]){
+          let bd=1e9;
+          for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+            const xx=cx+dx,yy=cy+dy;if(xx<0||yy<0||xx>=w||yy>=h)continue;
+            const j=yy*w+xx;if(owner[j]===natIdx[k]&&dx*dx+dy*dy<bd){bd=dx*dx+dy*dy;hc=comp[j];}
+          }
+        }
+        const hm=cs.find(c=>c.cid===hc);
+        if(hm)home=hm;
+      }
+      home.extra=cs.filter(c=>c!==home&&c.area>=Math.max(40,home.area*0.25));
+      NATLABEL[k]=home;
     }
   }
   // pass 2: every landmass flies a complete flag
@@ -14667,10 +14697,21 @@ function drawNationNames(z,T){
     const n=G.nations[k];
     if(!n||!n.alive||!NATIONS[k])continue;
     ents.push([k,NATLABEL[k]]);
+    for(const x of NATLABEL[k].extra||[])ents.push([k,x,1]);
   }
   ents.sort((a,b)=>b[1].area-a[1].area);        // the big countries get first refusal
   ctx.textAlign="center";ctx.textBaseline="middle";
-  for(const[k,L]of ents){
+  /* EVERY COUNTRY GETS ITS NAME. This used to skip any label that came out
+     under 10px or over 64px, which at the world view silently dropped fifty
+     of sixty-nine nations -- Germany, Italy, Japan and Poland among them --
+     and zoomed in on Europe dropped France for being too BIG. Now a big name
+     is held at the ceiling instead of vanishing, and a small country is
+     written at a small fixed size, nudged round its own centre to find room,
+     in a second pass after every country that fits has been placed. */
+  const MINPX=8.5, MAXPX=64;
+  const drawn=drawNationNames.last=[];
+  const plan=[];
+  for(const[k,L,extra]of ents){
     const name=(NATIONS[k].n||k).toUpperCase();
     /* Along the country's own axis. The old test only knew "taller than wide",
        so it wrote every country either flat or straight down; a landmass that
@@ -14691,52 +14732,118 @@ function drawNationNames(z,T){
        thought they had room and both got drawn on top of each other. The real
        advance of the real glyphs decides both the size and the collision. */
     const unit=adv.reduce((n,a2)=>n+a2,0)+NAMETRACK*(name.length-1);   // width at 1px
-    /* Sized to the country, the way the real ones are: SOVIET UNION runs most
-       of the way across the Soviet Union. Four fifths of the landmass and a
-       third of its depth was a size too shy to read as a title. */
-    /* SIZED THE WAY THE REFERENCE SIZES THEM. A label used to run nine tenths
-       of the way across its country, which put SOVIET UNION and CANADA across
-       half the world and made the map look like a poster of itself. Measured
-       off a real capture of the game this follows, a country name occupies
-       nearer three fifths of the landmass and about a quarter of its depth,
-       and the largest label on a world view is around sixty pixels, not
-       ninety-six. */
+    /* SIZED THE WAY THE REFERENCE SIZES THEM: a country name occupies nearer
+       three fifths of the landmass and about a quarter of its depth, and the
+       largest label on a world view is around sixty pixels. */
     let fs=Math.min(along*0.60/unit, across*0.24);
-    const px=fs*z;
-    if(px<10||px>64)continue;                   // unreadable, or shouting
-    const[sx,sy]=W2S(L.x,L.y);
-    const wpx=unit*px, hpx=px*0.82;
-    /* the label's footprint once it is turned onto the country's axis */
-    const ca=Math.abs(Math.cos(ang)), sa=Math.abs(Math.sin(ang));
+    if(!(fs>0))fs=0;
+    let small=false, slant=null;
+    if(fs*z>MAXPX)fs=MAXPX/z;
+    if(fs*z<MINPX){
+      if(extra)continue;                        // a colony gets a name only where it fits
+      fs=MINPX/z;small=true;
+      /* written level; a country long enough to carry it on its own slant
+         (Norway beside SWEDEN) gets that as a last try before it is dropped */
+      slant=unit*fs<=along*0.95&&Math.abs(ang)>0.15?ang:null;
+      ang=0;
+    }
+    plan.push({k,L,name,adv,unit,fs,ang,small,extra,slant:small?slant:null});
+  }
+  /* Clash on the label's TURNED box, not the upright box round it. A long
+     name on a diagonal -- SWEDEN down the Scandinavian ridge -- has an
+     upright box covering most of Norway and the Baltic, and that reserved
+     ground pushed Norway's own name off the map. Separating-axis test on the
+     two rectangles. */
+  const obb=(cx,cy,hw,hh,a)=>({cx,cy,hw,hh,ux:Math.cos(a),uy:Math.sin(a)});
+  const sep=(A,B)=>{
+    const dx=B.cx-A.cx, dy=B.cy-A.cy;
+    for(const[ax,ay]of[[A.ux,A.uy],[-A.uy,A.ux],[B.ux,B.uy],[-B.uy,B.ux]]){
+      const ra=A.hw*Math.abs(A.ux*ax+A.uy*ay)+A.hh*Math.abs(-A.uy*ax+A.ux*ay);
+      const rb=B.hw*Math.abs(B.ux*ax+B.uy*ay)+B.hh*Math.abs(-B.uy*ax+B.ux*ay);
+      if(Math.abs(dx*ax+dy*ay)>ra+rb)return true;
+    }
+    return false;
+  };
+  const place=(e,sx,sy)=>{
+    const px=e.fs*z, wpx=e.unit*px, hpx=px*0.82;
+    const ca=Math.abs(Math.cos(e.ang)), sa=Math.abs(Math.sin(e.ang));
     const bx=wpx*ca+hpx*sa, by=wpx*sa+hpx*ca;
-    if(sx+bx/2<0||sx-bx/2>W||sy+by/2<0||sy-by/2>H)continue;
-    let clash=false;
-    for(const r of seen)
-      if(Math.abs(sx-r.x)*2<(bx+r.w)*1.02&&Math.abs(sy-r.y)*2<(by+r.h)*1.35){clash=true;break;}
-    if(clash)continue;
-    seen.push({x:sx,y:sy,w:bx,h:by});
+    if(sx+bx/2<0||sx-bx/2>W||sy+by/2<0||sy-by/2>H)return 0;
+    const gy=e.small?1.15:1.35;
+    const me=obb(sx,sy,wpx*0.51,hpx*gy/2,e.ang);
+    for(const r of seen)if(!sep(me,r))return -1;
+    seen.push(me);
+    return 1;
+  };
+  const write=(e,wx,wy)=>{
+    const fs=e.fs;
     ctx.save();
-    ctx.translate(L.x,L.y);
-    ctx.rotate(ang);
+    ctx.translate(wx,wy);
+    ctx.rotate(e.ang);
     ctx.font=NAMEFONT(fs);
     const track=fs*NAMETRACK;
-    let cx=-(unit*fs)/2;
+    let cx=-(e.unit*fs)/2;
     ctx.lineJoin="round";ctx.miterLimit=2;
     /* THE LETTERS ARE NOT OPAQUE. Enlarged, the reference's country names are
        plainly translucent — the ground goes on through them, and the name sits
        IN the map rather than on top of it. What carries them at that opacity is
-       the dark outline, which is why it is the heavier of the two. */
+       the dark outline, which is why it is the heavier of the two. A small
+       name gets a firmer fill, or at 8px the ground swallows it. */
     ctx.strokeStyle="rgba(10,12,14,0.82)";
-    ctx.lineWidth=Math.max(fs*0.17,1.2/z);
-    ctx.fillStyle=THEME==="light"?"rgba(252,250,244,0.72)":"rgba(246,243,235,0.60)";
+    ctx.lineWidth=Math.max(fs*(e.small?0.22:0.17),1.2/z);
+    ctx.fillStyle=THEME==="light"?(e.small?"rgba(252,250,244,0.92)":"rgba(252,250,244,0.72)")
+                                 :(e.small?"rgba(246,243,235,0.86)":"rgba(246,243,235,0.60)");
     ctx.textAlign="left";ctx.textBaseline="middle";
-    for(let i=0;i<name.length;i++){
-      ctx.strokeText(name[i],cx,0);
-      ctx.fillText(name[i],cx,0);
-      cx+=adv[i]*fs+track;
+    for(let i=0;i<e.name.length;i++){
+      ctx.strokeText(e.name[i],cx,0);
+      ctx.fillText(e.name[i],cx,0);
+      cx+=e.adv[i]*fs+e.fs*NAMETRACK;
     }
     ctx.restore();
+    drawn.push(e.k);
+  };
+  /* pass 1: every name that fits its country, biggest first */
+  const retry=[];
+  for(const e of plan){
+    if(e.small)continue;
+    const[sx,sy]=W2S(e.L.x,e.L.y);
+    const r=place(e,sx,sy);
+    if(r===1)write(e,e.L.x,e.L.y);
+    else if(r===-1&&!e.extra)retry.push(e);
   }
+  /* pass 2: a name that fits its country but lands on a neighbour's (Italy
+     under Yugoslavia, Norway under Sweden) steps down in size, written level,
+     before it is given up. Then the small countries, each tried on its own
+     centre and nudged round it -- above, below, either side. Giving up only
+     happens where countries are packed tighter than letters (Central America
+     at the world view); zoom in a step and they come through. */
+  const OFF=[[0,0],[0,-1.1],[0,1.1],[0.6,0],[-0.6,0],[0.6,-1.1],[-0.6,-1.1],[0.6,1.1],[-0.6,1.1],[0,-2.2],[0,2.2]];
+  const tryAt=e=>{
+    const[sx,sy]=W2S(e.L.x,e.L.y);
+    const px=e.fs*z, wpx=e.unit*px;
+    for(const[ox,oy]of OFF){
+      const dx=ox*wpx, dy=oy*px;
+      const r=place(e,sx+dx,sy+dy);
+      if(r===0)return true;                     // off screen: nothing to place
+      if(r===1){write(e,e.L.x+dx/z,e.L.y+dy/z);return true;}
+    }
+    if(e.slant!=null){                          // last: on its own slant, on its own centre
+      e.ang=e.slant;e.slant=null;
+      if(place(e,sx,sy)===1){write(e,e.L.x,e.L.y);return true;}
+      e.ang=0;
+    }
+    return false;
+  };
+  for(const e of retry){
+    const f0=e.fs,a0=e.ang;e.ang=0;
+    for(let f=f0*0.8,g=0;g<12;f*=0.8,g++){
+      const ff=Math.max(f||0,MINPX/z);
+      e.fs=ff;e.small=ff*z<14;
+      e.slant=Math.abs(a0)>0.15?a0:null;
+      if(tryAt(e)||ff<=MINPX/z)break;
+    }
+  }
+  for(const e of plan)if(e.small&&!retry.includes(e))tryAt(e);
   /* THE MAP'S OWN NAME, set across the ice the way a printed world map carries
      its title in the empty south: big, bold, widely tracked, sitting IN the
      ground like the country names rather than floating over it. */

@@ -1159,3 +1159,36 @@ Middle East found, and fixed:
   cell, so its fine texels now ask natOfCountry whenever no neighbouring
   cell of their own country exists, not only when the cell is sea.
 - Yemen recoloured #d08a3c: it sat next to British Aden in nearly the same red.
+
+## Every country carries its name
+
+Owner: "give every country its name". `drawNationNames` skipped any label
+under 10px or over 64px, which at the world view dropped 51 of 69 nations
+in 1936 (Germany, Italy, Japan, Poland among them) and, zoomed on Europe,
+dropped France for being too BIG. Measured with `drawNationNames.last`
+(the nations drawn this frame) against every alive nation whose label
+centre is on screen:
+
+                         before   after
+    world view (z1.2)    18/69    64/69
+    Europe, Balkans, Central America, W. Africa, Gulf: none missing
+
+- A big name is held at 64px instead of vanishing; a small country is
+  written at 8.5px with a firmer fill, after every name that fits, nudged
+  round its own centre (above, below, either side) to find room.
+- A full-size name that clashes steps down in size before it is dropped.
+- **Labels went on the largest landmass**, which for an empire is a colony:
+  FRANCE across the Sahara, ITALY across Libya, nothing on either homeland.
+  The landmass holding the capital carries it now (`_lblComps`, picked by
+  the capital's coarse cell); another landmass gets a copy only where the
+  name fits at full size (French West Africa, Alaska, Syria).
+- **Clash on the turned box.** The test used the upright box round a
+  rotated label, so SWEDEN on its diagonal reserved most of Norway and
+  Norway's name could never land. Separating-axis test on the rotated
+  rectangles fixed it.
+- Slanting every small name to its country's axis cost four labels at the
+  world view (64 -> 60), so it is only the last try before a name is
+  dropped.
+- What remains missing at the world view (Bulgaria, Hungary, Netherlands,
+  Luxembourg, El Salvador) is countries packed tighter than letters; one
+  zoom step in, they come through.
