@@ -1136,3 +1136,26 @@ edges that appear once):
   clips one ring at a time (`_clipOut`).
 Still hand-placed: the Belarus/Lithuania part of the Kresy, Germany's
 1937 line in Poland, Finland's 1920-40 line, Jehol/Hinggan.
+
+### The Mediterranean and Africa, 1936
+
+Owner: "improve it more". A close audit of Europe, North Africa and the
+Middle East found, and fixed:
+- Cyprus British (the atlas splits it: "Cyprus" and "N. Cyprus" -- both
+  routed), Malta British, Qatar/Bahrain British, Liberia a nation with a
+  province (mnr, LBR, 1861-), Gambia and Sierra Leone British.
+- Regions from admin-1: the Aden Protectorate (Aden, Lahij, Abyan,
+  Shabwah, Hadramawt, al-Mahrah, ad-Dali -> British, cands psud/sue);
+  Hatay French until 1939; Spanish Morocco (Tanger-Tetouan + a hand Rif
+  strip) and Spanish Sahara (the Laayoune and Oued ed-Dahab regions --
+  the atlas draws Western Sahara inside Morocco's shape); Ifni and the
+  Dodecanese as small hand boxes (islands/enclave, so a box is exact).
+- **The pocket pass was eating them.** A connected area with none of its
+  owner's provinces, a short coast and one neighbour is handed to that
+  neighbour (meant for stale wedges after a conquest) -- and Spanish
+  Sahara is exactly that shape. Cells a historical region placed are now
+  flagged (`_hrCell`) and never count as a pocket.
+- A country thinner than a 40-km cell (the Gambia) never owned a coarse
+  cell, so its fine texels now ask natOfCountry whenever no neighbouring
+  cell of their own country exists, not only when the cell is sea.
+- Yemen recoloured #d08a3c: it sat next to British Aden in nearly the same red.
