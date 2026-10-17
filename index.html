@@ -18403,18 +18403,36 @@ function musPool(mood){
 }
 
 /* ---------- the original score ---------- */
+/* Built the way a grand-strategy soundtrack is built rather than as a loop.
+   Each PIECE is 32 bars in four sections: a quiet opening on strings and a
+   solo instrument, a build with a low-string ostinato and timpani that
+   swells into the full orchestra with the theme in the brass, and a fall to
+   a horn chorale with the solo returning. Then the next piece begins with a
+   new theme, a new key and a slightly different tempo, as a playlist would.
+   The theme is a two-bar motif made from the dice and stated, varied,
+   answered and cadenced, so it can be hummed. Everything is synthesised
+   here; nothing is sampled and nothing is borrowed.
+   root: MIDI note. scale: steps. progs: chords as scale degrees, one
+   progression per piece in turn. solo: the quiet sections' instrument; lead:
+   the full section's. ost: low strings (0 none, 1 driving eighths, 2 gallop,
+   3 quarter pulse). march: snare. choir: voices in the full section. drum:
+   0 none, 1 timpani, 2 timpani and bass drum. arc: the four sections'
+   loudness. */
 const SCORE={
-  /* root as a MIDI note, scale steps, chords as scale degrees, tempo, and
-     what the band does: snare march, timpani, brass or horn on the tune */
-  menu:     {root:50,scale:[0,2,3,5,7,8,10],prog:[0,5,2,6, 0,3,4,4],bpm:66,snare:0,timp:1,lead:"brass"},
-  allies_peace:{root:50,scale:[0,2,4,5,7,9,11],prog:[0,4,5,3, 0,3,4,4],bpm:72,snare:0,timp:0,lead:"horn"},
-  allies_war:  {root:50,scale:[0,2,4,5,7,9,11],prog:[0,4,5,3, 5,3,4,4],bpm:104,snare:1,timp:1,lead:"brass"},
-  axis_peace:  {root:48,scale:[0,2,3,5,7,8,10],prog:[0,5,3,6, 0,5,4,4],bpm:64,snare:0,timp:1,lead:"horn"},
-  axis_war:    {root:48,scale:[0,2,3,5,7,8,10],prog:[0,5,2,6, 0,3,4,4],bpm:96,snare:1,timp:1,lead:"brass"},
-  comintern_peace:{root:52,scale:[0,2,3,5,7,8,11],prog:[0,3,4,0, 5,3,4,0],bpm:60,snare:0,timp:0,lead:"horn"},
-  comintern_war:  {root:52,scale:[0,2,3,5,7,8,11],prog:[0,3,4,0, 5,2,4,4],bpm:100,snare:1,timp:1,lead:"brass"},
-  neutral_peace:{root:55,scale:[0,2,3,5,7,9,10],prog:[0,3,6,0, 4,3,6,0],bpm:70,snare:0,timp:0,lead:"horn"},
-  neutral_war:  {root:55,scale:[0,2,3,5,7,9,10],prog:[0,6,3,4, 0,6,4,4],bpm:92,snare:1,timp:1,lead:"brass"}
+  menu:     {root:50,scale:[0,2,3,5,7,8,10],progs:[[0,5,2,6,0,3,4,4],[0,6,5,6,0,2,3,4]],bpm:62,solo:"horn",lead:"brass",ost:1,march:0,choir:1,drum:2,arc:[.32,.62,1,.48]},
+  allies_peace:{root:50,scale:[0,2,4,5,7,9,11],progs:[[0,4,5,3,0,3,4,4],[0,5,3,4,0,1,4,4]],bpm:72,solo:"piano",lead:"horn",ost:3,march:0,choir:0,drum:1,arc:[.3,.52,.82,.42]},
+  allies_war:  {root:50,scale:[0,2,4,5,7,9,11],progs:[[0,4,5,3,5,3,4,4],[0,3,5,4,0,3,1,4]],bpm:100,solo:"horn",lead:"brass",ost:1,march:1,choir:0,drum:1,arc:[.55,.8,1,.66]},
+  axis_peace:  {root:48,scale:[0,2,3,5,7,8,10],progs:[[0,5,3,6,0,5,4,4],[0,3,5,6,0,2,6,4]],bpm:60,solo:"piano",lead:"horn",ost:3,march:0,choir:0,drum:1,arc:[.3,.52,.82,.42]},
+  axis_war:    {root:48,scale:[0,2,3,5,7,8,10],progs:[[0,5,2,6,0,3,4,4],[0,6,5,6,0,5,3,4]],bpm:90,solo:"horn",lead:"brass",ost:2,march:1,choir:0,drum:2,arc:[.6,.84,1,.7]},
+  comintern_peace:{root:52,scale:[0,2,3,5,7,8,11],progs:[[0,3,4,0,5,3,4,0],[0,5,3,4,5,3,4,4]],bpm:58,solo:"horn",lead:"choir",ost:3,march:0,choir:1,drum:1,arc:[.3,.52,.84,.42]},
+  comintern_war:  {root:52,scale:[0,2,3,5,7,8,11],progs:[[0,3,4,0,5,3,4,0],[0,5,3,4,0,3,4,4]],bpm:94,solo:"horn",lead:"brass",ost:1,march:1,choir:1,drum:2,arc:[.6,.84,1,.72]},
+  neutral_peace:{root:55,scale:[0,2,3,5,7,9,10],progs:[[0,3,6,0,4,3,6,0],[0,6,3,0,2,3,6,0]],bpm:70,solo:"piano",lead:"horn",ost:0,march:0,choir:0,drum:0,arc:[.3,.48,.74,.4]},
+  neutral_war:  {root:55,scale:[0,2,3,5,7,9,10],progs:[[0,6,3,4,0,6,4,4],[0,2,3,6,0,6,4,0]],bpm:88,solo:"horn",lead:"brass",ost:1,march:1,choir:0,drum:1,arc:[.55,.8,1,.64]}
+};
+/* two-bar rhythms for the theme, in beats */
+const _MUS_RH={
+  slow:[[[0,3],[3,1],[4,2],[6,2]],[[0,2],[2,1.5],[3.5,.5],[4,4]],[[0,1.5],[1.5,.5],[2,2],[4,3],[7,1]],[[0,1],[1,1],[2,2],[4,1],[5,1],[6,2]]],
+  march:[[[0,.75],[.75,.25],[1,1],[2,1],[3,1],[4,1.5],[5.5,.5],[6,2]],[[0,1.5],[1.5,.5],[2,2],[4,.75],[4.75,.25],[5,1],[6,2]],[[0,1],[1,.75],[1.75,.25],[2,2],[4,1],[5,1],[6,1],[7,1]]]
 };
 const _mtof=m=>440*Math.pow(2,(m-69)/12);
 let MUSG=null;   /* the synth graph, built on first use */
@@ -18422,71 +18440,221 @@ function _musGraph(){
   if(MUSG)return MUSG;
   const ac=_ctx();if(!ac)return null;
   const out=ac.createGain();out.gain.value=MUS_VOL;out.connect(ac.destination);
-  /* a hall: a convolver fed a decaying noise impulse */
-  const len=Math.floor(ac.sampleRate*2.8),ir=ac.createBuffer(2,len,ac.sampleRate);
-  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6);}
-  const rev=ac.createConvolver();rev.buffer=ir;const wet=ac.createGain();wet.gain.value=0.42;rev.connect(wet);wet.connect(out);
-  const bus=ac.createGain();bus.gain.value=0.8;bus.connect(out);bus.connect(rev);
-  const nb=ac.createBuffer(1,ac.sampleRate,ac.sampleRate),nd=nb.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
-  MUSG={ac,out,bus,noise:nb,timer:0,next:0,step:0,mood:null,seed:1};
+  /* a gentle compressor glues the orchestra and keeps the climax from clipping */
+  let glue=out;
+  if(ac.createDynamicsCompressor){glue=ac.createDynamicsCompressor();glue.threshold.value=-18;glue.knee.value=10;
+    glue.ratio.value=3;glue.attack.value=0.03;glue.release.value=0.5;glue.connect(out);}
+  /* a hall: stereo decaying noise after a short pre-delay, its top rolled off */
+  const sr=ac.sampleRate,len=Math.floor(sr*3.4),pre=Math.floor(sr*0.025),ir=ac.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=pre;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-(i-pre)/(len-pre),3);}
+  const rev=ac.createConvolver();rev.buffer=ir;
+  const dark=ac.createBiquadFilter();dark.type="lowpass";dark.frequency.value=4800;
+  const wet=ac.createGain();wet.gain.value=0.55;rev.connect(dark);dark.connect(wet);wet.connect(glue);
+  const bus=ac.createGain();bus.gain.value=0.5;bus.connect(glue);bus.connect(rev);
+  const nb=ac.createBuffer(1,sr*2,sr),nd=nb.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+  MUSG={ac,out,bus,noise:nb,pans:{},timer:0,next:0,step:0,mood:null,playing:null,seed:1,piece:0,P:null,vl:null};
   return MUSG;
+}
+/* the orchestra sits across the stage: one panned bus per seat */
+function _seat(M,p){
+  const k=Math.round(p*10);if(M.pans[k])return M.pans[k];
+  let n=M.bus;if(M.ac.createStereoPanner){n=M.ac.createStereoPanner();n.pan.value=k/10;n.connect(M.bus);}
+  return M.pans[k]=n;
 }
 function _env(g,t,a,peak,hold,rel){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);
   g.gain.setValueAtTime(peak,t+a+hold);g.gain.exponentialRampToValueAtTime(0.0001,t+a+hold+rel);}
-function _voice(M,t,freq,dur,kind,vol){
+/* one note. vib: vibrato depth in cents, coming in after the attack */
+function _voice(M,t,freq,dur,kind,vol,pan){
   const ac=M.ac,g=ac.createGain(),f=ac.createBiquadFilter();f.type="lowpass";
-  const osc=[];
-  if(kind==="strings"){for(const d of[-7,0,6]){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;o.detune.value=d;osc.push(o);}
-    f.frequency.value=1500;f.Q.value=0.3;_env(g,t,0.9,vol,Math.max(0.1,dur-0.9),1.6);}
-  else if(kind==="brass"){for(const d of[-4,4]){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;o.detune.value=d;osc.push(o);}
-    f.Q.value=1.2;f.frequency.setValueAtTime(380,t);f.frequency.exponentialRampToValueAtTime(2400,t+0.09);f.frequency.exponentialRampToValueAtTime(1100,t+0.5);
-    _env(g,t,0.06,vol,Math.max(0.05,dur-0.1),0.35);}
-  else if(kind==="horn"){const o=ac.createOscillator();o.type="triangle";o.frequency.value=freq;osc.push(o);
-    const o2=ac.createOscillator();o2.type="sawtooth";o2.frequency.value=freq;o2.detune.value=3;osc.push(o2);
-    f.frequency.value=900;_env(g,t,0.25,vol,Math.max(0.05,dur-0.25),0.9);}
-  else if(kind==="bass"){const o=ac.createOscillator();o.type="sawtooth";o.frequency.value=freq;osc.push(o);
-    f.frequency.value=420;_env(g,t,0.08,vol,Math.max(0.05,dur-0.1),0.5);}
-  for(const o of osc){o.connect(f);o.start(t);o.stop(t+dur+2);}
-  f.connect(g);g.connect(M.bus);
+  const osc=[],add=(type,det,mul)=>{const o=ac.createOscillator();o.type=type;o.frequency.value=freq*(mul||1);o.detune.value=det;osc.push(o);return o;};
+  let rel=0.5,vib=0,vrate=5.2,src=f;
+  if(kind==="strings"){for(const d of[-8,8])add("sawtooth",d+(Math.random()*4-2));
+    f.frequency.value=1100+900*Math.min(1,vol*20);f.Q.value=0.4;rel=1.4;
+    _env(g,t,Math.min(1.1,dur*0.35),vol,Math.max(0.1,dur-Math.min(1.1,dur*0.35)),rel);}
+  else if(kind==="violins"){for(const d of[-7,7])add("sawtooth",d);
+    f.frequency.value=2600;f.Q.value=0.3;rel=0.9;vib=9;_env(g,t,0.16,vol,Math.max(0.05,dur-0.16),rel);}
+  else if(kind==="cello"){add("sawtooth",0);
+    f.Q.value=1;f.frequency.setValueAtTime(1100,t);f.frequency.exponentialRampToValueAtTime(480,t+0.12);rel=0.12;
+    _env(g,t,0.012,vol,Math.max(0.03,dur*0.6),rel);}
+  else if(kind==="bass"){add("sawtooth",0);add("sine",0,0.5);
+    f.frequency.value=380;rel=0.7;_env(g,t,0.15,vol,Math.max(0.05,dur-0.15),rel);}
+  else if(kind==="brass"||kind==="trombone"){const hi=kind==="brass";for(const d of[-5,5])add("sawtooth",d);
+    f.Q.value=1.4;f.frequency.setValueAtTime(320,t);f.frequency.exponentialRampToValueAtTime(hi?2800:1600,t+0.09);
+    f.frequency.exponentialRampToValueAtTime(hi?1300:750,t+0.55);rel=0.35;vib=hi?7:4;vrate=5.5;
+    _env(g,t,0.05,vol,Math.max(0.05,dur-0.1),rel);}
+  else if(kind==="horn"){add("triangle",0);add("sawtooth",3);
+    f.frequency.setValueAtTime(320,t);f.frequency.exponentialRampToValueAtTime(1150,t+0.22);f.frequency.exponentialRampToValueAtTime(850,t+0.8);
+    rel=0.8;vib=5;vrate=4.8;_env(g,t,0.18,vol,Math.max(0.05,dur-0.2),rel);}
+  else if(kind==="choir"){for(const d of[-10,10])add("sawtooth",d+(Math.random()*6-3));
+    /* "ah": two formants over a soft body */
+    const f1=ac.createBiquadFilter(),f2=ac.createBiquadFilter(),mix=ac.createGain();
+    f1.type=f2.type="bandpass";f1.frequency.value=760;f1.Q.value=5;f2.frequency.value=1180;f2.Q.value=6;
+    f.frequency.value=500;f.connect(mix);f1.connect(mix);f2.connect(mix);mix.gain.value=1;
+    rel=1.6;vib=10;vrate=5;_env(g,t,Math.min(0.9,dur*0.4),vol,Math.max(0.1,dur-0.9),rel);
+    for(const o of osc){o.connect(f1);o.connect(f2);}
+    mix.connect(g);src=null;}
+  else if(kind==="piano"){add("sine",0);add("sine",2,2);add("sine",-3,3);
+    f.frequency.value=3200;rel=Math.max(1.2,dur)+1.6;
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.004);
+    g.gain.exponentialRampToValueAtTime(vol*0.28,t+0.5);g.gain.exponentialRampToValueAtTime(0.0001,t+rel);
+    /* the overtones fade faster than the fundamental, as a struck string does */
+    osc[1]._g=0.32;osc[2]._g=0.1;}
+  const end=t+(kind==="piano"?rel:dur+rel)+0.05;
+  if(vib){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=vrate+Math.random()*0.4;
+    lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(vib,t+Math.min(0.6,dur*0.5+0.1));
+    l.connect(lg);for(const o of osc)lg.connect(o.detune);l.start(t);l.stop(end);}
+  for(const o of osc){
+    if(o._g){const og=ac.createGain();og.gain.setValueAtTime(o._g,t);og.gain.exponentialRampToValueAtTime(o._g*0.05,t+0.9);o.connect(og);og.connect(f);}
+    else o.connect(f);
+    o.start(t);o.stop(end);}
+  if(src)f.connect(g);
+  g.connect(_seat(M,pan||0));
 }
-function _timp(M,t,freq,vol){const ac=M.ac,o=ac.createOscillator(),g=ac.createGain();o.type="sine";
-  o.frequency.setValueAtTime(freq*1.5,t);o.frequency.exponentialRampToValueAtTime(freq,t+0.08);
-  _env(g,t,0.005,vol,0.02,1.3);o.connect(g);g.connect(M.bus);o.start(t);o.stop(t+1.6);}
-function _snare(M,t,vol){const ac=M.ac,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
-  s.buffer=M.noise;f.type="bandpass";f.frequency.value=2600;f.Q.value=0.7;_env(g,t,0.002,vol,0.01,0.13);
-  s.connect(f);f.connect(g);g.connect(M.bus);s.start(t);s.stop(t+0.3);}
-/* One bar at a time, a little ahead of the clock. The tune is a seeded walk
-   over the chord's own notes and its neighbours, with a phrase every two
-   bars and a cadence on the fourth, so it sounds written rather than random. */
+function _noiseHit(M,t,type,freq,q,vol,a,dec,pan){
+  const ac=M.ac,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+  s.buffer=M.noise;f.type=type;f.frequency.value=freq;f.Q.value=q;
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+a);g.gain.exponentialRampToValueAtTime(0.0001,t+a+dec);
+  s.connect(f);f.connect(g);g.connect(_seat(M,pan||0));s.start(t,Math.random()*1.5);s.stop(t+a+dec+0.05);
+}
+function _timp(M,t,freq,vol){const ac=M.ac,g=ac.createGain();
+  for(const[m,v]of[[1,1],[1.5,0.3],[1.99,0.18]]){const o=ac.createOscillator(),og=ac.createGain();o.type="sine";
+    o.frequency.setValueAtTime(freq*m*1.4,t);o.frequency.exponentialRampToValueAtTime(freq*m,t+0.07);
+    og.gain.value=v;o.connect(og);og.connect(g);o.start(t);o.stop(t+1.8);}
+  _env(g,t,0.004,vol,0.02,1.5);g.connect(_seat(M,-0.25));
+  _noiseHit(M,t,"lowpass",500,0.7,vol*0.35,0.002,0.09,-0.25);}
+/* a roll is one tremolo note, not twenty separate strokes */
+function _timpRoll(M,t,freq,len,v0,v1){const ac=M.ac,o=ac.createOscillator(),g=ac.createGain(),am=ac.createOscillator(),ag=ac.createGain();
+  o.type="sine";o.frequency.value=freq;am.frequency.value=12;ag.gain.value=0.45;am.connect(ag);ag.connect(g.gain);
+  g.gain.setValueAtTime(Math.max(v0,1e-4),t);g.gain.exponentialRampToValueAtTime(Math.max(v1,1e-4),t+len);g.gain.exponentialRampToValueAtTime(1e-4,t+len+1.2);
+  o.connect(g);g.connect(_seat(M,-0.25));o.start(t);am.start(t);o.stop(t+len+1.3);am.stop(t+len+1.3);}
+function _bassDrum(M,t,vol){const ac=M.ac,o=ac.createOscillator(),g=ac.createGain();o.type="sine";
+  o.frequency.setValueAtTime(78,t);o.frequency.exponentialRampToValueAtTime(41,t+0.3);
+  _env(g,t,0.005,vol,0.03,1.3);o.connect(g);g.connect(_seat(M,0));o.start(t);o.stop(t+1.5);
+  _noiseHit(M,t,"lowpass",220,0.7,vol*0.4,0.003,0.25,0);}
+function _snare(M,t,vol){_noiseHit(M,t,"bandpass",2200,0.6,vol,0.002,0.14,0.25);}
+function _snareRoll(M,t,len,v0,v1){const ac=M.ac,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain(),am=ac.createOscillator(),ag=ac.createGain();
+  s.buffer=M.noise;s.loop=true;f.type="bandpass";f.frequency.value=2500;f.Q.value=0.8;am.type="sawtooth";am.frequency.value=18;ag.gain.value=0.5;am.connect(ag);ag.connect(g.gain);
+  g.gain.setValueAtTime(Math.max(v0,1e-4),t);g.gain.exponentialRampToValueAtTime(Math.max(v1,1e-4),t+len);g.gain.exponentialRampToValueAtTime(1e-4,t+len+0.15);
+  s.connect(f);f.connect(g);g.connect(_seat(M,0.25));s.start(t);am.start(t);s.stop(t+len+0.2);am.stop(t+len+0.2);}
+/* a crash, or with swell > 0 a cymbal rolled up to the beat at t */
+function _cymbal(M,t,vol,swell){
+  if(swell){const ac=M.ac,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+    s.buffer=M.noise;s.loop=true;f.type="highpass";f.frequency.value=5000;
+    g.gain.setValueAtTime(0.0001,t-swell);g.gain.exponentialRampToValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    s.connect(f);f.connect(g);g.connect(_seat(M,0.4));s.start(t-swell);s.stop(t+0.3);}
+  else _noiseHit(M,t,"highpass",4200,0.5,vol,0.004,2.6,0.4);
+}
+/* a new piece: its key, tempo, progression and theme, all from the dice */
+function _musPiece(M,sc){
+  const R=_scRng(M.seed*31+M.piece*7919);
+  const sh=M.piece>1?[0,-2,3,-4,2,5,-5][Math.floor(R()*7)]:0;
+  const RH=_MUS_RH[sc.march?"march":"slow"];
+  const pickRh=()=>RH[Math.floor(R()*RH.length)];
+  const steps=[-2,-1,-1,-1,1,1,1,2,-3,3];
+  const phrase=rh=>{let d=[0,2,4][Math.floor(R()*3)];
+    return rh.map(([pos,len],i)=>{if(i)d=Math.max(-3,Math.min(6,d+steps[Math.floor(R()*steps.length)]));return{pos,len,off:d};});};
+  const A=phrase(pickRh()),B=phrase(pickRh());
+  /* A' is A with one inner note moved; the cadence ends A on the chord */
+  const A2=A.map(n=>({...n})),k=1+Math.floor(R()*Math.max(1,A.length-2));A2[k].off+=R()<0.5?-1:1;
+  const C=A.map(n=>({...n}));C[C.length-1].cad=true;
+  M.P={root:sc.root+sh,prog:sc.progs[M.piece%sc.progs.length],beat:60/(sc.bpm*(0.95+R()*0.1)),
+    theme:[A,A2,B,C],chorale:R()<0.5};
+  M.vl=null;
+}
+/* upper strings: the inversion of this chord nearest the last one */
+function _voicing(M,tri,lo){
+  let best=null,bd=1e9;const prev=M.vl||[lo+7,lo+10,lo+14];
+  for(let inv=0;inv<3;inv++)for(let o=-1;o<=2;o++){
+    const v=[0,1,2].map(i=>tri[(i+inv)%3]+12*(Math.floor((i+inv)/3)+o)).sort((a,b)=>a-b);
+    if(v[0]<lo||v[2]>lo+24)continue;
+    const dd=Math.abs(v[0]-prev[0])+Math.abs(v[1]-prev[1])+Math.abs(v[2]-prev[2]);
+    if(dd<bd){bd=dd;best=v;}}
+  return M.vl=best||tri;
+}
+/* One bar at a time, a little ahead of the clock. */
 function _musBar(M){
-  const sc=SCORE[M.mood]||SCORE.menu,beat=60/sc.bpm,t=M.next,bar=M.step;
-  const deg=sc.prog[bar%sc.prog.length],S=sc.scale;
-  const note=d=>sc.root+S[((d%7)+7)%7]+12*Math.floor(d/7);
-  const R=_scRng(M.seed*977+bar);
-  /* strings hold the chord, the bass moves on the beat */
-  for(const k of[0,2,4])_voice(M,t,_mtof(note(deg+k)+(k?0:-12)+12),beat*4,"strings",0.035);
-  for(let b=0;b<4;b++)if(sc.snare||b%2===0)_voice(M,t+b*beat,_mtof(note(deg)-12),beat*(sc.snare?0.8:1.8),"bass",sc.snare?0.07:0.05);
-  /* the tune: rests on the first bar of each eight, so it breathes */
-  if(bar%8!==0){
-    const rh=sc.snare?[[0,1],[1,0.5],[1.5,0.5],[2,1],[3,1]]:[[0,2],[2,1],[3,1]];
-    let d=deg+7+[0,2,4][Math.floor(R()*3)];
-    for(const[pos,len]of rh){
-      if(bar%4===3&&pos>=2){_voice(M,t+pos*beat,_mtof(note(deg+7)),beat*2,sc.lead,0.06);break;}   /* cadence */
-      d+=[-2,-1,-1,0,1,1,2][Math.floor(R()*7)];
-      _voice(M,t+pos*beat,_mtof(note(d)),beat*len*0.95,sc.lead,sc.lead==="brass"?0.05:0.06);
+  const sc=SCORE[M.mood]||SCORE.menu;
+  let stinger=false;
+  if(M.mood!==M.playing){
+    /* a change of mood starts a new piece; a war starts it from the build,
+       with a drum and a crash to say so */
+    stinger=!!(M.playing&&sc.march);M.playing=M.mood;M.piece++;M.step=sc.march?8:0;M.P=null;}
+  if(M.step>=32){M.step=0;M.piece++;M.P=null;}
+  if(!M.P)_musPiece(M,sc);
+  const P=M.P,beat=P.beat,t=M.next,bar=M.step,sec=bar>>3,inSec=bar&7,S=sc.scale;
+  const deg=P.prog[bar%8],note=d=>P.root+S[((d%7)+7)%7]+12*Math.floor(d/7);
+  const R=_scRng(M.seed*977+M.piece*131+bar);
+  /* loudness: the build swells bar by bar into the climax, the fall fades */
+  let I=sc.arc[sec];
+  if(sec===1)I+=(sc.arc[2]-I)*inSec/8;
+  if(sec===3)I*=1-0.35*inSec/7;
+  const last=sec===3&&inSec===7;
+  /* strings hold the chord with the basses under it */
+  const tri=[note(deg),note(deg+2),note(deg+4)];
+  const up=_voicing(M,tri,P.root+3);
+  up.forEach((m,i)=>_voice(M,t,_mtof(m),beat*(last?6:4),"strings",0.026*I,[-0.45,0.05,0.4][i]));
+  _voice(M,t,_mtof(note(deg)-12),beat*(last?6:4),"bass",0.06*(0.5+I*0.5),0.5);
+  if(sec===2)up.forEach((m,i)=>_voice(M,t,_mtof(m+12),beat*4,"strings",0.014*I,[-0.6,-0.3,0][i]));
+  /* the low-string ostinato drives the build and the climax */
+  if(sc.ost&&(sec===1||sec===2||(sec===3&&inSec<4)||(sc.march&&!last))){
+    const lo=note(deg)-12,v=0.05*I,pat=sc.ost===1?[[0,0],[.5,0],[1,7],[1.5,0],[2,0],[2.5,0],[3,7],[3.5,4]]
+      :sc.ost===2?[0,1,2,3].flatMap(b=>[[b,0],[b+.25,0],[b+.5,b===3?4:0]])
+      :[[0,0],[1,4],[2,0],[3,4]];
+    const len=sc.ost===3?0.85:sc.ost===2?0.18:0.38;
+    for(const[p,d]of pat)_voice(M,t+p*beat,_mtof(lo+(d===7?12:d===4?S[4]:0)),beat*len,"cello",sc.ost===3?v*0.7:v,0.35);
+  }
+  /* the theme: the solo states it quietly, the lead takes it at the climax,
+     and the solo returns at the end; the first two bars of a piece breathe */
+  const th=P.theme[(inSec>>1)&3],half=(inSec&1)*4;
+  let voice=null,vol=0,oct=12,pan=0;
+  if(sec===0&&inSec>=2){voice=sc.solo;vol=0.075;pan=-0.2;}
+  else if(sec===1){voice=sc.march?"violins":(sc.solo==="piano"?"violins":sc.solo);vol=0.05*(0.7+I*0.3);pan=-0.35;}
+  else if(sec===2){voice=sc.lead;vol=sc.lead==="choir"?0.09:0.06;pan=0.1;}
+  else if(sec===3&&inSec>=4&&!last){voice=sc.solo;vol=0.07;pan=-0.2;}
+  if(voice==="piano")oct=24;
+  if(voice){
+    const snap=(d,strong)=>{if(!strong)return d;for(const x of[0,-1,1]){const r=(((d+x-deg)%7)+7)%7;if(r===0||r===2||r===4)return d+x;}return d;};
+    for(const n of th){
+      if(n.pos<half||n.pos>=half+4)continue;
+      let d=7+n.off,len=n.len;
+      if(n.cad){d=7+deg;while(d-7-n.off>3)d-=7;while(n.off-(d-7)>3)d+=7;len=half+4-n.pos+(sec===3?2:0);}
+      d=snap(d,n.pos%2===0||n.len>=2);
+      _voice(M,t+(n.pos-half)*beat,_mtof(note(d)-12+oct),beat*len*0.95,voice,vol,pan);
+      /* at the climax the lower brass doubles the theme an octave down */
+      if(sec===2&&voice==="brass")_voice(M,t+(n.pos-half)*beat,_mtof(note(d)-12),beat*len*0.95,"trombone",0.04,0.3);
     }
   }
-  if(sc.timp){_timp(M,t,_mtof(note(deg)-24),0.22);if(sc.snare)_timp(M,t+2*beat,_mtof(note(deg)-24),0.14);}
-  if(sc.snare){const pat=[0,0.75,1,2,2.5,2.75,3,3.25,3.5,3.75];
-    for(const p of pat)_snare(M,t+p*beat,p%1===0?0.09:0.05);}
-  M.next=t+beat*4;M.step++;
+  /* the horns answer with the chord held under the climax, and as a chorale in the fall */
+  if(sec===2&&voice!=="horn")[up[0],up[1]].forEach((m,i)=>_voice(M,t,_mtof(m-12),beat*4,"horn",0.03,-0.45+i*0.1));
+  if(sec===3&&inSec<4)up.forEach((m,i)=>_voice(M,t,_mtof(m-12),beat*4,P.chorale?"horn":"trombone",0.035,-0.4+i*0.35));
+  if(sc.choir&&sec===2)up.forEach((m,i)=>_voice(M,t,_mtof(m),beat*4,"choir",0.07,-0.5+i*0.5));
+  /* percussion */
+  const root=_mtof(note(0)-24);
+  if(stinger){_timp(M,t,root,0.5);_bassDrum(M,t,0.6);_cymbal(M,t,0.12,0);}
+  if(sc.drum){
+    if(sec===0&&inSec===0&&!stinger)_timp(M,t,root,0.18);
+    if(sec===1)_timp(M,t,root,0.2*I);
+    if(sec===2){_timp(M,t,_mtof(note(deg)-24),0.3);_timp(M,t+2*beat,_mtof(note(deg)-24),0.18);}
+    if(sec===1&&inSec===7)_timpRoll(M,t+2*beat,root,2*beat,0.05,0.32);
+    if(sc.drum>1&&sec===2){_bassDrum(M,t,0.45);if(sc.march)_bassDrum(M,t+2.5*beat,0.3);}
+    if(last)_timpRoll(M,t,root,beat*3,0.25,0.04);
+  }
+  if(sc.march&&(sec===1||sec===2||(sec===3&&inSec<4))){
+    const pat=sec===1?[[0,1],[2,.6],[2.75,.4],[3,.6]]:[[0,1],[.5,.35],[.75,.35],[1,.7],[2,1],[2.5,.35],[2.75,.35],[3,.7],[3.5,.5]];
+    const v=0.1*I;
+    if(sec===1&&inSec===7){_snare(M,t,v);_snareRoll(M,t+beat,3*beat,0.02,0.11);}
+    else for(const[p,a]of pat)_snare(M,t+p*beat,v*a);
+  }
+  if(sec===1&&inSec===7)_cymbal(M,t+4*beat,sc.drum||sc.march?0.07:0.035,2.5*beat);
+  if(sec===2&&inSec===0&&(sc.drum||sc.march))_cymbal(M,t,0.09,0);
+  M.next=t+beat*(last?6:4);M.step++;
 }
 function musScoreStart(mood){
   const M=_musGraph();if(!M)return;
   if(M.ac.state==="suspended")M.ac.resume();
   M.mood=mood;
   if(M.timer)return;
-  M.next=M.ac.currentTime+0.15;M.step=0;M.seed=(Math.random()*1e6)|0;
+  M.next=M.ac.currentTime+0.15;M.step=0;M.playing=null;M.seed=(Math.random()*1e6)|0;
   M.out.gain.cancelScheduledValues(M.ac.currentTime);M.out.gain.setValueAtTime(MUS_VOL,M.ac.currentTime);
   M.timer=setInterval(()=>{while(M.next<M.ac.currentTime+0.6)_musBar(M);},120);
 }

@@ -1419,3 +1419,30 @@ the whole state fell.
   the front line had the same fault.
 - Cost: 40 states contested at once, 71ms first build (ranking) and 39ms
   after; rebuilds are limited to four a second.
+
+## The original score, rewritten as a soundtrack
+
+Owner wanted the built-in music to feel like HOI4's without shipping
+Paradox's. So everything here is still synthesised at run time and composed
+by this file; nothing is sampled, transcribed or imitated note-for-note.
+
+- **Form, not a loop.** Each piece is 32 bars: opening (strings + a solo,
+  piano or horn), build (low-string ostinato, timpani, swelling bar by bar,
+  a timpani/snare roll and a reversed cymbal into), climax (theme in brass or
+  choir, trombones an octave under, horns holding the chord, bass drum),
+  fall (horn or trombone chorale, the solo returning, a final held chord).
+  Then a NEW piece: new theme, key shifted, tempo +-5% -- a playlist.
+- **A theme you can hum.** A two-bar motif from the dice, stated as
+  A A' B A-cadence; strong beats snap to the chord, the cadence lands on
+  its root. Upper strings are voice-led (nearest inversion).
+- **A war starts at the build**, with a timpani/bass-drum/crash stinger.
+- Measured offline (OfflineAudioContext, `mus.js` in the scratchpad):
+  quiet-to-loud spread 1-2 dB -> 7-8 dB, stereo width 0.04 -> 0.2,
+  peaks ~0.4, no clipping.
+- **CPU was the real cost**: first cut rendered at 3x the old score. Two
+  saws per note instead of three, one for the ostinato, and rolls as ONE
+  tremolo voice instead of twenty separate strokes brought it to ~2x;
+  still well under real time on this container, and it runs on the audio
+  thread, not the game's.
+- Do not `pkill -f "until grep"` from a shell whose own command contains
+  that text: it kills itself (exit 144).
