@@ -1354,3 +1354,37 @@ in 1861) and a drawn flag.
 - Still without a province: Togo and Benin (Ghana/Nigeria colours),
   Rwanda/Burundi, Bhutan, Eswatini/Lesotho, Djibouti, Eq. Guinea,
   Guinea-Bissau, Gambia.
+
+## The war layer: front line, battle plates, offensive arrows
+
+Owner: "make it more like hoi4". Screenshots of a 1939 war showed what the
+real game puts on the map the moment a war starts and this one lacked: at
+war with Poland, nothing said where Poland began. Three additions, all
+drawn under/over the counters in `draw()`:
+
+- **Front line** (`frontPath`): thick red line with ticks across it,
+  wherever the player's side (self, allies, puppets, overlord) touches an
+  enemy. Traced off the ownership grid the colours are painted from,
+  chained into polylines, Douglas-Peucker at 0.75 cell (a staircase becomes
+  the diagonal it stands for) then Chaikin x3. Fragments under five grid
+  points are dropped (coast slivers). Rebuilt only when ownership, the
+  push state or the war/alliance set changes (~13ms).
+- **The old front was in the wrong place.** `buildFronts` drew a thin
+  orange line from `provPix`, the nearest-province raster, whose
+  boundaries are bisectors between province centres -- a straight line
+  through Pomerania at 15.5E, nowhere near the 1937 frontier the map
+  paints. It now applies the same push cut (each contested province split
+  along its attack axis by p.push) to the PAINTED ownership grid and
+  exports `frontEff`; the old hairline draw is gone. Drift checked: a
+  province at push 0 / .25 / .5 / .75 hands 0 / 9 / 20 / 29 cells to the
+  attacker, so the line still walks across a province as it is taken.
+- **Battle plates** (`drawBattleMarkers`): a dark plate under each battle
+  province with crossed swords and a bar -- attacker share on the left,
+  green for the player's side, red for the enemy, nation colours for
+  battles the player is not in. Replaces an emoji that blinked on
+  alternate days. Under the marker because counters stack on top of it.
+- **Offensive arrows** (`drawOffensiveArrows`): the player's divisions
+  marching on enemy ground, grouped by final destination, one curved red
+  arrow per target from their mean position, thicker for more divisions.
+- Probe note: a battle does not survive a full `tick()` in a probe -- the
+  AI marches units off first. Place both sides and call `battles()`.

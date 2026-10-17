@@ -4526,32 +4526,26 @@ function fallTo(p,nat){
    the line finishes crossing it rather than an event of its own. */
 let provPix=null, provPixW=0, provPixH=0;
 let frontEdgeCv=null, frontKey="";   // the front, as a Path2D in world units
+/* NOW FROM THE PAINTED OWNERSHIP. The cut above was applied to provPix,
+   the nearest-province raster, whose boundaries are bisectors between
+   province centres -- so the front ran halfway between Berlin and Poznan, a
+   straight line through Pomerania, nowhere near the 1937 frontier the map
+   paints. The cut is now applied to the ownership grid the colours come
+   from (window.__terOwner): only cells actually painted as the contested
+   province's owner are handed to the attacker, so at a push of nought the
+   front is the painted frontier exactly, and it still walks across. */
+let frontEff=null;
 function buildFronts(){
-  frontEdgeCv=null;
-  if(!G||!G.prov||!provPix)return;
-  const w=provPixW,h=provPixH;
+  frontEdgeCv=null;frontEff=null;
+  const T=window.__terOwner;
+  if(!G||!G.prov||!provPix||!T||T.w!==provPixW||T.h!==provPixH)return;
+  const w=provPixW,h=provPixH,keys=T.natKeys,kIdx={};
+  keys.forEach((k,i)=>kIdx[k]=i+1);
   const PL=Object.values(G.prov);
-  const natIdx={},natKey=[0];
-  let ni=1;
-  const oIdx=new Int16Array(PL.length);
-  for(let i=0;i<PL.length;i++){
-    const o=PL[i].owner;
-    if(!o){oIdx[i]=0;continue;}
-    if(!natIdx[o]){natIdx[o]=ni++;natKey[natIdx[o]]=o;}
-    oIdx[i]=natIdx[o];
-  }
-  /* Which pairs of nations are actually shooting at each other. Looked up once
-     here rather than per cell -- atWar on half a million cells is half a
-     million Set lookups. */
-  const war=new Uint8Array(ni*ni);
-  for(let a=1;a<ni;a++)for(let b=a+1;b<ni;b++)
-    if(atWar(natKey[a],natKey[b])){war[a*ni+b]=1;war[b*ni+a]=1;}
-  /* The provinces with ground taken in them, and the direction it is being
-     taken from: toward whatever the attacker already holds next door. */
   const cont=new Map();
   for(let i=0;i<PL.length;i++){
     const q=PL[i];
-    if(!pushOf(q)||!q.pushBy||!natIdx[q.pushBy])continue;
+    if(!pushOf(q)||!q.pushBy||!kIdx[q.pushBy]||!kIdx[q.owner])continue;
     let ax=0,ay=0,m=0;
     for(const bid of (q.adj||[])){
       const b=G.prov[bid];
@@ -4563,63 +4557,25 @@ function buildFronts(){
     if(!m)continue;
     const L=Math.hypot(ax,ay);
     if(!(L>1e-6))continue;
-    cont.set(i,{ax:ax/L,ay:ay/L,cx:q.x,cy:q.y,att:natIdx[q.pushBy],push:Math.min(1,q.push),lo:1e9,hi:-1e9,cut:1e9});
+    cont.set(i,{ax:ax/L,ay:ay/L,cx:q.x,cy:q.y,att:kIdx[q.pushBy],own:kIdx[q.owner],push:Math.min(1,q.push),lo:1e9,hi:-1e9,cut:1e9});
   }
   const SX=MW/w, SY=MH/h;
-  /* First pass: how far does each contested province reach along the axis it
-     is being attacked along? The cut has to be placed between its own near and
-     far edge, and nothing else knows where those are. */
+  const eff=T.owner.slice();
   if(cont.size){
     for(let i=0;i<w*h;i++){
-      const pi=provPix[i];
-      if(pi<0)continue;
-      const cc=cont.get(pi);
-      if(!cc)continue;
-      const wx=(i%w)*SX, wy=((i/w)|0)*SY;
-      const sProj=(wx-cc.cx)*cc.ax+(wy-cc.cy)*cc.ay;
+      const cc=cont.get(provPix[i]);if(!cc||eff[i]!==cc.own)continue;
+      const sProj=((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay;
       if(sProj<cc.lo)cc.lo=sProj;
       if(sProj>cc.hi)cc.hi=sProj;
     }
     for(const cc of cont.values())
       cc.cut=(cc.hi>cc.lo)?cc.hi-cc.push*(cc.hi-cc.lo):1e9;
-  }
-  /* Second pass: the effective owner of every cell, and a front cell wherever
-     two of them are at war across a boundary. */
-  const eff=new Int16Array(w*h);
-  for(let i=0;i<w*h;i++){
-    const pi=provPix[i];
-    if(pi<0){eff[i]=0;continue;}
-    let o=oIdx[pi];
-    const cc=cont.get(pi);
-    if(cc&&cc.cut<1e8){
-      const wx=(i%w)*SX, wy=((i/w)|0)*SY;
-      if((wx-cc.cx)*cc.ax+(wy-cc.cy)*cc.ay>cc.cut)o=cc.att;
+    for(let i=0;i<w*h;i++){
+      const cc=cont.get(provPix[i]);if(!cc||cc.cut>=1e8||eff[i]!==cc.own)continue;
+      if(((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay>cc.cut)eff[i]=cc.att;
     }
-    eff[i]=o;
   }
-  /* AS GEOMETRY, NOT AS PIXELS -- the same lesson this file already learned
-     about the national frontiers. Painted into a raster the front came out as
-     a fat orange band two cells thick, and two cells is four world units,
-     which at the zoom you fight at is a stripe a centimetre wide with a
-     visible staircase down both sides. The boundary between two cells is an
-     edge of the grid, and grid edges meet exactly, so emitting them as
-     segments gives the same connected line as a hairline that stays a hairline
-     however far in you go. */
-  const P=new Path2D();
-  let any=0;
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-    const i=y*w+x, o=eff[i];
-    if(!o)continue;
-    if(x<w-1){const r=eff[i+1];
-      if(r&&r!==o&&war[o*ni+r]){
-        const ex=(x+1)*SX;
-        P.moveTo(ex,y*SY);P.lineTo(ex,(y+1)*SY);any=1;}}
-    if(y<h-1){const dn=eff[i+w];
-      if(dn&&dn!==o&&war[o*ni+dn]){
-        const ey=(y+1)*SY;
-        P.moveTo(x*SX,ey);P.lineTo((x+1)*SX,ey);any=1;}}
-  }
-  frontEdgeCv=any?P:null;
+  frontEff={eff,w,h,keys};
 }
 function tryCapture(u){
   const p=provOf(u.at);
@@ -11484,6 +11440,159 @@ function _mapQuality(dt){
   else if(_ftAvg<13&&MAPQ<3){MAPQ++;_qHold=180;_ftAvg=16;}
 }
 let _lastFrameT=0;
+/* ===================== THE FRONT, THE BATTLE, THE ARROW =====================
+   Three things the real game puts on the map the moment a war starts, and
+   this one had none of: you could be at war with Poland and nothing on the
+   map said where Poland began. */
+let _front={T:null,key:null,path:null};
+function _frontKey(){
+  const me=G.nations[G.player];if(!me)return "";
+  const pup=Object.keys(G.nations).filter(k=>G.nations[k].puppet===G.player);
+  return G.player+"|"+[...me.atWar].sort().join(",")+"|"+[...me.allies].sort().join(",")+"|"+pup.join(",")+"|"+(me.puppet||"");
+}
+/* Traced off the ownership grid the colours are painted from, so it runs
+   where the colour changes -- not along province edges, which do not follow
+   the historical frontiers. Rebuilt only when ownership or the war changes. */
+function frontPath(){
+  const T=frontEff||window.__terOwner;if(!T||!G)return null;
+  const key=_frontKey();
+  if(_front.T===T&&_front.key===key)return _front.path;
+  _front.T=T;_front.key=key;_front.path=null;
+  const me=G.nations[G.player];if(!me||!me.atWar.size)return null;
+  const owner=T.eff||T.owner,w=T.w,h=T.h,natKeys=T.keys||T.natKeys;
+  const side=new Uint8Array(natKeys.length+1);
+  const fr=[G.player,...me.allies,...Object.keys(G.nations).filter(k=>G.nations[k].puppet===G.player)];
+  if(me.puppet)fr.push(me.puppet);
+  natKeys.forEach((k,i)=>{if(fr.includes(k))side[i+1]=1;else if(me.atWar.has(k))side[i+1]=2;});
+  /* unit edges between a friend cell and an enemy cell, as a graph on the
+     grid's corner points */
+  const adj=new Map();const W1=w+1;
+  const link=(a,b)=>{let A=adj.get(a);if(!A)adj.set(a,A=[]);A.push(b);let B=adj.get(b);if(!B)adj.set(b,B=[]);B.push(a);};
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x,s0=side[owner[i]];if(!s0)continue;
+    if(x<w-1){const s1=side[owner[i+1]];if(s1&&s1!==s0)link(y*W1+x+1,(y+1)*W1+x+1);}
+    if(y<h-1){const s1=side[owner[i+w]];if(s1&&s1!==s0)link((y+1)*W1+x,(y+1)*W1+x+1);}
+  }
+  if(!adj.size)return null;
+  /* walk the graph into polylines, then round them (Chaikin) so the front
+     reads as a line drawn on the map and not a staircase of grid cells */
+  const used=new Set(),ek=(a,b)=>a<b?a+","+b:b+","+a;
+  const path=new Path2D();
+  /* a staircase of grid edges first becomes the diagonal it stands for
+     (Douglas-Peucker at a cell's width), then is rounded */
+  const dp=(q,tol)=>{
+    if(q.length<3)return q;
+    const keep=new Uint8Array(q.length);keep[0]=keep[q.length-1]=1;
+    const st=[[0,q.length-1]];
+    while(st.length){const[a,b]=st.pop();let md=0,mi=-1;
+      const ax=q[a][0],ay=q[a][1],bx=q[b][0],by=q[b][1],L=Math.hypot(bx-ax,by-ay)||1e-9;
+      for(let k=a+1;k<b;k++){const d=Math.abs((bx-ax)*(ay-q[k][1])-(ax-q[k][0])*(by-ay))/L;if(d>md){md=d;mi=k;}}
+      if(md>tol){keep[mi]=1;st.push([a,mi],[mi,b]);}}
+    return q.filter((_,k)=>keep[k]);
+  };
+  const emit=pts=>{
+    /* a fragment a few cells long is a sliver of the grid at a coast, not
+       a front anyone is fighting on */
+    if(pts.length<5&&pts[0]!==pts[pts.length-1])return;
+    let q=dp(pts.map(v=>[(v%W1)*TS,((v/W1)|0)*TS]),TS*0.75);
+    if(q.length<2)return;
+    for(let it=0;it<3;it++){
+      const o=[q[0]];
+      for(let k=0;k<q.length-1;k++){const a=q[k],b=q[k+1];o.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}
+      o.push(q[q.length-1]);q=o;
+    }
+    path.moveTo(q[0][0],q[0][1]);for(let k=1;k<q.length;k++)path.lineTo(q[k][0],q[k][1]);
+  };
+  const walk=start=>{
+    for(const nb of adj.get(start)){
+      if(used.has(ek(start,nb)))continue;
+      const pts=[start];let prev=start,cur=nb;used.add(ek(start,nb));
+      while(true){
+        pts.push(cur);
+        const N=adj.get(cur);if(N.length!==2)break;
+        const nx=N[0]===prev?N[1]:N[0];
+        if(used.has(ek(cur,nx)))break;
+        used.add(ek(cur,nx));prev=cur;cur=nx;
+      }
+      emit(pts);
+    }
+  };
+  for(const [v,N] of adj)if(N.length!==2)walk(v);
+  for(const [v] of adj)walk(v);           // closed loops (an encircled pocket)
+  _front.path=path;
+  return path;
+}
+/* An arrow for every push: the player's divisions marching on enemy ground,
+   gathered by where they are going, drawn from where they are now. */
+function drawOffensiveArrows(z){
+  const me=G.player,dest=new Map();
+  for(const u of G.units){
+    if(u.nat!==me||!u.to)continue;
+    const tgt=(u.path&&u.path.length)?u.path[u.path.length-1]:u.to;
+    const tp=G.prov[tgt];if(!tp||!atWar(me,tp.owner))continue;
+    const at=G.prov[u.at];if(!at)continue;
+    let e=dest.get(tgt);if(!e)dest.set(tgt,e={x:0,y:0,n:0,p:tp});
+    e.x+=at.x;e.y+=at.y;e.n++;
+  }
+  if(!dest.size)return;
+  ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+  for(const [,e] of dest){
+    const x0=e.x/e.n,y0=e.y/e.n,x1=e.p.x,y1=e.p.y;
+    const dx=x1-x0,dy=y1-y0,L=Math.hypot(dx,dy);if(L<2)continue;
+    const ux=dx/L,uy=dy/L,head=Math.min(L*0.35,13/z),bw=(2.2+Math.min(3,e.n*0.5))/z;
+    /* a gentle bend, as a hand would draw it, ending a little short of the
+       target so the head does not sit on the marker */
+    const bx=x0+dx*0.5-uy*L*0.12,by=y0+dy*0.5+ux*L*0.12;
+    const ex=x1-ux*6/z,ey=y1-uy*6/z;
+    const tx=ex-bx,ty=ey-by,tl=Math.hypot(tx,ty)||1,hx=tx/tl,hy=ty/tl;
+    const sx=ex-hx*head*0.8,sy=ey-hy*head*0.8;
+    ctx.beginPath();ctx.moveTo(x0,y0);ctx.quadraticCurveTo(bx,by,sx,sy);
+    ctx.strokeStyle="rgba(10,6,6,0.55)";ctx.lineWidth=bw+2.6/z;ctx.stroke();
+    ctx.strokeStyle="rgba(214,58,40,0.92)";ctx.lineWidth=bw;ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(sx-hy*head*0.6,sy+hx*head*0.6);
+    ctx.lineTo(sx+hy*head*0.6,sy-hx*head*0.6);ctx.closePath();
+    ctx.fillStyle="rgba(214,58,40,0.95)";ctx.strokeStyle="rgba(10,6,6,0.7)";ctx.lineWidth=1.2/z;
+    ctx.fill();ctx.stroke();
+  }
+  ctx.restore();
+}
+/* A plate over every battle: crossed swords and a bar of who is winning --
+   green for your side, red for theirs, the attacker on the left -- in place
+   of an emoji blinking on alternate days. */
+function drawBattleMarkers(z){
+  if(!G.battleSites||!G.battleSites.size)return;
+  const me=G.player,mine=k=>k===me||allied(me,k)||(G.nations[k]&&G.nations[k].puppet===me);
+  ctx.save();
+  for(const pid of G.battleSites){
+    const p=G.prov[pid];if(!p)continue;
+    let att=0,def=0,aNat=null;
+    for(const u of G.units){
+      if(u.at!==pid||u.to)continue;
+      const hp=Math.max(0,u.hp);
+      if(u.nat===p.owner||allied(u.nat,p.owner))def+=hp;else{att+=hp;aNat=aNat||u.nat;}
+    }
+    def+=(p.garrison||0)*4;
+    const tot=att+def;if(!tot)continue;
+    const share=att/tot;
+    const playerAtt=aNat&&mine(aNat),playerDef=mine(p.owner);
+    const ca=playerAtt?"#5fae4f":playerDef?"#c8453a":(NATIONS[aNat]?NATIONS[aNat].c:"#b0a080");
+    const cd=playerDef?"#5fae4f":playerAtt?"#c8453a":(NATIONS[p.owner]?NATIONS[p.owner].c:"#808080");
+    /* under the marker, where the counters standing on the province do not
+       cover it, and big enough to read without zooming in on it */
+    const k=1/z, W2=62*k, H2=22*k, x=p.x-W2/2, y=p.y+30*k;
+    ctx.fillStyle="rgba(14,16,14,0.88)";ctx.strokeStyle=(playerAtt||playerDef)?"#d8b45a":"#8a8070";ctx.lineWidth=1.1*k;
+    ctx.beginPath();ctx.rect(x,y,W2,H2);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#f0e6c8";ctx.font=`${17*k}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("\u2694",x+11*k,y+H2*0.54);
+    const bx=x+22*k,bw=W2-26*k,by=y+H2*0.5-4*k,bh=8*k;
+    ctx.fillStyle=cd;ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle=ca;ctx.fillRect(bx,by,bw*share,bh);
+    ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=0.8*k;ctx.strokeRect(bx,by,bw,bh);
+  }
+  ctx.restore();
+}
 function draw(){
   const now=performance.now();
   if(_lastFrameT)_mapQuality(now-_lastFrameT);
@@ -12053,18 +12162,6 @@ function _drawFrame(){
    if(G){sig=G.day+"/"+(terDirty?1:0);
      for(const q of Object.values(G.prov))if(q.push>0)sig+="/"+q.id+q.push.toFixed(2);}
    if(sig!==frontKey){frontKey=sig;try{buildFronts();}catch(e){frontEdgeCv=null;}}}
-  if(frontEdgeCv){
-    ctx.save();
-    ctx.lineCap="butt";ctx.lineJoin="round";
-    /* Drawn at full strength at every zoom. A border can afford to retire as
-       you come in; a front is the one line you came in to look at. */
-    const fw=(z<2?1.6:Math.min(3.0,1.6+(z-2)*0.08))/z;
-    ctx.strokeStyle=terr?"#000000":"rgba(20,8,6,0.55)";
-    ctx.lineWidth=fw*2.1;ctx.stroke(frontEdgeCv);
-    ctx.strokeStyle=terr?"#ff5a3a":"rgba(232,96,58,0.95)";
-    ctx.lineWidth=fw;ctx.stroke(frontEdgeCv);
-    ctx.restore();
-  }
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
   /* THE ICE WAS THE BRIGHTEST THING ON THE MAP. A near-white slab across the
@@ -12191,11 +12288,6 @@ function _drawFrame(){
       if(p.nuked&&!(VIEW3D&&z>3.5)){ctx.fillText("☢",p.x+r+5/z*1.6,p.y);}
     }
     if(VIEW3D&&z>3.5){draw3DLandmarks(p,r,z,isCap);}
-    if(G.battleSites&&G.battleSites.has(p.id)&&(G.day%2===0||G.paused)){
-      ctx.font=`${13/Math.sqrt(z)*1.5}px sans-serif`;ctx.textAlign="center";
-      ctx.fillText("⚔️",p.x,p.y-12/Math.sqrt(z)*1.5);
-      ctx.font=`${10/z*1.6}px Courier New`;
-    }
   }
   ctx.globalAlpha=1;              // the markers faded themselves in; nothing after them is faded
   // war target highlight for air manual aiming
@@ -12203,6 +12295,24 @@ function _drawFrame(){
     const p=provOf(G.airTarget);
     ctx.strokeStyle="#ff6a4a";ctx.lineWidth=1.6/Math.sqrt(z);
     ctx.beginPath();ctx.arc(p.x,p.y,10/Math.sqrt(z),0,7);ctx.stroke();
+  }
+  /* THE WAR AS THE REAL GAME DRAWS IT: a front line wherever your side
+     touches an enemy, and an arrow for every push you have ordered. Both under
+     the counters, which stand on them. */
+  if(z>0.8&&G.nations[G.player]&&G.nations[G.player].atWar.size){
+    const F=frontPath();
+    if(F){
+      ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+      ctx.strokeStyle="rgba(8,6,6,0.6)";ctx.lineWidth=6.5/z;ctx.stroke(F);
+      ctx.strokeStyle="#c8372b";ctx.lineWidth=3.4/z;ctx.stroke(F);
+      /* the teeth: short ticks across the line, as the real front is drawn */
+      ctx.setLineDash([1.6/z,5.2/z]);ctx.lineCap="butt";
+      ctx.strokeStyle="#e8573f";ctx.lineWidth=9/z;ctx.stroke(F);
+      ctx.setLineDash([]);
+      ctx.strokeStyle="rgba(255,190,160,0.55)";ctx.lineWidth=0.9/z;ctx.stroke(F);
+      ctx.restore();
+    }
+    drawOffensiveArrows(z);
   }
   /* Fleets and armies, painted back to front. Standing pieces have to be drawn
      in depth order or a counter to the NORTH of another — that is, behind it —
@@ -12225,6 +12335,7 @@ function _drawFrame(){
   if(VIEW3D)pieces.sort((a,b)=>a.p[1]-b.p[1]);
   for(const it of pieces)
     drawPiece(it.u,it.fleet?shipOf(it.u).i:uIcon(it.u.type),it.fleet?"#cfe7f2":null,z,it.fleet,it.p);
+  if(z>1.15)drawBattleMarkers(z);
   // air wings flying lines
   for(const w of G.wings){
     if(!w.target)continue;
