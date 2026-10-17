@@ -1323,3 +1323,34 @@ to South Africa in 1979, East Pakistan was Bangladesh from 1949, China was
   other era; a simulated year from 1945, 1961 and 1979 runs with no errors.
 - Not done: the Sahel, Cameroon, Laos, Ceylon and similar countries with
   no province still take a neighbour's colour after independence.
+
+## Sixteen countries that had no province
+
+Owner said yes to giving the province-less countries their own ground.
+Mali, Niger, Chad, Cameroon, Mauritania, Burkina Faso (Upper Volta in the
+Cold War), Guinea, Sierra Leone, Gabon, Congo-Brazzaville, Madagascar,
+Laos, Sri Lanka (Ceylon), Nepal, Malawi and Botswana each get a province
+(bko nim ndj yao nkc oua cky fna lbv bzv tnr vte cmb ktm llw gbe), a
+nation (Cold War and modern; Nepal from 1803, Madagascar's Merina kingdom
+in 1861) and a drawn flag.
+
+- Base owners were read off the map first (`newloc.js`: who paints each
+  new city's location in each era), so eras that were right stay exactly
+  as they were; then corrected where history differs: 1913 Kamerun
+  German, French West and Equatorial Africa French (1913 painted them the
+  "West Africa" bloc), Nyasaland and Bechuanaland British, Nepal
+  independent in every era but the Mongol one.
+- Independence on the real date: Ceylon 1948, Laos 1953, the French
+  colonies and Madagascar 1960, Sierra Leone 1961, Malawi 1964, Botswana
+  1966 (Cold War starts 1949/1956/1961/1968).
+- Routing: every one of the sixteen shapes is "@pid" in every era's table,
+  so the shape is always painted by whoever holds its province --
+  independence, colonial rule and conquest all fall out of ownership.
+- Placement checked against the grid: all sixteen stand inside their own
+  country (Vientiane moved to 102.9,18.6 -- the real city is on the
+  Mekong and its cell is Thai). Madagascar and Ceylon have sea links only.
+- After: no new split in any era; a simulated year from 1861, 1914, 1936,
+  1945, 1961 and 2026 runs with no errors.
+- Still without a province: Togo and Benin (Ghana/Nigeria colours),
+  Rwanda/Burundi, Bhutan, Eswatini/Lesotho, Djibouti, Eq. Guinea,
+  Guinea-Bissau, Gambia.
