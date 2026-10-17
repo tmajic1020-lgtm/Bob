@@ -1388,3 +1388,34 @@ drawn under/over the counters in `draw()`:
   arrow per target from their mean position, thicker for more divisions.
 - Probe note: a battle does not survive a full `tick()` in a probe -- the
   AI marches units off first. Place both sides and call `battles()`.
+
+## Ground taken a small province at a time
+
+Owner: "make them take by province like real hoi4". The 251 gameplay
+provinces play HOI4's states; the ~14,000 mosaic cells play its provinces.
+An attack's p.push used to move a STRAIGHT CUT across the state and showed
+only in the front line -- the territory kept the defender's colour until
+the whole state fell.
+
+- `buildProvEdges` now keeps the cell map (`provSub`) and each province's
+  grid squares (`provSquares`, CSR).
+- `pushRank` orders a contested state's cells by walking distance from
+  ground the attacker already holds (multi-source BFS inside the state,
+  mean distance per cell), so the front cells go first and the far side
+  last; cached per province/owner/attacker until ownership is repainted.
+- `buildFronts` hands cells over WHOLE until their area reaches p.push.
+  Checked on Poznan: push .25/.5/.75 -> 3/6/8 of 9 cells. The straight cut
+  remains only as the fallback with no cell map. `PUSH_TAKEN[id]` gives
+  "N of M provinces" for the province panel.
+- Taken cells are painted (`frontEff.capPaths`) in the occupier's colour
+  at 0.62 with screen-constant diagonal stripes, clipped to land
+  (`_visibleLand()` needs "evenodd", as `_maskedBlit` uses -- nonzero
+  showed nothing). The front line follows their edge.
+- **A closed loop simplified whole vanishes.** Douglas-Peucker on a ring
+  measures every point against a zero-length line from its start to its
+  (identical) end, finds distance 0 everywhere and keeps two points. Every
+  captured region is a ring, so the fill was empty until `_chainPath`
+  split rings at the point farthest from the start. Encircled pockets on
+  the front line had the same fault.
+- Cost: 40 states contested at once, 71ms first build (ranking) and 39ms
+  after; rebuilds are limited to four a second.

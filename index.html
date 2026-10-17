@@ -4534,7 +4534,103 @@ let frontEdgeCv=null, frontKey="";   // the front, as a Path2D in world units
    from (window.__terOwner): only cells actually painted as the contested
    province's owner are handed to the attacker, so at a push of nought the
    front is the painted frontier exactly, and it still walks across. */
-let frontEff=null;
+let _frontBuiltAt=-1e9;
+let frontEff=null,PUSH_TAKEN={},_pushRankCache=new Map(),_pushRankT=null;
+/* The cells of a contested province, in the order an attacker takes them:
+   by walking distance from ground the attacker already holds, so the first
+   to go are the ones on the front and the last the far side of the state. */
+function pushRank(q,pi,T,own,att){
+  if(_pushRankT!==T){_pushRankT=T;_pushRankCache.clear();}
+  const key=q.id+"|"+own+"|"+att;
+  let R=_pushRankCache.get(key);if(R)return R;
+  const {start,list}=provSquares,w=T.w,h=T.h,O=T.owner;
+  if(pi+1>=start.length)return null;
+  const mine=[];
+  for(let k=start[pi];k<start[pi+1];k++){const i=list[k];if(O[i]===own)mine.push(i);}
+  if(!mine.length)return null;
+  const inSet=new Set(mine),dist=new Map(),qq=[];
+  for(const i of mine){
+    const x=i%w;
+    if((x>0&&O[i-1]===att)||(x<w-1&&O[i+1]===att)||(i>=w&&O[i-w]===att)||(i+w<w*h&&O[i+w]===att)){dist.set(i,0);qq.push(i);}
+  }
+  if(!qq.length){                     // landed from the sea: start nearest the attack axis
+    let best=null,bv=-1e18;
+    const b=G.prov[Object.values(G.prov).find(p=>p.owner===att&&(q.adj||[]).includes(p.id))?.id];
+    for(const i of mine){const v=b?-Math.hypot((i%w)*TS-b.x,((i/w)|0)*TS-b.y):0;if(v>bv){bv=v;best=i;}}
+    dist.set(best,0);qq.push(best);
+  }
+  for(let k=0;k<qq.length;k++){
+    const i=qq[k],d=dist.get(i)+1,x=i%w;
+    for(const j of [x>0?i-1:-1,x<w-1?i+1:-1,i-w,i+w]){
+      if(j<0||!inSet.has(j)||dist.has(j))continue;dist.set(j,d);qq.push(j);
+    }
+  }
+  const sum=new Map(),area=new Map(),sq=new Map();
+  for(const i of mine){
+    const c=provSub[i],d=dist.has(i)?dist.get(i):1e4;
+    sum.set(c,(sum.get(c)||0)+d);area.set(c,(area.get(c)||0)+1);
+    let L=sq.get(c);if(!L)sq.set(c,L=[]);L.push(i);
+  }
+  const order=[...area.keys()].sort((a,b)=>sum.get(a)/area.get(a)-sum.get(b)/area.get(b));
+  R={order,area,sq,total:mine.length};
+  _pushRankCache.set(key,R);
+  return R;
+}
+/* Grid edges (a corner-point graph) into a path: walked into polylines, a
+   staircase straightened to the diagonal it stands for, then rounded. */
+function _chainPath(adj,W1,minPts){
+  const used=new Set(),ek=(a,b)=>a<b?a+","+b:b+","+a;
+  const path=new Path2D();
+  const dp=(q,tol)=>{
+    if(q.length<3)return q;
+    const keep=new Uint8Array(q.length);keep[0]=keep[q.length-1]=1;
+    const st=[[0,q.length-1]];
+    while(st.length){const[a,b]=st.pop();let md=0,mi=-1;
+      const ax=q[a][0],ay=q[a][1],bx=q[b][0],by=q[b][1],L=Math.hypot(bx-ax,by-ay)||1e-9;
+      for(let k=a+1;k<b;k++){const d=Math.abs((bx-ax)*(ay-q[k][1])-(ax-q[k][0])*(by-ay))/L;if(d>md){md=d;mi=k;}}
+      if(md>tol){keep[mi]=1;st.push([a,mi],[mi,b]);}}
+    return q.filter((_,k)=>keep[k]);
+  };
+  const emit=pts=>{
+    if(pts.length<minPts&&pts[0]!==pts[pts.length-1])return;
+    const closed=pts[0]===pts[pts.length-1];
+    let q=pts.map(v=>[(v%W1)*TS,((v/W1)|0)*TS]);
+    if(closed){
+      /* a loop's two ends are one point, so simplifying it whole measures
+         every distance against a line of no length and keeps nothing: split
+         it at the point farthest from its start and simplify each half */
+      let m=0,md=-1;for(let k=0;k<q.length;k++){const d=Math.hypot(q[k][0]-q[0][0],q[k][1]-q[0][1]);if(d>md){md=d;m=k;}}
+      const a=dp(q.slice(0,m+1),TS*0.75),b=dp(q.slice(m),TS*0.75);
+      q=a.concat(b.slice(1));
+    }else q=dp(q,TS*0.75);
+    if(q.length<2)return;
+    for(let it=0;it<3;it++){
+      const o=closed?[]:[q[0]];
+      for(let k=0;k<q.length-1;k++){const a=q[k],b=q[k+1];o.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}
+      if(!closed)o.push(q[q.length-1]);else o.push(o[0]);
+      q=o;
+    }
+    path.moveTo(q[0][0],q[0][1]);for(let k=1;k<q.length;k++)path.lineTo(q[k][0],q[k][1]);
+    if(closed)path.closePath();
+  };
+  const walk=start=>{
+    for(const nb of adj.get(start)){
+      if(used.has(ek(start,nb)))continue;
+      const pts=[start];let prev=start,cur=nb;used.add(ek(start,nb));
+      while(true){
+        pts.push(cur);
+        const N=adj.get(cur);if(N.length!==2)break;
+        const nx=N[0]===prev?N[1]:N[0];
+        if(used.has(ek(cur,nx))){if(nx===pts[0])pts.push(nx);break;}
+        used.add(ek(cur,nx));prev=cur;cur=nx;
+      }
+      emit(pts);
+    }
+  };
+  for(const [v,N] of adj)if(N.length!==2)walk(v);
+  for(const [v] of adj)walk(v);
+  return path;
+}
 function buildFronts(){
   frontEdgeCv=null;frontEff=null;
   const T=window.__terOwner;
@@ -4561,21 +4657,59 @@ function buildFronts(){
   }
   const SX=MW/w, SY=MH/h;
   const eff=T.owner.slice();
-  if(cont.size){
-    for(let i=0;i<w*h;i++){
-      const cc=cont.get(provPix[i]);if(!cc||eff[i]!==cc.own)continue;
-      const sProj=((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay;
-      if(sProj<cc.lo)cc.lo=sProj;
-      if(sProj>cc.hi)cc.hi=sProj;
+  const cap=new Uint16Array(w*h);            // attacker index on squares taken by push
+  PUSH_TAKEN={};
+  for(const [pi,cc] of cont){
+    const q=PL[pi];
+    const R=provSub&&provSquares?pushRank(q,pi,T,cc.own,cc.att):null;
+    if(R){
+      /* LIKE THE REAL GAME: the ground goes a small province at a time,
+         nearest the attacker first, each one whole -- not a straight cut
+         sliding across the state. p.push says how much of the state's area
+         is gone; the cells are handed over until that much is. */
+      let acc=0,n=0;
+      for(const c of R.order){
+        const a=R.area.get(c);
+        if((acc+a*0.5)/R.total>=cc.push)break;
+        acc+=a;n++;
+        for(const i of R.sq.get(c)){eff[i]=cc.att;cap[i]=cc.att;}
+      }
+      PUSH_TAKEN[q.id]={n,m:R.order.length};
+      continue;
     }
-    for(const cc of cont.values())
-      cc.cut=(cc.hi>cc.lo)?cc.hi-cc.push*(cc.hi-cc.lo):1e9;
+    /* no cell map: the old straight cut */
+    let lo=1e9,hi=-1e9;
     for(let i=0;i<w*h;i++){
-      const cc=cont.get(provPix[i]);if(!cc||cc.cut>=1e8||eff[i]!==cc.own)continue;
-      if(((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay>cc.cut)eff[i]=cc.att;
+      if(provPix[i]!==pi||eff[i]!==cc.own)continue;
+      const sProj=((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay;
+      if(sProj<lo)lo=sProj;if(sProj>hi)hi=sProj;
+    }
+    if(!(hi>lo))continue;
+    const cut=hi-cc.push*(hi-lo);
+    for(let i=0;i<w*h;i++){
+      if(provPix[i]!==pi||eff[i]!==cc.own)continue;
+      if(((i%w)*SX-cc.cx)*cc.ax+(((i/w)|0)*SY-cc.cy)*cc.ay>cut){eff[i]=cc.att;cap[i]=cc.att;}
     }
   }
-  frontEff={eff,w,h,keys};
+  /* the taken ground as filled shapes per attacker, for painting it in the
+     occupier's colour with stripes */
+  const caps=new Map();
+  const W1=w+1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x,a=cap[i];
+    const r=x<w-1?cap[i+1]:0, d=y<h-1?cap[i+w]:0, l=x>0?cap[i-1]:0, u=y>0?cap[i-w]:0;
+    const add=(att,p0,p1)=>{let A=caps.get(att);if(!A)caps.set(att,A=new Map());
+      let P=A.get(p0);if(!P)A.set(p0,P=[]);P.push(p1);let Q=A.get(p1);if(!Q)A.set(p1,Q=[]);Q.push(p0);};
+    if(a){
+      if(r!==a)add(a,y*W1+x+1,(y+1)*W1+x+1);
+      if(d!==a)add(a,(y+1)*W1+x,(y+1)*W1+x+1);
+      if(l!==a)add(a,y*W1+x,(y+1)*W1+x);
+      if(u!==a)add(a,y*W1+x,y*W1+x+1);
+    }
+  }
+  const capPaths=[];
+  for(const [att,adj] of caps)capPaths.push({nat:keys[att-1],path:_chainPath(adj,W1,0)});
+  frontEff={eff,w,h,keys,capPaths};
 }
 function tryCapture(u){
   const p=provOf(u.at);
@@ -8536,6 +8670,8 @@ let PT_W=0, PT_H=0;
    movement and combat are all exactly as they were, and a division still
    stands in the same province it always did. It is the texture of the map and
    nothing else. */
+let provSub=null,provSquares=null;
+function pidxMax(a){let m=-1;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];return m;}
 function buildProvEdges(pidx,land,w,h){
   if(!provEdgeCv)provEdgeCv=document.createElement("canvas");
   provEdgeCv.width=w;provEdgeCv.height=h;
@@ -8703,6 +8839,14 @@ function buildProvEdges(pidx,land,w,h){
     }
     return out;
   };
+  /* kept for taking ground a small province at a time (buildFronts) */
+  provSub=sub;
+  {const cnt=new Int32Array(pidxMax(pidx)+2);
+   for(let i=0;i<w*h;i++)if(land[i]&&pidx[i]>=0)cnt[pidx[i]+1]++;
+   for(let k=1;k<cnt.length;k++)cnt[k]+=cnt[k-1];
+   const at=cnt.slice(),list=new Int32Array(cnt[cnt.length-1]);
+   for(let i=0;i<w*h;i++)if(land[i]&&pidx[i]>=0)list[at[pidx[i]]++]=i;
+   provSquares={start:cnt,list};}
   const segCs=chamfer(segC), segLs=chamfer(segL);
   /* EACH PROVINCE'S OWN OUTLINE, for showing a country's provinces when it is
      clicked: every boundary run goes to the province on each side of it (a
@@ -11444,7 +11588,7 @@ let _lastFrameT=0;
    Three things the real game puts on the map the moment a war starts, and
    this one had none of: you could be at war with Poland and nothing on the
    map said where Poland began. */
-let _front={T:null,key:null,path:null};
+let _front={T:null,key:null,path:null},_occPat=null;
 function _frontKey(){
   const me=G.nations[G.player];if(!me)return "";
   const pup=Object.keys(G.nations).filter(k=>G.nations[k].puppet===G.player);
@@ -11474,51 +11618,8 @@ function frontPath(){
     if(y<h-1){const s1=side[owner[i+w]];if(s1&&s1!==s0)link((y+1)*W1+x,(y+1)*W1+x+1);}
   }
   if(!adj.size)return null;
-  /* walk the graph into polylines, then round them (Chaikin) so the front
-     reads as a line drawn on the map and not a staircase of grid cells */
-  const used=new Set(),ek=(a,b)=>a<b?a+","+b:b+","+a;
-  const path=new Path2D();
-  /* a staircase of grid edges first becomes the diagonal it stands for
-     (Douglas-Peucker at a cell's width), then is rounded */
-  const dp=(q,tol)=>{
-    if(q.length<3)return q;
-    const keep=new Uint8Array(q.length);keep[0]=keep[q.length-1]=1;
-    const st=[[0,q.length-1]];
-    while(st.length){const[a,b]=st.pop();let md=0,mi=-1;
-      const ax=q[a][0],ay=q[a][1],bx=q[b][0],by=q[b][1],L=Math.hypot(bx-ax,by-ay)||1e-9;
-      for(let k=a+1;k<b;k++){const d=Math.abs((bx-ax)*(ay-q[k][1])-(ax-q[k][0])*(by-ay))/L;if(d>md){md=d;mi=k;}}
-      if(md>tol){keep[mi]=1;st.push([a,mi],[mi,b]);}}
-    return q.filter((_,k)=>keep[k]);
-  };
-  const emit=pts=>{
-    /* a fragment a few cells long is a sliver of the grid at a coast, not
-       a front anyone is fighting on */
-    if(pts.length<5&&pts[0]!==pts[pts.length-1])return;
-    let q=dp(pts.map(v=>[(v%W1)*TS,((v/W1)|0)*TS]),TS*0.75);
-    if(q.length<2)return;
-    for(let it=0;it<3;it++){
-      const o=[q[0]];
-      for(let k=0;k<q.length-1;k++){const a=q[k],b=q[k+1];o.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}
-      o.push(q[q.length-1]);q=o;
-    }
-    path.moveTo(q[0][0],q[0][1]);for(let k=1;k<q.length;k++)path.lineTo(q[k][0],q[k][1]);
-  };
-  const walk=start=>{
-    for(const nb of adj.get(start)){
-      if(used.has(ek(start,nb)))continue;
-      const pts=[start];let prev=start,cur=nb;used.add(ek(start,nb));
-      while(true){
-        pts.push(cur);
-        const N=adj.get(cur);if(N.length!==2)break;
-        const nx=N[0]===prev?N[1]:N[0];
-        if(used.has(ek(cur,nx)))break;
-        used.add(ek(cur,nx));prev=cur;cur=nx;
-      }
-      emit(pts);
-    }
-  };
-  for(const [v,N] of adj)if(N.length!==2)walk(v);
-  for(const [v] of adj)walk(v);           // closed loops (an encircled pocket)
+  /* fragments under five points are a sliver of the grid at a coast */
+  const path=_chainPath(adj,W1,5);
   _front.path=path;
   return path;
 }
@@ -12161,7 +12262,9 @@ function _drawFrame(){
   {let sig="";
    if(G){sig=G.day+"/"+(terDirty?1:0);
      for(const q of Object.values(G.prov))if(q.push>0)sig+="/"+q.id+q.push.toFixed(2);}
-   if(sig!==frontKey){frontKey=sig;try{buildFronts();}catch(e){frontEdgeCv=null;}}}
+   /* at most four times a second: with thirty states being fought over a
+      rebuild is ~40ms, and at top speed several days turn every second */
+   if(sig!==frontKey&&performance.now()-_frontBuiltAt>250){frontKey=sig;_frontBuiltAt=performance.now();try{buildFronts();}catch(e){frontEdgeCv=null;}}}
   // lakes (fallback map only) and Antarctica as neutral ice
   if(!realMap){ctx.fillStyle=terr?"#000000":T.sea;ctx.fill(lakePath);ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(lakePath);}
   /* THE ICE WAS THE BRIGHTEST THING ON THE MAP. A near-white slab across the
@@ -12299,6 +12402,23 @@ function _drawFrame(){
   /* THE WAR AS THE REAL GAME DRAWS IT: a front line wherever your side
      touches an enemy, and an arrow for every push you have ordered. Both under
      the counters, which stand on them. */
+  /* GROUND TAKEN, NOT YET FALLEN: the small provinces an attacker has
+     overrun inside a state that still belongs to the defender, painted in
+     the occupier's colour with stripes, as the real game shows occupation */
+  if(frontEff&&frontEff.capPaths&&frontEff.capPaths.length&&z>0.8){
+    ctx.save();ctx.clip(_visibleLand(),"evenodd");
+    if(!_occPat){const c=document.createElement("canvas");c.width=c.height=10;const g=c.getContext("2d");
+      g.strokeStyle="rgba(0,0,0,0.38)";g.lineWidth=2.4;g.beginPath();
+      for(let k=-10;k<=20;k+=10){g.moveTo(k,10);g.lineTo(k+10,0);}g.stroke();
+      _occPat=ctx.createPattern(c,"repeat");}
+    try{_occPat.setTransform(new DOMMatrix().scale(1/z));}catch(e){}
+    for(const cp of frontEff.capPaths){
+      const N=NATIONS[cp.nat];if(!N)continue;
+      ctx.globalAlpha=0.62;ctx.fillStyle=N.c;ctx.fill(cp.path,"evenodd");
+      ctx.globalAlpha=1;ctx.fillStyle=_occPat;ctx.fill(cp.path,"evenodd");
+    }
+    ctx.restore();
+  }
   if(z>0.8&&G.nations[G.player]&&G.nations[G.player].atWar.size){
     const F=frontPath();
     if(F){
@@ -15817,7 +15937,7 @@ function renderPanel(){
       <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
       <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
-    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${Math.round(100*p.push)}%</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
+    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${PUSH_TAKEN[p.id]?PUSH_TAKEN[p.id].n+" of "+PUSH_TAKEN[p.id].m+" provinces":Math.round(100*p.push)+"%"}</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     h+=`<h3>\u{1F5FA} PROVINCES OF ${NATIONS[p.owner].n.toUpperCase()} (${_same.length})</h3>
       <div style="display:flex;flex-wrap:wrap;gap:3px">${_same.map(q=>`<button class="tbtn ${q.id===p.id?"on":""}" style="font-size:10px;padding:2px 6px" onclick="goProv('${q.id}')">${capOf(q.owner)===q.id?"\u2605 ":""}${q.name}</button>`).join("")}</div>`;
     if(p.owner===G.player){
