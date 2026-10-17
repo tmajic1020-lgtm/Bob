@@ -1227,3 +1227,48 @@ make the province button work faster".
   production days -> 2 divisions in that group.
 - The province panel itself was measured too in case that was the "button":
   8.8ms to open, goProv 0.2ms. Not the problem.
+
+## Wrong colour inside other countries
+
+Owner: "there is still different country's colors in others". Measured,
+not eyeballed: for every era, every atlas country whose coarse cells carry
+more than one owner, with how many of those cells a historical region
+placed (`window.__terOwner.hr`). A split the regions account for is
+history (Manchukuo, the Kresy); one they do not is a fault. 1936 had
+Corsica Italian, Sumatra and Borneo British, Celebes and Dutch New Guinea
+Australian, Saguia el-Hamra French, a slice of the Philippines Japanese,
+Baffin Danish, the Alaska panhandle Canadian.
+
+- **Every one of those was correct after the nearest-province pass and
+  wrong after the POCKET pass.** Snapshotting ownership after each pass
+  showed it directly (France 542 FRA -> 535 FRA + 7 ITA). The pocket pass
+  hands a province-less component to its one neighbour -- meant for stale
+  wedges after a conquest -- and an island or colony with no province of
+  its own looks exactly like that (Corsica touches Sardinia on the 40-km
+  grid; Dutch Borneo touches Sarawak). Now a pocket may only go to a
+  nation the first pass already painted inside the same atlas country
+  (`_shapeAllow`). A conquest wedge still qualifies (the conqueror is
+  painting there); Corsica does not (Italy never is).
+- A/B in the same run, eight scripted conquests: stale components added
+  +3/+13 cells before and +3/+13 after -- the conquest clean-up is
+  unchanged. The baseline count rose by the islands and colonies now kept.
+- **Routing to a nation that is not in the game.** The Cold War table
+  sends Chad, Mali, Gabon... to WAF/CON, blocs that exist only after
+  decolonisation; in a 1945 start they are dead, and the shape fell to the
+  nearest province whose HOME was the bloc -- British Kano for Chad and
+  Niger, Liberia for Guinea and Mali, Belgium for Gabon. `ERA_FALLBACK`
+  gives the power that actually held it, used only when the routed nation
+  was not alive when the game began (`_aliveAtStart`, cached on G), so a
+  nation conquered later still hands its soil to the conqueror.
+  `natOfCountry` wraps the old lookup (`_natOfCountry`).
+- Guinea-Bissau was routed to "CON" in 1936 (painted French): now POR.
+  1914 Spanish Guinea and Portuguese Guinea routed. 1861 no longer has an
+  Egyptian Aden: the ADEN region came from ww1, where its candidates are
+  British, but in 1861 they are Egyptian.
+- **The Philippines had no province**, so it was painted from whoever was
+  nearest: USA through byOwner in 1936, TAIWAN in 2026. New province `mnl`
+  Manila and nation PHI (coldwar, modern; flag drawn): Spanish 1803/1861,
+  American 1914-41, Japanese 1942, American 1945, independent 1946.
+- After: 1936 has no split a historical region does not explain. What is
+  left in other eras is history -- 1861 Lower Burma and Cochinchina,
+  Ottoman/British Yemen in 1914, the 1943 occupations, East Germany.

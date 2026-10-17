@@ -831,6 +831,7 @@ HAI:{n:"Haiti",f:"🇭🇹",c:"#6b5aa8",cap:"pap",play:1,desc:"The first free re
 DOM:{n:"Dominican Republic",f:"🇩🇴",c:"#3f7f8f",cap:"sdq",play:1,desc:"The older half of Hispaniola",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 MAN:{n:"Manchukuo",f:"🏴",c:"#c9a43c",cap:"har",play:1,desc:"An empire on paper, a garrison in fact",eras:["ww2"]},
 TBT:{n:"Tibet",f:"🏔",c:"#d8c79a",cap:"lhs",play:1,desc:"The roof of the world, left alone for now",eras:["ww2"]},
+PHI:{n:"Philippines",f:"\u{1F1F5}\u{1F1ED}",c:"#5b8ed6",cap:"mnl",play:1,desc:"Seven thousand islands, free from 1946",eras:["coldwar","modern"]},
 LBR:{n:"Liberia",f:"🇱🇷",c:"#b5654a",cap:"mnr",play:1,desc:"The free republic on the Pepper Coast",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 VEN:{n:"Venezuela",f:"🇻🇪",c:"#a8475a",cap:"ccs",play:1,desc:"Oil under the Maracaibo basin",eras:["civilwar","ww1","ww2","coldwar","modern"]},
 ECU:{n:"Ecuador",f:"🇪🇨",c:"#4f9a8a",cap:"uio",play:1,desc:"A capital in the clouds",eras:["civilwar","ww1","ww2","coldwar","modern"]},
@@ -1007,7 +1008,8 @@ P.push(
  ["sna","Yemen",44.2,15.35,"YEM",1,1],["msc","Muscat",58.4,23.6,"OMN",1,1],
  ["gua","Guatemala",-90.5,14.6,"GUA",1,1],["teg","Honduras",-87.2,14.1,"HON",1,1],["sal","El Salvador",-89.2,13.7,"ELS",1,1],
  ["mga","Nicaragua",-86.25,12.13,"NIC",1,1],["sjo","Costa Rica",-84.08,9.93,"CRI",1,1],["pty","Panama",-79.52,8.98,"PAN",1,2],
- ["mnr","Monrovia",-10.8,6.3,"LBR",1,1],["hav","Havana",-82.37,23.13,"CUB",1,2],["pap","Haiti",-72.34,18.54,"HAI",1,1],["sdq","Santo Domingo",-69.93,18.48,"DOM",1,1]);
+ ["mnr","Monrovia",-10.8,6.3,"LBR",1,1],["hav","Havana",-82.37,23.13,"CUB",1,2],["pap","Haiti",-72.34,18.54,"HAI",1,1],["sdq","Santo Domingo",-69.93,18.48,"DOM",1,1],
+ ["mnl","Manila",120.98,14.6,"USA",1,2]);
 LINKS.push(
  ["bxl","lil"],["bxl","rhi"],["bxl","ams"],["bxl","lxm"],["bxl","lon",1],
  ["ams","rhi"],["ams","ham"],["ams","ncl",1],
@@ -1027,17 +1029,18 @@ LINKS.push(
  ["geo","pbm"],["geo","man"],["pbm","man"],
  ["sna","jed"],["sna","ria"],["sna","asm",1],["sna","mog",1],["msc","ria"],["msc","bas",1],["msc","bom",1],
  ["gua","yuc"],["gua","sal"],["gua","teg"],["sal","teg"],["teg","mga"],["mga","sjo"],["sjo","pty"],["pty","bog"],
- ["mnr","abi"],["mnr","dak",1],["hav","mia",1],["hav","yuc",1],["hav","pap",1],["pap","sdq"],["sdq","ccs",1],["pty","ccs",1]);
+ ["mnr","abi"],["mnr","dak",1],["hav","mia",1],["hav","yuc",1],["hav","pap",1],["pap","sdq"],["sdq","ccs",1],["pty","ccs",1],
+ ["mnl","tpe",1],["mnl","hue",1],["mnl","sgn",1]);
 const NEWPROV_OWN={
- napoleon:{mnr:"AFR",gua:"SPN",teg:"SPN",sal:"SPN",mga:"SPN",sjo:"SPN",pty:"SPN",hav:"SPN",pap:"FEM",sdq:"SPN",sna:"OTE",msc:"OMN",ccs:"SPN",uio:"SPN",lpb:"SPN",mvd:"SPN",asu:"SPN",geo:"GBR",pbm:"GBR",kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
- civilwar:{mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"SPA",pap:"HAI",sdq:"DOM",pty:"COL",sna:"TUR",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
- ww1:{mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"OTT",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
+ napoleon:{mnl:"SPN",mnr:"AFR",gua:"SPN",teg:"SPN",sal:"SPN",mga:"SPN",sjo:"SPN",pty:"SPN",hav:"SPN",pap:"FEM",sdq:"SPN",sna:"OTE",msc:"OMN",ccs:"SPN",uio:"SPN",lpb:"SPN",mvd:"SPN",asu:"SPN",geo:"GBR",pbm:"GBR",kau:"RUE",bxl:"FEM",ams:"FEM",lxm:"FEM",prs:"OTE",tsp:"RUE",dam:"OTE",kbl:"QAJ",srn:"GBR",tpe:"QIN",lhs:"QIN",buk:"GBR"},
+ civilwar:{mnl:"SPA",mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"SPA",pap:"HAI",sdq:"DOM",pty:"COL",sna:"TUR",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",poz:"GER",prs:"TUR",tsp:"SOV",dam:"TUR",srn:"UK",tpe:"CHN",lhs:"CHN",buk:"UK"},
+ ww1:{mnl:"USA",mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"OTT",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",kau:"RUS",poz:"GER",prs:"SRB",tsp:"RUS",dam:"OTT",srn:"UK",tpe:"JAP",lhs:"CHN",buk:"GER"},
  /* 1936: the Baltic states independent, Wilno Polish (taken in 1920),
     Kaunas Lithuania's capital, and Slovakia Czechoslovak. */
- ww2:{mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
- coldwar:{mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
- modern:{kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
- mongol:{mnr:"AFR2",gua:"AMR",teg:"AMR",sal:"AMR",mga:"AMR",sjo:"AMR",pty:"AMR",hav:"AMR",pap:"AMR",sdq:"AMR",sna:"AYY",msc:"AYY",ccs:"AMR",uio:"AMR",lpb:"AMR",mvd:"AMR",asu:"AMR",geo:"AMR",pbm:"AMR",kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
+ ww2:{mnl:"USA",mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",rig:"LVA",tal:"EST",kau:"LTU",vil:"POL",bra:"CZE"},
+ coldwar:{mnl:"USA",mnr:"LBR",gua:"GUA",teg:"HON",sal:"ELS",mga:"NIC",sjo:"CRI",hav:"CUB",pap:"HAI",sdq:"DOM",pty:"PAN",sna:"YEM",msc:"OMN",ccs:"VEN",uio:"ECU",lpb:"BOL",mvd:"URU",asu:"PAR",geo:"UK",pbm:"HOL",lim:"PERU",scl:"CHL",bog:"COL",lis:"POR",opo:"POR",lwo:"SOV",bra:"CZE",tsp:"SOV",dam:"SYR",srn:"UK",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ modern:{mnl:"PHI",kau:"LTU",tsp:"MDA",dam:"SYR",srn:"IND",tpe:"TAW",lhs:"CHN",buk:"AUS"},
+ mongol:{mnl:"KHM",mnr:"AFR2",gua:"AMR",teg:"AMR",sal:"AMR",mga:"AMR",sjo:"AMR",pty:"AMR",hav:"AMR",pap:"AMR",sdq:"AMR",sna:"AYY",msc:"AYY",ccs:"AMR",uio:"AMR",lpb:"AMR",mvd:"AMR",asu:"AMR",geo:"AMR",pbm:"AMR",kau:"EEU",bxl:"FRK",ams:"HRE",lxm:"HRE",prs:"BYZ",tsp:"EEU",dam:"AYY",kbl:"KHW",srn:"DEL",tpe:"SNG",lhs:"SNG",buk:"OCE"}
 };
 
 /* ============================== ERAS & THEMES ============================== */
@@ -1266,7 +1269,7 @@ const ERA_FIX_OWN={
    osl:"NOR",brg:"NOR",nar:"NOR",trd:"NOR",sto:"SWD",got:"SWD",hel:"FIN",tku:"FIN",cph:"DEN",rey:"ISL"}
 };
 /* and what changed hands after the start year, on the year it did */
-const ERA_FIX_YEARS={ww2:{1937:{add:"ITA"},1939:{tir:"ITA"},1940:{kish:"SOV"}},coldwar:{1961:{lbs:"CON",kis:"CON",mbm:"CON",bgi:"CON"}}};
+const ERA_FIX_YEARS={ww2:{1937:{add:"ITA"},1939:{tir:"ITA"},1940:{kish:"SOV"},1942:{mnl:"JAP"},1945:{mnl:"USA"}},coldwar:{1946:{mnl:"PHI"},1961:{lbs:"CON",kis:"CON",mbm:"CON",bgi:"CON"}}};
 for(const e in ERA_FIX_YEARS)if(ERAS[e]){const Y=ERAS[e].yearOwners=ERAS[e].yearOwners||{};
   for(const y in ERA_FIX_YEARS[e])Y[y]=Object.assign(Y[y]||{},ERA_FIX_YEARS[e][y]);}
 ERAS.ww2.puppets=Object.assign(ERAS.ww2.puppets||{},{MAN:"JAP",MON:"SOV"});
@@ -1544,7 +1547,7 @@ const PTERRAIN={};
    "phx","psud","ria","sue","tas","tij","tob","trp","wind","zar",);
  _t("jungle","abi","acc","bgi","dar","hmb","kin","kis","kul","lag","man","mbm","rgn","yuc",);
  _t("marsh","bas","bkk","cal","dac","han","lil","mia","min","pnh","sgn","ven",);
- _t("mtn","kbl","srn","lhs","prs","uio","lpb");_t("jungle","geo","pbm");_t("mtn","sna","gua");_t("desert","msc");_t("hills","teg","sal","sjo","pap");_t("jungle","pty","mnr");_t("jungle","buk");_t("urban","ams","bxl");
+ _t("mtn","kbl","srn","lhs","prs","uio","lpb");_t("jungle","geo","pbm");_t("mtn","sna","gua");_t("desert","msc");_t("hills","teg","sal","sjo","pap");_t("jungle","pty","mnr","mnl");_t("jungle","buk");_t("urban","ams","bxl");
  _t("tundra","anc","arc","nuk","rey","sco2","thu","yak","yel",);
  _t("urban","bei","ber","bom","bue","chi","cph","del","lon","mex","mos","nyc","osa","par","sha","sin",
    "tok","wash",);
@@ -6577,7 +6580,7 @@ const WW2_OVERRIDE={
 "India":"IND","Pakistan":"IND","Bangladesh":"IND","Sri Lanka":"UK","Myanmar":"IND","Nepal":"IND","Bhutan":"IND",
 /* dominions & the rest */
 "South Africa":"SAF","Namibia":"SAF","Lesotho":"SAF","eSwatini":"SAF","Swaziland":"SAF",
-"Angola":"POR","Mozambique":"POR","Guinea-Bissau":"CON","Rwanda":"BEL","Burundi":"BEL","Dem. Rep. Congo":"BEL","Eq. Guinea":"SPA",
+"Angola":"POR","Mozambique":"POR","Guinea-Bissau":"POR","Rwanda":"BEL","Burundi":"BEL","Dem. Rep. Congo":"BEL","Eq. Guinea":"SPA",
 "Liberia":"LBR",
 /* these were routed to Italy and Hungary before Yugoslavia and Romania existed */
 "Serbia":"SRB","Croatia":"SRB","Slovenia":"SRB","Bosnia and Herz.":"SRB","Montenegro":"SRB","Macedonia":"SRB","North Macedonia":"SRB","Kosovo":"SRB",
@@ -6624,7 +6627,7 @@ const MODERN_OVERRIDE={
 "Ireland":"IRE","Croatia":"CRO","Slovenia":"CRO","Bosnia and Herz.":"BOS","Slovakia":"SVK","Thailand":"THA",
 "Laos":"THA","Myanmar":"MMR","Malaysia":"MYS","Brunei":"MYS","Indonesia":"MYS","Timor-Leste":"MYS",
 "Singapore":"SGP","Cambodia":"CAM","Colombia":"COL","Venezuela":"VEN","Ecuador":"ECU","Panama":"PAN",
-"Peru":"PERU","Bolivia":"BOL","Chile":"CHL",
+"Peru":"PERU","Bolivia":"BOL","Chile":"CHL","Philippines":"PHI",
 "Uzbekistan":"UZB","Turkmenistan":"TKM","Kyrgyzstan":"KGZ","Tajikistan":"TJK","Georgia":"GEO","Armenia":"ARM","Azerbaijan":"AZE","Mongolia":"MON","Latvia":"LVA","Estonia":"EST","Lithuania":"LTU","Moldova":"MDA",
 "Belize":"*",
 "Jamaica":"*",
@@ -6650,6 +6653,8 @@ const WW1_OVERRIDE={
 "Angola":"POR",
 "Mozambique":"POR",
 "Dem. Rep. Congo":"BEL",
+"Eq. Guinea":"SPA",
+"Guinea-Bissau":"POR",
 "Congo":"FRA",
 "Gabon":"FRA",
 "Central African Rep.":"FRA",
@@ -6740,7 +6745,7 @@ const COLDWAR_OVERRIDE={
 "Mongolia":"MON",
 "Greenland":"DEN",
 "Indonesia":"HOL",
-"Philippines":"USA",
+"Philippines":"PHI",
 "Liberia":"LBR"
 };
 const CIVILWAR_OVERRIDE={
@@ -6835,7 +6840,7 @@ const _DODEC=[[26.25,35.3],[28.4,35.3],[28.4,37.45],[26.25,37.45]];
 const HIST_REGIONS={
  ww2:[{rings:_A1.SPSAH.rings,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{poly:_IFNI,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{rings:_A1.ADEN.rings,in:["Yemen"],anchor:"psud",cands:["psud","sue"]},{rings:_A1.HATAY.rings,in:["Turkey"],anchor:"dam",until:1939,cands:["dam"]},{rings:_A1.SPMOR.rings,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{poly:_DODEC,in:["Greece"],anchor:"pal",cands:["pal","rom"]},{rings:_A1.MANCHU.rings,in:["China"],anchor:"har",cands:["har"]},{rings:_A1.TIBET.rings,in:["China"],anchor:"lhs",cands:["lhs"]},{rings:_A1.BESS_UA.rings,in:["Ukraine"],anchor:"kish",until:1940,cands:["kish"]},{rings:_A1.TRANSN.rings,in:["Moldova"],anchor:"tsp",until:1940,cands:["tsp"]},{rings:_A1.RUTH.rings,in:["Ukraine"],anchor:"bra",until:1939,cands:["bra"]},{rings:_A1.RUTH.rings,in:["Ukraine"],anchor:"deb",from:1939,cands:["deb","bud"]},{poly:_FINKAR,in:["Russia"],anchor:"hel",until:1940,cands:["hel","tku"]},{poly:_FINSAL,in:["Russia"],anchor:"hel",until:1940,cands:["hel","tku"]},{poly:_FINPET,in:["Russia"],anchor:"hel",until:1944,cands:["hel","tku"]},{rings:_A1.KRESY_UA.rings,in:["Ukraine"],anchor:"war",cands:["vil","war","lub","lwo","kra"]},{poly:_KRESY,in:["Lithuania","Belarus"],anchor:"war",cands:["vil","war","lub","lwo","kra"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",from:1939,cands:["kon"]},{poly:_GER37,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon"]}],
  ww1:[{rings:_A1.SPSAH.rings,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{poly:_IFNI,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{rings:_A1.ADEN.rings,in:["Yemen"],anchor:"psud",cands:["psud","sue"]},{rings:_A1.SPMOR.rings,in:["Morocco"],anchor:"sev",cands:["sev","mad"]},{poly:_DODEC,in:["Greece"],anchor:"pal",cands:["pal","rom"]},{rings:_A1.GALICIA.rings,in:["Ukraine"],anchor:"lwo",cands:["lwo","kra"]},{rings:_A1.RUTH.rings,in:["Ukraine"],anchor:"deb",cands:["deb","bud"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}],
- civilwar:[{rings:_A1.ADEN.rings,in:["Yemen"],anchor:"psud",cands:["psud","sue"]},{rings:_A1.RUTH.rings,in:["Ukraine"],anchor:"deb",cands:["deb","bud"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}]
+ civilwar:[{rings:_A1.RUTH.rings,in:["Ukraine"],anchor:"deb",cands:["deb","bud"]},{poly:_EPR,in:["Russia","Poland"],anchor:"kon",cands:["kon"]},{poly:_MEMEL,in:["Lithuania"],anchor:"kon",cands:["kon"]},{poly:_GER14,in:["Poland"],anchor:"ber",cands:["ber","ham","fra","mun","kon","gda","poz"]}]
 };
 /* And the LINES. The atlas outlines are today's, so in 1936 they ruled the
    Oder-Neisse line through Brandenburg and Silesia and Kaliningrad's border
@@ -6866,7 +6871,7 @@ const HIST_LINES={
  coldwar:{hide:[_CZSK],lines:[]}
 };
 /* 1861 shares 1914's lines, less the Spanish zone of Morocco (1912) */
-HIST_LINES.civilwar=Object.assign({},HIST_LINES.ww1,{lines:HIST_LINES.ww1.lines.filter(l=>!_A1.SPMOR.lines.includes(l)&&!_A1.SPSAH.lines.includes(l))});
+HIST_LINES.civilwar=Object.assign({},HIST_LINES.ww1,{lines:HIST_LINES.ww1.lines.filter(l=>!_A1.SPMOR.lines.includes(l)&&!_A1.SPSAH.lines.includes(l)&&!_A1.ADEN.lines.includes(l))});
 function _histPath(polys){const p=new Path2D();for(const r of polys){r.forEach(([lo,la],i)=>{const[x,y]=PX(lo,la);i?p.lineTo(x,y):p.moveTo(x,y);});p.closePath();}return p;}
 /* the clip that hides those stretches this era, or null */
 /* One clip per band, applied in turn: successive clips intersect, so the
@@ -6901,7 +6906,40 @@ function histRegion(name,lon,lat){
   return null;
 }
 function histHome(name,lon,lat){const r=histRegion(name,lon,lat);const a=r&&G.prov[r.anchor];return a?a.home:null;}
+/* WHEN THE ROUTED NATION IS NOT IN THE GAME. The Cold War table sends Chad
+   or Mali to "West Africa" and the Congo basin to "Congo" -- blocs that only
+   exist once they are decolonised. In a 1945 start neither is alive, so the
+   shape fell to the nearest province whose HOME was the bloc, wherever it was:
+   Chad and Niger painted British from Kano, Guinea and Mali Liberian, Gabon
+   Belgian. A shape whose nation was not alive when the game began takes the
+   power that actually held it instead. A nation that was alive and has since
+   been conquered is NOT redirected: its soil goes to whoever took it. */
+const ERA_FALLBACK={
+  coldwar:{
+    "Mali":"FRA","Niger":"FRA","Chad":"FRA","Burkina Faso":"FRA","Guinea":"FRA","C\u00f4te d'Ivoire":"FRA",
+    "Senegal":"FRA","Mauritania":"FRA","Benin":"FRA","Togo":"FRA","Gabon":"FRA","Congo":"FRA",
+    "Central African Rep.":"FRA","Cameroon":"FRA",
+    "Nigeria":"UK","Ghana":"UK","Sierra Leone":"UK","Gambia":"UK",
+    "Dem. Rep. Congo":"BEL","Eq. Guinea":"SPA","Guinea-Bissau":"POR",
+    "India":"UK","Pakistan":"UK","Bangladesh":"UK","Sri Lanka":"UK","Nepal":"UK","Bhutan":"UK","Myanmar":"UK",
+    "Philippines":"USA"
+  },
+  modern:{"Philippines":"USA"}
+};
+function _aliveAtStart(k){
+  if(typeof G==="undefined"||!G||!G.nations)return true;
+  if(!G._alive0)G._alive0=new Set(Object.keys(G.nations).filter(x=>G.nations[x].alive));
+  return G._alive0.has(k);
+}
 function natOfCountry(name){
+  const n=_natOfCountry(name);
+  if(n&&n!=="*"&&!_aliveAtStart(n)){
+    const fb=ERA_FALLBACK[ERA]&&ERA_FALLBACK[ERA][name];
+    if(fb&&G.nations[fb]&&G.nations[fb].alive)return fb;
+  }
+  return n;
+}
+function _natOfCountry(name){
   if(ERA==="modern"&&MODERN_OVERRIDE[name])return MODERN_OVERRIDE[name];
   if(ERA==="coldwar"&&COLDWAR_OVERRIDE[name])return COLDWAR_OVERRIDE[name];
   if(ERA==="civilwar"&&CIVILWAR_OVERRIDE[name])return CIVILWAR_OVERRIDE[name];
@@ -10400,6 +10438,7 @@ Object.assign(FLAG,{
  SUR:(u,v)=>inStar(u,v,0.5,0.5,0.12)?"#ecc81d":((v<0.2||v>0.8)?"#377e3f":(v<0.3||v>0.7)?"#f2efe6":"#b40a2d"),
  PERU:sV(["#d91023","#f2efe6","#d91023"]),
  GUA:sV(["#4997d0","#f2efe6","#4997d0"]),
+ PHI:(u,v)=>{const t=0.433*(1-2*Math.abs(v-0.5));if(u<t)return ((u-0.14)**2*4+(v-0.5)**2<0.006)?"#fcd116":"#f2efe6";return v<0.5?"#0038a8":"#ce1126";},
  LBR:(u,v)=>(u<0.42&&v<0.46)?(inStar(u,v,0.21,0.23,0.1)?"#f2efe6":"#002868"):(Math.floor(v*11)%2?"#f2efe6":"#bf0a30"),
  MAN:(u,v)=>(u<0.36&&v<0.36)?(v<0.09?"#c8102e":v<0.18?"#1f3c88":v<0.27?"#f2efe6":"#1a1a1a"):"#f2c500",
  TBT:(u,v)=>REL_FLAG.TIB(u,v),
@@ -10667,6 +10706,7 @@ function renderTerritory(){
      list of five, so Manchukuo, Tibet, Bessarabia and Karelia never asked) */
   const _hrNames=new Set((HIST_REGIONS[ERA]||[]).flatMap(r=>r.in));
   const _hrCell=new Uint8Array(w*h);   // cells a historical region placed: never "pockets"
+  window.__terOwner.hr=_hrCell;
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const i=(y*w+x)*4;
     if(landMask[i+3]<10)continue;
@@ -10733,6 +10773,18 @@ function renderTerritory(){
     const b=bb[bn];
     if(x<b.x0)b.x0=x;if(x>b.x1)b.x1=x;if(y<b.y0)b.y0=y;if(y>b.y1)b.y1=y;
   }
+  /* Which nations the nearest-province test painted inside each real
+     country. A pocket may only be handed to one of them: a stale wedge after a
+     conquest lies in a shape the conqueror already paints, but Corsica, the
+     Indies or Spanish Sahara lie in shapes Italy, Britain and France were
+     never routed into -- and the pocket pass was giving them away anyway
+     (Corsica touches Sardinia on the 40-km grid; Dutch Borneo touches
+     Sarawak). */
+  const _shapeAllow=new Map();
+  if(countryPix)for(let i=0;i<w*h;i++){
+    const ci=countryPix[i],o=owner[i];if(!ci||!o)continue;
+    let st=_shapeAllow.get(ci);if(!st)_shapeAllow.set(ci,st=new Set());st.add(o);
+  }
   /* smoothing: majority filter rounds off leftover wedge tips and jagged
      pixels. Restricted to pixels inside the SAME real country when country
      shapes are loaded, so genuine international borders stay pixel-exact. */
@@ -10770,7 +10822,7 @@ function renderTerritory(){
      other nation, is handed to that nation. Anything with a province in it, or
      with a coast, or bordering two rivals, is left exactly as it is. */
   {
-    const lab=new Int32Array(w*h), stack=new Int32Array(w*h);
+    const lab=new Int32Array(w*h), stack=new Int32Array(w*h), seen2=new Int32Array(w*h);
     /* Where each province sits on the grid, smeared one cell each way so the
        border warping cannot nudge a province off its own component. */
     const provAt=new Int32Array(w*h);
@@ -10811,6 +10863,23 @@ function renderTerritory(){
       if(!best||land<8)continue;                   // an island, or barely touching anything
       if(sea>land*0.5)continue;                    // it has a real coast — that is a place
       if(bestC<land*0.85)continue;                 // wedged between two rivals: not ours to decide
+      if(countryPix){
+        /* and only to a nation already painting inside this real country:
+           walk the component again (lab marks it) and count its cells whose
+           shape the candidate already paints */
+        let okc=0,tot=0,sp2=0;
+        stack[sp2++]=i0;seen2[i0]=cid;
+        while(sp2){
+          const j=stack[--sp2];tot++;
+          const st=_shapeAllow.get(countryPix[j]);if(st&&st.has(best))okc++;
+          const jx=j%w;
+          for(const n2 of [jx>0?j-1:-1,jx<w-1?j+1:-1,j-w,j+w]){
+            if(n2<0||n2>=w*h||lab[n2]!==cid||seen2[n2]===cid)continue;
+            seen2[n2]=cid;stack[sp2++]=n2;
+          }
+        }
+        if(okc<tot*0.5)continue;
+      }
       remap[cid]=best;
     }
     if(remap.some(v=>v))for(let i2=0;i2<w*h;i2++){const r=remap[lab[i2]];if(r)owner[i2]=r;}
