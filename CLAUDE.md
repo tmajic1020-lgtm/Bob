@@ -1272,3 +1272,54 @@ Baffin Danish, the Alaska panhandle Canadian.
 - After: 1936 has no split a historical region does not explain. What is
   left in other eras is history -- 1861 Lower Burma and Cochinchina,
   Ottoman/British Yemen in 1914, the 1943 occupations, East Germany.
+
+## The Cold War, country by country
+
+Owner: "improve it more". Listing every nation alive at each Cold War start
+(`natlist.js`) showed the era was built on blocs: "North Africa" (Libya
+in 1945, then Morocco, Tunisia, Algeria), "West Africa" (Nigeria + Ghana +
+Senegal + Ivory Coast as one state), "East Africa", "Congo" (with Angola),
+and Siam RENAMED "South Vietnam", holding Bangkok and taking Burma, Saigon,
+Phnom Penh, Malaya and Singapore. Sudan went to Egypt in 1956, Mozambique
+to South Africa in 1979, East Pakistan was Bangladesh from 1949, China was
+"People's Republic" in 1945, Iran was still "Persia", Tibet was Chinese in
+1945, Kashmir and the Guianas stayed British for the whole era.
+
+- The modern-era nations (MAR DZA TUN LBY SDN NGA GHA SEN CIV KEN UGA TZA
+  COD CAF AGO MOZ ZWE ZMB MYS SGP CAM SOM GUY SUR, and MMR) now exist in the
+  Cold War too, and `ERAS.coldwar.yearOwners` hands each its provinces on
+  its real date: 1949 India/Pakistan (Bengal as PAKISTAN)/Burma/Koreas/
+  Taiwan/Kashmir; 1953 Libya, Somalia to Italy, Eritrea to Ethiopia, Tibet
+  to China; 1956 Morocco, Tunisia, Sudan, South Vietnam (new SVN), Cambodia;
+  1961 Ghana, Nigeria, Senegal, Ivory Coast, Somalia, Malaya, the two
+  Congos (CAF for Bangui); 1968 Algeria, Kenya, Uganda, Tanzania, Zambia,
+  Singapore, Guyana; 1979 Angola, Mozambique, reunified Vietnam,
+  Bangladesh, Suriname; 1989 Zimbabwe. 1945 base: Libya, Mogadishu,
+  Asmara, Lusaka British; Lhasa Tibetan; Taipei Chinese.
+- Renames: SEA "Thailand", PER "Iran", CHN "China", MMR "Burma".
+- **New province `jkt` Jakarta and nation INA.** Indonesia had no
+  province, so it stayed Dutch for the whole Cold War, and in 2026 it was
+  painted MALAYSIAN. Dutch 1861-1941, Japanese 1942, Dutch 1945,
+  independent 1949. The Netherlands now holds a real colony in WWII.
+- **Routing follows the province.** A shape holding a province is "*" (its
+  holder paints it), so independence and later conquest both show without
+  a per-year table. New token "@pid" = whoever holds that province, for a
+  shape whose province is off its own cell on the 40-km grid (Mogadishu,
+  Singapore are ports on sea cells; Bangui stands inside the DR Congo
+  outline). Shapes with no province go to the neighbouring state that took
+  their place (Mali to Senegal, Chad to Nigeria...), the modern era's
+  convention, with `ERA_FALLBACK` giving the colonial power before it
+  exists.
+- Tried and reverted: letting a coastal province look 1-2 cells inland
+  for its country. It found Singapore's country as MALAYSIA (Johor), so
+  southern Malaysia went Singaporean. "@sin" instead.
+- Regions in the Cold War: Tibet to 1953; Spanish Morocco to 1956, Ifni to
+  1969, Spanish Sahara to 1976 (also the W. Sahara shape); Vietnam north
+  of the 17th parallel goes with Hanoi (the Hanoi-Da Nang bisector put the
+  line at 18.5N). Papua New Guinea routed to Australia (it was "SEA" and
+  painted THAILAND), Brunei to Britain, Madagascar to France, Egypt to
+  Egypt (as "*" it gave Britain a Suez slice half of Sinai).
+- Checked: no unexplained split in any Cold War year (1945-1989) or any
+  other era; a simulated year from 1945, 1961 and 1979 runs with no errors.
+- Not done: the Sahel, Cameroon, Laos, Ceylon and similar countries with
+  no province still take a neighbour's colour after independence.
