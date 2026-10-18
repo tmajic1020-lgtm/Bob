@@ -25,6 +25,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 #topbar{top:0;left:0;right:0;height:44px;background:linear-gradient(rgba(26,33,25,0.80),rgba(17,22,15,0.80));border-bottom:2px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:13px;white-space:nowrap;overflow-x:auto}
 #topbar b{color:var(--amber)}
 #topbar .flag{font-size:18px}
+.fl{display:inline-block;width:1.5em;height:1em;vertical-align:-0.12em;background-size:100% 100%;border-radius:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+#topbar .flag .fl{width:27px;height:18px;vertical-align:-4px}
 .tbtn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:var(--font);padding:5px 10px;cursor:pointer;font-size:12px}
 .tbtn:hover{border-color:var(--amber);color:var(--amber)}
 .tbtn.on{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:bold}
@@ -2260,10 +2262,10 @@ function _spawnState(key,def,took,from,by){
   if(by){
     nn.puppet=by;G.nations[by].allies.add(key);nn.allies.add(by);
     G.nations[by].stab=Math.min(100,G.nations[by].stab+3);
-    logMsg(`\u{1F3F3} ${def.f} ${def.n} is RELEASED by ${NATIONS[by].n} and joins it as a puppet state.`,"good");
+    logMsg(`\u{1F3F3} ${FL(key)} ${def.n} is RELEASED by ${NATIONS[by].n} and joins it as a puppet state.`,"good");
   }else{
     declareWar(key,from);
-    logMsg(`\u{1F525} ${def.f} ${def.n} BREAKS AWAY from ${NATIONS[from].n} and fights for its independence!`,from===G.player?"war":"good");
+    logMsg(`\u{1F525} ${FL(key)} ${def.n} BREAKS AWAY from ${NATIONS[from].n} and fights for its independence!`,from===G.player?"war":"good");
     if(from===G.player&&typeof sfx==="function")sfx("war");
   }
   terDirty=true;
@@ -2313,7 +2315,7 @@ window.restoreNation=function(n){if(!G||!G.nations)return;
   addUnit(n,cap.id,"inf",3);
   G.nations[G.player].stab=Math.min(100,G.nations[G.player].stab+4);
   terDirty=true;if(typeof refreshFlagIcons==="function")refreshFlagIcons();
-  logMsg(`\u{1F3F3} ${NATIONS[n].f} ${NATIONS[n].n} is RESTORED by ${NATIONS[G.player].n} as a puppet state.`,"good");
+  logMsg(`\u{1F3F3} ${FL(n)} ${NATIONS[n].n} is RESTORED by ${NATIONS[G.player].n} as a puppet state.`,"good");
   if(typeof sfx==="function")sfx("focus");
   renderPanel();refreshHUD();};
 /* the continent a point stands on, coarse but enough to tell an empire from its homeland */
@@ -3431,7 +3433,7 @@ function signPact(a,b,days){
   days=days||1460;
   A.pacts=A.pacts||{};B.pacts=B.pacts||{};
   A.pacts[b]=days;B.pacts[a]=days;
-  logMsg(`\u{1F4DC} ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} sign a non-aggression pact.`,"good");
+  logMsg(`\u{1F4DC} ${FL(a)} ${NATIONS[a].n} and ${FL(b)} ${NATIONS[b].n} sign a non-aggression pact.`,"good");
   return true;
 }
 function breakPact(a,b){
@@ -3454,7 +3456,7 @@ function pactTick(){
     for(const o in n.pacts){
       if(--n.pacts[o]<=0){
         delete n.pacts[o];
-        if(k===G.player&&NATIONS[o])logMsg(`\u{1F4DC} The pact with ${NATIONS[o].f} ${NATIONS[o].n} has lapsed.`,"war");
+        if(k===G.player&&NATIONS[o])logMsg(`\u{1F4DC} The pact with ${FL(o)} ${NATIONS[o].n} has lapsed.`,"war");
       }
     }
   }
@@ -3483,7 +3485,7 @@ window.toggleLend=o=>{
   if(!G||!G.nations[o])return;
   const me=G.nations[G.player];me.lend=me.lend||{};
   if(me.lend[o]){delete me.lend[o];logMsg(`Lend-lease to ${NATIONS[o].n} ends.`,"war");}
-  else{me.lend[o]=1;logMsg(`\u{1F4E6} Lend-lease to ${NATIONS[o].f} ${NATIONS[o].n} begins \u2014 2% of your production a day.`,"good");}
+  else{me.lend[o]=1;logMsg(`\u{1F4E6} Lend-lease to ${FL(o)} ${NATIONS[o].n} begins \u2014 2% of your production a day.`,"good");}
   renderPanel();
 };
 function declareWar(a,b){if(!G||!G.nations)return;
@@ -3492,7 +3494,7 @@ function declareWar(a,b){if(!G||!G.nations)return;
   warPair(a,b);
   if(b===G.player){toast("⚔ "+NATIONS[a].n.toUpperCase()+" HAS DECLARED WAR ON YOU!");sfx("war");}
   G.tension=Math.min(100,G.tension+8);
-  logMsg(`${NATIONS[a].f} ${NATIONS[a].n} declares WAR on ${NATIONS[b].f} ${NATIONS[b].n}!`,"war");
+  logMsg(`${FL(a)} ${NATIONS[a].n} declares WAR on ${FL(b)} ${NATIONS[b].n}!`,"war");
   // alliances drag everyone in
   for(const x of[...G.nations[b].allies])if(G.nations[x]&&G.nations[x].alive){warPair(x,a);for(const y of[...G.nations[a].allies])warPair(x,y);}
   for(const y of[...G.nations[a].allies])if(G.nations[y]&&G.nations[y].alive)warPair(y,b);
@@ -3514,7 +3516,7 @@ function restoreFromHorde(p){
   if(!h.alive){
     h.alive=true;
     const N=NATIONS[p.home]||{f:"",n:p.home};
-    logMsg(`${N.f} ${N.n} rises again as the Horde is driven out.`,"good");
+    logMsg(`${FL(p.home)||N.f} ${N.n} rises again as the Horde is driven out.`,"good");
   }
   p.owner=p.home;p.garrison=1;terDirty=true;
   return true;
@@ -3564,7 +3566,7 @@ function proposePeaceDeal(a,b,terms){
   if(!provs.length&&!rep2&&!puppet)harsh=0;               // a plain white peace
   const accept=harsh<=ws+8||Math.random()<Math.max(0.04,(ws-harsh+40)/140);
   if(!accept){
-    logMsg(`${NATIONS[b].f} ${NATIONS[b].n} rejects your terms \u2014 they don't believe they've lost badly enough for that.`,"war");
+    logMsg(`${FL(b)} ${NATIONS[b].n} rejects your terms \u2014 they don't believe they've lost badly enough for that.`,"war");
     return false;
   }
   for(const id of provs){
@@ -3575,7 +3577,7 @@ function proposePeaceDeal(a,b,terms){
   if(provs.length)terDirty=true;
   if(rep2>0){B.pp-=rep2;A.pp+=rep2;}
   B.grudge=(B.grudge||0)+Math.round(harsh*0.6);
-  let msg=`\u{1F54A} PEACE: ${NATIONS[b].f} ${NATIONS[b].n} accepts your terms`;
+  let msg=`\u{1F54A} PEACE: ${FL(b)} ${NATIONS[b].n} accepts your terms`;
   const bits=[];
   if(provs.length)bits.push(provs.length+" province"+(provs.length===1?"":"s")+" ceded");
   if(rep2>0)bits.push(Math.round(rep2)+" PP in reparations");
@@ -3627,8 +3629,8 @@ function offerPeace(a,b){if(!G||!G.nations)return;
   if(ok){
     A.atWar.delete(b);B.atWar.delete(a);
     G.tension=Math.max(0,G.tension-4);
-    logMsg(`🕊 Peace between ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n}. Borders stand as they are.`,"good");
-  }else logMsg(`${NATIONS[b].f} ${NATIONS[b].n} rejects your peace offer — they think they can still win.`,"war");
+    logMsg(`🕊 Peace between ${FL(a)} ${NATIONS[a].n} and ${FL(b)} ${NATIONS[b].n}. Borders stand as they are.`,"good");
+  }else logMsg(`${FL(b)} ${NATIONS[b].n} rejects your peace offer — they think they can still win.`,"war");
   return ok;
 }
 function proposeTrade(a,b){if(!G||!G.nations)return;
@@ -3639,8 +3641,8 @@ function proposeTrade(a,b){if(!G||!G.nations)return;
   const ok=Math.random()<0.75;
   if(ok){
     A.trade.add(b);B.trade.add(a);
-    logMsg("\u{1F4B0} "+NATIONS[a].f+" "+NATIONS[a].n+" and "+NATIONS[b].f+" "+NATIONS[b].n+" sign a TRADE AGREEMENT.","good");
-  }else logMsg(NATIONS[b].f+" "+NATIONS[b].n+" isn't interested in a trade deal right now.","war");
+    logMsg("\u{1F4B0} "+FL(a)+" "+NATIONS[a].n+" and "+FL(b)+" "+NATIONS[b].n+" sign a TRADE AGREEMENT.","good");
+  }else logMsg(FL(b)+" "+NATIONS[b].n+" isn't interested in a trade deal right now.","war");
   return ok;
 }
 const _proposeTrade=proposeTrade;
@@ -3664,8 +3666,8 @@ function proposeAlliance(a,b){if(!G||!G.nations)return;
   const ok=sharedFoe||Math.random()<(natProvs(b).length<=natProvs(a).length?0.55:0.3);
   if(ok){
     A.allies.add(b);B.allies.add(a);
-    logMsg(`🤝 ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} are now ALLIES.`,"good");
-  }else logMsg(`${NATIONS[b].f} ${NATIONS[b].n} declines the alliance.`,"war");
+    logMsg(`🤝 ${FL(a)} ${NATIONS[a].n} and ${FL(b)} ${NATIONS[b].n} are now ALLIES.`,"good");
+  }else logMsg(`${FL(b)} ${NATIONS[b].n} declines the alliance.`,"war");
   return ok;
 }
 function proposeUnion(a,b){if(!G||!G.nations)return;
@@ -3673,7 +3675,7 @@ function proposeUnion(a,b){if(!G||!G.nations)return;
   if(!B.alive||!allied(a,b))return false;
   if(SLOWCONQ&&a===G.player){logMsg("Province-by-province conquest is enabled \u2014 nations cannot be absorbed wholesale.","war");return false;}
   const ok=natProvs(b).length<=natProvs(a).length+1&&Math.random()<0.5;
-  if(!ok){logMsg(`${NATIONS[b].f} ${NATIONS[b].n} is not ready to unite. Strengthen the alliance and try again.`,"war");return false;}
+  if(!ok){logMsg(`${FL(b)} ${NATIONS[b].n} is not ready to unite. Strengthen the alliance and try again.`,"war");return false;}
   for(const p of natProvs(b)){p.owner=a;p.home=a;}
   for(const u of G.units)if(u.nat===b)u.nat=a;
   for(const f of G.fleets)if(f.nat===b)f.nat=a;
@@ -3685,7 +3687,7 @@ function proposeUnion(a,b){if(!G||!G.nations)return;
   for(const o in G.nations)if(G.nations[o].puppet===b)G.nations[o].puppet=a;
   cutAllTies(b);
   terDirty=true;
-  logMsg(`🤝 ${NATIONS[a].f} ${NATIONS[a].n} and ${NATIONS[b].f} ${NATIONS[b].n} have UNITED into one nation!`,"good");
+  logMsg(`🤝 ${FL(a)} ${NATIONS[a].n} and ${FL(b)} ${NATIONS[b].n} have UNITED into one nation!`,"good");
   return true;
 }
 const SUCC={USA:["New Columbia","🦅","#3a6a9a"],GER:["Rhine Federation","⚙️","#4a5a6a"],
@@ -3724,7 +3726,7 @@ function installPuppet(overlord,target){if(!G||!G.nations)return;
   G.nations[overlord].allies.add(target);T.allies.add(overlord);
   T.stab=Math.max(T.stab,40);
   terDirty=true;
-  logMsg(`⛓ ${NATIONS[target].f} ${NATIONS[target].n} is now a PUPPET of ${NATIONS[overlord].f} ${NATIONS[overlord].n} — its flag is struck and tribute flows.`,"good");
+  logMsg(`⛓ ${FL(target)} ${NATIONS[target].n} is now a PUPPET of ${FL(overlord)} ${NATIONS[overlord].n} — its flag is struck and tribute flows.`,"good");
   return true;
 }
 function launchNuke(nat,pid){if(!G||!G.nations)return;
@@ -3743,7 +3745,7 @@ function launchNuke(nat,pid){if(!G||!G.nations)return;
   terDirty=true;
   sfx("nuke");
   if(p.owner===G.player)toast("☢ "+p.name.toUpperCase()+" HAS BEEN NUKED!");
-  logMsg(`☢ ${NATIONS[nat].f} ${NATIONS[nat].n} has NUKED ${p.name}! The world recoils.`,"war");
+  logMsg(`☢ ${FL(nat)} ${NATIONS[nat].n} has NUKED ${p.name}! The world recoils.`,"war");
   return true;
 }
 /* path within reachable graph (land + sea for armies via sea links if fleet exists; fleets travel coastal network) */
@@ -3875,7 +3877,7 @@ function tick(){
       if(k!==G.player&&n.alive&&!n.puppet&&!n.atWar.has(G.player)&&!allied(k,G.player)
          &&!pactWith(k,G.player)&&n.grudge>8&&Math.random()<0.0016*DIFF.aiAggro){
         n.grudge=0;declareWar(k,G.player);
-        logMsg(`${NATIONS[k].f} ${NATIONS[k].n} has not forgotten your broken word.`,"war");
+        logMsg(`${FL(k)} ${NATIONS[k].n} has not forgotten your broken word.`,"war");
       }
     }
     n.stab=Math.min(100,n.stab);
@@ -4090,7 +4092,7 @@ function tick(){
         G.tension=Math.min(100,G.tension+0.4);
         if(G.nations[old])G.nations[old].stab-=p.id===capOf(old)?8:1.5;
         if(occupier===G.player||old===G.player){
-          logMsg(`${NATIONS[occupier].f} ${occupier===G.player?"annexed":"took"} ${p.name} after occupation`,occupier===G.player?"good":"war");
+          logMsg(`${FL(occupier)} ${occupier===G.player?"annexed":"took"} ${p.name} after occupation`,occupier===G.player?"good":"war");
           sfx(occupier===G.player?"good":"war");
           if(occupier===G.player)unlockAch("occupier");
         }
@@ -4188,7 +4190,7 @@ function tick(){
       n.stab=Math.min(100,n.stab+15);n.grudge=(n.grudge||0)+30;
       G.tension=Math.min(100,G.tension+2);
       terDirty=true;
-      logMsg("\u{1F4A5} UPRISING \u2014 "+NATIONS[k].f+" "+NATIONS[k].n+" throws off "+NATIONS[lordKey].f+" "+NATIONS[lordKey].n+" and declares independence.","war");
+      logMsg("\u{1F4A5} UPRISING \u2014 "+FL(k)+" "+NATIONS[k].n+" throws off "+FL(lordKey)+" "+NATIONS[lordKey].n+" and declares independence.","war");
       if(k===G.player||lordKey===G.player)sfx("war");
     }
   }
@@ -4215,7 +4217,7 @@ function die(k){
   const n=G.nations[k];if(!n.alive)return;n.alive=false;
   G.units=G.units.filter(u=>u.nat!==k);G.fleets=G.fleets.filter(f=>f.nat!==k);G.wings=G.wings.filter(w=>w.nat!==k);
   cutAllTies(k);
-  logMsg(`${NATIONS[k].f} ${NATIONS[k].n} has been ANNEXED.`,"war");
+  logMsg(`${FL(k)} ${NATIONS[k].n} has been ANNEXED.`,"war");
   if(k===G.player){G.over=true;endScreen(false,"Your last province has fallen — the nation is annexed.");G.paused=true;}
   else if(G&&G.player&&G.nations[G.player]&&G.nations[G.player].alive)unlockAch("annihilator");
   const foes=Object.keys(G.nations).filter(x=>G.nations[x].alive&&!G.nations[x].puppet);
@@ -4520,7 +4522,7 @@ function fallTo(p,nat){
   if(MODS.scorched)p.val=Math.max(1,Math.round(p.val*0.4));
   G.tension=Math.min(100,G.tension+0.4);
   if(G.nations[old])G.nations[old].stab-=p.id===capOf(old)?8:1.5;
-  if(nat===G.player||old===G.player){logMsg(`${NATIONS[nat].f} captured ${p.name}`,nat===G.player?"good":"war");sfx(nat===G.player?"good":"war");}
+  if(nat===G.player||old===G.player){logMsg(`${FL(nat)} captured ${p.name}`,nat===G.player?"good":"war");sfx(nat===G.player?"good":"war");}
   if(nat===G.player){
     const wq=weatherAt(p);
     if(wq===WEATHER.blizzard)unlockAch("general_winter");
@@ -5205,7 +5207,7 @@ function wearinessTick(){
       n.atWar.delete(o);G.nations[o].atWar.delete(k);
       n.warSup=Math.min(100,ws+28);n.stab-=6;
       if(k===G.player||o===G.player)
-        logMsg(`\u{1F54A} ${NATIONS[k].f} ${NATIONS[k].n} has been forced out of its war with ${NATIONS[o].f} ${NATIONS[o].n} \u2014 the country would not fight on.`,k===G.player?"war":"good");
+        logMsg(`\u{1F54A} ${FL(k)} ${NATIONS[k].n} has been forced out of its war with ${FL(o)} ${NATIONS[o].n} \u2014 the country would not fight on.`,k===G.player?"war":"good");
     }
   }
 }
@@ -5415,7 +5417,7 @@ function aiTurn(k){
       const m=G.nations[o];
       if(o!==k&&m.alive&&!allied(k,o)&&!atWar(k,o)&&n.allies.size<4&&m.allies.size<4&&[...n.atWar].some(x=>m.atWar.has(x))){
         n.allies.add(o);m.allies.add(k);
-        logMsg(`🤝 ${NATIONS[k].f} ${NATIONS[k].n} allies with ${NATIONS[o].f} ${NATIONS[o].n}.`);break;
+        logMsg(`🤝 ${FL(k)} ${NATIONS[k].n} allies with ${FL(o)} ${NATIONS[o].n}.`);break;
       }
     }
   }
@@ -5440,7 +5442,7 @@ function aiTurn(k){
       &&!allied(k,o)&&!atWar(k,o));
     if(bud){
       n.allies.add(bud);G.nations[bud].allies.add(k);
-      logMsg("🤝 "+NATIONS[k].f+" "+NATIONS[k].n+" and "+NATIONS[bud].f+" "+NATIONS[bud].n+" sign a pact of "+((IDEO_FX[n.ideo]||{n:"mutual"}).n.toLowerCase())+" solidarity.");
+      logMsg("🤝 "+FL(k)+" "+NATIONS[k].n+" and "+FL(bud)+" "+NATIONS[bud].n+" sign a pact of "+((IDEO_FX[n.ideo]||{n:"mutual"}).n.toLowerCase())+" solidarity.");
     }
   }
   if(!n.puppet&&n.atWar.size===0&&Math.random()<(HISTMODE?0.045:0.18)*DIFF.aiAggro*(MODS.hardai?2:1)*(MODS.coldwar?0.4:1)*(({fas:1.6,rev:1.6,aut:1.15,mon:1.1,com:1,dem:0.55})[n.ideo]||1)&&myUnits>=4){
@@ -5917,7 +5919,7 @@ function breakAllianceFor(k,o){
     G.nations[x].grudge=(G.nations[x].grudge||0)+8;
   G.tension=Math.min(100,G.tension+3);
   if(k===G.player)unlockAch("turncoat");
-  logMsg(`✂ ${NATIONS[k].f} ${NATIONS[k].n} has BROKEN its alliance with ${NATIONS[o].f} ${NATIONS[o].n}.`,"war");
+  logMsg(`✂ ${FL(k)} ${NATIONS[k].n} has BROKEN its alliance with ${FL(o)} ${NATIONS[o].n}.`,"war");
   return true;
 }
 /* Walking out and turning on them in the same move. Costs far more than simply
@@ -5933,7 +5935,7 @@ function betrayAllyFor(k,o){
   for(const x of bloc)G.nations[x].grudge=(G.nations[x].grudge||0)+30;
   G.tension=Math.min(100,G.tension+15);
   if(k===G.player)unlockAch("turncoat");
-  logMsg(`🗡 ${NATIONS[k].f} ${NATIONS[k].n} has BETRAYED ${NATIONS[o].f} ${NATIONS[o].n} — the pact is torn up and the guns open.`,"war");
+  logMsg(`🗡 ${FL(k)} ${NATIONS[k].n} has BETRAYED ${FL(o)} ${NATIONS[o].n} — the pact is torn up and the guns open.`,"war");
   declareWar(k,o);
   return true;
 }
@@ -5954,7 +5956,7 @@ function releasePuppet(o){if(!G||!G.nations)return;
   me.allies.delete(o);them.allies.delete(G.player);
   me.stab=Math.min(100,me.stab+6);
   applyEra(ERA);terDirty=true;
-  logMsg(`\u{1F54A} ${NATIONS[o].f} ${NATIONS[o].n} is released and stands on its own again.`,"good");
+  logMsg(`\u{1F54A} ${FL(o)} ${NATIONS[o].n} is released and stands on its own again.`,"good");
   renderPanel();refreshHUD();
 }
 window.releasePuppet=releasePuppet;
@@ -6184,7 +6186,7 @@ function fireEvent(){
   const PAPERS={dem:"THE DAILY CHRONICLE",fas:"THE NATIONAL OBSERVER",
                 com:"THE PEOPLE'S DAILY",mon:"THE COURT GAZETTE",
                 aut:"THE STATE BULLETIN",rev:"THE FREE PRESS"};
-  $("#evPaper").textContent=(meN&&meN.f?meN.f+"  ":"")+(PAPERS[ideo]||PAPERS.dem);
+  $("#evPaper").innerHTML=(meN&&G&&G.player?FL(G.player)+" ":"")+String(PAPERS[ideo]||PAPERS.dem).replace(/[<&]/g,c=>c==="<"?"&lt;":"&amp;");
   $("#evDate").textContent=newsDate();
   try{drawNewsPhoto(newsPhotoKind(ev),((ev.t||"x").length*97+G.day)|0);}catch(e){}
   $("#evTitle").textContent=ev.t.toUpperCase();
@@ -10848,7 +10850,61 @@ function refreshFlagIcons(){
     if(!e.cv||!e.cv.isConnected){_flagIcons.splice(i,1);continue;}   // gone from the page
     try{drawFlagIcon(e.cv,e.k);}catch(err){}
   }
+  if(typeof refreshFlagRules==="function")refreshFlagRules();
 }
+/* FLAGS IN TEXT. The menus, panels, top bar and message log printed each
+   nation's emoji (NATIONS[k].f), so outside the map every flag was whatever
+   the device draws for that emoji -- two letters on Windows, today's flag
+   for a 1803 kingdom, a plain eagle or a black flag for the rest. FL(k)
+   gives the game's own drawn flag instead, at text size. Each flag is
+   painted once into a style rule (.fl-KEY) and the markup is just a tiny
+   <i>, so the message log and saves do not fill with image data; the rule
+   is repainted when the era changes or a picture-backed flag finishes
+   decoding, and every tag already on screen follows. */
+const _flRules={},_flSheet=(typeof document!=="undefined")?document.createElement("style"):null;
+if(_flSheet){_flSheet.id="flagRules";document.head.appendChild(_flSheet);}
+function _flPaint(painter,col){
+  const W=66,H=44,c=document.createElement("canvas");c.width=W;c.height=H;
+  const x=c.getContext("2d");
+  if(!painter){x.fillStyle=col||"#777777";x.fillRect(0,0,W,H);return c.toDataURL();}
+  const img=x.createImageData(W,H);
+  for(let y=0;y<H;y++)for(let i=0;i<W;i++){
+    let cc;try{cc=painter((i+0.5)/W,(y+0.5)/H);}catch(e){cc=col||"#777777";}
+    const rgb=hex2rgb(cc||col||"#777777"),o=(y*W+i)*4;
+    img.data[o]=rgb[0];img.data[o+1]=rgb[1];img.data[o+2]=rgb[2];img.data[o+3]=255;}
+  x.putImageData(img,0,0);return c.toDataURL();
+}
+function _flSig(){return ERA+"|"+FLAGSTYLE+"|"+Object.keys(_svgCanvas).length;}
+function _flWrite(){if(_flSheet)_flSheet.textContent=Object.keys(_flRules).map(c=>".fl-"+c+"{background-image:url("+_flRules[c].url+")}").join("\n");}
+function _flEnsure(cls,make){
+  const sig=_flSig(),r=_flRules[cls];
+  if(r&&r.sig===sig)return;
+  _flRules[cls]={sig,url:make(),make};_flWrite();
+}
+function _flPainterOf(k){
+  if(FLAGSTYLE==="plain")return null;
+  if(FLAGSTYLE==="cross")return crossPaint(k);
+  return FLAG[k]||null;
+}
+/* the drawn flag of nation k as inline markup; an unknown key keeps its emoji */
+function FL(k){
+  const N=NATIONS[k];if(!N)return "";
+  if(typeof document==="undefined")return N.f||"";
+  const cls=String(k).replace(/[^A-Za-z0-9_-]/g,"_");
+  _flEnsure(cls,()=>_flPaint(_flPainterOf(k),N.c));
+  return `<i class="fl fl-${cls}"></i>`;
+}
+/* the same for a releasable people that may not be a nation yet */
+function FLR(id,col){
+  const p=(typeof REL_FLAG!=="undefined"&&REL_FLAG[id])||null;
+  const cls="R_"+String(id).replace(/[^A-Za-z0-9_-]/g,"_");
+  _flEnsure(cls,()=>_flPaint(p,col));
+  return `<i class="fl fl-${cls}"></i>`;
+}
+/* repaint every rule in use: called when a picture-backed flag decodes and
+   when the era changes, so tags already on screen show the right flag */
+function refreshFlagRules(){const sig=_flSig();for(const c in _flRules){const r=_flRules[c];if(r.sig!==sig){r.sig=sig;try{r.url=r.make();}catch(e){}}}_flWrite();}
+window.FL=FL;
 function drawFlagIcon(cv,k){
   if(!cv||!NATIONS[k])return;
   if(!_flagIcons.some(e=>e.cv===cv&&e.k===k))_flagIcons.push({cv,k});
@@ -15917,7 +15973,7 @@ function hover(e){
   const p=provAt(e.clientX,e.clientY);
   const tip=$("#tip");
   if(p){tip.style.display="block";tip.style.left=Math.min(e.clientX+12,innerWidth-180)+"px";tip.style.top=(e.clientY+12)+"px";
-    tip.innerHTML=`<b>${p.name}</b><br>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}<br>Value ${p.val} ${p.coastal?"· Port":""}`;}
+    tip.innerHTML=`<b>${p.name}</b><br>${FL(p.owner)} ${NATIONS[p.owner].n}<br>Value ${p.val} ${p.coastal?"· Port":""}`;}
   else tip.style.display="none";
 }
 
@@ -15972,7 +16028,7 @@ function renderPanel(){
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
     const _same=Object.values(G.prov).filter(q=>q.owner===p.owner).sort((a,b)=>(b.val-a.val)||a.name.localeCompare(b.name));
     let h=`<h2>${p.name.toUpperCase()}</h2>
-    <div class="row"><span>Owner</span><span>${NATIONS[p.owner].f} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
+    <div class="row"><span>Owner</span><span>${FL(p.owner)} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
@@ -15982,7 +16038,7 @@ function renderPanel(){
       <div class="row"><span>Weather</span><span>${w.i} ${w.n} · ${SEASON_N[seasonOf(p.lat)]}${w===WEATHER.clear?"":" · move ×"+w.move.toFixed(2)+" · air ×"+w.air.toFixed(2)}</span></div>
       <div class="row"><span>Supply</span><span style="color:${sq[1]}">${sq[0]}${p.depot?" · 🚛 DEPOT":""} — for ${NATIONS[p.owner].n}</span></div>
       <div class="row"><span>Outlook</span><span style="color:var(--dim)">${[1,2,3].map(n=>_weatherCalc(p,Math.floor(G.day/10)+n).i).join(" ")} <span style="font-size:10px">next 30 days</span></span></div>`;})()}
-    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${NATIONS[p.occBy].f} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${NATIONS[p.pushBy].f} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${PUSH_TAKEN[p.id]?PUSH_TAKEN[p.id].n+" of "+PUSH_TAKEN[p.id].m+" provinces":Math.round(100*p.push)+"%"}</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
+    ${SLOWCONQ&&p.occBy&&p.occBy!==p.owner?`<div class="row"><span style="color:var(--amber)">🚩 Occupied by ${FL(p.occBy)} ${NATIONS[p.occBy].n}</span><span>${p.occ||0}/${occNeed(p)} days</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*(p.occ||0)/occNeed(p))}%;background:var(--amber)"></i></div>`:""}${pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?`<div class="row"><span style="color:#e25e3a">⚔ ${FL(p.pushBy)} ${NATIONS[p.pushBy].n} has taken ground here</span><span>${PUSH_TAKEN[p.id]?PUSH_TAKEN[p.id].n+" of "+PUSH_TAKEN[p.id].m+" provinces":Math.round(100*p.push)+"%"}</span></div><div class="bar" style="margin-bottom:4px"><i style="width:${Math.round(100*p.push)}%;background:#e25e3a"></i></div>`:""}<div class="row"><span>Garrison</span><span>🛡 ${p.garrison.toFixed(1)} ${p.fort?("· 🏰 Fort "+p.fort):""} ${p.fac?("· 🏭 ×"+p.fac):""}</span></div>`;
     h+=`<h3>\u{1F5FA} PROVINCES OF ${NATIONS[p.owner].n.toUpperCase()} (${_same.length})</h3>
       <div style="display:flex;flex-wrap:wrap;gap:3px">${_same.map(q=>`<button class="tbtn ${q.id===p.id?"on":""}" style="font-size:10px;padding:2px 6px" onclick="goProv('${q.id}')">${capOf(q.owner)===q.id?"\u2605 ":""}${q.name}</button>`).join("")}</div>`;
     if(p.owner===G.player){
@@ -16024,10 +16080,10 @@ function renderPanel(){
     if(us.length||fs.length){
       h+=`<h3>FORCES HERE</h3>`;
       for(const u of us){
-        h+=`<button class="bbtn" onclick="selU(${u.id})">${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)} ${NATIONS[u.nat].f} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name+(genTrait(u)?" "+genTrait(u).i:""):""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
+        h+=`<button class="bbtn" onclick="selU(${u.id})">${uIcon(u.type)+" "+uName(u.type)}${vetStars(u)} ${FL(u.nat)} ${u.gen?"★"+u.gen.lvl+" "+u.gen.name+(genTrait(u)?" "+genTrait(u).i:""):""} <small>STR ${u.str} · HP ${Math.max(0,u.hp).toFixed(0)}${u.nat===G.player?" · tap to command":""}</small></button>`;
         if(u.nat===G.player&&!u.gen)h+=`<button class="bbtn" style="margin-left:14px;width:calc(100% - 14px)" onclick="hireGeneral(${u.id})">★ Hire a general for this division — 40 PP<small>+25% combat, grows with every battle (max 4 generals).</small></button>`;
       }
-      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet ${NATIONS[f.nat].f} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
+      for(const f of fs)h+=`<button class="bbtn" onclick="selU(${f.id})">⚓ Fleet ${FL(f.nat)} <small>STR ${f.str} · HP ${Math.max(0,f.hp).toFixed(0)}</small></button>`;
     }
     if(p.owner!==G.player&&G.nations[p.owner].alive){
       const o=p.owner;
@@ -16172,7 +16228,7 @@ function renderPanel(){
           `<button class="tbtn" style="flex:1;font-size:10px" ${((grp&&grp.stance)||"hold")===k?"disabled":""} onclick="setStance(${g},'${k}')">${STANCES[k].i} ${STANCES[k].n}</button>`).join("")}</div>
         <div style="color:var(--dim);font-size:10px">${st.d}</div>`;
         if(foes.length)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><button class="tbtn" style="font-size:10px" ${!(grp&&grp.target)?"disabled":""} onclick="setGroupTarget(${g},null)">Any enemy</button>${
-          foes.slice(0,5).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${NATIONS[k].f} ${NATIONS[k].n}</button>`).join("")}</div>`;
+          foes.slice(0,5).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")}</div>`;
         if(roster.length&&epochAtLeast("24.0")){
           const gi=roster.filter(u=>!u.train&&canTrain(u)).length;
           if(gi)h+=`<button class="tbtn" style="font-size:10px" onclick="trainGroup(${g})">\u{1F3AF} Train group ${g} (${gi})</button>`;
@@ -16536,7 +16592,7 @@ function renderPanel(){
     const harsh=Math.round(provs.frac*140+(PEACE_REP/(Math.max(1,B.pp||1)))*25+(PEACE_PUP&&!SLOWCONQ?35:0));
     const likely=harsh<=ws+8?"LIKELY TO ACCEPT":harsh<=ws+30?"MIGHT ACCEPT":"WILL LIKELY REFUSE";
     const likelyC=harsh<=ws+8?"#7ad48a":harsh<=ws+30?"var(--amber)":"#ff8d7a";
-    let h=`<h2>\u{1F4DC} PEACE CONFERENCE \u2014 ${NATIONS[b].f} ${NATIONS[b].n}</h2>
+    let h=`<h2>\u{1F4DC} PEACE CONFERENCE \u2014 ${FL(b)} ${NATIONS[b].n}</h2>
     <div class="row"><span>War score</span><span style="color:var(--amber)">${ws}/100</span></div>
     <div style="color:var(--dim);font-size:11px">How thoroughly you've beaten them so far. Harsher terms need a higher score to be accepted.</div>
     <div class="row"><span>They will\u2026</span><span style="color:${likelyC}">${likely}</span></div>
@@ -16589,7 +16645,7 @@ function renderPanel(){
       const rel=k===G.player?"":(me2.atWar.has(k)?" \u2694":(me2.allies.has(k)?" \u{1F91D}":""))+(n.puppet?" \u2699":"")+(!n.alive?" \u2620":"");
       const hl=k===G.player?'style="color:var(--amber);font-weight:bold"':'';
       const idf=(IDEO_FX[n.ideo]||{}).f||"";
-      h+=`<span>${NATIONS[k].f}</span>
+      h+=`<span>${FL(k)}</span>
       <span ${hl}>${NATIONS[k].n}${rel} <span style="color:var(--dim)">${idf}</span></span>
       <span>${r.provs}</span><span>${r.divs}</span>
       <span>${(n.ppRate||0).toFixed(1)}</span>
@@ -16624,8 +16680,8 @@ function renderPanel(){
     }
     h+=`<h3>ESPIONAGE ${me.cab.spy?"· spymaster −30%":""}</h3>`;
     const tgts=Object.keys(G.nations).filter(k=>k!==G.player&&G.nations[k].alive&&!G.nations[k].puppet&&(statAt(k,0)||natProvs(k).length>4)).slice(0,10);
-    h+=`<div style="color:var(--dim);font-size:11px">Target: <b style="color:var(--ink)">${me.spyT?NATIONS[me.spyT].f+" "+NATIONS[me.spyT].n:"none"}</b> · Network ${Math.round(me.spyNet)}% (decays over time)</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0">${tgts.map(k=>`<button class="tbtn" style="font-size:10px;padding:3px 6px${me.spyT===k?";border-color:var(--amber);color:var(--amber)":""}" onclick="govAct('spyT','${k}')">${NATIONS[k].f}</button>`).join("")}</div>`;
+    h+=`<div style="color:var(--dim);font-size:11px">Target: <b style="color:var(--ink)">${me.spyT?FL(me.spyT)+" "+NATIONS[me.spyT].n:"none"}</b> · Network ${Math.round(me.spyNet)}% (decays over time)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0">${tgts.map(k=>`<button class="tbtn" style="font-size:10px;padding:3px 6px${me.spyT===k?";border-color:var(--amber);color:var(--amber)":""}" onclick="govAct('spyT','${k}')">${FL(k)}</button>`).join("")}</div>`;
     const sc=me.cab.spy?0.7:1;
     h+=`<button class="bbtn" ${!me.spyT||me.pp<Math.round(25*sc)?"disabled":""} onclick="govAct('infil')">🕵 Infiltrate — ${Math.round(25*sc)} PP<small>+22 network in the target country</small></button>
     <button class="bbtn" ${!me.spyT||me.spyNet<30||me.pp<Math.round(15*sc)?"disabled":""} onclick="govAct('reveal')">🔍 Military intelligence — ${Math.round(15*sc)} PP · needs 30%<small>Reveal the target's exact forces</small></button>
@@ -16815,10 +16871,10 @@ function renderPanel(){
      if(rl.length){h+=`<h3>\u{1F3F3} RELEASABLE NATIONS</h3>
       <div style="color:var(--dim);font-size:11px">Peoples on land you hold who could have a state of their own. Release one and its provinces become a puppet state at your side. Hold them badly in a war and they may break away by themselves.</div>`;
       for(const r of rl){const mine=r.cores.filter(c=>G.prov[c]&&G.prov[c].owner===G.player).map(c=>G.prov[c].name);
-        h+=`<button class="bbtn" style="border-left:4px solid ${r.c}" onclick="releaseNation('${r.id}')">${r.f} Release ${r.n}<small>${r.d}. Gives up ${mine.join(", ")}.</small></button>`;}}
+        h+=`<button class="bbtn" style="border-left:4px solid ${r.c}" onclick="releaseNation('${r.id}')">${FLR(r.id,r.c)} Release ${r.n}<small>${r.d}. Gives up ${mine.join(", ")}.</small></button>`;}}
      if(rs.length){h+=`<h3>\u{1F30D} CONQUERED COUNTRIES</h3>
       <div style="color:var(--dim);font-size:11px">Countries you have wiped off the map. Put one back on its own provinces as YOUR puppet: it fights at your side, and +4 stability.</div>`;
-      for(const r of rs)h+=`<button class="bbtn" style="border-left:4px solid ${NATIONS[r.k].c}" onclick="restoreNation('${r.k}')">${NATIONS[r.k].f} Restore ${NATIONS[r.k].n} as a puppet<small>Gives up ${r.provs.map(p=>p.name).join(", ")}.</small></button>`;}
+      for(const r of rs)h+=`<button class="bbtn" style="border-left:4px solid ${NATIONS[r.k].c}" onclick="restoreNation('${r.k}')">${FL(r.k)} Restore ${NATIONS[r.k].n} as a puppet<small>Gives up ${r.provs.map(p=>p.name).join(", ")}.</small></button>`;}
      if(cg.length){h+=`<h3>\u{1F6A2} COLONIES</h3>
       <div style="color:var(--dim);font-size:11px">Land you hold on another continent that you cannot reach overland. Grant a territory independence and it becomes your puppet; hold it badly in a war and it may break free on its own.</div>`;
       for(const g of cg)h+=`<button class="bbtn" onclick="grantIndependence('${g[0].id}')">\u{1F3F3} Grant independence to ${_rebirthName(g.slice().sort((a,b)=>(b.val||0)-(a.val||0))[0])}<small>${g.slice(0,4).map(p=>p.name).join(", ")}${g.length>4?` (and ${g.length-4} more stay yours)`:""}.</small></button>`;}}
@@ -16834,30 +16890,30 @@ function renderPanel(){
       const pacted=Object.keys(me.pacts||{}).filter(k=>G.nations[k]&&G.nations[k].alive);
       h+=`<h3>\u{1F4DC} TREATIES</h3>`;
       if(pacted.length){
-        h+=pacted.map(k=>`<div class="row"><span>${NATIONS[k].f} ${NATIONS[k].n}</span><span style="color:#5d9a4e">non-aggression \u00b7 ${Math.ceil(me.pacts[k]/365*10)/10} yr</span></div>`).join("");
+        h+=pacted.map(k=>`<div class="row"><span>${FL(k)} ${NATIONS[k].n}</span><span style="color:#5d9a4e">non-aggression \u00b7 ${Math.ceil(me.pacts[k]/365*10)/10} yr</span></div>`).join("");
       }else h+=`<div style="color:var(--dim);font-size:11px">No pacts signed. A pact costs 40 PP and buys a quiet border without dragging you into their wars \u2014 breaking one later costs stability, and everyone who signed with you notices.</div>`;
       const canPact=tradeable.filter(k=>!pacted.includes(k)).slice(0,6);
       if(canPact.length)h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+canPact.map(k=>
-        `<button class="tbtn" style="font-size:10px" ${me.pp<40?"disabled":""} onclick="signPactWith('${k}')">\u{1F4DC} ${NATIONS[k].f} ${NATIONS[k].n} \u2014 40 PP</button>`).join("")+"</div>";
+        `<button class="tbtn" style="font-size:10px" ${me.pp<40?"disabled":""} onclick="signPactWith('${k}')">\u{1F4DC} ${FL(k)} ${NATIONS[k].n} \u2014 40 PP</button>`).join("")+"</div>";
       const lendable=Object.keys(G.nations).filter(k=>k!==G.player&&G.nations[k].alive&&!atWar(G.player,k));
       const lending=Object.keys(me.lend||{}).filter(k=>G.nations[k]&&G.nations[k].alive);
       h+=`<h3>\u{1F4E6} LEND-LEASE</h3>`;
       if(lending.length)h+=lending.map(k=>
-        `<button class="bbtn" onclick="toggleLend('${k}')">\u{1F4E6} Supplying ${NATIONS[k].f} ${NATIONS[k].n}<small>2% of your production and a trickle of oil, every day. Tap to stop.</small></button>`).join("");
+        `<button class="bbtn" onclick="toggleLend('${k}')">\u{1F4E6} Supplying ${FL(k)} ${NATIONS[k].n}<small>2% of your production and a trickle of oil, every day. Tap to stop.</small></button>`).join("");
       else h+=`<div style="color:var(--dim);font-size:11px">Nobody. Sending production to a country fighting your enemy is cheaper than fighting them yourself, and it wears down a grudge.</div>`;
       const canLend=lendable.filter(k=>!lending.includes(k)&&(allied(G.player,k)||myTrade.has(k))).slice(0,6);
       if(canLend.length)h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+canLend.map(k=>
-        `<button class="tbtn" style="font-size:10px" onclick="toggleLend('${k}')">\u{1F4E6} ${NATIONS[k].f} ${NATIONS[k].n}</button>`).join("")+"</div>";
+        `<button class="tbtn" style="font-size:10px" onclick="toggleLend('${k}')">\u{1F4E6} ${FL(k)} ${NATIONS[k].n}</button>`).join("")+"</div>";
     }
     const untraded=tradeable.filter(function(k){return !myTrade.has(k);}).slice(0,6);
     if(untraded.length){
       h+="<h3>PROPOSE TRADE</h3><div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+untraded.map(function(k){
-        return "<button class=\"tbtn\" style=\"font-size:10px\" onclick=\"proposeTrade('"+G.player+"','"+k+"');renderPanel()\">"+NATIONS[k].f+" "+NATIONS[k].n+"</button>";
+        return "<button class=\"tbtn\" style=\"font-size:10px\" onclick=\"proposeTrade('"+G.player+"','"+k+"');renderPanel()\">"+FL(k)+" "+NATIONS[k].n+"</button>";
       }).join("")+"</div>";
     }
     for(const a of als){
       const theirBloc=[...G.nations[a].allies].filter(x=>x!==G.player&&G.nations[x]&&G.nations[x].alive).length;
-      h+=`<div class="row"><span>🤝 ${NATIONS[a].f} ${NATIONS[a].n}</span><span>${natProvs(a).length} prov</span></div>
+      h+=`<div class="row"><span>🤝 ${FL(a)} ${NATIONS[a].n}</span><span>${natProvs(a).length} prov</span></div>
       <button class="bbtn" onclick="breakAlliance('${a}')">✂ Break the alliance with ${NATIONS[a].n}<small>15 PP and −4 stability. They will remember it — and so will the rest of their bloc.</small></button>
       <button class="bbtn warn" onclick="betrayAlly('${a}')">🗡 Betray ${NATIONS[a].n} — tear up the pact and attack<small>40 PP, −12 stability, −15 war support${theirBloc?`, and their ${theirBloc} other all${theirBloc===1?"y joins":"ies join"} them`:""}. The world will not forget this.</small></button>`;
     }
@@ -16865,7 +16921,7 @@ function renderPanel(){
     if(pups.length){h+=`<h3>PUPPET STATES</h3>`;
       for(const k of pups){
         const pn=G.nations[k],risk=pn.stab<28;
-        h+="<div class=\"row\"><span>\u26D3 "+NATIONS[k].f+" "+NATIONS[k].n+"</span><span"+(risk?" style=\"color:#ff8d7a\"":"")+">"+natProvs(k).length+" prov \u00b7 "+Math.round(pn.stab)+"% loyal"+(risk?" \u26A0":"")+"</span></div>";
+        h+="<div class=\"row\"><span>\u26D3 "+FL(k)+" "+NATIONS[k].n+"</span><span"+(risk?" style=\"color:#ff8d7a\"":"")+">"+natProvs(k).length+" prov \u00b7 "+Math.round(pn.stab)+"% loyal"+(risk?" \u26A0":"")+"</span></div>";
         h+="<button class=\"bbtn\" onclick=\"releasePuppet('"+k+"')\">\u{1F54A} Release "+NATIONS[k].n+"<small>They become a free nation again. +6 stability, and the world takes note.</small></button>";
       }
     }
@@ -16877,14 +16933,14 @@ function renderPanel(){
     const activeTrade=[...myTrade].filter(function(k){return G.nations[k]&&G.nations[k].alive;});
     if(activeTrade.length){
       h+="<h3>\u{1F4B0} TRADE PARTNERS</h3>";
-      for(const t of activeTrade)h+="<div class=\"row\"><span>"+NATIONS[t].f+" "+NATIONS[t].n+"</span><button class=\"tbtn\" style=\"font-size:10px\" onclick=\"endTrade('"+G.player+"','"+t+"')\">END</button></div>";
+      for(const t of activeTrade)h+="<div class=\"row\"><span>"+FL(t)+" "+NATIONS[t].n+"</span><button class=\"tbtn\" style=\"font-size:10px\" onclick=\"endTrade('"+G.player+"','"+t+"')\">END</button></div>";
       h+="<div style=\"color:var(--dim);font-size:11px\">Each active trade partner adds +3% to your production.</div>";
     }
     const wars=[...me.atWar];
     if(!wars.length)h+=`<div style="color:var(--dim)">At peace. Click a foreign province to declare war from its panel.</div>`;
     for(const w of wars){
       const n=G.nations[w];if(!n.alive)continue;
-      h+=`<div class="row"><span>${NATIONS[w].f} ${NATIONS[w].n} (${natProvs(w).length})</span>
+      h+=`<div class="row"><span>${FL(w)} ${NATIONS[w].n} (${natProvs(w).length})</span>
       <span style="display:flex;gap:3px"><button class="tbtn" style="font-size:10px;padding:3px 7px" onclick="offerPeace('${G.player}','${w}');renderPanel()">🕊 WHITE PEACE</button>
       ${epochAtLeast("5.5")?`<button class="tbtn" style="font-size:10px;padding:3px 7px;border-color:var(--amber);color:var(--amber)" onclick="openPeaceConf('${w}')">📜 NEGOTIATE</button>`:""}</span></div>`;
     }
@@ -16922,7 +16978,7 @@ function renderPanel(){
     for(const[k,c]of ranked){
       const st=statAt(k,_yi);
       const sl=st?`<span style="color:var(--dim);font-size:10px">${st.men}M · $${ERA==="modern"?(st.gdp/1000).toFixed(1)+"T":st.gdp+"B"}</span>`:"";
-      h+=`<div class="row"><span>${NATIONS[k].f} ${NATIONS[k].n}${k===G.player?" (you)":""}</span><span>${c} ${sl}</span></div>`;
+      h+=`<div class="row"><span>${FL(k)} ${NATIONS[k].n}${k===G.player?" (you)":""}</span><span>${c} ${sl}</span></div>`;
     }
     el.innerHTML=h;
     const hc=$("#histCv");
@@ -19133,7 +19189,7 @@ function mpApplyOrder(o){
   if(o.target!==undefined&&!G.nations[o.target])return;
   if(o.pid!==undefined&&!G.prov[o.pid])return;
   const nat=o.nat;
-  if(o.type==="claim"){G.nations[nat].ai=false;logMsg(`${NATIONS[nat].f} ${NATIONS[nat].n} is now player-controlled (multiplayer).`,"good");}
+  if(o.type==="claim"){G.nations[nat].ai=false;logMsg(`${FL(nat)} ${NATIONS[nat].n} is now player-controlled (multiplayer).`,"good");}
   if(o.type==="move"){
     const u=[...G.units,...G.fleets].find(x=>x.id===o.id&&x.nat===nat);
     if(u){const path=findPath(u.at,o.to,u.kind==="fleet"?"fleet":"army",nat);
@@ -19212,7 +19268,7 @@ function deleteSave(sl){
 function slotLine(m){
   if(!m)return "empty";
   const N=NATIONS[m.player];
-  return `${N?N.f+" "+N.n:m.player} \u00b7 ${m.date||m.year} \u00b7 ${m.prov} prov \u00b7 ${m.div} div`;
+  return `${N?FL(m.player)+" "+N.n:m.player} \u00b7 ${m.date||m.year} \u00b7 ${m.prov} prov \u00b7 ${m.div} div`;
 }
 window.saveGame=saveGame;window.loadGame=loadGame;window.deleteSave=deleteSave;
 let HOSTPUSH=null;       // the single host state-push interval
@@ -19665,7 +19721,7 @@ function renderStart(){
     const picked=PICK===k;
     if(picked)d.classList.add("on");
     d.innerHTML=`<span class="natbadge" style="color:${picked?"var(--amber)":"var(--dim)"}">${picked?"\u2714":"\u25CB"}</span>`+
-      (epochAtLeast("5.3")?`<canvas class="flagicon f" width="28" height="18" data-dw="34" data-dh="22"></canvas>`:`<span class="f">${NATIONS[k].f}</span>`)+
+      (epochAtLeast("5.3")?`<canvas class="flagicon f" width="28" height="18" data-dw="34" data-dh="22"></canvas>`:`<span class="f">${FL(k)}</span>`)+
       `<b>${NATIONS[k].n}</b><small>${NATIONS[k].desc} \u00b7 ${YEAR} \u00b7 strength ${s}/10 \u00b7 ${_holds[k]} region${_holds[k]===1?"":"s"}${sl?"<br>"+sl:""}</small>`;
     d.onclick=()=>{
       if(PICK===k){startGame(k);return;}      // tap the picked country again to begin
@@ -19678,7 +19734,7 @@ function renderStart(){
   let row=$("#beginRow");
   if(!row){row=document.createElement("div");row.id="beginRow";natEl.parentNode.insertBefore(row,natEl);}
   row.innerHTML=PICK&&NATIONS[PICK]
-    ?`<button class="bbtn" style="border-color:var(--amber);color:var(--amber)" onclick="startGame(PICK)">\u25B6 BEGIN AS ${NATIONS[PICK].f} ${NATIONS[PICK].n} \u2014 ${YEAR}<small>Or tap ${NATIONS[PICK].n} again. Switch years above and the badges follow your pick.</small></button>`
+    ?`<button class="bbtn" style="border-color:var(--amber);color:var(--amber)" onclick="startGame(PICK)">\u25B6 BEGIN AS ${FL(PICK)} ${NATIONS[PICK].n} \u2014 ${YEAR}<small>Or tap ${NATIONS[PICK].n} again. Switch years above and the badges follow your pick.</small></button>`
     :`<div style="color:var(--dim);font-size:11px">No country picked yet \u2014 tap one below (its corner turns \u2714), then choose your year.</div>`;
 }
 let GAMECLOCK=null;      // the single daily-tick interval; see startGame
@@ -20632,7 +20688,7 @@ function startGame(k){
   }
   $("#start").style.display="none";
   $("#topbar").style.display="flex";$("#sidebtns").style.display="flex";$("#speedbox").style.display="flex";
-  $("#hFlag").textContent=NATIONS[k].f;$("#hName").textContent=NATIONS[k].n;
+  $("#hFlag").innerHTML=FL(k);$("#hName").textContent=NATIONS[k].n;
   focusNation(k);   // open on your own country, not on the whole globe
   refreshHUD();
   runHistory(true); // later-year starts inherit the wars already raging

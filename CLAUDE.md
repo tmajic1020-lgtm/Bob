@@ -1518,3 +1518,25 @@ with Finland Russian -- wrong both ways for 1803.
   16KB).
 - The Mongol era's "Christian Kingdoms" (EEU) still covers Scandinavia as
   a bloc; not touched.
+
+## Flags in the interface, not emoji
+
+Owner, after the flag pictures: "WHY ARE THEY ALL EMOJIS". The drawn flags
+only reached the map and the country cards; 76 places in the panels, top
+bar, start button, message log and newspaper printed `NATIONS[k].f`, the
+device's emoji -- two letters on Windows, and today's flag for an 1803
+kingdom.
+
+- `FL(k)` returns `<i class="fl fl-KEY"></i>`; the flag is painted once from
+  the same FLAG[k] painter as the map into a style rule (#flagRules), so log
+  lines and saves stay small. `FLR(id,col)` does the same for a releasable
+  that is not a nation yet (REL_FLAG). `refreshFlagRules()` repaints the
+  rules when the era/FLAGSTYLE changes or a picture-backed flag decodes
+  (hooked into refreshFlagIcons), so tags already on screen follow.
+- **The blanket replace hit data, not just display.** `NATIONS[k].f=...`
+  in applyEra/renames/load and `f:NATIONS[k].f` in NAT_BASE and the save
+  array became FL(k) and had to be put back -- the emoji field is still the
+  stored identity and the pre-5.3 Time Machine path still shows it.
+- Every remaining FL( call was checked to land in innerHTML (no <option>,
+  title= or textContent). In a 1939 game the page shows 32 drawn flags and
+  0 emoji flags; smoke, a year in six eras and save/load all clean.
