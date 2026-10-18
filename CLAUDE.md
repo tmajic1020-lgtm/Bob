@@ -1494,3 +1494,27 @@ can go the same way if the owner sends pictures; keep each under ~10KB.
   flat drawn red ensign, its red surround keyed out (r>120,g<105,b<115 ->
   field). Cold War IND now flies the tricolour too; it used to show the Raj
   ensign until the modern era.
+
+## 1803: Sweden and Denmark-Norway, and the Austrian Empire's flag
+
+Owner: "Scandinavia was never a country; close to it was the Kalmar Union"
+(1397-1523, which no era here falls in). The Napoleonic era had one nation,
+SWE "Scandinavia", holding Sweden, Norway, Denmark, Iceland and Greenland,
+with Finland Russian -- wrong both ways for 1803.
+
+- SWE is now "Sweden" and holds Finland (hel, tku) until 1810 (ceded
+  September 1809). DEN exists in the napoleon era, renamed
+  "Denmark-Norway" there, holding cph, osl, brg, nar, trd, rey, nuk, thu,
+  sco2. Norway goes to Sweden in 1814 (Kiel). ERA_FIX_OWN.napoleon,
+  ERA_FIX_YEARS.napoleon; NAPO_OVERRIDE routes Norway "@osl", Finland
+  "@hel", Denmark/Iceland/Greenland DEN. The ERA_FIX_OWN loop's Raj
+  puppet hook now skips napoleon as well as coldwar (no IND/UK there).
+- Probed by city: Oslo/Bergen/Trondheim DEN 1803-1810, SWE 1815; Turku and
+  Oulu SWE 1803, RUE 1810. Malmo reads PRU/FEM, but its coarse cell is
+  "sea" on the Sound and read the same before the change -- a probe
+  artefact. A year from 1803, 1809 and 1813 runs clean.
+- AUE (Austrian Empire) flew red-white-red here; it is now the black-gold
+  flag with the double eagle from the owner's picture (`_aueFlag`, 300x200,
+  16KB).
+- The Mongol era's "Christian Kingdoms" (EEU) still covers Scandinavia as
+  a bloc; not touched.
