@@ -1488,3 +1488,9 @@ can go the same way if the owner sends pictures; keep each under ~10KB.
   pale); they are now 300x200 JPEGs from the new pictures (9-13KB each,
   file +~35KB). Prussia's picture was cropped top, bottom and hoist, so the
   existing full traced flag stays.
+- British Raj (FLAG.RAJ, used by IND before the Cold War): the owner's
+  picture was a waving-cloth render with a bent Union Jack, so only the Star
+  of India badge was cut from it (`_rajStar`, 210x180, 18KB) and laid on the
+  flat drawn red ensign, its red surround keyed out (r>120,g<105,b<115 ->
+  field). Cold War IND now flies the tricolour too; it used to show the Raj
+  ensign until the modern era.
