@@ -395,6 +395,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="bbtn" style="margin-top:8px;text-align:center;border-color:var(--line)" onclick="document.getElementById('mpModal').style.display='none'">CLOSE</button>
 </div>
 <div id="speedbox" class="hud" style="display:none">
+  <button class="tbtn" id="bMode" onclick="cycleMapMode()">🗺 POLITICAL</button>
   <button class="tbtn" id="bProv">🏛 PROVINCES</button>
   <button class="tbtn" id="bZoomOut">−</button>
   <button class="tbtn" id="bZoomIn">+</button>
@@ -2015,10 +2016,36 @@ function occNeed(p){
 /* The map styles the game actually knows how to draw. Anything else used to be
    accepted and left the map in a state no branch handles. */
 const MAPSTYLE_IDS=["flags","terrain","political","plain","states","ideology","diplomacy","threat"];
+/* Only a style that shows the countries is remembered between games.
+   TERRAIN (and the ideology/diplomacy/military lenses) used to be saved
+   too, so one click on TERRAIN made every campaign after it open as grey
+   ground with no colours and no names -- and the Settings row that offered
+   TERRAIN had no POLITICAL button to come back with. Those are lenses for
+   the game in hand now; a new campaign opens in the remembered colours. */
+const MAPSTYLE_KEEP=["political","flags"];
+let MAPSTYLE_HOME="political";
 function setMapStyle(m){
   if(!MAPSTYLE_IDS.includes(m))return;
-  MAPSTYLE=m;terDirty=true;try{localStorage.setItem("if_mapstyle",m);}catch(e){}}
-try{const _ms=localStorage.getItem("if_mapstyle");if(MAPSTYLE_IDS.includes(_ms))MAPSTYLE=_ms;}catch(e){}
+  MAPSTYLE=m;terDirty=true;
+  if(MAPSTYLE_KEEP.includes(m)){MAPSTYLE_HOME=m;try{localStorage.setItem("if_mapstyle",m);}catch(e){}}
+  if(typeof mapModeChip==="function")mapModeChip();}
+try{const _ms=localStorage.getItem("if_mapstyle");if(MAPSTYLE_KEEP.includes(_ms))MAPSTYLE=MAPSTYLE_HOME=_ms;else if(_ms)localStorage.removeItem("if_mapstyle");}catch(e){}
+/* the map-mode button by the clock: names the mode, cycles on a click, and
+   lights up when the countries' colours are off */
+const MAPMODE_CYCLE=[["political","\u{1F5FA} POLITICAL"],["terrain","\u26F0 TERRAIN"],["ideology","\u{1F3DB} IDEOLOGY"],["diplomacy","\u{1F91D} DIPLOMACY"],["threat","\u2694 MILITARY"],["flags","\u{1F3F3} FLAGS"]];
+function mapModeChip(){
+  const b=document.getElementById("bMode");if(!b)return;
+  const e=MAPMODE_CYCLE.find(x=>x[0]===MAPSTYLE)||MAPMODE_CYCLE[0];
+  b.textContent=e[1];b.classList.toggle("on",!MAPSTYLE_KEEP.includes(MAPSTYLE));
+  b.title=MAPSTYLE_KEEP.includes(MAPSTYLE)?"Map mode \u2014 click to cycle":"Country colours are off \u2014 click to cycle back to POLITICAL";
+}
+function cycleMapMode(){
+  const ok=MAPMODE_CYCLE.filter(x=>typeof epochAtLeast!=="function"||epochAtLeast("5.1")||!["political","ideology","diplomacy","threat"].includes(x[0]));
+  const i=ok.findIndex(x=>x[0]===MAPSTYLE);
+  setMapStyle(ok[(i+1)%ok.length][0]);
+  if(typeof renderPanel==="function"&&typeof curPanel!=="undefined"&&curPanel==="settings")renderPanel();
+}
+window.cycleMapMode=cycleMapMode;
 function setTheme(t){if(t!=="dark"&&t!=="light")return;THEME=t;document.body.classList.toggle("light",t==="light");try{localStorage.setItem("if_theme",t);}catch(e){}}
 try{if(localStorage.getItem("if_theme")==="light")setTheme("light");}catch(e){}
 
@@ -16624,9 +16651,10 @@ function renderPanel(){
     <div class="row"><span>Signed in as</span><span style="color:var(--amber)">${AUTH_USER||"—"}</span></div>
     <button class="bbtn" onclick="signOut()">Sign out</button>
     <h3>MAP STYLE</h3>
-    <div class="row"><button class="tbtn ${MAPSTYLE==="terrain"?"on":""}" onclick="setMapStyle('terrain');renderPanel()">🗺 TERRAIN</button>
+    <div class="row"><button class="tbtn ${MAPSTYLE==="political"?"on":""}" onclick="setMapStyle('political');renderPanel()">🗺 POLITICAL</button>
+    <button class="tbtn ${MAPSTYLE==="terrain"?"on":""}" onclick="setMapStyle('terrain');renderPanel()">⛰ TERRAIN</button>
     <button class="tbtn ${MAPSTYLE==="flags"?"on":""}" onclick="setMapStyle('flags');renderPanel()">🏳 FLAGS</button></div>
-    <div style="color:var(--dim);font-size:11px">Terrain: black sea, each country one dark color, black borders, yellow text. Flags: every country painted with its flag.</div>
+    <div style="color:var(--dim);font-size:11px">Political: every country in its own colour over the ground. Terrain: the bare ground, no country colours or names \u2014 for this game only; a new game opens in political again. Flags: every country painted with its flag. The map-mode button beside PROVINCES cycles them.</div>
     <h3>DIFFICULTY</h3>
     <div style="display:flex;flex-wrap:wrap;gap:4px">${Object.keys(DIFF_LEVELS).map(d=>`<button class="tbtn ${DIFF===DIFF_LEVELS[d]?"on":""}" onclick="setDiff('${d}');renderPanel()" style="font-size:10px">${DIFF_LEVELS[d].label}</button>`).join("")}</div>
     <div style="color:var(--dim);font-size:11px">Higher levels give the AI stronger economies, bigger armies, and bolder aggression. Applies to new and ongoing games.</div>
@@ -20476,6 +20504,8 @@ function startGame(k){
     /* No logMsg here: it writes into G.log, and G is null until a campaign
        exists, which is precisely the state this guard fires in. */
     console.warn("startGame: unknown nation",k);return;}
+  if(!MAPSTYLE_KEEP.includes(MAPSTYLE)){MAPSTYLE=MAPSTYLE_HOME;terDirty=true;}
+  setTimeout(mapModeChip,0);
   /* A campaign never inherits a modal from the screen before it. Random events
      only fire while #eventBox is hidden, so a box left open on the title screen
      silently killed EVERY event for the whole campaign — measured: 1500 days,

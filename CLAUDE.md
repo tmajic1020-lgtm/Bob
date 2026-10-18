@@ -1446,3 +1446,22 @@ by this file; nothing is sampled, transcribed or imitated note-for-note.
   thread, not the game's.
 - Do not `pkill -f "until grep"` from a shell whose own command contains
   that text: it kills itself (exit 144).
+
+## "I load in and it's just grey terrain"
+
+Could not be reproduced on a clean profile -- colours paint at every
+MAPQ (share of strongly coloured pixels 0.70 at q0/q1/q3, 0.87 at world
+zoom). The cause was STORED STATE: `MAPSTYLE` was saved to localStorage
+(`if_mapstyle`) for every style, and TERRAIN draws bare ground with no
+country colours and no names (0.43 coloured, all of it ground). One click
+on it made every later campaign open grey. Worse, the Settings row that
+offered TERRAIN had no POLITICAL button, and its text claimed terrain
+gives "each country one dark color", which it does not.
+
+- Only political/flags are remembered (`MAPSTYLE_KEEP`); any other stored
+  value is ignored and removed at load. startGame resets a lens back to
+  `MAPSTYLE_HOME`.
+- A map-mode button beside PROVINCES (`#bMode`, `cycleMapMode`) names the
+  mode, cycles it, and lights up while the colours are off.
+- Lesson: when a user sees something a clean profile cannot, look at what
+  localStorage carries before suspecting the renderer.
