@@ -1474,3 +1474,11 @@ flags (sorted into exact / simplified emblem / invented). FLAG.MEX is now
 old drawn seal as the fallback until it decodes. Same mechanism as the
 Spanish arms, Brazil 1889 and Prussia. Other flags with a simplified emblem
 can go the same way if the owner sends pictures; keep each under ~10KB.
+- Eritrea (FLAG.ERI) likewise from the owner's picture, 13KB. It must be
+  assigned AFTER the `Object.assign(FLAG,{...})` block that defines the
+  drawn ERI, or that block silently overwrites it -- which the first cut did.
+- Bosnia was drawn MIRRORED (hypotenuse from top-right). Redrawn on the
+  official 16x8 construction: triangle top edge x 4.24..12.24, upright side
+  at 12.24, nine stars at ((2.88+i)/16, i/8), the end ones cut by the edges.
+  The owner's Bosnia picture was a cropped screenshot with a Google Lens
+  button over it, so it was not used.
