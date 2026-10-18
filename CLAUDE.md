@@ -1465,3 +1465,12 @@ gives "each country one dark color", which it does not.
   mode, cycles it, and lights up while the colours are off.
 - Lesson: when a user sees something a clean profile cannot, look at what
   localStorage carries before suspecting the renderer.
+
+## Mexico's flag from the owner's picture
+
+The owner sent a picture of Mexico's flag after an audit of all 189 drawn
+flags (sorted into exact / simplified emblem / invented). FLAG.MEX is now
+`imgBacked` from it (cropped of its 2px frame, 288x180 JPEG, 5KB), with the
+old drawn seal as the fallback until it decodes. Same mechanism as the
+Spanish arms, Brazil 1889 and Prussia. Other flags with a simplified emblem
+can go the same way if the owner sends pictures; keep each under ~10KB.
