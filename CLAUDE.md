@@ -1550,3 +1550,6 @@ kingdom.
   armillary sphere and shield, no crown. The real 1830-1910 royal flag had
   the crowned shield and no sphere; the owner's choice stands, and the drawn
   `_porRoyal` (with the crown) remains only as the decode fallback.
+- Byzantine Empire (FLAG.BYZ, mongol era) from the owner's picture: gold
+  cross quartering red, a ringed cross and four small crosses in each
+  quarter. 14KB, assigned after FLAG.POR (the drawn one is the fallback).
