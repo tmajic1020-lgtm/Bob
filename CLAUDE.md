@@ -1540,3 +1540,9 @@ kingdom.
 - Every remaining FL( call was checked to land in innerHTML (no <option>,
   title= or textContent). In a 1939 game the page shows 32 drawn flags and
   0 emoji flags; smoke, a year in six eras and save/load all clean.
+- Portugal (FLAG.POR): the Republic's flag from the owner's picture
+  (`_porRep`, 300x200, 7KB) for 1914 onward; it had been a gold ring round a
+  red disc, and the same republic flag was flown in 1861. The 1861 kingdom
+  now flies the blue-white royal flag with the shield of the quinas under a
+  crown (`_porRoyal`, drawn). Assigned beside FLAG.ERI, after the
+  Object.assign block that defines the drawn one.
