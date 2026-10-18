@@ -1546,3 +1546,7 @@ kingdom.
   now flies the blue-white royal flag with the shield of the quinas under a
   crown (`_porRoyal`, drawn). Assigned beside FLAG.ERI, after the
   Object.assign block that defines the drawn one.
+- 1861 Portugal now uses the owner's blue-white picture (`_porBW`, 7KB):
+  armillary sphere and shield, no crown. The real 1830-1910 royal flag had
+  the crowned shield and no sphere; the owner's choice stands, and the drawn
+  `_porRoyal` (with the crown) remains only as the decode fallback.
