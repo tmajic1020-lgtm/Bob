@@ -1482,3 +1482,9 @@ can go the same way if the owner sends pictures; keep each under ~10KB.
   at 12.24, nine stars at ((2.88+i)/16, i/8), the end ones cut by the edges.
   The owner's Bosnia picture was a cropped screenshot with a Google Lens
   button over it, so it was not used.
+- The owner re-sent pictures of royal Romania, royal Serbia, Napoleon's
+  France, Brazil 1889 and Prussia. The first four were already image-backed
+  but as small palette-reduced PNG traces (Romania's arms came out washed
+  pale); they are now 300x200 JPEGs from the new pictures (9-13KB each,
+  file +~35KB). Prussia's picture was cropped top, bottom and hoist, so the
+  existing full traced flag stays.
