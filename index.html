@@ -7997,7 +7997,12 @@ function _drawWashExact(z){
   if(miss.length){
     for(const [tx,ty] of miss){ctx.save();ctx.beginPath();ctx.rect(tx*EXT,ty*EXT,EXT,EXT);ctx.clip();
       _maskedBlit("wash",terDil,_terVer,z);ctx.restore();}
-    if(typeof draw==="function")requestAnimationFrame(()=>draw());
+    /* No requestAnimationFrame(draw) here. draw() already schedules the next
+       frame, so this STARTED A SECOND PERMANENT LOOP every frame that had
+       tiles left to build -- and zooming out leaves dozens of frames like
+       that. One sweep out took draw requests from 32 to 104 in three seconds,
+       every loop redrawing the whole map, and it only ever grew. The next
+       frame builds the next six tiles anyway. */
   }
   return true;
 }
@@ -15298,6 +15303,54 @@ function _fpHud(p,enemyNear){
    tracking between letters is moderate, not the wide spacing this had. */
 const NAMEFONT=px=>`800 ${px}px Arial, "Helvetica Neue", Helvetica, sans-serif`;
 const NAMETRACK=0.17;
+/* label sprites: name -> canvas, LRU. Size is quantised in 6% steps of
+   device pixels so a zoom does not mint a new sprite every wheel tick. */
+const _NSPR=new Map(),_NSPR_MAX=500;
+function _sprGet(key,make){
+  let v=_NSPR.get(key);
+  if(v){_NSPR.delete(key);_NSPR.set(key,v);return v;}
+  v=make();_NSPR.set(key,v);
+  if(_NSPR.size>_NSPR_MAX)_NSPR.delete(_NSPR.keys().next().value);
+  return v;
+}
+function _sprStep(px){const b=Math.round(Math.log(Math.max(px,3))/0.0583);return[b,Math.exp(b*0.0583)];}
+function _nameSprite(name,adv,unit,px,small){
+  const[b,S]=_sprStep(px);
+  return _sprGet("n|"+name+"|"+b+"|"+(small?1:0)+"|"+THEME,()=>{
+    const lw=Math.max(S*(small?0.22:0.17),1.2*DPR),pad=Math.ceil(lw+2);
+    const c=document.createElement("canvas");
+    c.width=Math.ceil(unit*S+2*pad);c.height=Math.ceil(S*1.5+2*pad);
+    const x=c.getContext("2d");
+    x.font=NAMEFONT(S);x.textAlign="left";x.textBaseline="middle";
+    x.lineJoin="round";x.miterLimit=2;
+    /* THE LETTERS ARE NOT OPAQUE. Enlarged, the reference's country names are
+       plainly translucent -- the ground goes on through them, and the name
+       sits IN the map rather than on top of it. What carries them at that
+       opacity is the dark outline, which is why it is the heavier of the two.
+       A small name gets a firmer fill, or at 8px the ground swallows it. */
+    x.strokeStyle="rgba(10,12,14,0.82)";x.lineWidth=lw;
+    x.fillStyle=THEME==="light"?(small?"rgba(252,250,244,0.92)":"rgba(252,250,244,0.72)")
+                               :(small?"rgba(246,243,235,0.86)":"rgba(246,243,235,0.60)");
+    let cx=pad;const cy=c.height/2;
+    for(let i=0;i<name.length;i++){x.strokeText(name[i],cx,cy);x.fillText(name[i],cx,cy);cx+=adv[i]*S+S*NAMETRACK;}
+    return{cv:c,S,ox:c.width/2,oy:cy};
+  });
+}
+function _titleSprite(t,px){
+  const[b,S]=_sprStep(px);
+  return _sprGet("t|"+t+"|"+b+"|"+THEME,()=>{
+    const m=document.createElement("canvas").getContext("2d");m.font=NAMEFONT(S);
+    const tr=S*0.30,ws=[...t].map(ch=>m.measureText(ch).width),tw=ws.reduce((a,c)=>a+c,0)+tr*(t.length-1);
+    const lw=Math.max(S*0.10,1.4*DPR),pad=Math.ceil(lw+2);
+    const c=document.createElement("canvas");c.width=Math.ceil(tw+2*pad);c.height=Math.ceil(S*1.5+2*pad);
+    const x=c.getContext("2d");x.font=NAMEFONT(S);x.textAlign="left";x.textBaseline="middle";
+    x.lineJoin="round";x.miterLimit=2;x.strokeStyle="rgba(10,12,14,0.85)";x.lineWidth=lw;
+    x.fillStyle=THEME==="light"?"rgba(252,250,244,0.80)":"rgba(240,234,218,0.74)";
+    let cx=pad;const cy=c.height/2;
+    for(let i=0;i<t.length;i++){x.strokeText(t[i],cx,cy);x.fillText(t[i],cx,cy);cx+=ws[i]+tr;}
+    return{cv:c,S,ox:c.width/2,oy:cy};
+  });
+}
 function drawNationNames(z,T){
   if(MAPSTYLE==="terrain"||MAPOVER!=="none")return;
   const seen=[];
@@ -15385,29 +15438,17 @@ function drawNationNames(z,T){
     return 1;
   };
   const write=(e,wx,wy)=>{
-    const fs=e.fs;
+    /* Drawn from a cached sprite, not re-outlined every frame. strokeText on
+       a rotated, scaled name costs a fresh outline rasterisation per letter
+       per frame, and zoomed out with sixty names on screen it was nearly the
+       whole frame. The sprite is built at the name's size in DEVICE pixels,
+       quantised to 6% steps, so it is drawn at 97-103% scale: sharp. */
+    const sp=_nameSprite(e.name,e.adv,e.unit,e.fs*z*DPR,e.small);
     ctx.save();
     ctx.translate(wx,wy);
     ctx.rotate(e.ang);
-    ctx.font=NAMEFONT(fs);
-    const track=fs*NAMETRACK;
-    let cx=-(e.unit*fs)/2;
-    ctx.lineJoin="round";ctx.miterLimit=2;
-    /* THE LETTERS ARE NOT OPAQUE. Enlarged, the reference's country names are
-       plainly translucent — the ground goes on through them, and the name sits
-       IN the map rather than on top of it. What carries them at that opacity is
-       the dark outline, which is why it is the heavier of the two. A small
-       name gets a firmer fill, or at 8px the ground swallows it. */
-    ctx.strokeStyle="rgba(10,12,14,0.82)";
-    ctx.lineWidth=Math.max(fs*(e.small?0.22:0.17),1.2/z);
-    ctx.fillStyle=THEME==="light"?(e.small?"rgba(252,250,244,0.92)":"rgba(252,250,244,0.72)")
-                                 :(e.small?"rgba(246,243,235,0.86)":"rgba(246,243,235,0.60)");
-    ctx.textAlign="left";ctx.textBaseline="middle";
-    for(let i=0;i<e.name.length;i++){
-      ctx.strokeText(e.name[i],cx,0);
-      ctx.fillText(e.name[i],cx,0);
-      cx+=e.adv[i]*fs+e.fs*NAMETRACK;
-    }
+    const k=e.fs/sp.S;                  // world units per sprite pixel
+    ctx.drawImage(sp.cv,-sp.ox*k,-sp.oy*k,sp.cv.width*k,sp.cv.height*k);
     ctx.restore();
     drawn.push(e.k);
   };
@@ -15459,14 +15500,8 @@ function drawNationNames(z,T){
   {
     const fs=58,t="IRON FRONT",[tx,ty]=PX(0,-80.5);
     if(fs*z>=8){
-      ctx.save();ctx.font=NAMEFONT(fs);ctx.textAlign="left";ctx.textBaseline="middle";
-      const tr=fs*0.30,ws=[...t].map(ch=>ctx.measureText(ch).width);
-      let cx=tx-(ws.reduce((a,b)=>a+b,0)+tr*(t.length-1))/2;
-      ctx.lineJoin="round";ctx.miterLimit=2;
-      ctx.strokeStyle="rgba(10,12,14,0.85)";ctx.lineWidth=Math.max(fs*0.10,1.4/z);
-      ctx.fillStyle=THEME==="light"?"rgba(252,250,244,0.80)":"rgba(240,234,218,0.74)";
-      for(let i=0;i<t.length;i++){ctx.strokeText(t[i],cx,ty);ctx.fillText(t[i],cx,ty);cx+=ws[i]+tr;}
-      ctx.restore();
+      const sp=_titleSprite(t,fs*z*DPR),k=fs/sp.S;
+      ctx.drawImage(sp.cv,tx-sp.ox*k,ty-sp.oy*k,sp.cv.width*k,sp.cv.height*k);
     }
   }
   ctx.textAlign="center";

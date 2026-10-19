@@ -1553,3 +1553,26 @@ kingdom.
 - Byzantine Empire (FLAG.BYZ, mongol era) from the owner's picture: gold
   cross quartering red, a ringed cross and four small crosses in each
   quarter. 14KB, assigned after FLAG.POR (the drawn one is the fallback).
+
+## "It's laggy when you zoom out"
+
+- **The real cause was a runaway render loop.** `_drawWashExact` builds at
+  most six exact-wash tiles a frame and, when tiles were left over, called
+  `requestAnimationFrame(()=>draw())` -- but draw() already schedules its
+  own next frame, so every such frame STARTED ANOTHER PERMANENT LOOP.
+  Zooming out from close up leaves dozens of frames with tiles to build.
+  Counted with a wrapped requestAnimationFrame: one sweep out took requests
+  from 32 to 104 in three seconds (the map drawn ~3x per frame), and it
+  only grows with each zoom. Removed; after the same sweep 21 -> 29, noise.
+- **Country names and the IRON FRONT title are cached sprites now.** The
+  CPU profile at zoom 2 was almost entirely `strokeText`: every name was
+  re-outlined letter by letter, rotated and scaled, every frame, and
+  zoomed out there are sixty of them. `_nameSprite`/`_titleSprite` render
+  each once at its size in DEVICE pixels (DPR included), quantised to 6%
+  steps, LRU of 500, and the frame just drawImages them. Side by side with
+  the old renderer at z1.2 and z4 the names are indistinguishable.
+- Instrument note: timing `_drawFrame()` directly with a 1px getImageData
+  flush read ~100-135ms at EVERY zoom, before and after -- it cannot see a
+  bug that is about how many times draw() runs. The rAF counter could.
+  The sync-per-call attribution (`zsite.js`) also named strokeTiles and the
+  full-world river stroke as the next costs zoomed out; not changed yet.
