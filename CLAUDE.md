@@ -1576,3 +1576,44 @@ kingdom.
   bug that is about how many times draw() runs. The rAF counter could.
   The sync-per-call attribution (`zsite.js`) also named strokeTiles and the
   full-world river stroke as the next costs zoomed out; not changed yet.
+
+## Whole-file audit: bugs and duplicates
+
+Owner: "check the entire code for bugs and duplicates". Done with tools, not
+by eye -- the file is 21k lines.
+
+- **ESLint correctness rules** over both inline scripts (extracted with the
+  leading lines padded so line numbers match index.html; config in
+  scratchpad/lint): 88 findings. 87 were duplicate keys in the per-era
+  country-routing tables (`*_OVERRIDE`) -- the sixteen countries given
+  provinces were appended as "@pid" lines without deleting their older
+  entries, and the Cold War table also had Angola/Mozambique/Vietnam twice.
+  JavaScript keeps the LAST value, and every last value was the intended
+  one, so the earlier entries were deleted: no behaviour change. The 88th
+  was an `else if` repeated two lines below itself (dead branch). Now clean.
+- **Five duplicated LINKS** (cgy-reg, cgy-yel, bcn-mar, alg-sev, mel-per),
+  and the adjacency builder did not de-duplicate, so those provinces listed
+  a neighbour twice. Removed, and the builder now skips a neighbour it has.
+- Data integrity checked: 300 unique province ids, no link to a missing
+  province, no era owner table naming an unknown province or a nation
+  outside its era, no province without links, no duplicate static HTML ids,
+  no function defined in both scripts. The six window.X re-assignments are
+  the multiplayer wrappers, deliberate.
+- **Copy-paste**: none at 8+ lines; at 5 lines, `_poly` duplicated `inPoly`
+  (now delegates) and the Total War / Shattered World mods each carried the
+  same neighbour scan (now `_landNeighbours`). Same wars and nation counts
+  with both mods before and after.
+- **Misleading message**: `__ifSoft` told the player "Multiplayer services
+  hit a snag" for ANY soft failure, including a map-drawing one. Only
+  online stages (account/session/restore/firebase/mp...) say that now.
+- Timers and listeners created inside functions were checked: the game
+  clock and host push are cleared before restart; the briefing's click
+  listener is on a fresh element each time. The runaway rAF loop fixed in
+  the previous commit was the only leak of that kind.
+- Probe faults again: the first sweep picked nations before switching the
+  era (USA in 1206), and the first integrity probe read `p.id` from P,
+  whose entries are arrays -- every id "undefined", 636 bogus bad links.
+  Both disagreed with common sense and were the instrument.
+- Runtime sweep (`sweep.js`): every era x three nations, 260 days with a
+  war, all twelve panels, all eight map styles, four zooms, save+load with
+  a day/ownership check -- 0 page errors, 0 soft errors.

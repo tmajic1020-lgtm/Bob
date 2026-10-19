@@ -470,7 +470,11 @@ window.__ifSoft=(st,e)=>{try{
   if(!window.__ifSoftShown){window.__ifSoftShown=true;
     const t=setInterval(()=>{ // wait until logMsg exists, then post one line
       if(typeof logMsg==="function"){clearInterval(t);
-        try{logMsg("\u2139 Multiplayer services hit a snag in this environment ("+String(e&&e.message||e).slice(0,80)+") \u2014 the game runs normally; online features may be limited here.","");}catch(_){}
+        try{const msg=String(e&&e.message||e).slice(0,80);
+          /* only the online pieces may blame multiplayer; anything else says what it was */
+          logMsg(/account|session|restore|firebase|mp|online|friend|chat|room/i.test(st)
+            ?"\u2139 Multiplayer services hit a snag in this environment ("+msg+") \u2014 the game runs normally; online features may be limited here."
+            :"\u2139 A "+st+" step hit a snag ("+msg+") and was skipped \u2014 the game carries on.","");}catch(_){}
       }},400);
     setTimeout(()=>clearInterval(t),8000);
   }
@@ -950,7 +954,7 @@ const LINKS=[
 ["anc","sea",1],["anc","van",1],["anc","vla",1],["rey","sco",1],["rey","osl",1],["nuk","hal",1],["nuk","rey",1],["nuk","thu"],["nuk","sco2"],["sco2","rey",1],
 // new sub-province links
 ["sfo","la"],["sfo","sea"],["sfo","den"],["phx","la"],["phx","den"],["phx","dal"],["slc","den"],["slc","sea"],["msp","chi"],["msp","win"],["atl","mia"],["atl","wash"],["bos","nyc"],["stl","chi"],["stl","dal"],["okc","dal"],["okc","den"],
-["cgy","van"],["cgy","reg"],["cgy","yel"],["reg","win"],["reg","cgy"],["tor","ott"],["tor","chi"],["mtl","ott"],["mtl","hal"],["yel","van"],["yel","cgy"],
+["cgy","van"],["cgy","reg"],["cgy","yel"],["reg","win"],["tor","ott"],["tor","chi"],["mtl","ott"],["mtl","hal"],["yel","van"],
 ["poa","sao"],["poa","bue"],["for","rec"],["for","bsb"],["cui","bsb"],["cui","man"],["lim","man"],["lim","scl"],["scl","cor"],["scl","pat"],["bog","man"],["bog","lim"],
 ["min","war"],["min","kie"],["min","mos"],["ros","sta"],["ros","kie"],["ode","kie"],["ode","ist",1],["arc","len"],["arc","mos"],["oms","nov"],["oms","ura"],["yak","irk"],["yak","kha"],["kha","vla"],["kha","irk"],["alm","nov"],["alm","xin"],
 // Switzerland had NO links of any kind: it could not be invaded and its own
@@ -974,7 +978,7 @@ const LINKS=[
 // Europe
 ["lon","man2"],["man2","sco"],["lon","nan",1],["lon","ham",1],["sco","osl",1],
 ["par","lyo"],["par","bor"],["par","rhi"],["lyo","mar"],["lyo","mil"],["bor","mad"],["bor","bcn"],["mar","bcn"],["mar","mil"],
-["mad","bcn"],["mad","sev"],["sev","alg",1],["bcn","mar"],
+["mad","bcn"],["mad","sev"],["sev","alg",1],
 ["rhi","ham"],["rhi","ber"],["rhi","mun"],["ber","ham"],["ber","mun"],["ber","gda"],["ber","war"],["mun","mil"],["mun","kra"],["mun","rom",0],
 ["mil","rom"],["rom","nap"],["nap","trp",1],["nap","ale",1],
 ["war","gda"],["war","kra"],["war","kie"],["gda","len",1],["war","mos"],["kra","kie"],
@@ -985,14 +989,14 @@ const LINKS=[
 // Mideast/Turkey
 ["ist","ank"],["ist","izm"],["ank","izm"],["ank","bag"],["ank","sta"],["izm","ale",1],["bag","teh"],["bag","ria"],["bag","cai"],["teh","del"],["ria","cai"],["jed","mog",1],
 // Egypt/Africa
-["cai","ale"],["cai","asw"],["ale","trp",1],["trp","alg"],["alg","sev",1],["asw","add"],["add","nai"],["add","mog"],["nai","mog"],["nai","kin"],["mba","dur",1],["kin","lua"],["lua","jhb"],["jhb","cpt"],["jhb","dur"],["cpt","dur"],
+["cai","ale"],["cai","asw"],["ale","trp",1],["trp","alg"],["asw","add"],["add","nai"],["add","mog"],["nai","mog"],["nai","kin"],["mba","dur",1],["kin","lua"],["lua","jhb"],["jhb","cpt"],["jhb","dur"],["cpt","dur"],
 ["dak","acc"],["acc","lag"],["lag","kin"],["dak","sev",1],
 // Asia
 ["del","bom"],["del","cal"],["del","xin"],["bom","mad2"],["cal","mad2"],["cal","rgn"],["rgn","bkk"],["bkk","sgn"],["sgn","can"],["bkk","can"],
 ["xin","chq"],["chq","bei"],["chq","can"],["chq","sha"],["bei","sha"],["sha","can"],["sha","osa",1],["can","tok",1],
 ["tok","osa"],["osa","sap"],["sap","tok"],
 // Australia
-["per","dar"],["per","mel"],["dar","syd"],["dar","sgn",1],["syd","mel"],["mel","per"],
+["per","dar"],["per","mel"],["dar","syd"],["dar","sgn",1],["syd","mel"],
 ["dar","can",1],["syd","la",1],["per","mad2",1],["per","cpt",1],["mel","pat",1],
 // Pacific / Atlantic strategic sea lanes
 ["la","tok",1],["sea","sap",1],["hal","lon",1],["mia","sev",1],["rec","lag",1],["cal","bkk",1],["bom","jed",1],["bom","mog",1],
@@ -2649,8 +2653,10 @@ function newGame(playerNation){
   for(const L of LINKS){
     const[a,b,s]=L; const sea=L.length>2?L[2]:0;
     if(!prov[a]||!prov[b])continue;
-    if(sea){prov[a].seaAdj.push(b);prov[b].seaAdj.push(a);}
-    else{prov[a].adj.push(b);prov[b].adj.push(a);}
+    /* a link listed twice must not make a neighbour count twice */
+    const A=sea?prov[a].seaAdj:prov[a].adj,B=sea?prov[b].seaAdj:prov[b].adj;
+    if(!A.includes(b))A.push(b);
+    if(!B.includes(a))B.push(a);
   }
   /* Each era has its own province set, so the network built for the last one
      joins places this one has never heard of. Dropped here and rebuilt on the
@@ -6741,17 +6747,17 @@ const NAME2NAT={
 };
 const WW2_OVERRIDE={
 /* French empire */
-"Morocco":"FRA","Algeria":"FRA","Tunisia":"FRA","W. Sahara":"SPA","Mauritania":"FRA","Senegal":"FRA",
-"Mali":"FRA","Niger":"FRA","Chad":"FRA","Burkina Faso":"FRA","Guinea":"FRA","C\u00f4te d'Ivoire":"FRA",
-"Benin":"FRA","Togo":"FRA","Gabon":"FRA","Congo":"FRA","Central African Rep.":"FRA","Cameroon":"FRA",
-"Madagascar":"FRA","Djibouti":"FRA","Syria":"FRA","Lebanon":"FRA",
+"Morocco":"FRA","Algeria":"FRA","Tunisia":"FRA","W. Sahara":"SPA","Senegal":"FRA",
+"C\u00f4te d'Ivoire":"FRA",
+"Benin":"FRA","Togo":"FRA","Central African Rep.":"FRA",
+"Djibouti":"FRA","Syria":"FRA","Lebanon":"FRA",
 /* Italian empire */
 "Libya":"ITA","Ethiopia":"ETH","Eritrea":"ITA","Somalia":"ITA",
 /* British empire */
 "Egypt":"UK","Sudan":"UK","S. Sudan":"UK","Kenya":"UK","Uganda":"UK","Tanzania":"UK","Somaliland":"UK",
-"Nigeria":"UK","Ghana":"UK","Sierra Leone":"UK","Gambia":"UK","Zambia":"UK","Malawi":"UK","Zimbabwe":"UK",
-"Botswana":"UK","Israel":"UK","Palestine":"UK","Jordan":"UK","Iraq":"IRQ","Kuwait":"UK",
-"India":"IND","Pakistan":"IND","Bangladesh":"IND","Sri Lanka":"UK","Myanmar":"IND","Nepal":"IND","Bhutan":"IND",
+"Nigeria":"UK","Ghana":"UK","Gambia":"UK","Zambia":"UK","Zimbabwe":"UK",
+"Israel":"UK","Palestine":"UK","Jordan":"UK","Iraq":"IRQ","Kuwait":"UK",
+"India":"IND","Pakistan":"IND","Bangladesh":"IND","Myanmar":"IND","Bhutan":"IND",
 /* dominions & the rest */
 "South Africa":"SAF","Namibia":"SAF","Lesotho":"SAF","eSwatini":"SAF","Swaziland":"SAF",
 "Angola":"POR","Mozambique":"POR","Guinea-Bissau":"POR","Rwanda":"BEL","Burundi":"BEL","Dem. Rep. Congo":"BEL","Eq. Guinea":"SPA",
@@ -6762,7 +6768,7 @@ const WW2_OVERRIDE={
 /* independent until June 1940 */
 "Lithuania":"LTU","Latvia":"LVA","Estonia":"EST",
 "Vietnam":"FRA",
-"Laos":"FRA",
+
 "Cambodia":"FRA",
 "Malaysia":"UK",
 "Singapore":"UK",
@@ -6792,16 +6798,16 @@ const MODERN_OVERRIDE={
 /* v14.1: the blocs split into real countries, so the coastlines and borders
    the map draws in 2026 are the ones that exist in 2026. */
 "Morocco":"MAR","W. Sahara":"MAR","Algeria":"DZA","Tunisia":"TUN","Libya":"LBY","Sudan":"SDN",
-"S. Sudan":"SDN","Nigeria":"NGA","Niger":"NGA","Chad":"NGA","Cameroon":"NGA","Benin":"NGA",
-"Senegal":"SEN","Mauritania":"SEN","Gambia":"SEN","Guinea-Bissau":"SEN","Mali":"SEN","Ghana":"GHA",
-"Togo":"GHA","Burkina Faso":"GHA","Côte d'Ivoire":"CIV","Guinea":"CIV","Sierra Leone":"CIV","Liberia":"LBR",
+"S. Sudan":"SDN","Nigeria":"NGA","Benin":"NGA",
+"Senegal":"SEN","Gambia":"SEN","Guinea-Bissau":"SEN","Ghana":"GHA",
+"Togo":"GHA","Côte d'Ivoire":"CIV","Liberia":"LBR",
 "Kenya":"KEN","Ethiopia":"ETH","Djibouti":"ETH","Somalia":"SOM","Somaliland":"SOM","Tanzania":"TZA",
-"Uganda":"UGA","Rwanda":"UGA","Burundi":"UGA","Eritrea":"ERI","Dem. Rep. Congo":"COD","Congo":"COD",
-"Gabon":"COD","Eq. Guinea":"COD","Angola":"AGO","Central African Rep.":"CAF","Namibia":"NAM","Botswana":"NAM",
-"Zimbabwe":"ZWE","Mozambique":"MOZ","Madagascar":"MOZ","Malawi":"MOZ","Zambia":"ZMB","Norway":"NOR",
+"Uganda":"UGA","Rwanda":"UGA","Burundi":"UGA","Eritrea":"ERI","Dem. Rep. Congo":"COD",
+"Eq. Guinea":"COD","Angola":"AGO","Central African Rep.":"CAF","Namibia":"NAM",
+"Zimbabwe":"ZWE","Mozambique":"MOZ","Zambia":"ZMB","Norway":"NOR",
 "Sweden":"SWD","Denmark":"DEN","Greenland":"DEN","Finland":"FIN","Iceland":"ISL","Portugal":"POR",
 "Ireland":"IRE","Croatia":"CRO","Slovenia":"CRO","Bosnia and Herz.":"BOS","Slovakia":"SVK","Thailand":"THA",
-"Laos":"THA","Myanmar":"MMR","Malaysia":"MYS","Brunei":"MYS","Indonesia":"@jkt","Timor-Leste":"@jkt",
+"Myanmar":"MMR","Malaysia":"MYS","Brunei":"MYS","Indonesia":"@jkt","Timor-Leste":"@jkt",
 "Singapore":"SGP","Cambodia":"CAM","Colombia":"COL","Venezuela":"VEN","Ecuador":"ECU","Panama":"PAN",
 "Peru":"PERU","Bolivia":"BOL","Chile":"CHL","Philippines":"PHI",
 "Uzbekistan":"UZB","Turkmenistan":"TKM","Kyrgyzstan":"KGZ","Tajikistan":"TJK","Georgia":"GEO","Armenia":"ARM","Azerbaijan":"AZE","Mongolia":"MON","Latvia":"LVA","Estonia":"EST","Lithuania":"LTU","Moldova":"MDA",
@@ -6814,7 +6820,7 @@ const MODERN_OVERRIDE={
 };
 const WW1_OVERRIDE={
 "Cyprus":"UK","N. Cyprus":"UK","Bulgaria":"BUL","Greece":"GRC",
-"India":"IND","Pakistan":"IND","Bangladesh":"IND","Sri Lanka":"UK","Nepal":"IND","Bhutan":"IND","Myanmar":"IND",
+"India":"IND","Pakistan":"IND","Bangladesh":"IND","Bhutan":"IND","Myanmar":"IND",
 "Moldova":"RUS",
 "Austria":"AUH","Hungary":"AUH","Czechia":"AUH","Slovakia":"AUH","Croatia":"AUH","Slovenia":"AUH","Bosnia and Herz.":"AUH",
 "Serbia":"SRB","Montenegro":"SRB","Romania":"ROM","Albania":"ALB",   // all three were independent well before 1913
@@ -6822,7 +6828,7 @@ const WW1_OVERRIDE={
 "Russia":"RUS","Ukraine":"RUS","Belarus":"RUS","Poland":"RUS","Lithuania":"RUS","Latvia":"RUS","Estonia":"RUS","Finland":"RUS","Kazakhstan":"RUS","Mongolia":"RUS","Georgia":"RUS","Armenia":"RUS","Azerbaijan":"RUS","Uzbekistan":"RUS","Turkmenistan":"RUS","Kyrgyzstan":"RUS","Tajikistan":"RUS",
 "Egypt":"UK","Sudan":"UK",
 "Vietnam":"FRA",
-"Laos":"FRA",
+
 "Cambodia":"FRA",
 "Malaysia":"UK",
 "Singapore":"UK",
@@ -6833,8 +6839,8 @@ const WW1_OVERRIDE={
 "Dem. Rep. Congo":"BEL",
 "Eq. Guinea":"SPA",
 "Guinea-Bissau":"POR",
-"Congo":"FRA",
-"Gabon":"FRA",
+
+
 "Central African Rep.":"FRA",
 "Indonesia":"HOL",
 "Philippines":"USA",
@@ -6844,7 +6850,7 @@ const WW1_OVERRIDE={
 "Liberia":"LBR",
 "W. Sahara":"SPA",
 "Gambia":"UK",
-"Sierra Leone":"UK",
+
 "Malta":"UK",
 "Qatar":"UK",
 "Bahrain":"UK",
@@ -6869,16 +6875,16 @@ const NAPO_OVERRIDE={
 "Turkey":"OTE","Greece":"OTE","Bulgaria":"OTE","Cyprus":"OTE","N. Cyprus":"OTE",
 "Egypt":"OTE","Sudan":"OTE","Israel":"OTE","Palestine":"OTE","Jordan":"OTE","Lebanon":"OTE","Syria":"OTE",
 "Iran":"QAJ","Iraq":"OTE","Afghanistan":"QAJ","Saudi Arabia":"OTE","Yemen":"OTE","Oman":"OMN","United Arab Emirates":"OTE","Qatar":"OTE","Kuwait":"OTE",
-"India":"GBR","Pakistan":"GBR","Bangladesh":"GBR","Nepal":"GBR","Bhutan":"GBR","Sri Lanka":"GBR",
+"India":"GBR","Pakistan":"GBR","Bangladesh":"GBR","Bhutan":"GBR",
 "China":"QIN","Taiwan":"QIN",
 "Japan":"TOK","South Korea":"QIN","North Korea":"QIN",
-"Thailand":"SIA","Vietnam":"SIA","Laos":"SIA","Cambodia":"SIA","Myanmar":"SIA","Malaysia":"SIA","Indonesia":"SIA","Philippines":"SIA","Brunei":"SIA","Papua New Guinea":"SIA","Timor-Leste":"SIA",
+"Thailand":"SIA","Vietnam":"SIA","Cambodia":"SIA","Myanmar":"SIA","Malaysia":"SIA","Indonesia":"SIA","Philippines":"SIA","Brunei":"SIA","Papua New Guinea":"SIA","Timor-Leste":"SIA",
 "Australia":"GBR","New Zealand":"GBR","Fiji":"GBR","Vanuatu":"GBR","Solomon Is.":"GBR","New Caledonia":"GBR",
 "Morocco":"AFR","Algeria":"OTE","Tunisia":"OTE","Libya":"OTE","W. Sahara":"AFR",
-"Mauritania":"AFR","Senegal":"AFR","Gambia":"AFR","Guinea-Bissau":"AFR","Guinea":"AFR","Sierra Leone":"AFR","Liberia":"AFR","Côte d'Ivoire":"AFR","Ghana":"AFR","Togo":"AFR","Benin":"AFR","Nigeria":"AFR","Mali":"AFR","Burkina Faso":"AFR","Niger":"AFR","Chad":"AFR","Cameroon":"AFR",
-"Dem. Rep. Congo":"AFR","Congo":"AFR","Gabon":"AFR","Eq. Guinea":"AFR","Central African Rep.":"AFR","Angola":"AFR",
-"Ethiopia":"AFR","Eritrea":"AFR","Djibouti":"AFR","Somalia":"AFR","Somaliland":"AFR","Kenya":"AFR","Uganda":"AFR","Tanzania":"AFR","Rwanda":"AFR","Burundi":"AFR","S. Sudan":"AFR","Madagascar":"AFR",
-"South Africa":"GBR","Namibia":"AFR","Botswana":"AFR","Zimbabwe":"AFR","Zambia":"AFR","Malawi":"AFR","Mozambique":"AFR","Lesotho":"AFR","eSwatini":"AFR","Swaziland":"AFR",
+"Senegal":"AFR","Gambia":"AFR","Guinea-Bissau":"AFR","Liberia":"AFR","Côte d'Ivoire":"AFR","Ghana":"AFR","Togo":"AFR","Benin":"AFR","Nigeria":"AFR",
+"Dem. Rep. Congo":"AFR","Eq. Guinea":"AFR","Central African Rep.":"AFR","Angola":"AFR",
+"Ethiopia":"AFR","Eritrea":"AFR","Djibouti":"AFR","Somalia":"AFR","Somaliland":"AFR","Kenya":"AFR","Uganda":"AFR","Tanzania":"AFR","Rwanda":"AFR","Burundi":"AFR","S. Sudan":"AFR",
+"South Africa":"GBR","Namibia":"AFR","Zimbabwe":"AFR","Zambia":"AFR","Mozambique":"AFR","Lesotho":"AFR","eSwatini":"AFR","Swaziland":"AFR",
 /* sixteen countries with a province of their own: whoever holds it */
 "Mali":"@bko","Niger":"@nim","Chad":"@ndj","Cameroon":"@yao","Mauritania":"@nkc","Burkina Faso":"@oua","Guinea":"@cky","Sierra Leone":"@fna","Gabon":"@lbv","Congo":"@bzv","Madagascar":"@tnr","Laos":"@vte","Sri Lanka":"@cmb","Nepal":"@ktm","Malawi":"@llw","Botswana":"@gbe"
 };
@@ -6899,16 +6905,16 @@ const MONGOL_OVERRIDE={
 "Turkey":"MNG","Greece":"BYZ","Bulgaria":"BYZ","Cyprus":"BYZ","N. Cyprus":"BYZ",
 "Egypt":"MAM","Sudan":"MAM","Israel":"MAM","Palestine":"MAM","Jordan":"MAM","Lebanon":"MAM","Syria":"MAM",
 "Iran":"MNG","Iraq":"MNG","Afghanistan":"MNG","Saudi Arabia":"MAM","Yemen":"MAM","Oman":"MAM","United Arab Emirates":"MAM","Qatar":"MAM","Kuwait":"MNG",
-"India":"DEL","Pakistan":"DEL","Bangladesh":"DEL","Nepal":"DEL","Bhutan":"DEL","Sri Lanka":"DEL",
+"India":"DEL","Pakistan":"DEL","Bangladesh":"DEL","Bhutan":"DEL",
 "China":"MNG","Taiwan":"SNG",
 "Japan":"KAM","South Korea":"MNG","North Korea":"MNG",
-"Thailand":"KHM","Vietnam":"KHM","Laos":"KHM","Cambodia":"KHM","Myanmar":"KHM","Malaysia":"KHM","Indonesia":"KHM","Philippines":"KHM","Brunei":"KHM","Papua New Guinea":"OCE","Timor-Leste":"KHM",
+"Thailand":"KHM","Vietnam":"KHM","Cambodia":"KHM","Myanmar":"KHM","Malaysia":"KHM","Indonesia":"KHM","Philippines":"KHM","Brunei":"KHM","Papua New Guinea":"OCE","Timor-Leste":"KHM",
 "Australia":"OCE","New Zealand":"OCE","Fiji":"OCE","Vanuatu":"OCE","Solomon Is.":"OCE","New Caledonia":"OCE",
 "Morocco":"AFR2","Algeria":"AFR2","Tunisia":"AFR2","Libya":"AFR2","W. Sahara":"AFR2",
-"Mauritania":"AFR2","Senegal":"AFR2","Gambia":"AFR2","Guinea-Bissau":"AFR2","Guinea":"AFR2","Sierra Leone":"AFR2","Liberia":"AFR2","Côte d'Ivoire":"AFR2","Ghana":"AFR2","Togo":"AFR2","Benin":"AFR2","Nigeria":"AFR2","Mali":"AFR2","Burkina Faso":"AFR2","Niger":"AFR2","Chad":"AFR2","Cameroon":"AFR2",
-"Dem. Rep. Congo":"AFR2","Congo":"AFR2","Gabon":"AFR2","Eq. Guinea":"AFR2","Central African Rep.":"AFR2","Angola":"AFR2",
-"Ethiopia":"AFR2","Eritrea":"AFR2","Djibouti":"AFR2","Somalia":"AFR2","Somaliland":"AFR2","Kenya":"AFR2","Uganda":"AFR2","Tanzania":"AFR2","Rwanda":"AFR2","Burundi":"AFR2","S. Sudan":"AFR2","Madagascar":"AFR2",
-"South Africa":"AFR2","Namibia":"AFR2","Botswana":"AFR2","Zimbabwe":"AFR2","Zambia":"AFR2","Malawi":"AFR2","Mozambique":"AFR2","Lesotho":"AFR2","eSwatini":"AFR2","Swaziland":"AFR2",
+"Senegal":"AFR2","Gambia":"AFR2","Guinea-Bissau":"AFR2","Liberia":"AFR2","Côte d'Ivoire":"AFR2","Ghana":"AFR2","Togo":"AFR2","Benin":"AFR2","Nigeria":"AFR2",
+"Dem. Rep. Congo":"AFR2","Eq. Guinea":"AFR2","Central African Rep.":"AFR2","Angola":"AFR2",
+"Ethiopia":"AFR2","Eritrea":"AFR2","Djibouti":"AFR2","Somalia":"AFR2","Somaliland":"AFR2","Kenya":"AFR2","Uganda":"AFR2","Tanzania":"AFR2","Rwanda":"AFR2","Burundi":"AFR2","S. Sudan":"AFR2",
+"South Africa":"AFR2","Namibia":"AFR2","Zimbabwe":"AFR2","Zambia":"AFR2","Mozambique":"AFR2","Lesotho":"AFR2","eSwatini":"AFR2","Swaziland":"AFR2",
 /* sixteen countries with a province of their own: whoever holds it */
 "Mali":"@bko","Niger":"@nim","Chad":"@ndj","Cameroon":"@yao","Mauritania":"@nkc","Burkina Faso":"@oua","Guinea":"@cky","Sierra Leone":"@fna","Gabon":"@lbv","Congo":"@bzv","Madagascar":"@tnr","Laos":"@vte","Sri Lanka":"@cmb","Nepal":"@ktm","Malawi":"@llw","Botswana":"@gbe"
 };
@@ -6917,9 +6923,9 @@ const COLDWAR_OVERRIDE={
 "Serbia":"SRB","Croatia":"SRB","Slovenia":"SRB","Bosnia and Herz.":"SRB","Montenegro":"SRB","Macedonia":"SRB","North Macedonia":"SRB","Kosovo":"SRB",
 "Romania":"ROM","Moldova":"SOV","Albania":"ALB",
 "North Korea":"PRK","South Korea":"KOR","Korea":"KOR",
-"Vietnam":"NVN","Portugal":"POR","Angola":"POR","Mozambique":"POR",
+"Portugal":"POR",
 "Pakistan":"@lah","Bangladesh":"@dac","Iceland":"ISL","Syria":"SYR","Lebanon":"SYR",
-"Laos":"FRA",
+
 "Cambodia":"*",
 "Malaysia":"*",
 "Myanmar":"*",
@@ -6937,11 +6943,11 @@ const COLDWAR_OVERRIDE={
 "Morocco":"*","Tunisia":"*","Algeria":"*","Libya":"*","Sudan":"*",
 "Nigeria":"*","Ghana":"*","Senegal":"*","C\u00f4te d'Ivoire":"*","Kenya":"*","Uganda":"*","Tanzania":"*",
 "Dem. Rep. Congo":"@kin","Central African Rep.":"@bgi","Angola":"*","Mozambique":"*","Zimbabwe":"*","Zambia":"*",
-"Somalia":"@mog","Eritrea":"*","W. Sahara":"@cas","Vietnam":"*","Thailand":"*","Egypt":"EGY","Madagascar":"FRA",
+"Somalia":"@mog","Eritrea":"*","W. Sahara":"@cas","Vietnam":"*","Thailand":"*","Egypt":"EGY",
 /* and the ones without, to the state that took their neighbours' place */
-"Mali":"SEN","Mauritania":"SEN","Gambia":"SEN","Niger":"NGA","Chad":"NGA","Cameroon":"NGA","Benin":"NGA",
-"Burkina Faso":"GHA","Togo":"GHA","Guinea":"CIV","Sierra Leone":"CIV","Gabon":"COD","Congo":"COD",
-"Rwanda":"UGA","Burundi":"UGA","Malawi":"ZMB","Somaliland":"SOM","S. Sudan":"SDN",
+"Gambia":"SEN","Benin":"NGA",
+"Togo":"GHA",
+"Rwanda":"UGA","Burundi":"UGA","Somaliland":"SOM","S. Sudan":"SDN",
 /* sixteen countries with a province of their own: whoever holds it */
 "Mali":"@bko","Niger":"@nim","Chad":"@ndj","Cameroon":"@yao","Mauritania":"@nkc","Burkina Faso":"@oua","Guinea":"@cky","Sierra Leone":"@fna","Gabon":"@lbv","Congo":"@bzv","Madagascar":"@tnr","Laos":"@vte","Sri Lanka":"@cmb","Nepal":"@ktm","Malawi":"@llw","Botswana":"@gbe"
 };
@@ -6953,10 +6959,10 @@ const CIVILWAR_OVERRIDE={
 "Romania":"TUR","Serbia":"TUR","Bulgaria":"TUR","Albania":"TUR","Montenegro":"TUR","Macedonia":"TUR","North Macedonia":"TUR","Kosovo":"TUR","Bosnia and Herz.":"TUR",
 "Germany":"GER","Switzerland":"SUI",
 /* colonies of the day, not yet nations */
-"Australia":"UK","New Zealand":"UK","Canada":"UK","South Africa":"UK","India":"IND","Pakistan":"IND","Bangladesh":"IND","Myanmar":"*","Sri Lanka":"UK",
+"Australia":"UK","New Zealand":"UK","Canada":"UK","South Africa":"UK","India":"IND","Pakistan":"IND","Bangladesh":"IND","Myanmar":"*",
 "Iraq":"TUR","Kuwait":"TUR","Yemen":"TUR","Saudi Arabia":"SAU","Jordan":"TUR","Israel":"TUR","Palestine":"TUR","Lebanon":"TUR","Syria":"TUR","Norway":"SWD",
 "Vietnam":"*",
-"Laos":"SEA",
+
 "Cambodia":"FRA",
 "Malaysia":"UK",
 "Singapore":"UK",
@@ -6972,7 +6978,7 @@ const CIVILWAR_OVERRIDE={
 "Timor-Leste":"POR",
 "Liberia":"LBR",
 "Gambia":"UK",
-"Sierra Leone":"UK",
+
 "Malta":"UK",
 /* sixteen countries with a province of their own: whoever holds it */
 "Mali":"@bko","Niger":"@nim","Chad":"@ndj","Cameroon":"@yao","Mauritania":"@nkc","Burkina Faso":"@oua","Guinea":"@cky","Sierra Leone":"@fna","Gabon":"@lbv","Congo":"@bzv","Madagascar":"@tnr","Laos":"@vte","Sri Lanka":"@cmb","Nepal":"@ktm","Malawi":"@llw","Botswana":"@gbe"
@@ -9780,14 +9786,7 @@ const ujack=(u,v)=>{
 };
 /* A fleur-de-lis, a double-headed eagle and a maple leaf, built as polygons so
    they read as silhouettes at icon size rather than as coloured smudges. */
-function _poly(x,y,pts){
-  let inside=false;
-  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
-    const xi=pts[i][0],yi=pts[i][1],xj=pts[j][0],yj=pts[j][1];
-    if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)inside=!inside;
-  }
-  return inside;
-}
+function _poly(x,y,pts){return inPoly(x,y,pts);}   // same even-odd test as inPoly
 const _LYS=[
   [[0,-1.00],[0.18,-0.52],[0.30,-0.04],[0,0.12],[-0.30,-0.04],[-0.18,-0.52]], // centre petal
   [[-0.26,-0.06],[-0.66,-0.40],[-0.96,0.00],[-0.62,0.20],[-0.26,0.14]],       // side petals, curling down and out
@@ -11088,7 +11087,6 @@ function renderTerritory(){
              only a nation that holds nothing hands its soil to the occupier */
           else if(byOwner[home]&&byOwner[home].length)cand=byOwner[home];
           else if(byHome[home]&&byHome[home].length)cand=byHome[home];
-          else if(byOwner[home]&&byOwner[home].length)cand=byOwner[home];
           /* the nation is gone (Austria after 1938): its soil goes with the
              provinces standing on it, not to the nearest province anywhere,
              which put Graz in Yugoslavia */
@@ -20715,15 +20713,18 @@ function startGame(k){
       logMsg(`\u{1F9DF} OUTBREAK IN ${z.name.toUpperCase()} \u2014 the dead are walking, and they are at war with the world.`,"war");
     }
   }
+  /* living nations that share a land border with a */
+  const _landNeighbours=a=>{const nb=new Set();
+    for(const p of Object.values(G.prov)){
+      if(p.owner!==a)continue;
+      for(const j of p.adj){const q=G.prov[j];if(q&&q.owner!==a&&G.nations[q.owner]&&G.nations[q.owner].alive)nb.add(q.owner);}
+    }
+    return nb;};
   if(MODS.totalwar){
     G.tension=100;
     for(const a in G.nations){
       if(!G.nations[a].alive||G.nations[a].puppet)continue;
-      const nb=new Set();
-      for(const p of Object.values(G.prov)){
-        if(p.owner!==a)continue;
-        for(const j of p.adj){const q=G.prov[j];if(q&&q.owner!==a&&G.nations[q.owner]&&G.nations[q.owner].alive)nb.add(q.owner);}
-      }
+      const nb=_landNeighbours(a);
       let n2=0;
       for(const b of nb){if(n2>=2)break;if(!allied(a,b)&&!atWar(a,b)){declareWar(a,b);n2++;}}
     }
@@ -20736,11 +20737,7 @@ function startGame(k){
     G.tension=100;
     for(const a in G.nations){
       if(!G.nations[a].alive)continue;
-      const nb=new Set();
-      for(const p of Object.values(G.prov)){
-        if(p.owner!==a)continue;
-        for(const j of p.adj){const q=G.prov[j];if(q&&q.owner!==a&&G.nations[q.owner]&&G.nations[q.owner].alive)nb.add(q.owner);}
-      }
+      const nb=_landNeighbours(a);
       const list=[...nb];
       if(list.length&&!atWar(a,list[0]))declareWar(a,list[0]);
     }
