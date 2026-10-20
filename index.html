@@ -4008,10 +4008,11 @@ function tick(){
     const me=G.nations[G.player];
     if(me.alive&&me.focus){
       me.focus.prog++;
-      if(me.focus.prog>=FOCUS_DAYS){
-        const f=FOCUSES[me.focus.key];
+      const f=focusDef(G.player,me.focus.key);
+      if(!f)me.focus=null;            // a key from another tree (an old save)
+      else if(me.focus.prog>=FOCUS_DAYS){
         (me.focusDone=me.focusDone||{})[me.focus.key]=1;
-        f.fx(me);me.focus=null;
+        me.focus=null;f.fx(me,G.player);
         sfx("good");logMsg(`🎯 National focus complete: ${f.n}.`,"good");
       }
     }
@@ -5613,14 +5614,478 @@ function focusHome(){
   const ps=natProvs(G.player);
   return ps.length?ps[0].id:null;
 }
-/* Is every prerequisite finished? */
-function focusOpen(me,k){
-  const f=FOCUSES[k];
-  if(!f)return false;
-  const done=me.focusDone||{};
-  return (f.req||[]).every(r=>done[r]);
+/* Can this focus be started? Every prerequisite finished (or one, for an
+   `any` node), nothing it excludes taken or running, and the world still
+   offering it. nk is the nation whose tree it is. */
+function focusOpen(me,key,nk){return !focusWhy(me,key,nk);}
+function focusWhy(me,key,nk){
+  nk=nk||G.player;
+  const f=focusDef(nk,key);
+  if(!f)return "No such focus.";
+  const done=me.focusDone||{}, T=focusTree(nk).nodes;
+  const req=f.req||[];
+  const have=f.any?(req.length===0||req.some(r=>done[r])):req.every(r=>done[r]);
+  if(!have){const miss=req.filter(r=>!done[r]).map(r=>T[r]?T[r].n:r);
+    return "Needs "+miss.join(f.any?" or ":" and ")+" first.";}
+  const ex=(f.excl||[]).find(x=>done[x]||(me.focus&&me.focus.key===x));
+  if(ex)return "Ruled out by "+(T[ex]?T[ex].n:ex)+".";
+  if(f.ok){const r=f.ok(nk);if(r)return r;}
+  return "";
 }
 const FOCUS_DAYS=70;
+var FOCUS_TAB="nat";
+/* ======================== A TREE FOR EVERY COUNTRY ========================
+   The sixteen focuses above are the common trunk, the same for everybody.
+   Each nation gets its own NATIONAL section to the right of them: written out
+   for the powers whose choices in that era are the history -- Germany's road
+   from the Rhineland to Danzig, Japan choosing between striking north and
+   striking south, Britain between appeasement and standing firm -- and, for
+   everyone else, generated from where that country actually stands: its own
+   capital and best province, the strongest power it could lean on, the
+   weakest neighbour on its border. So Bulgaria's tree names Sofia, Plovdiv and
+   whoever is next door, rather than "your capital" and "a rival".
+
+   Node fields are FOCUSES' own (n, i, d, req, fx) plus:
+     c, r   column (0-3) and row inside the national section
+     excl   focuses this one rules out -- either way round, and while either
+            is running. A tree with no either/or is a checklist.
+     any    one finished req is enough (the branch after an either/or)
+     ok(k)  why it cannot be taken right now ("" = it can): Austria already
+            gone, Poland already at war with you, nothing left to demand.
+   Effects only touch what exists: stats, research levels, the stockpile,
+   the unit builders, BUILDINGS levels, alliances, pacts, declareWar. */
+const FX={
+  stat(k,o){const n=G.nations[k];if(!n)return;
+    if(o.pp)n.pp+=o.pp; if(o.oil)n.oil+=o.oil; if(o.mp)n.mp=(n.mp||0)+o.mp;
+    if(o.stab)n.stab=Math.max(0,Math.min(100,n.stab+o.stab));
+    if(o.ws)n.warSup=Math.max(0,Math.min(100,(n.warSup??50)+o.ws));
+    if(o.res)for(const r in o.res)n.res[r]=(n.res[r]||0)+o.res[r];
+    if(o.stock){n.stock=n.stock||{};for(const r in o.stock)n.stock[r]=(n.stock[r]||0)+o.stock[r];}},
+  home(k){const c=G.prov[capOf(k)];if(c&&c.owner===k)return c.id;
+    const ps=natProvs(k);return ps.length?ps[0].id:null;},
+  units(k,type,n,str,pid){
+    const at=(pid&&G.prov[pid]&&G.prov[pid].owner===k)?pid:FX.home(k);
+    if(!at)return;for(let i=0;i<n;i++)addUnit(k,at,type,str||3);},
+  wings(k,wt,n,str){if(!FX.home(k))return;for(let i=0;i<n;i++)addWing(k,str||2,wt);},
+  fleet(k,cls,n,str,pid){
+    const ps=natProvs(k).filter(p=>p.coastal);if(!ps.length)return;
+    const want=G.prov[pid||capOf(k)];
+    const at=(want&&want.owner===k&&want.coastal)?want.id:ps[0].id;
+    for(let i=0;i<n;i++)addFleet(k,at,str||3,cls);},
+  /* a building level in each named province we still hold, up to its cap */
+  build(k,pids,what,lv){const B=BUILDINGS[what];if(!B)return 0;let n=0;
+    for(const id of pids){const p=G.prov[id];if(!p||p.owner!==k)continue;
+      for(let i=0;i<(lv||1)&&B.have(p)<B.cap(p);i++){B.fx(p);n++;}}
+    return n;},
+  best(k,n,skipCap){const cap=capOf(k);
+    return natProvs(k).filter(p=>!skipCap||p.id!==cap)
+      .sort((a,b)=>(b.val||0)-(a.val||0)||(a.id<b.id?-1:1)).slice(0,n).map(p=>p.id);},
+  /* our provinces that touch land held by `w` (or by anyone foreign) */
+  border(k,w){const out=[];
+    for(const p of natProvs(k))
+      if(p.adj.some(j=>{const q=G.prov[j];return q&&q.owner!==k&&(!w||q.owner===w);}))out.push(p.id);
+    return out;},
+  alive(t){return !!(G.nations[t]&&G.nations[t].alive);},
+  /* Land handed over without a shot: whatever the old owner had standing
+     there walks home rather than being left inside a foreign country. */
+  give(k,pids){let n=0;
+    for(const id of pids){const p=G.prov[id];if(!p||p.owner===k)continue;
+      const old=p.owner, back=FX.home(old);
+      for(const u of G.units)if(u.nat===old&&(u.at===id||u.to===id)){
+        if(back&&back!==id){u.at=back;u.to=null;u.prog=0;u.path=null;}else u.hp=0;}
+      G.units=G.units.filter(u=>u.hp>0);
+      p.owner=k;n++;}
+    if(n){terDirty=true;G.supply=null;}
+    return n;},
+  annex(a,b){if(!FX.alive(b)||a===b)return false;
+    const B=G.nations[b];
+    for(const p of natProvs(b)){p.owner=a;if(p.home===b)p.home=a;}
+    for(const u of G.units)if(u.nat===b)u.nat=a;
+    for(const f of G.fleets)if(f.nat===b)f.nat=a;
+    for(const w of G.wings)if(w.nat===b)w.nat=a;
+    G.nations[a].pp+=B.pp;G.nations[a].oil+=B.oil;
+    B.alive=false;
+    for(const o in G.nations)if(G.nations[o].puppet===b)G.nations[o].puppet=a;
+    cutAllTies(b);terDirty=true;G.supply=null;
+    logMsg(`${FL(a)} ${NATIONS[a].n} absorbs ${FL(b)} ${NATIONS[b].n}.`,"war");
+    return true;},
+  ally(a,b){if(!FX.alive(b)||a===b||atWar(a,b)||allied(a,b))return;
+    G.nations[a].allies.add(b);G.nations[b].allies.add(a);
+    logMsg(`\u{1F91D} ${FL(a)} ${NATIONS[a].n} and ${FL(b)} ${NATIONS[b].n} are now ALLIES.`,"good");},
+  war(a,b){if(!FX.alive(b)||a===b||atWar(a,b)||allied(a,b))return;declareWar(a,b);},
+  pact(a,b){if(!FX.alive(b)||a===b||atWar(a,b)||pactWith(a,b))return;signPact(a,b,1460);}
+};
+/* reasons a focus cannot be taken yet */
+const OK={
+  alive:t=>k=>FX.alive(t)?"":`${(NATIONS[t]||{n:t}).n} is not in this world.`,
+  war:t=>k=>!FX.alive(t)?`${(NATIONS[t]||{n:t}).n} is not in this world.`
+        :atWar(k,t)?`Already at war with ${NATIONS[t].n}.`
+        :allied(k,t)?`${NATIONS[t].n} is an ally.`:"",
+  ally:t=>k=>!FX.alive(t)?`${(NATIONS[t]||{n:t}).n} is not in this world.`
+        :atWar(k,t)?`At war with ${NATIONS[t].n}.`:"",
+  /* a province we do not hold yet, and whose holder we are not fighting */
+  claim:id=>k=>{const p=G.prov[id];if(!p)return "No such province.";
+        if(p.owner===k)return `${p.name} is already ours.`;
+        if(atWar(k,p.owner))return `${p.name} is a battlefield now, not a demand.`;return "";},
+  all:(...fs)=>k=>{for(const f of fs){const r=f(k);if(r)return r;}return "";}
+};
+const NAT_FOCUS={
+/* ------------------------------- 1936 -------------------------------- */
+"ww2:GER":{heads:["THE REICH","FOREIGN POLICY","WEHRMACHT"],nodes:{
+ rhine:{c:0,r:0,n:"Remilitarise the Rhineland",i:"\u{1F3F0}",d:"Troops back across the Rhine. Forts in the Rhineland and Frankfurt, and +10 war support.",
+   fx:k=>{FX.build(k,["rhi","fra"],"fort");FX.stat(k,{ws:10});}},
+ fyp:{c:0,r:1,req:["rhine"],n:"Four Year Plan",i:"\u{1F3ED}",d:"A factory each in Berlin and Hamburg and +60 production.",
+   fx:k=>{FX.build(k,["ber","ham"],"fac");FX.stat(k,{pp:60});}},
+ autark:{c:0,r:2,req:["fyp"],n:"Autarky",i:"\u{1F6E2}",d:"Synthetic fuel and buna rubber: +60 oil, +60 rubber, +80 steel.",
+   fx:k=>FX.stat(k,{oil:60,stock:{rubber:60,steel:80}})},
+ totmob:{c:0,r:3,req:["autark"],n:"Total Mobilisation",i:"\u{1F465}",d:"+150 manpower, +80 production, +10 war support.",
+   fx:k=>FX.stat(k,{mp:150,pp:80,ws:10})},
+ acp:{c:1,r:0,n:"Anti-Comintern Pact",i:"\u{1F91D}",d:"An alliance with Japan.",ok:OK.ally("JAP"),fx:k=>FX.ally(k,"JAP")},
+ anschl:{c:1,r:1,req:["rhine"],n:"Anschluss",i:"\u{1F985}",d:"Austria joins the Reich: Vienna, its army and its treasury.",
+   ok:OK.war("AUT"),fx:k=>FX.annex(k,"AUT")},
+ sudet:{c:1,r:2,req:["anschl"],n:"Demand the Sudetenland",i:"\u{1F4DC}",d:"Bohemia is handed over at Munich without a shot.",
+   ok:OK.claim("pra"),fx:k=>FX.give(k,["pra"])},
+ mrp:{c:1,r:3,req:["sudet"],n:"Molotov–Ribbentrop Pact",i:"\u{1F58B}",d:"A non-aggression pact with the Soviet Union.",
+   ok:OK.ally("SOV"),fx:k=>FX.pact(k,"SOV")},
+ danzig:{c:1,r:4,req:["mrp"],n:"Danzig or War",i:"⚔",d:"War with Poland, and +15 war support to fight it.",
+   ok:OK.war("POL"),fx:k=>{FX.stat(k,{ws:15});FX.war(k,"POL");}},
+ panzer:{c:2,r:0,n:"Panzerwaffe",i:"\u{1F6E1}",d:"Two armoured divisions and a Land Doctrine level.",
+   fx:k=>{FX.units(k,"arm",2,4);FX.stat(k,{res:{land:1}});}},
+ luft:{c:2,r:1,req:["panzer"],n:"The Luftwaffe",i:"✈",d:"Two fighter wings and a tactical bomber wing.",
+   fx:k=>{FX.wings(k,"fig",2,3);FX.wings(k,"cas",1,3);}},
+ planz:{c:2,r:2,req:["luft"],n:"Plan Z",i:"⚓",d:"A capital squadron and two U-boat flotillas at Hamburg.",
+   fx:k=>{FX.fleet(k,"cap",1,4,"ham");FX.fleet(k,"sub",2,2,"ham");}},
+ pos:{c:2,r:3,req:["acp"],n:"Pact of Steel",i:"\u{1F517}",d:"An alliance with Italy.",ok:OK.ally("ITA"),fx:k=>FX.ally(k,"ITA")},
+ westw:{c:2,r:4,req:["panzer","rhine"],n:"The Westwall",i:"\u{1F9F1}",d:"Forts along every border with France and the Low Countries.",
+   fx:k=>{FX.build(k,[...FX.border(k,"FRA"),...FX.border(k,"BEL"),...FX.border(k,"HOL"),...FX.border(k,"LUX")],"fort");}}
+}},
+"ww2:ITA":{heads:["IMPERO","MARE NOSTRUM","THE AXIS","THE STRESA FRONT"],nodes:{
+ eth:{c:0,r:0,n:"The Ethiopian War",i:"⚔",d:"War with Ethiopia for the empire in the Horn of Africa.",ok:OK.war("ETH"),fx:k=>FX.war(k,"ETH")},
+ impero:{c:0,r:1,req:["eth"],n:"Proclaim the Impero",i:"\u{1F451}",d:"+10 stability, +10 war support and +60 production.",fx:k=>FX.stat(k,{stab:10,ws:10,pp:60})},
+ libya:{c:0,r:2,req:["impero"],n:"Fortify Libya",i:"\u{1F3F0}",d:"Forts at Tripoli, Benghazi and Tobruk and two divisions in Tripoli.",
+   fx:k=>{FX.build(k,["trp","ben","tob"],"fort");FX.units(k,"inf",2,3,"trp");}},
+ alb:{c:0,r:3,req:["impero"],n:"Occupy Albania",i:"\u{1F3EF}",d:"Albania becomes part of the kingdom.",ok:OK.war("ALB"),fx:k=>FX.annex(k,"ALB")},
+ mare:{c:1,r:0,n:"Mare Nostrum",i:"⚓",d:"Two capital squadrons at Naples.",fx:k=>FX.fleet(k,"cap",2,4,"nap")},
+ taranto:{c:1,r:1,req:["mare"],n:"Taranto Naval Base",i:"\u{1F6A2}",d:"A Naval Engineering level and a fort at Bari.",
+   fx:k=>{FX.stat(k,{res:{nav:1}});FX.build(k,["bari"],"fort");}},
+ subs:{c:1,r:2,req:["taranto"],n:"The Submarine Arm",i:"▾",d:"Three submarine flotillas.",fx:k=>FX.fleet(k,"sub",3,2,"nap")},
+ axis:{c:2,r:0,excl:["stresa"],n:"Rome–Berlin Axis",i:"\u{1F517}",d:"An alliance with Germany. Rules out the Stresa Front.",ok:OK.ally("GER"),fx:k=>FX.ally(k,"GER")},
+ greece:{c:2,r:1,req:["axis"],n:"Claims on Greece",i:"⚔",d:"War with Greece.",ok:OK.war("GRC"),fx:k=>{FX.stat(k,{ws:10});FX.war(k,"GRC");}},
+ yugo:{c:2,r:2,req:["greece"],n:"Croatian Ambitions",i:"⚔",d:"War with Yugoslavia.",ok:OK.war("SRB"),fx:k=>FX.war(k,"SRB")},
+ stresa:{c:3,r:0,excl:["axis"],n:"The Stresa Front",i:"\u{1F91D}",d:"Alliances with Britain and France. Rules out the Axis.",
+   ok:OK.all(OK.ally("UK"),OK.ally("FRA")),fx:k=>{FX.ally(k,"UK");FX.ally(k,"FRA");}},
+ danub:{c:3,r:1,req:["stresa"],n:"Danubian Pact",i:"\u{1F58B}",d:"Alliances with Austria and Hungary.",fx:k=>{FX.ally(k,"AUT");FX.ally(k,"HUN");}},
+ brenner:{c:3,r:2,req:["danub"],n:"Watch on the Brenner",i:"\u{1F3F0}",d:"Forts on every border with Germany and Austria.",
+   fx:k=>FX.build(k,[...FX.border(k,"GER"),...FX.border(k,"AUT")],"fort",2)}
+}},
+"ww2:JAP":{heads:["ZAIBATSU","CHINA","NORTH OR SOUTH","IMPERIAL NAVY"],nodes:{
+ zai:{c:0,r:0,n:"Zaibatsu Cooperation",i:"\u{1F3ED}",d:"Factories in Tokyo and Osaka and +40 production.",
+   fx:k=>{FX.build(k,["tok","osa"],"fac");FX.stat(k,{pp:40});}},
+ manch:{c:0,r:1,req:["zai"],n:"Develop Manchukuo",i:"⛏",d:"Manchurian coal and iron: +120 steel, +20 oil.",fx:k=>FX.stat(k,{stock:{steel:120},oil:20})},
+ tri:{c:0,r:2,req:["zai"],n:"Tripartite Pact",i:"\u{1F517}",d:"Alliances with Germany and Italy.",fx:k=>{FX.ally(k,"GER");FX.ally(k,"ITA");}},
+ mpb:{c:1,r:0,n:"Marco Polo Bridge",i:"⚔",d:"War with China, and +15 war support.",ok:OK.war("CHN"),fx:k=>{FX.stat(k,{ws:15});FX.war(k,"CHN");}},
+ kwant:{c:1,r:1,req:["mpb"],n:"The Kwantung Army",i:"\u{1F396}",d:"Four infantry divisions and an armoured one.",
+   fx:k=>{FX.units(k,"inf",4,3);FX.units(k,"arm",1,3);}},
+ north:{c:2,r:1,req:["mpb"],excl:["south"],n:"Strike North",i:"⬆",d:"War with the Soviet Union over Siberia. Rules out Strike South.",
+   ok:OK.war("SOV"),fx:k=>{FX.stat(k,{ws:10});FX.war(k,"SOV");}},
+ south:{c:2,r:2,req:["mpb"],excl:["north"],n:"Strike South",i:"⬇",d:"War with the Netherlands for the oil of the Indies, and +40 oil. Rules out Strike North.",
+   ok:OK.war("HOL"),fx:k=>{FX.stat(k,{ws:10,oil:40});FX.war(k,"HOL");}},
+ sphere:{c:2,r:3,req:["north","south"],any:true,n:"Co-Prosperity Sphere",i:"\u{1F310}",d:"+10 stability, +80 rubber, +80 production.",
+   fx:k=>FX.stat(k,{stab:10,pp:80,stock:{rubber:80}})},
+ kido:{c:3,r:0,n:"Kido Butai",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,3,"tok")},
+ yamato:{c:3,r:1,req:["kido"],n:"Yamato Class",i:"■",d:"A heavy capital squadron.",fx:k=>FX.fleet(k,"cap",1,5,"hir")},
+ navair:{c:3,r:2,req:["yamato"],n:"Naval Aviation",i:"✈",d:"Two naval bomber wings and an Aviation level.",
+   fx:k=>{FX.wings(k,"nvb",2,3);FX.stat(k,{res:{air:1}});}}
+}},
+"ww2:SOV":{heads:["FIVE-YEAR PLANS","THE PURGE","OR THE OFFICERS","RED ARMY"],nodes:{
+ fyp:{c:0,r:0,n:"Second Five-Year Plan",i:"\u{1F3ED}",d:"Factories in Moscow and Leningrad.",fx:k=>FX.build(k,["mos","len"],"fac")},
+ urals:{c:0,r:1,req:["fyp"],n:"Industry Beyond the Urals",i:"⛰",d:"Factories in the Urals and Novosibirsk and an Industry level.",
+   fx:k=>{FX.build(k,["ura","nov"],"fac");FX.stat(k,{res:{ind:1}});}},
+ stakh:{c:0,r:2,req:["urals"],n:"Stakhanovite Movement",i:"⚒",d:"+120 production and +100 steel.",fx:k=>FX.stat(k,{pp:120,stock:{steel:100}})},
+ purge:{c:1,r:0,excl:["officers"],n:"The Great Purge",i:"\u{1F5E1}",d:"+20 stability, at the cost of the officer corps: -10 war support.",
+   fx:k=>FX.stat(k,{stab:20,ws:-10})},
+ mrp:{c:1,r:1,req:["purge","officers"],any:true,n:"Molotov–Ribbentrop Pact",i:"\u{1F58B}",d:"A non-aggression pact with Germany.",
+   ok:OK.ally("GER"),fx:k=>FX.pact(k,"GER")},
+ finland:{c:1,r:2,req:["mrp"],n:"Claims on Finland",i:"⚔",d:"The Winter War.",ok:OK.war("FIN"),fx:k=>FX.war(k,"FIN")},
+ baltic:{c:1,r:3,req:["mrp"],n:"Baltic Bases",i:"\u{1F4DC}",d:"Estonia, Latvia and Lithuania are absorbed into the Union.",
+   ok:k=>["EST","LVA","LTU"].some(FX.alive)?"":"The Baltic states are gone already.",
+   fx:k=>{for(const t of["EST","LVA","LTU"])if(FX.alive(t)&&!atWar(k,t))FX.annex(k,t);}},
+ officers:{c:2,r:0,excl:["purge"],n:"Rehabilitate the Officers",i:"\u{1F396}",d:"Tukhachevsky keeps his post: a Land Doctrine level. Rules out the Purge.",
+   fx:k=>FX.stat(k,{res:{land:1}})},
+ china:{c:2,r:1,req:["purge","officers"],any:true,n:"Sino-Soviet Treaty",i:"\u{1F91D}",d:"An alliance with China.",ok:OK.ally("CHN"),fx:k=>FX.ally(k,"CHN")},
+ deep:{c:3,r:0,n:"Deep Battle",i:"\u{1F6E1}",d:"Two armoured divisions and a Land Doctrine level.",fx:k=>{FX.units(k,"arm",2,4);FX.stat(k,{res:{land:1}});}},
+ kv:{c:3,r:1,req:["deep"],n:"Heavy Tanks",i:"\u{1F6E1}",d:"Two heavy armoured divisions.",fx:k=>FX.units(k,"arm",2,5)},
+ vvs:{c:3,r:2,req:["deep"],n:"The Red Air Force",i:"✈",d:"Three fighter wings.",fx:k=>FX.wings(k,"fig",3,3)},
+ fareast:{c:3,r:3,req:["vvs"],n:"Far Eastern Front",i:"\u{1F3D4}",d:"Three divisions and a fort at Vladivostok.",
+   fx:k=>{FX.units(k,"inf",3,3,"vla");FX.build(k,["vla"],"fort");}}
+}},
+"ww2:UK":{heads:["THE EMPIRE","REARMAMENT","APPEASEMENT","STAND FIRM"],nodes:{
+ conf:{c:0,r:0,n:"Imperial Conference",i:"\u{1F451}",d:"Alliances with Canada, Australia and South Africa, and +5 stability.",
+   fx:k=>{for(const t of["CAN","AUS","SAF"])FX.ally(k,t);FX.stat(k,{stab:5});}},
+ inda:{c:0,r:1,req:["conf"],n:"The Indian Army",i:"\u{1F396}",d:"Three divisions raised in the Raj (or at home, if the Raj is gone).",
+   fx:k=>{if(FX.alive("IND")&&(allied(k,"IND")||G.nations.IND.puppet===k))FX.units("IND","inf",3,3);else FX.units(k,"inf",3,3);}},
+ sing:{c:0,r:2,req:["conf"],n:"Fortress Singapore",i:"\u{1F3F0}",d:"Two fort levels and a capital squadron at Singapore.",
+   fx:k=>{FX.build(k,["sin"],"fort",2);FX.fleet(k,"cap",1,4,"sin");}},
+ suez:{c:0,r:3,req:["conf"],n:"Defend Suez",i:"⚓",d:"A fort and two divisions at Suez.",fx:k=>{FX.build(k,["sue"],"fort");FX.units(k,"inf",2,3,"sue");}},
+ shadow:{c:1,r:0,n:"Shadow Factories",i:"\u{1F3ED}",d:"Factories in Birmingham and Manchester.",fx:k=>FX.build(k,["bir","man2"],"fac")},
+ radar:{c:1,r:1,req:["shadow"],n:"Chain Home",i:"\u{1F4E1}",d:"Radar along the coast: an Aviation level and two fighter wings.",
+   fx:k=>{FX.stat(k,{res:{air:1}});FX.wings(k,"fig",2,3);}},
+ hg:{c:1,r:2,req:["radar"],n:"The Home Guard",i:"\u{1F465}",d:"+80 manpower and a fort in London.",fx:k=>{FX.stat(k,{mp:80});FX.build(k,["lon"],"fort");}},
+ appease:{c:2,r:0,excl:["firm"],n:"Peace for Our Time",i:"\u{1F58B}",d:"+15 stability and a pact with Germany. Rules out Standing Firm.",
+   fx:k=>{FX.stat(k,{stab:15});FX.pact(k,"GER");}},
+ rn:{c:2,r:1,req:["appease","firm"],any:true,n:"The Royal Navy",i:"⚓",d:"Two capital squadrons and two escort flotillas.",
+   fx:k=>{FX.fleet(k,"cap",2,4);FX.fleet(k,"dd",2,2);}},
+ firm:{c:3,r:0,excl:["appease"],n:"Stand Firm",i:"⚔",d:"+15 war support and an alliance with France. Rules out appeasement.",
+   fx:k=>{FX.stat(k,{ws:15});FX.ally(k,"FRA");}},
+ guar:{c:3,r:1,req:["firm"],n:"Guarantee Poland",i:"\u{1F6E1}",d:"An alliance with Poland.",ok:OK.ally("POL"),fx:k=>FX.ally(k,"POL")}
+}},
+"ww2:USA":{heads:["NEW DEAL","ARSENAL","NEUTRALITY","TWO-OCEAN NAVY"],nodes:{
+ nd:{c:0,r:0,n:"The New Deal",i:"\u{1F3ED}",d:"Factories in New York and Chicago and +10 stability.",
+   fx:k=>{FX.build(k,["nyc","chi"],"fac");FX.stat(k,{stab:10});}},
+ tva:{c:0,r:1,req:["nd"],n:"Tennessee Valley Authority",i:"⚡",d:"A factory in Georgia and an Industry level.",
+   fx:k=>{FX.build(k,["atl"],"fac");FX.stat(k,{res:{ind:1}});}},
+ draft:{c:0,r:2,req:["nd"],n:"Selective Service",i:"\u{1F465}",d:"+200 manpower and four infantry divisions.",
+   fx:k=>{FX.stat(k,{mp:200});FX.units(k,"inf",4,3);}},
+ cash:{c:1,r:0,n:"Cash and Carry",i:"\u{1F4B5}",d:"+80 production and +100 steel.",fx:k=>FX.stat(k,{pp:80,stock:{steel:100}})},
+ arsenal:{c:1,r:1,req:["cash"],n:"Arsenal of Democracy",i:"⚙",d:"An Industry level and +120 production.",fx:k=>FX.stat(k,{res:{ind:1},pp:120})},
+ interv:{c:1,r:2,req:["arsenal"],excl:["neutral"],n:"Interventionism",i:"⚔",d:"Alliances with Britain and France, +15 war support. Rules out the Neutrality Acts.",
+   fx:k=>{FX.stat(k,{ws:15});FX.ally(k,"UK");FX.ally(k,"FRA");}},
+ neutral:{c:2,r:2,req:["arsenal"],excl:["interv"],n:"The Neutrality Acts",i:"\u{1F54A}",d:"+15 stability. Rules out intervention.",fx:k=>FX.stat(k,{stab:15})},
+ vinson:{c:3,r:0,n:"The Vinson Act",i:"⚓",d:"Two capital squadrons.",fx:k=>FX.fleet(k,"cap",2,4,"sfo")},
+ twoo:{c:3,r:1,req:["vinson"],n:"Two-Ocean Navy",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,3,"sfo")},
+ phil:{c:3,r:2,req:["vinson"],n:"Fortify the Philippines",i:"\u{1F3F0}",d:"A fort and two divisions at Manila.",
+   fx:k=>{FX.build(k,["mnl"],"fort");FX.units(k,"inf",2,3,"mnl");}}
+}},
+"ww2:FRA":{heads:["THE REPUBLIC","LIGNE MAGINOT","ALLIANCES"],nodes:{
+ matig:{c:0,r:0,n:"Matignon Agreements",i:"\u{1F91D}",d:"+10 stability and +40 production.",fx:k=>FX.stat(k,{stab:10,pp:40})},
+ natarm:{c:0,r:1,req:["matig"],n:"Nationalise the Arms Industry",i:"\u{1F3ED}",d:"Factories in Paris and Lyon.",fx:k=>FX.build(k,["par","lyo"],"fac")},
+ colon:{c:0,r:2,req:["natarm"],n:"Colonial Troops",i:"\u{1F396}",d:"Three divisions at Algiers.",fx:k=>FX.units(k,"inf",3,3,"alg")},
+ magi:{c:1,r:0,n:"Extend the Maginot Line",i:"\u{1F3F0}",d:"Two fort levels on every border with Germany.",fx:k=>FX.build(k,FX.border(k,"GER"),"fort",2)},
+ arden:{c:1,r:1,req:["magi"],n:"Close the Ardennes",i:"\u{1F332}",d:"Forts on the Belgian and Luxembourg borders too.",
+   fx:k=>FX.build(k,[...FX.border(k,"BEL"),...FX.border(k,"LUX")],"fort",2)},
+ charb:{c:1,r:2,req:["magi"],n:"Char B1",i:"\u{1F6E1}",d:"Two armoured divisions.",fx:k=>FX.units(k,"arm",2,4)},
+ petite:{c:2,r:0,n:"The Little Entente",i:"\u{1F91D}",d:"Alliances with Czechoslovakia, Romania and Yugoslavia.",
+   fx:k=>{for(const t of["CZE","ROM","SRB"])FX.ally(k,t);}},
+ fsov:{c:2,r:1,req:["petite"],n:"Franco-Soviet Treaty",i:"\u{1F58B}",d:"An alliance with the Soviet Union.",ok:OK.ally("SOV"),fx:k=>FX.ally(k,"SOV")},
+ entente:{c:2,r:2,req:["petite"],n:"Entente Cordiale",i:"\u{1F91D}",d:"An alliance with Britain.",ok:OK.ally("UK"),fx:k=>FX.ally(k,"UK")}
+}},
+"ww2:CHN":{heads:["NANJING DECADE","UNITED FRONT","NATIONAL ARMY"],nodes:{
+ nanj:{c:0,r:0,n:"The Nanjing Decade",i:"\u{1F3ED}",d:"Factories in Shanghai and Wuhan.",fx:k=>FX.build(k,["sha","wuh"],"fac")},
+ burma:{c:0,r:1,req:["nanj"],n:"The Burma Road",i:"\u{1F6E3}",d:"+100 steel and +30 oil from the south.",fx:k=>FX.stat(k,{stock:{steel:100},oil:30})},
+ chq:{c:0,r:2,req:["burma"],n:"Move to Chongqing",i:"\u{1F3D4}",d:"Two fort levels and a factory in Chongqing.",
+   fx:k=>{FX.build(k,["chq"],"fort",2);FX.build(k,["chq"],"fac");}},
+ uf:{c:1,r:0,n:"Second United Front",i:"\u{1F91D}",d:"+15 stability and +150 manpower.",fx:k=>FX.stat(k,{stab:15,mp:150})},
+ sino:{c:1,r:1,req:["uf"],n:"Sino-Soviet Treaty",i:"\u{1F58B}",d:"An alliance with the Soviet Union.",ok:OK.ally("SOV"),fx:k=>FX.ally(k,"SOV")},
+ tigers:{c:1,r:2,req:["uf"],n:"The Flying Tigers",i:"✈",d:"Two fighter wings.",fx:k=>FX.wings(k,"fig",2,3)},
+ germ:{c:2,r:0,n:"German Advisers",i:"\u{1F396}",d:"Three divisions and a Land Doctrine level.",fx:k=>{FX.units(k,"inf",3,3);FX.stat(k,{res:{land:1}});}},
+ yellow:{c:2,r:1,req:["germ"],n:"Hold the Yellow River",i:"\u{1F3F0}",d:"Forts at Beijing and Xian.",fx:k=>FX.build(k,["bei","xan"],"fort")}
+}},
+"ww2:POL":{heads:["SANACJA","INTERMARIUM","THE WEST","THE ARMY"],nodes:{
+ cop:{c:0,r:0,n:"Central Industrial Region",i:"\u{1F3ED}",d:"Factories in Krakow and Lublin.",fx:k=>FX.build(k,["kra","lub"],"fac")},
+ gdy:{c:0,r:1,req:["cop"],n:"The Port of Gdynia",i:"⚓",d:"A fort at Danzig and an escort flotilla.",fx:k=>{FX.build(k,["gda"],"fort");FX.fleet(k,"dd",1,2,"gda");}},
+ inter:{c:1,r:0,excl:["west"],n:"Intermarium",i:"\u{1F91D}",d:"Alliances with the Baltic states, Romania and Hungary. Rules out the western guarantees.",
+   fx:k=>{for(const t of["LTU","LVA","EST","ROM","HUN"])FX.ally(k,t);}},
+ west:{c:2,r:0,excl:["inter"],n:"Western Guarantees",i:"\u{1F6E1}",d:"Alliances with France and Britain. Rules out Intermarium.",
+   fx:k=>{FX.ally(k,"FRA");FX.ally(k,"UK");}},
+ armour:{c:3,r:0,n:"Polish Armour",i:"\u{1F6E1}",d:"Two armoured divisions.",fx:k=>FX.units(k,"arm",2,3)},
+ vist:{c:3,r:1,req:["armour"],n:"Defend the Vistula",i:"\u{1F3F0}",d:"A fort and three divisions at Warsaw.",fx:k=>{FX.build(k,["war"],"fort");FX.units(k,"inf",3,3,"war");}},
+ eastf:{c:3,r:2,req:["inter","west"],any:true,n:"Fortify Both Frontiers",i:"\u{1F9F1}",d:"Forts on every border with Germany and the Soviet Union.",
+   fx:k=>FX.build(k,[...FX.border(k,"GER"),...FX.border(k,"SOV")],"fort")}
+}},
+/* ------------------------------- 1914 -------------------------------- */
+"ww1:GER":{heads:["WELTPOLITIK","MITTELEUROPA","THE ARMY"],nodes:{
+ fleet:{c:0,r:0,n:"The High Seas Fleet",i:"⚓",d:"Two dreadnought squadrons at Hamburg.",fx:k=>FX.fleet(k,"cap",2,4,"ham")},
+ uboat:{c:0,r:1,req:["fleet"],n:"Unrestricted U-Boats",i:"▾",d:"Three submarine flotillas.",fx:k=>FX.fleet(k,"sub",3,2,"ham")},
+ krupp:{c:0,r:2,n:"Krupp Works",i:"\u{1F3ED}",d:"Factories in the Rhineland and Berlin.",fx:k=>FX.build(k,["rhi","ber"],"fac")},
+ dual:{c:1,r:0,n:"The Dual Alliance",i:"\u{1F91D}",d:"An alliance with Austria-Hungary.",ok:OK.ally("AUH"),fx:k=>FX.ally(k,"AUH")},
+ otto:{c:1,r:1,req:["dual"],n:"The Goeben and the Porte",i:"\u{1F319}",d:"An alliance with the Ottoman Empire.",ok:OK.ally("OTT"),fx:k=>FX.ally(k,"OTT")},
+ schl:{c:2,r:0,n:"The Schlieffen Plan",i:"⚔",d:"War with France, and four divisions at the Rhineland.",ok:OK.war("FRA"),
+   fx:k=>{FX.units(k,"inf",4,3,"rhi");FX.war(k,"FRA");}},
+ east:{c:2,r:1,req:["dual"],n:"Hold the East",i:"\u{1F3F0}",d:"Forts at Konigsberg and Poznan.",fx:k=>FX.build(k,["kon","poz"],"fort")}
+}},
+"ww1:FRA":{heads:["REVANCHE","THE ENTENTE","THE ARMY"],nodes:{
+ xvii:{c:0,r:0,n:"Plan XVII",i:"⚔",d:"Four divisions at Lille and +10 war support.",fx:k=>{FX.units(k,"inf",4,3,"lil");FX.stat(k,{ws:10});}},
+ alsace:{c:0,r:1,req:["xvii"],n:"Recover Alsace-Lorraine",i:"⚔",d:"War with Germany.",ok:OK.war("GER"),fx:k=>FX.war(k,"GER")},
+ rus:{c:1,r:0,n:"The Franco-Russian Alliance",i:"\u{1F91D}",d:"An alliance with Russia.",ok:OK.ally("RUS"),fx:k=>FX.ally(k,"RUS")},
+ uk:{c:1,r:1,req:["rus"],n:"Entente Cordiale",i:"\u{1F91D}",d:"An alliance with Britain.",ok:OK.ally("UK"),fx:k=>FX.ally(k,"UK")},
+ fort:{c:2,r:0,n:"Verdun",i:"\u{1F3F0}",d:"Two fort levels on every border with Germany.",fx:k=>FX.build(k,FX.border(k,"GER"),"fort",2)},
+ guns:{c:2,r:1,req:["fort"],n:"The 75mm Gun",i:"\u{1F4A5}",d:"Two divisions and a Land Doctrine level.",fx:k=>{FX.units(k,"inf",2,4);FX.stat(k,{res:{land:1}});}}
+}},
+"ww1:UK":{heads:["THE NAVY","THE ENTENTE","KITCHENER'S ARMY"],nodes:{
+ dread:{c:0,r:0,n:"Dreadnought Race",i:"⚓",d:"Two dreadnought squadrons.",fx:k=>FX.fleet(k,"cap",2,4)},
+ grand:{c:0,r:1,req:["dread"],n:"The Grand Fleet",i:"■",d:"Another squadron and two escort flotillas.",fx:k=>{FX.fleet(k,"cap",1,4);FX.fleet(k,"dd",2,2);}},
+ ent:{c:1,r:0,n:"Entente Cordiale",i:"\u{1F91D}",d:"An alliance with France.",ok:OK.ally("FRA"),fx:k=>FX.ally(k,"FRA")},
+ belg:{c:1,r:1,req:["ent"],n:"Guarantee Belgium",i:"\u{1F6E1}",d:"An alliance with Belgium.",ok:OK.ally("BEL"),fx:k=>FX.ally(k,"BEL")},
+ kitch:{c:2,r:0,n:"Your Country Needs You",i:"\u{1F465}",d:"+150 manpower and three divisions.",fx:k=>{FX.stat(k,{mp:150});FX.units(k,"inf",3,3);}},
+ tanks:{c:2,r:1,req:["kitch"],n:"Landships",i:"\u{1F6E1}",d:"An armoured division.",fx:k=>FX.units(k,"arm",1,3)}
+}},
+"ww1:RUS":{heads:["THE GREAT PROGRAMME","PAN-SLAVISM","THE EMPIRE"],nodes:{
+ great:{c:0,r:0,n:"The Great Programme",i:"\u{1F396}",d:"Six infantry divisions.",fx:k=>FX.units(k,"inf",6,3)},
+ rail:{c:0,r:1,req:["great"],n:"Strategic Railways",i:"\u{1F682}",d:"An Industry level and a depot at Warsaw.",fx:k=>{FX.stat(k,{res:{ind:1}});FX.build(k,["war"],"depot");}},
+ serb:{c:1,r:0,n:"Protector of the Slavs",i:"\u{1F91D}",d:"An alliance with Serbia.",ok:OK.ally("SRB"),fx:k=>FX.ally(k,"SRB")},
+ fra:{c:1,r:1,req:["serb"],n:"Franco-Russian Alliance",i:"\u{1F91D}",d:"An alliance with France.",ok:OK.ally("FRA"),fx:k=>FX.ally(k,"FRA")},
+ duma:{c:2,r:0,n:"Concessions to the Duma",i:"\u{1F3DB}",d:"+15 stability.",fx:k=>FX.stat(k,{stab:15})},
+ tsib:{c:2,r:1,req:["duma"],n:"The Trans-Siberian",i:"\u{1F682}",d:"+80 production and a depot at Irkutsk.",fx:k=>{FX.stat(k,{pp:80});FX.build(k,["irk"],"depot");}}
+}},
+"ww1:AUH":{heads:["THE DUAL MONARCHY","THE BALKANS","THE ARMY"],nodes:{
+ ausg:{c:0,r:0,n:"The Ausgleich Renewed",i:"\u{1F451}",d:"+15 stability.",fx:k=>FX.stat(k,{stab:15})},
+ skoda:{c:0,r:1,req:["ausg"],n:"Skoda Works",i:"\u{1F3ED}",d:"Factories in Vienna and Budapest.",fx:k=>FX.build(k,["vie","bud"],"fac")},
+ ger:{c:1,r:0,n:"The Dual Alliance",i:"\u{1F91D}",d:"An alliance with Germany.",ok:OK.ally("GER"),fx:k=>FX.ally(k,"GER")},
+ ultim:{c:1,r:1,req:["ger"],n:"The July Ultimatum",i:"⚔",d:"War with Serbia.",ok:OK.war("SRB"),fx:k=>{FX.stat(k,{ws:15});FX.war(k,"SRB");}},
+ gal:{c:2,r:0,n:"Hold Galicia",i:"\u{1F3F0}",d:"Forts at Krakow and Lwow.",fx:k=>FX.build(k,["kra","lwo"],"fort")},
+ alps:{c:2,r:1,req:["gal"],n:"The Alpine Front",i:"⛰",d:"Forts on every border with Italy.",fx:k=>FX.build(k,FX.border(k,"ITA"),"fort",2)}
+}},
+"ww1:OTT":{heads:["THE YOUNG TURKS","THE ALLIANCE","THE FRONTS"],nodes:{
+ cup:{c:0,r:0,n:"Committee of Union and Progress",i:"\u{1F3DB}",d:"+10 stability and +40 production.",fx:k=>FX.stat(k,{stab:10,pp:40})},
+ hejaz:{c:0,r:1,req:["cup"],n:"The Hejaz Railway",i:"\u{1F682}",d:"A depot in the Hejaz and an Industry level.",fx:k=>{FX.build(k,["jed"],"depot");FX.stat(k,{res:{ind:1}});}},
+ goeben:{c:1,r:0,n:"The Goeben Affair",i:"\u{1F91D}",d:"An alliance with Germany.",ok:OK.ally("GER"),fx:k=>FX.ally(k,"GER")},
+ jihad:{c:1,r:1,req:["goeben"],n:"Call to Arms",i:"\u{1F465}",d:"+120 manpower and +15 war support.",fx:k=>FX.stat(k,{mp:120,ws:15})},
+ dard:{c:2,r:0,n:"Fortify the Dardanelles",i:"\u{1F3F0}",d:"Two fort levels at Istanbul.",fx:k=>FX.build(k,["ist"],"fort",2)},
+ cauc:{c:2,r:1,req:["dard"],n:"The Caucasus Front",i:"⛰",d:"Three divisions at Erzurum.",fx:k=>FX.units(k,"inf",3,3,"erz")}
+}},
+/* ----------------------------- Cold War ------------------------------ */
+"coldwar:USA":{heads:["CONTAINMENT","THE ALLIANCE","DETERRENCE"],nodes:{
+ marsh:{c:0,r:0,n:"The Marshall Plan",i:"\u{1F4B5}",d:"+120 production and +10 stability.",fx:k=>FX.stat(k,{pp:120,stab:10})},
+ truman:{c:0,r:1,req:["marsh"],n:"The Truman Doctrine",i:"\u{1F6E1}",d:"Alliances with Greece and Turkey.",fx:k=>{FX.ally(k,"GRC");FX.ally(k,"TUR");}},
+ nato:{c:1,r:0,n:"The North Atlantic Treaty",i:"\u{1F91D}",d:"Alliances with Britain, France and Canada.",fx:k=>{for(const t of["UK","FRA","CAN"])FX.ally(k,t);}},
+ fwg:{c:1,r:1,req:["nato"],n:"Forward Defence",i:"\u{1F3F0}",d:"Alliance with West Germany and four divisions.",fx:k=>{FX.ally(k,"GER");FX.units(k,"inf",4,3);}},
+ sac:{c:2,r:0,n:"Strategic Air Command",i:"✈",d:"Two strategic bomber wings and an Aviation level.",fx:k=>{FX.wings(k,"stb",2,3);FX.stat(k,{res:{air:1}});}},
+ carr:{c:2,r:1,req:["sac"],n:"Supercarriers",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,4)}
+}},
+"coldwar:SOV":{heads:["RECONSTRUCTION","THE BLOC","THE ARMY"],nodes:{
+ recon:{c:0,r:0,n:"Fourth Five-Year Plan",i:"\u{1F3ED}",d:"Factories in Moscow and Kiev.",fx:k=>FX.build(k,["mos","kie"],"fac")},
+ sput:{c:0,r:1,req:["recon"],n:"Sputnik",i:"\u{1F6F0}",d:"An Industry and an Aviation level.",fx:k=>FX.stat(k,{res:{ind:1,air:1}})},
+ warsaw:{c:1,r:0,n:"The Warsaw Pact",i:"\u{1F91D}",d:"Alliances with Poland, Czechoslovakia, Hungary, Romania and Bulgaria.",
+   fx:k=>{for(const t of["POL","CZE","HUN","ROM","BUL"])FX.ally(k,t);}},
+ sino:{c:1,r:1,req:["warsaw"],n:"Sino-Soviet Friendship",i:"\u{1F58B}",d:"An alliance with China.",ok:OK.ally("CHN"),fx:k=>FX.ally(k,"CHN")},
+ tanks:{c:2,r:0,n:"The Tank Armies",i:"\u{1F6E1}",d:"Three armoured divisions.",fx:k=>FX.units(k,"arm",3,4)},
+ fleet:{c:2,r:1,req:["tanks"],n:"Gorshkov's Navy",i:"▾",d:"Three submarine flotillas.",fx:k=>FX.fleet(k,"sub",3,3)}
+}},
+/* ------------------------------ Today -------------------------------- */
+"modern:USA":{heads:["ECONOMY","ALLIANCES","FORCES"],nodes:{
+ chips:{c:0,r:0,n:"Chips at Home",i:"\u{1F4BB}",d:"Factories in Arizona and Texas.",fx:k=>FX.build(k,["phx","dal"],"fac")},
+ infra:{c:0,r:1,req:["chips"],n:"Infrastructure Bill",i:"\u{1F6E3}",d:"An Industry level and +80 production.",fx:k=>FX.stat(k,{res:{ind:1},pp:80})},
+ nato:{c:1,r:0,n:"Reaffirm NATO",i:"\u{1F91D}",d:"Alliances with Britain, France, Germany and Poland.",fx:k=>{for(const t of["UK","FRA","GER","POL"])FX.ally(k,t);}},
+ pac:{c:1,r:1,req:["nato"],n:"Pivot to the Pacific",i:"\u{1F30F}",d:"Alliances with Japan, Australia and the Philippines.",fx:k=>{for(const t of["JAP","AUS","PHI"])FX.ally(k,t);}},
+ cv:{c:2,r:0,n:"Carrier Strike Groups",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,4)},
+ f35:{c:2,r:1,req:["cv"],n:"Fifth-Generation Fighters",i:"✈",d:"Three fighter wings.",fx:k=>FX.wings(k,"fig",3,3)}
+}},
+"modern:SOV":{heads:["THE STATE","NEAR ABROAD","FORCES"],nodes:{
+ energy:{c:0,r:0,n:"Energy Superpower",i:"\u{1F6E2}",d:"+80 oil and +60 production.",fx:k=>FX.stat(k,{oil:80,pp:60})},
+ vert:{c:0,r:1,req:["energy"],n:"The Power Vertical",i:"\u{1F3DB}",d:"+15 stability.",fx:k=>FX.stat(k,{stab:15})},
+ csto:{c:1,r:0,n:"The CSTO",i:"\u{1F91D}",d:"Alliances with Belarus, Kazakhstan and Armenia.",fx:k=>{for(const t of["BLR","KAZ","ARM"])FX.ally(k,t);}},
+ china:{c:1,r:1,req:["csto"],n:"No-Limits Partnership",i:"\u{1F58B}",d:"An alliance with China.",ok:OK.ally("CHN"),fx:k=>FX.ally(k,"CHN")},
+ armata:{c:2,r:0,n:"New Tanks",i:"\u{1F6E1}",d:"Two armoured divisions.",fx:k=>FX.units(k,"arm",2,4)},
+ subs:{c:2,r:1,req:["armata"],n:"The Northern Fleet",i:"▾",d:"Two submarine flotillas.",fx:k=>FX.fleet(k,"sub",2,3,"arc")}
+}},
+"modern:CHN":{heads:["MADE IN CHINA","BELT AND ROAD","THE PLA"],nodes:{
+ mic:{c:0,r:0,n:"Made in China 2025",i:"\u{1F3ED}",d:"Factories in Shanghai and Canton.",fx:k=>FX.build(k,["sha","can"],"fac")},
+ tech:{c:0,r:1,req:["mic"],n:"Self-Reliance in Technology",i:"\u{1F4BB}",d:"An Industry level and +80 production.",fx:k=>FX.stat(k,{res:{ind:1},pp:80})},
+ bri:{c:1,r:0,n:"Belt and Road",i:"\u{1F6E3}",d:"+120 steel and +40 oil from abroad.",fx:k=>FX.stat(k,{stock:{steel:120},oil:40})},
+ pak:{c:1,r:1,req:["bri"],n:"All-Weather Friends",i:"\u{1F91D}",d:"An alliance with Pakistan.",ok:OK.ally("PAK"),fx:k=>FX.ally(k,"PAK")},
+ navy:{c:2,r:0,n:"Blue-Water Navy",i:"◆",d:"A carrier group and two escort flotillas.",fx:k=>{FX.fleet(k,"cv",1,4,"sha");FX.fleet(k,"dd",2,3,"sha");}},
+ rocket:{c:2,r:1,req:["navy"],n:"The Rocket Force",i:"\u{1F680}",d:"An Aviation level and a strategic bomber wing.",fx:k=>{FX.stat(k,{res:{air:1}});FX.wings(k,"stb",1,3);}}
+}}
+};
+/* ---------------- everybody else: a tree from where they stand ----------------
+   Two decisions are made once per campaign and kept with the save (the tree
+   must not rename itself when a border moves): the PATRON, the power this
+   country could lean on -- big, near, and best of all like-minded -- and the
+   TARGET, the weakest land neighbour it is not allied to. A country with no
+   land neighbour worth claiming gets a defensive branch instead. */
+function focusMetaOf(k){
+  const me=G.nations[k];
+  if(me.focusMeta)return me.focusMeta;
+  const cap=G.prov[capOf(k)]||natProvs(k)[0];
+  const mine=natProvs(k).length||1;
+  const size={},weight={};
+  for(const p of Object.values(G.prov)){size[p.owner]=(size[p.owner]||0)+1;
+    /* industrial weight, not acreage: an empire's colonies and Siberia make it
+       BIG everywhere, and Bulgaria does not look to Moscow before Berlin */
+    if(p.home===p.owner)weight[p.owner]=(weight[p.owner]||0)+(p.val||1);}
+  const myW=weight[k]||1;
+  let patron="",best=0;
+  for(const o in G.nations){const n=G.nations[o];
+    if(o===k||!n.alive||n.puppet||atWar(k,o)||(weight[o]||0)<myW*1.5||(size[o]||0)<5)continue;
+    const c=G.prov[capOf(o)];const d=(cap&&c)?Math.hypot(cap.x-c.x,cap.y-c.y):2000;
+    /* the map is 2000 units round the world, so Sofia-Berlin is ~80: a
+       neighbour is d/60 ~ 1. An existing ally is a patron at any distance. */
+    const s=(weight[o]||0)*(n.ideo===me.ideo?1.5:1)*(allied(k,o)?4:1/(1+(d/60)*(d/60)));
+    if(s>best){best=s;patron=o;}}
+  if(me.puppet&&FX.alive(me.puppet))patron=me.puppet;
+  let target="",tb=1e9;
+  const nb=new Set();
+  for(const p of natProvs(k))for(const j of p.adj){const q=G.prov[j];if(q&&q.owner!==k)nb.add(q.owner);}
+  for(const o of nb){const n=G.nations[o];
+    if(!n||!n.alive||allied(k,o)||o===me.puppet||n.puppet===k||o===patron)continue;
+    const s=(size[o]||0)/mine+(n.puppet?0.5:0);
+    if(s<tb||(s===tb&&o<target)){tb=s;target=o;}}
+  if(target&&tb>2.5)target="";       // only a claim it could conceivably make good
+  return (me.focusMeta={p:patron,t:target});
+}
+function focusGen(k){
+  const M=focusMetaOf(k), me=G.nations[k], N=NATIONS[k].n;
+  const capP=G.prov[capOf(k)], capN=capP?capP.name:N;
+  const P=M.p, T=M.t, PN=P&&NATIONS[P]?NATIONS[P].n:"", TN=T&&NATIONS[T]?NATIONS[T].n:"";
+  const old=ERA==="mongol"||ERA==="napoleon";
+  const pre=old?{rail:"Roads",army:"Levies"}:{rail:"Railways",army:"Army Reform"};
+  const nodes={
+   dev:{c:0,r:0,n:"Develop "+capN,i:"\u{1F3D9}",d:`A factory in ${capN} and +30 production.`,
+     fx:k=>{FX.build(k,[capOf(k)],"fac");FX.stat(k,{pp:30});}},
+   ind2:{c:0,r:1,req:["dev"],n:"Industrial Heartland",i:"\u{1F3ED}",d:"A factory in the best province after the capital, or +60 production if there is none.",
+     fx:k=>{const b=FX.best(k,1,true);if(!b.length||!FX.build(k,b,"fac"))FX.stat(k,{pp:60});}},
+   rail:{c:0,r:2,req:["ind2"],n:"National "+pre.rail,i:old?"\u{1F6E3}":"\u{1F682}",d:"An Industry level and a supply depot in the capital.",
+     fx:k=>{FX.stat(k,{res:{ind:1}});FX.build(k,[capOf(k)],"depot");}},
+   self:{c:0,r:3,req:["rail"],n:"Self-Sufficiency",i:"\u{1F5C3}",d:"+80 steel, +40 rubber and +20 oil.",fx:k=>FX.stat(k,{oil:20,stock:{steel:80,rubber:40}})},
+   fp:{c:1,r:0,n:"Foreign Policy Review",i:"\u{1F4DC}",d:"+5 stability and +20 production.",fx:k=>FX.stat(k,{stab:5,pp:20})},
+   army:{c:2,r:0,n:N+" "+pre.army,i:"\u{1F396}",d:"Two infantry divisions and +50 manpower.",fx:k=>{FX.units(k,"inf",2,3);FX.stat(k,{mp:50});}},
+   home:{c:1,r:3,req:["joint","neut","prep","fortr"],any:true,n:"Defend the Homeland",i:"\u{1F3F0}",d:"A fort in every border province and +60 manpower.",
+     fx:k=>{FX.build(k,FX.border(k),"fort");FX.stat(k,{mp:60});}}
+  };
+  if(P){
+    const already=me.puppet===P;
+    nodes.patron={c:1,r:1,req:["fp"],excl:T?["claim"]:["neut"],n:already?`Loyalty to ${PN}`:`Seek ${PN}'s Protection`,i:"\u{1F91D}",
+      d:already?`+10 stability and +40 production from ${PN}.`:`An alliance with ${PN}.`+(T?` Rules out the claim on ${TN}.`:" Rules out neutrality."),
+      ok:already?OK.alive(P):OK.ally(P),fx:k=>{if(already)FX.stat(k,{stab:10,pp:40});else FX.ally(k,P);}};
+    nodes.joint={c:1,r:2,req:["patron"],n:`Joint Staff with ${PN}`,i:"\u{1F5FA}",d:"A Land Doctrine level and two divisions.",
+      fx:k=>{FX.stat(k,{res:{land:1}});FX.units(k,"inf",2,3);}};
+  }
+  if(T){
+    const front=()=>{const b=FX.border(k,T);return b.length?b[0]:null;};
+    nodes.claim={c:2,r:1,req:["fp"],excl:P?["patron"]:[],n:`Claims on ${TN}`,i:"\u{1F4CC}",
+      d:`+15 war support.`+(P?` Rules out ${PN}'s protection.`:""),fx:k=>FX.stat(k,{ws:15})};
+    nodes.prep={c:2,r:2,req:["claim"],n:`Prepare the ${TN} Campaign`,i:"\u{1F5FA}",d:`Three divisions on the ${TN} border.`,
+      fx:k=>FX.units(k,"inf",3,3,front())};
+    nodes.war={c:2,r:3,req:["prep"],n:`War with ${TN}`,i:"⚔",d:`War with ${TN}.`,ok:OK.war(T),fx:k=>FX.war(k,T)};
+  }else{
+    nodes.neut={c:2,r:1,req:["fp"],excl:P?["patron"]:[],n:"Armed Neutrality",i:"\u{1F54A}",
+      d:"+10 stability and +10 war support."+(P?` Rules out ${PN}'s protection.`:""),fx:k=>FX.stat(k,{stab:10,ws:10})};
+    nodes.fortr={c:2,r:2,req:["neut"],n:`Fortress ${N}`,i:"\u{1F9F1}",d:"Two fort levels in the capital.",fx:k=>FX.build(k,[capOf(k)],"fort",2)};
+  }
+  return {heads:["DEVELOPMENT","FOREIGN POLICY",T?"AMBITIONS":"DEFENCE"],nodes};
+}
+/* The whole tree for nation k: the common trunk in columns 0-3, the national
+   section after it. Keys of national nodes are prefixed "n_" so they can never
+   collide with the trunk's, and so a save can tell them apart. */
+const _ftCache=new Map();
+function focusTree(k){
+  if(!G||!G.nations||!G.nations[k])return {nodes:FOCUSES,heads:["INDUSTRY","THE ARMY","SEA &amp; AIR","HOME FRONT"]};
+  const spec=NAT_FOCUS[ERA+":"+k];
+  const key=ERA+":"+k+":"+(spec?"h":JSON.stringify(focusMetaOf(k)))+":"+(NATIONS[k]&&NATIONS[k].n);
+  const hit=_ftCache.get(key);if(hit)return hit;
+  const S=spec||focusGen(k);
+  const nodes=Object.assign({},FOCUSES);
+  const pre=x=>"n_"+x;
+  for(const id in S.nodes){const f=S.nodes[id];
+    /* national effects are written fx(k); the trunk's are fx(me) -- the
+       tick calls every node fx(me,k), so take the key from the second */
+    nodes[pre(id)]=Object.assign({},f,{col:4+f.c,row:f.r,nat:1,fx:(me,nk)=>f.fx(nk),
+      req:(f.req||[]).filter(r=>S.nodes[r]).map(pre),excl:(f.excl||[]).filter(r=>S.nodes[r]).map(pre)});}
+  const T={nodes,heads:["INDUSTRY","THE ARMY","SEA &amp; AIR","HOME FRONT",...S.heads],natHeads:S.heads.length};
+  _ftCache.set(key,T);
+  return T;
+}
+function focusDef(k,key){return focusTree(k).nodes[key]||null;}
 /* generals */
 const GEN_NAMES=["Stahl","Volkov","Armand","Blackwood","Ono","Reyes","Castellano","Novak","Iqbal","Sørensen","Drummond","Kovács","Mbeki","Lindqvist","Ferro","Okafor"];
 function hireGeneral(uid){if(!G||!G.nations)return;
@@ -16526,23 +16991,33 @@ function renderPanel(){
        lines miss its nodes is worse than no lines at all. */
     el.classList.add("wide");
     me.focusDone=me.focusDone||{};
+    /* Two tabs: the country's own tree first -- it is the one that differs
+       from game to game -- and the common trunk everyone shares. Drawn side by
+       side they were one lattice eight columns wide and the national half sat
+       off the right-hand edge where nobody scrolled to it. */
+    const TREE=focusTree(G.player), tab=window.FOCUS_TAB==="gen"?"gen":"nat";
+    const FOC={};
+    for(const k in TREE.nodes){const f=TREE.nodes[k];
+      if(!!f.nat===(tab==="nat"))FOC[k]=f.nat?Object.assign({},f,{col:f.col-4}):f;}
+    const tally=nat=>{let d=0,t=0;for(const k in TREE.nodes)if(!!TREE.nodes[k].nat===nat){t++;if(me.focusDone[k])d++;}return d+"/"+t;};
     /* 64 tall, not 56: a two-line name -- "National Propaganda", "Strategic
        Reserves" -- pushed its own badge out of the bottom of the box. */
     const NW=112,NH=64,GX=18,GY=28;
     let maxC=0,maxR=0;
-    for(const k in FOCUSES){const f=FOCUSES[k];
+    for(const k in FOC){const f=FOC[k];
       if(f.col>maxC)maxC=f.col; if(f.row>maxR)maxR=f.row;}
     const TW=(maxC+1)*(NW+GX)-GX, TH=(maxR+1)*(NH+GY)-GY;
     const nx=f=>f.col*(NW+GX), ny=f=>f.row*(NH+GY);
     const state=k=>{
       if(me.focusDone[k])return "done";
       if(me.focus&&me.focus.key===k)return "running";
-      if(!focusOpen(me,k))return "locked";
+      const why=focusWhy(me,k);
+      if(why)return /^Ruled out/.test(why)?"excluded":"locked";
       return me.focus?"waiting":"open";
     };
     let h=`<h2>NATIONAL FOCUS</h2>`;
     if(me.focus){
-      const f=FOCUSES[me.focus.key];
+      const f=TREE.nodes[me.focus.key]||{n:"?",i:"\u{1F3AF}",d:""};
       const pct=Math.min(100,me.focus.prog/FOCUS_DAYS*100);
       const left=Math.max(1,FOCUS_DAYS-me.focus.prog);
       h+=`<div class="resslot busy">
@@ -16562,39 +17037,48 @@ function renderPanel(){
         </div></div>`;
     }
     /* the branch headings, on the same lattice as the columns they head */
-    const HEADS=["INDUSTRY","THE ARMY","SEA &amp; AIR","HOME FRONT"];
+    const HEADS=tab==="nat"?TREE.heads.slice(4):TREE.heads.slice(0,4);
+    h+=`<div style="display:flex;gap:6px;margin-top:8px">
+      <button class="tbtn${tab==="nat"?" on":""}" onclick="FOCUS_TAB='nat';renderPanel()">${FL(G.player)} ${NATIONS[G.player].n.toUpperCase()} \u00b7 ${tally(true)}</button>
+      <button class="tbtn${tab==="gen"?" on":""}" onclick="FOCUS_TAB='gen';renderPanel()">COMMON TREE \u00b7 ${tally(false)}</button></div>`;
     h+=`<div class="ftwrap"><div class="ftree" style="width:${TW}px;height:${TH+22}px">
       <div class="fthead" style="gap:${GX}px">`;
-    for(let c=0;c<=maxC;c++)h+=`<span style="width:${NW}px">${HEADS[c]||""}</span>`;
+    for(let c=0;c<=maxC;c++)h+=`<span style="width:${NW}px${tab==="nat"?";color:#ffd791;border-bottom-color:#6a5a2a":""}">${HEADS[c]||""}</span>`;
     h+=`</div><svg width="${TW}" height="${TH}" style="top:22px">`;
-    for(const k in FOCUSES){
-      const f=FOCUSES[k];
+    for(const k in FOC){
+      const f=FOC[k];
+      /* an either/or: a red dashed bar between the two choices */
+      for(const x of (f.excl||[])){const o=FOC[x];if(!o||x<k)continue;
+        const ax=nx(f)+NW/2,ay=ny(f)+NH/2,bx=nx(o)+NW/2,by=ny(o)+NH/2;
+        h+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#a5402e" stroke-width="2" stroke-dasharray="5 4"/>`;}
       for(const r of (f.req||[])){
-        const pf=FOCUSES[r];if(!pf)continue;
+        const pf=FOC[r];if(!pf)continue;
         const x1=nx(pf)+NW/2, y1=ny(pf)+NH, x2=nx(f)+NW/2, y2=ny(f);
         const lit=!!me.focusDone[r];
         const col=lit?"#5d7a4e":"#2b3327";
+        const dash=f.any?` stroke-dasharray="3 3"`:"";
         const pts=(x1===x2)?`${x1},${y1} ${x2},${y2}`
           :`${x1},${y1} ${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}`;
-        h+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/>`;
+        h+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"${dash}/>`;
       }
     }
     h+=`</svg>`;
-    for(const k in FOCUSES){
-      const f=FOCUSES[k], st=state(k);
-      const cls=st==="waiting"?"locked":st;
+    for(const k in FOC){
+      const f=FOC[k], st=state(k);
+      const cls=st==="waiting"||st==="excluded"?"locked":st;
       const badge=st==="done"?"\u2713":st==="running"?Math.round(me.focus.prog/FOCUS_DAYS*100)+"%"
-        :st==="locked"?"\u{1F512}":FOCUS_DAYS+"d";
+        :st==="excluded"?"\u2715":st==="locked"?"\u{1F512}":FOCUS_DAYS+"d";
+      const why=(st==="locked"||st==="excluded")?" \u2014 "+focusWhy(me,k):"";
       const click=(st==="open")?` onclick="pickFocus('${k}')"`:"";
-      h+=`<div class="fnode ${cls}" style="left:${nx(f)}px;top:${ny(f)+22}px;width:${NW}px;height:${NH}px"${click} title="${f.d.replace(/"/g,"&quot;")}">
+      h+=`<div class="fnode ${cls}" style="left:${nx(f)}px;top:${ny(f)+22}px;width:${NW}px;height:${NH}px"${click} title="${(f.d+why).replace(/"/g,"&quot;")}">
         <span class="fi">${f.i}</span><span class="fn">${f.n}</span><span class="fs">${badge}</span></div>`;
     }
     h+=`</div></div>`;
     /* what the thing under the cursor actually does, spelled out -- a tooltip
        is not available on a touch screen, which is most of where this is played */
-    const sel=me.focus?FOCUSES[me.focus.key]:null;
+    const sel=me.focus?FOC[me.focus.key]:null;
     h+=`<div style="color:var(--dim);font-size:11px;margin-top:8px">${sel?sel.d:
-      "One focus at a time, "+FOCUS_DAYS+" days each, each one taken once. A locked node needs the ones above it finished first."}</div>`;
+      "One focus at a time, "+FOCUS_DAYS+" days each, each one taken once. A locked node needs the ones above it finished first; a red dashed bar joins two choices that rule each other out, and a dotted line means any one of the focuses above will do."}</div>`;
     el.innerHTML=h;
   }
   if(curPanel==="credits"){
@@ -17199,13 +17683,12 @@ window.pickFocus=k=>{if(!G||!G.nations)return;
   /* and the road has to be open. Without this the tree was a picture of a rule
      rather than the rule itself: the panel drew the atom bomb as locked and
      the handler started it anyway. */
-  if(!focusOpen(me,k)){
-    const missing=(FOCUSES[k].req||[]).filter(r=>!me.focusDone[r]).map(r=>FOCUSES[r].n);
-    logMsg(`${FOCUSES[k].n} needs ${missing.join(" and ")} first.`,"war");
-    return;
-  }
+  const f=focusDef(G.player,k);
+  if(!f)return;
+  const why=focusWhy(me,k);
+  if(why){logMsg(`${f.n}: ${why}`,"war");return;}
   me.focus={key:k,prog:0};
-  sfx("focus");logMsg(`🎯 National focus begun: ${FOCUSES[k].n} (${FOCUS_DAYS} days).`,"good");
+  sfx("focus");logMsg(`🎯 National focus begun: ${f.n} (${FOCUS_DAYS} days).`,"good");
   renderPanel();
 };
 window.setLaw=(k,v)=>{if(!G||!G.nations)return;
@@ -17377,8 +17860,8 @@ function refreshHUD(){
      el.parentNode.style.color=v<20?"var(--red)":v<35?"var(--amber)":"";}}
   {const el=$("#hFocT");
    if(el){
-     if(me.focus&&FOCUSES[me.focus.key]){
-       const f=FOCUSES[me.focus.key];
+     const f=me.focus&&focusDef(G.player,me.focus.key);
+     if(f){
        el.textContent=f.n+" "+Math.round(100*me.focus.prog/FOCUS_DAYS)+"%";
        el.parentNode.style.color="";
      }else{el.textContent="none";el.parentNode.style.color="var(--dim)";}}}
@@ -19142,7 +19625,10 @@ function mpSerialize(){
       n.focus?n.focus.key:"", n.focus?Math.round(n.focus.prog):0,
       Object.keys(n.focusDone||{}).join(","),
       /* the war economy (v23.16+): the gun stockpile and the split that fills it */
-      EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2)];}
+      EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2),
+      /* who a generated national tree leans on and claims (v24+), so it does
+         not rename itself on reload */
+      n.focusMeta?JSON.stringify(n.focusMeta):""];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
@@ -19221,8 +19707,13 @@ function mpApplyState(S){
       /* the focus tree; saves written before v23.12 carry none of it, and load
          as a nation that has simply not started one */
       n.focusDone={};
-      if(a[38])for(const f of String(a[38]).split(","))if(f&&FOCUSES[f])n.focusDone[f]=1;
-      n.focus=(a[36]&&FOCUSES[a[36]])?{key:a[36],prog:+a[37]||0}:null;
+      /* national focuses ("n_...") belong to a tree built later from the era
+         and a[41]; one that turns out not to exist is ignored by the tick */
+      const fok=f=>f&&(FOCUSES[f]||/^n_\w+$/.test(f));
+      n.focusMeta=null;
+      if(a[41]){try{const m=JSON.parse(a[41]);if(m&&typeof m==="object")n.focusMeta={p:String(m.p||""),t:String(m.t||"")};}catch(e){}}
+      if(a[38])for(const f of String(a[38]).split(","))if(fok(f))n.focusDone[f]=1;
+      n.focus=fok(a[36])?{key:a[36],prog:+a[37]||0}:null;
       /* Saves from before the split have neither. A nation loads with an empty
          warehouse at the default share, and its divisions -- which carry no eq
          either -- read as fully equipped, which is what they were. */

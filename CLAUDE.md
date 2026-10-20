@@ -1631,3 +1631,39 @@ German plain has none, the Alps and the Carpathian arc keep theirs.
 Conifers still follow the province's forest tag (not changed).
 Probe note: the close-up camera clamps at G.cam.z 14, and marks only draw
 from z>8 at MAPQ>=2.
+
+## A focus tree for every country
+
+Owner: "add a focus tree for each country". The 16-node tree was the same for
+everyone. Now FOCUS opens on the country's OWN tree (tab), with the common
+tree as a second tab -- drawn side by side they were eight columns wide and
+the national half sat off the right edge where nobody scrolled.
+
+- **Hand-written** (`NAT_FOCUS["era:KEY"]`) where the choices are the
+  history: 1936 GER ITA JAP SOV UK USA FRA CHN POL; 1914 GER FRA UK RUS AUH
+  OTT; Cold War USA SOV; today USA SOV CHN. Either/or choices (`excl`: Axis
+  or Stresa, Strike North or South, Purge or the officers, Appeasement or
+  Stand Firm, Intermarium or the West) and `any` (the branch after one).
+- **Generated for everyone else** (`focusGen`): Develop <capital>, a factory
+  in the best province, railways (roads before 1861), then Seek <patron>'s
+  protection OR Claims on <target> -> prepare -> war, or Armed Neutrality ->
+  Fortress <name> where there is no target worth claiming. Patron = industrial
+  weight (sum of home p.val, NOT province count -- colonies and Siberia made
+  France and Russia everyone's patron), x1.5 same ideology, existing ally x4
+  at any distance, else / (1+(d/60)^2) (the map is 2000 units round; Sofia-
+  Berlin is ~80). Target = weakest land neighbour not allied, at most 2.5x
+  our size. Both kept in `n.focusMeta`, saved as nation field a[41], so a
+  tree does not rename itself when a border moves.
+- National keys are "n_<id>"; effects are fx(k) and wrapped to the trunk's
+  fx(me,k) signature in `focusTree` (the first harness run caught every
+  national effect receiving the nation object as its key). `ok(k)` explains
+  why a node is unavailable (Austria gone, already at war...); `focusWhy` is
+  the single gate for panel, pickFocus and tooltips.
+- FX helpers: stat, units, wings, fleet, build (BUILDINGS levels, capped),
+  give (peaceful transfer, the old owner's troops walk home), annex, ally,
+  war, pact.
+- Player-only, as before: AI nations do not take focuses.
+- Verified (`ft/fttest.js`): every tree builds and every node's ok() and fx
+  run for every alive nation in all seven eras with no error; Anschluss
+  completes (Austria gone, Vienna German); a generated tree's meta, finished
+  focuses and running focus survive save/load.
