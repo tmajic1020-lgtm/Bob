@@ -8441,6 +8441,7 @@ function buildNatEdges(owner,w,h){
    round its capital. Bucketed into the same boundary tiles the coastline uses,
    so a frame strokes the two or three tiles you can see and not the world. */
 let terrainMarks=null;
+let groundLift=null;   // per provPix cell: how much a REAL range lifts it (buildGround)
 const TM_WOOD=new Set(["forest","jungle"]), TM_RELIEF=new Set(["hills","mtn"]);
 function buildTerrainMarks(){
   terrainMarks=null;
@@ -8468,7 +8469,17 @@ function buildTerrainMarks(){
       const pi=provPix[py*provPixW+px];
       if(pi<0)continue;                       // sea
       const q=PL[pi];
-      if(!q||!kinds.has(q.ter))continue;
+      if(!q)continue;
+      if(isWood){if(!kinds.has(q.ter))continue;}
+      else{
+        /* Ridges go where a REAL range stands, not wherever a province is
+           tagged hills. A province is ~300km across, so tagging Rhineland or
+           Hamburg "hills" scattered carets over the whole North German Plain
+           -- random shapes on flat land. The range field knows the Alps from
+           the plain; thinning by its height fades them out into the foothills. */
+        const L=groundLift?groundLift[py*provPixW+px]:0;
+        if(L<0.3||rnd()>L*1.4)continue;
+      }
       const P=put(T,jx,jy);
       if(!P)continue;
       if(isWood){
@@ -9107,6 +9118,7 @@ function buildGround(){
       const add=LIFT[i];
       if(add>0&&land[i])H[i]=Math.min(1,Math.max(H[i],H[i]*0.35+add));
     }
+    groundLift=LIFT;    // the real ranges alone, for the ridge marks
   }
   /* Smooth the height so a mountain province becomes a RANGE with foothills
      rather than a block, then break it up again with fractal noise scaled by

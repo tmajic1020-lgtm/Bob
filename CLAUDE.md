@@ -1617,3 +1617,17 @@ by eye -- the file is 21k lines.
 - Runtime sweep (`sweep.js`): every era x three nations, 260 days with a
   war, all twelve panels, all eight map styles, four zooms, save+load with
   a day/ownership check -- 0 page errors, 0 soft errors.
+
+## "Why when you zoom in the random shapes?"
+
+The close-zoom ridge carets ("^", `buildTerrainMarks`) were placed wherever
+the GAMEPLAY province was tagged hills/mtn. A province is ~300km across, so
+one "hills" tag scattered carets over the whole North German Plain -- marks
+on flat land with no range anywhere near. They now follow `groundLift`, the
+field of the thirty real ranges and plateaus that `buildGround` already
+stamps (kept from that block), at LIFT >= 0.3 and thinned by its height so
+they fade into the foothills. Relief marks 8,531 -> 7,897 world-wide; the
+German plain has none, the Alps and the Carpathian arc keep theirs.
+Conifers still follow the province's forest tag (not changed).
+Probe note: the close-up camera clamps at G.cam.z 14, and marks only draw
+from z>8 at MAPQ>=2.
