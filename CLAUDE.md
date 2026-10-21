@@ -1749,3 +1749,49 @@ line, each box showing what it costs NOW.
   techStart.
 - The old single abstract ladder (`n.researching`) is no longer advanced;
   its save fields stay for old saves.
+
+## Decisions and trade
+
+Owner: "Add decisions, trade". Two new side tabs, DECISIONS (`curPanel
+"dec"`) and TRADE (`"trade"`).
+
+**Decisions** (`DECISIONS`, `NAT_DECISIONS["era:KEY"]`): things a
+government simply does for production points, no 70-day wait. Economy
+(Emergency Factory Conversion, War Bonds, Rationing, Prospect for
+Resources -- adds a deposit of what you are shortest of -- Synthetic
+Refineries), Politics (Propaganda, Rally the Nation, Crack Down, Martial
+Law), War Measures (Mobilise the Reserves, Total Mobilisation, Scorched
+Earth, General Offensive), Research (Grants, Foreign Scientists), and
+targeted Diplomacy (Justify a War Goal -- 60 days, then declaring that war
+is free and +10 war support; Send Volunteers -- two divisions under the
+other flag; Improve Relations). National ones for 1936: the Berlin
+Olympics, Fireside Chat, Dig for Victory, Order No. 227, the Battle for
+Grain, Paid Holidays, National Spiritual Mobilisation, the New Life
+Movement.
+- Timed ones put a multiplier in force, read through `decMod(k,key)` at the
+  points the game already computes the thing: "pp" in ppRate, "res" in
+  resProgPerDay, "atk"/"def" in natAtkMul/natDefMul. Nothing else touched.
+- `decWhy` is the single gate (in force, cooldown, year window, at war,
+  condition, target, cost); cd>=99999 means once only ("Already taken").
+- AI: every 20 days, propaganda when stability < 45, factory conversion at
+  war with PP to spare, reserves at war when manpower runs low.
+
+**Trade** -- what you produce, burn (from the UPKEEP table), import, export
+and hold, per resource, and CONTRACTS: a steady daily flow bought from a
+named country (`n.contracts` on the buyer). Each day the seller ships what
+it can spare above a reserve and the buyer pays for what arrives; a contract
+lapses on war, the seller's death, or the buyer being unable to pay. Allies
+and trade-agreement partners sell 20% cheaper; a seller allied to your enemy
+refuses. The AI signs where it is short (every 30 days, up to 3). The old
+open market moved here too (it is still in POLICY).
+- **Oil is a different scale**: an oil province yields 0.12 a day against
+  1-8 for a mine (measured, 1936), so oil contracts are 0.1/0.25/0.5 a day
+  at 3 PP a unit with a 20 reserve; ore is 1/2/4 a day at 1.2-1.6.
+  The first cut used ore sizes for oil and delivered nothing.
+- `n.oilInc` is now kept by the economy tick so oil income can be shown.
+- Save: nation field a[43] = {d: decisions, j: justified goals, c:
+  contracts, i/o: today's income so the screen is right straight after a
+  load}.
+- Probe pitfall: a test scenario that declares war can lose the province
+  that produced a resource; "+0.0 steel" was Germany without the Rhineland,
+  not a display fault (a clean game reads +3).

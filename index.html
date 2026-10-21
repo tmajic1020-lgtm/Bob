@@ -114,6 +114,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 #panel.full{left:132px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
 #panel.full .ftwrap{max-height:calc(100vh - 300px);cursor:grab}
 #panel.full .ftwrap.drag{cursor:grabbing;user-select:none}
+#panel .trtab{border:1px solid var(--line);margin-top:6px}
+#panel .trrow{display:grid;grid-template-columns:1.6fr repeat(5,1fr);gap:4px;padding:4px 8px;font-size:12px;cursor:pointer;text-align:right}
+#panel .trrow span:first-child{text-align:left}
+#panel .trrow:hover{background:#1c241a}
+#panel .trrow.on{background:#2a2415;color:#ffd791}
+#panel .trrow.trhd{cursor:default;color:var(--amber);font-size:10px;letter-spacing:1px;border-bottom:1px solid var(--line)}
+#panel .trrow.trhd:hover{background:none}
 #panel .tslots{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
 @media(max-width:700px){#panel.full{left:4px;right:4px;top:52px;bottom:48px}#panel.full .ftwrap{max-height:calc(100vh - 340px)}}
 .resslot{display:flex;align-items:center;gap:10px;padding:9px 10px;margin:8px 0 12px;
@@ -330,6 +337,8 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn" data-p="research">RESEARCH</button>
   <button class="tbtn" data-p="air">AIR COMMAND</button>
   <button class="tbtn" data-p="focus">FOCUS</button>
+  <button class="tbtn" data-p="dec">DECISIONS</button>
+  <button class="tbtn" data-p="trade">TRADE</button>
   <button class="tbtn" data-p="govt">GOVERNMENT</button>
   <button class="tbtn" data-p="policy">POLICY</button>
   <button class="tbtn" data-p="diplo">WARS</button>
@@ -1927,11 +1936,14 @@ const MINISTERS={
 function steelMul(k){if(!epochAtLeast("22.0"))return 1;return shortOn(k,"steel")?0.82:1;}
 function natAtkMul(k){const n=G.nations[k];if(!n)return 1;
   let m=(k==="ZOM"?1.5:1)*ideoOf(n).atk*((DOCTRINES[n.doctrine]||{atk:1}).atk)*(n.cab&&n.cab.staff?1.10:1)*(MODS.blitz?1.35:1)*(MODS.trench?0.6:1);
-  m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m;}
-function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.doctrine]||{def:1}).def*(MODS.trench?1.35:1);}
+  m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m*decMod(k,"atk");}
+function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.doctrine]||{def:1}).def*(MODS.trench?1.35:1)*decMod(k,"def");}
 function warDeclCost(me){return Math.round(40*ideoOf(me).war*(me.cab&&me.cab.dip?0.7:1)*(MODS.coldwar?3:1));}
 function playerDeclareWar(o){if(!G||!G.nations)return;
-  const me=G.nations[G.player];const c=warDeclCost(me);
+  const me=G.nations[G.player];
+  /* a justified war goal (DECISIONS) makes the declaration free and popular */
+  const just=!!(me.jw&&me.jw[o]);const c=just?0:warDeclCost(me);
+  if(just){delete me.jw[o];me.warSup=Math.min(100,(me.warSup??50)+10);}
   if(me.pp<c){logMsg(`Declaring war needs ${c} PP (your government's appetite for war sets the price).`,"war");return;}
   me.pp-=c;me.warSup=Math.min(100,(me.warSup??50)+8);
   declareWar(G.player,o);renderPanel();refreshHUD();
@@ -3839,7 +3851,7 @@ function tick(){
      const synth=((n.res&&n.res.ind)||0)*0.35*(1+(n.law?n.law.eco:0)*0.4);
      for(const r of RESKEYS)n.stock[r]=Math.min(cap,(n.stock[r]||0)+resInc[r]*0.6+synth*0.25);}
     const _law=n.law||{cons:0,eco:0};
-    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*consOf(n).pp*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1);
+    n.ppRate=pp*0.5*techMul(k,"ind")*(1+_law.eco*0.3)*(n.cab&&n.cab.arm?1.15:1)*(n.ideo==="com"?1.10:1)*consOf(n).pp*(n.sabotage>0?0.72:1)*(MODS.industry?1.8:1)*(MODS.depression?0.55:1)*(MODS.pandemic?0.8:1)*(1+((n.trade&&n.trade.size)||0)*0.03)*(MODS.hardai&&k!==G.player?1.4:1)*decMod(k,"pp");
     let inc=n.ppRate/10;
     /* THE SPLIT. The military half of industry makes guns rather than points,
        and the stockpile is capped at twice what the standing army could want,
@@ -3869,7 +3881,7 @@ function tick(){
      }}
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
-    n.oil+=oil*0.12;
+    n.oil+=oil*0.12;n.oilInc=oil*0.12;
     // stability drifts: war grinds nations down, peace heals
     n.stab+=(n.atWar.size>0?-0.05*n.atWar.size:0.04)+consOf(n).stab-_law.eco*0.015+ideoOf(n).drift+(n.cab&&n.cab.sec?0.05:0);
     /* Recruits come in daily and the country pays for the law that produces
@@ -4127,7 +4139,7 @@ function tick(){
   }
   garrisonRegen();
   resUpkeepTick();
-  pactTick();lendTick();wearinessTick();resTradeTick();
+  pactTick();lendTick();wearinessTick();resTradeTick();decTick();trTick();
   resistanceTick();
   if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai)runGroups(k);}
@@ -7671,7 +7683,7 @@ function qual(nat,type){const n=G.nations[nat];return 1+((n&&n.tq&&n.tq[type])||
    its industry. A one-province country is slow; it is not frozen. */
 function resProgPerDay(k){
   const n=G&&G.nations[k];if(!n)return 0;
-  return (0.12+natProvs(k).length*0.006)*techMul(k,"ind")*(MODS.swift?2:1);
+  return (0.12+natProvs(k).length*0.006)*techMul(k,"ind")*(MODS.swift?2:1)*decMod(k,"res");
 }
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
 
@@ -17880,6 +17892,80 @@ function renderPanel(){
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
+  if(curPanel==="dec"){
+    el.classList.add("wide");
+    const k=G.player,st=decState(me);
+    let h=`<h2>DECISIONS</h2>`;
+    /* what is in force, and what is cooling down */
+    const live=Object.keys(st).filter(id=>st[id].until>G.day);
+    if(live.length){h+=`<h3>IN FORCE</h3>`;
+      for(const id of live){const D=decDef(k,id);if(!D)continue;const s=st[id];
+        const pct=Math.max(0,Math.min(100,100-(s.until-G.day)/D.days*100));
+        h+=`<div class="resslot busy"><div class="resicon">${D.i}</div><div style="flex:1;min-width:0">
+          <b>${D.n}${s.tgt?" — "+NATIONS[s.tgt].n:""}</b><div class="bar" style="margin:4px 0 3px"><i style="width:${pct}%"></i></div>
+          <small style="color:var(--dim)">${s.until-G.day} days left</small></div></div>`;}}
+    const jw=Object.keys(me.jw||{}).filter(t=>FX.alive(t)&&!atWar(k,t));
+    if(jw.length)h+=`<div class="row"><span>\u{1F4DC} War goals justified</span><span>${jw.map(t=>FL(t)+" "+NATIONS[t].n).join(", ")}</span></div>`;
+    let cat="";
+    for(const D of decList(k)){
+      if(D.cat!==cat){cat=D.cat;h+=`<h3>${cat}</h3>`;}
+      const why=decWhy(k,D);
+      const cost=D.pp?`${D.pp} PP`:"free";
+      if(D.tgt&&!why){
+        const ts=decTargets(k,D).slice(0,10);
+        h+=`<div class="row" style="align-items:flex-start"><span style="flex:1">${D.i} <b>${D.n}</b> <small style="color:var(--dim)">· ${cost}</small><br><small style="color:var(--dim)">${D.d}</small></span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 8px">${ts.map(t=>`<button class="tbtn" style="font-size:10px" onclick="takeDecision('${D.id}','${t}')">${FL(t)} ${NATIONS[t].n}</button>`).join("")}</div>`;
+      }else{
+        h+=`<button class="bbtn"${why?" disabled":""} onclick="takeDecision('${D.id}')">${D.i} ${D.n} <span style="float:right;color:var(--amber)">${cost}</span>
+          <small>${D.d}${why?` <span style="color:#d08a6a">— ${why}</span>`:""}</small></button>`;
+      }
+    }
+    el.innerHTML=h;
+  }
+  if(curPanel==="trade"){
+    el.classList.add("wide");
+    const k=G.player;me.contracts=me.contracts||[];
+    const nm=r=>r==="oil"?"Oil":RESOURCES[r].n, ic=r=>r==="oil"?"\u{1F6E2}":RESOURCES[r].i;
+    /* what the forces burn every day, from the same table the upkeep uses */
+    const burn={oil:0};for(const r of RESKEYS)burn[r]=0;
+    for(const u of G.units)if(u.nat===k)for(const r in UPKEEP.unit)burn[r]+=UPKEEP.unit[r];
+    for(const f of G.fleets)if(f.nat===k)for(const r in UPKEEP.fleet)burn[r]+=UPKEEP.fleet[r];
+    for(const w of G.wings)if(w.nat===k)for(const r in UPKEEP.wing)burn[r]+=UPKEEP.wing[r];
+    const inC=r=>me.contracts.filter(c=>c.r===r).reduce((s,c)=>s+c.amt,0);
+    const exports=[];for(const b in G.nations){const B=G.nations[b];if(b===k||!B.alive||!B.contracts)continue;
+      B.contracts.forEach((c,j)=>{if(c.from===k)exports.push({b,j,c});});}
+    const outC=r=>exports.filter(e=>e.c.r===r).reduce((s,e)=>s+e.c.amt,0);
+    const sel=window._trR&&TRADE_R.includes(window._trR)?window._trR:TRADE_R[1];
+    let h=`<h2>TRADE</h2>
+    <div class="trtab"><div class="trrow trhd"><span>RESOURCE</span><span>PRODUCED</span><span>USED</span><span>IMPORTS</span><span>EXPORTS</span><span>STOCK</span></div>`;
+    for(const r of TRADE_R){
+      const inc=trInc(me,r),use=burn[r]||0,net=inc-use+inC(r)-outC(r);
+      h+=`<div class="trrow${r===sel?" on":""}" onclick="trPick('${r}')"><span>${ic(r)} ${nm(r)}</span><span>+${inc.toFixed(1)}</span>
+        <span>${use?"-"+use.toFixed(1):"0"}</span><span>${inC(r)?"+"+inC(r):"—"}</span><span>${outC(r)?"-"+outC(r):"—"}</span>
+        <span style="color:${net<0?"#e07a62":"inherit"}">${Math.floor(trStock(me,r))}</span></div>`;}
+    h+=`</div><div style="color:var(--dim);font-size:11px;margin:4px 0 8px">Per day. Click a resource to buy it from another country. A contract delivers what the seller can spare every day and you pay for what arrives; allies and trade partners sell at 20% off.</div>`;
+    h+=`<h3>${ic(sel)} BUY ${nm(sel).toUpperCase()} · ${TRADE_PRICE[sel]} PP a unit</h3>`;
+    const sellers=trSellers(k,sel).slice(0,10);
+    if(!sellers.length)h+=`<div style="color:var(--dim)">Nobody at peace with you has ${nm(sel).toLowerCase()} to spare.</div>`;
+    for(const s of sellers){
+      const has=me.contracts.some(c=>c.from===s.o&&c.r===sel);
+      h+=`<div class="row"><span>${FL(s.o)} ${NATIONS[s.o].n} <small style="color:var(--dim)">+${s.inc.toFixed(1)}/day · ${Math.floor(s.st)} held${trDiscount(k,s.o)<1?" · 20% off":""}</small></span><span>`+
+        (s.hostile?`<small style="color:#d08a6a">refuses: allied to your enemy</small>`:has?`<small style="color:#7ea86a">contract running</small>`:
+        trSizes(sel).map(a=>`<button class="tbtn" style="font-size:10px;padding:2px 5px" title="${a} a day for ${trPrice(k,s.o,sel,a)} PP a day" onclick="signContract('${s.o}','${sel}',${a})">${a}/d · ${trPrice(k,s.o,sel,a)}PP</button>`).join(" "))+`</span></div>`;}
+    h+=`<h3>\u{1F4E6} IMPORTS (${me.contracts.length})</h3>`;
+    if(!me.contracts.length)h+=`<div style="color:var(--dim)">No contracts.</div>`;
+    me.contracts.forEach((c,i)=>{h+=`<div class="row"><span>${ic(c.r)} ${c.amt} ${nm(c.r).toLowerCase()} a day from ${FL(c.from)} ${NATIONS[c.from].n}</span>
+      <span>${trPrice(k,c.from,c.r,c.amt)} PP/day <button class="tbtn" onclick="cancelContract(${i})">✕</button></span></div>`;});
+    h+=`<h3>\u{1F6A2} EXPORTS (${exports.length})</h3>`;
+    if(!exports.length)h+=`<div style="color:var(--dim)">Nobody is buying from you. Other countries sign here on their own when they run short.</div>`;
+    for(const e of exports)h+=`<div class="row"><span>${ic(e.c.r)} ${e.c.amt} ${nm(e.c.r).toLowerCase()} a day to ${FL(e.b)} ${NATIONS[e.b].n}</span>
+      <span>+${trPrice(e.b,k,e.c.r,e.c.amt)} PP/day <button class="tbtn" onclick="cancelContract('${e.b}:${e.j}',1)">✕</button></span></div>`;
+    h+=`<h3>\u{1F3EA} OPEN MARKET</h3><div class="row"><span>Emergency buying at a premium, selling at a loss</span><span>
+      <button class="tbtn" onclick="trade('buy')">+10 oil · 15 PP</button>
+      ${sel!=="oil"?`<button class="tbtn" onclick="trade('rbuy','${sel}')">+10 ${nm(sel).toLowerCase()} · ${resPrice()} PP</button>
+      <button class="tbtn" onclick="trade('rsell','${sel}')">sell 10</button>`:`<button class="tbtn" onclick="trade('sell')">sell 10 oil</button>`}</span></div>`;
+    el.innerHTML=h;
+  }
   if(curPanel==="research"){
     /* ===================== THE RESEARCH SCREEN ============================
        A tree of real technologies laid out on a TIME AXIS, as the real game
@@ -18794,6 +18880,233 @@ function resTradeTick(){
     }
   }
 }
+/* =============================== DECISIONS ===============================
+   Things a government can simply DO, for a price, without waiting seventy
+   days for a focus: run a propaganda campaign, sell war bonds, convert the
+   factories, mobilise the reserves, send volunteers, justify a war. Each has
+   a cost in production, a condition, and either an immediate effect or a
+   duration during which a modifier is in force (`decMod`), then a cooldown
+   before it can be taken again. A few belong to one country in one era --
+   the Berlin Olympics, Order No. 227 -- and are listed above the rest.
+
+   Modifiers are multipliers read where the game already computes the thing:
+   "pp" in the production rate, "res" in research speed, "atk"/"def" in the
+   national combat multipliers. Nothing else is touched. */
+const DECISIONS=[
+ /* --- the economy --- */
+ {id:"convert",cat:"ECONOMY",n:"Emergency Factory Conversion",i:"\u{1F3ED}",pp:40,days:180,cd:365,mods:{pp:1.15},
+  d:"Civilian plants retooled for the war effort: +15% production for 180 days."},
+ {id:"bonds",cat:"ECONOMY",n:"War Bonds",i:"\u{1F4B5}",pp:0,cd:365,war:true,
+  d:"Sell the war to the public: +80 production now, -6 stability.",fx:k=>FX.stat(k,{pp:80,stab:-6})},
+ {id:"ration",cat:"ECONOMY",n:"Rationing",i:"\u{1F35E}",pp:20,days:240,cd:365,war:true,mods:{pp:1.10},
+  d:"Ration books and coupons: +10% production for 240 days, -8 stability now.",fx:k=>FX.stat(k,{stab:-8})},
+ {id:"prospect",cat:"ECONOMY",n:"Prospect for Resources",i:"⛏",pp:60,cd:240,
+  d:"Geologists sent out: a new deposit of whatever you are shortest of, in one of your provinces.",
+  fx:k=>{const n=G.nations[k],ps=natProvs(k);if(!ps.length)return;
+    const r=RESKEYS.slice().sort((a,b)=>((n.income[a]||0)-(n.income[b]||0)))[0];
+    const p=ps[Math.floor(Math.random()*ps.length)];p.dep=p.dep||{};p.dep[r]=+((p.dep[r]||0)+0.6).toFixed(2);
+    if(k===G.player)logMsg(`⛏ ${RESOURCES[r].n} found in ${p.name}.`,"good");}},
+ {id:"refine",cat:"ECONOMY",n:"Build Synthetic Refineries",i:"\u{1F6E2}",pp:80,cd:365,
+  d:"Oil from coal: +80 oil.",fx:k=>FX.stat(k,{oil:80})},
+ /* --- politics --- */
+ {id:"propa",cat:"POLITICS",n:"Propaganda Campaign",i:"\u{1F4E3}",pp:30,cd:120,
+  d:"Posters, newsreels and the radio: +8 stability.",fx:k=>FX.stat(k,{stab:8})},
+ {id:"rally",cat:"POLITICS",n:"Rally the Nation",i:"\u{1F4E2}",pp:30,cd:120,
+  d:"Speeches and parades: +10 war support.",fx:k=>FX.stat(k,{ws:10})},
+ {id:"crack",cat:"POLITICS",n:"Crack Down on Dissent",i:"\u{1F512}",pp:20,cd:180,need:k=>G.nations[k].stab<50?"":"Only when stability is under 50.",
+  d:"Arrests and censorship: +12 stability, -6 war support.",fx:k=>FX.stat(k,{stab:12,ws:-6})},
+ {id:"martial",cat:"POLITICS",n:"Martial Law",i:"\u{1F6A8}",pp:0,days:180,cd:365,mods:{pp:0.90},need:k=>G.nations[k].stab<40?"":"Only when stability is under 40.",
+  d:"The army keeps order: +15 stability now, -10% production for 180 days.",fx:k=>FX.stat(k,{stab:15})},
+ /* --- war measures --- */
+ {id:"reserves",cat:"WAR MEASURES",n:"Mobilise the Reserves",i:"\u{1F465}",pp:40,cd:365,war:true,
+  d:"Call up the reservists: +150 manpower, -5 stability.",fx:k=>FX.stat(k,{mp:150,stab:-5})},
+ {id:"totind",cat:"WAR MEASURES",n:"Total Mobilisation of Industry",i:"⚙",pp:120,days:365,cd:720,war:true,mods:{pp:1.20},
+  need:k=>(G.nations[k].warSup??50)>=60?"":"Needs war support of 60.",
+  d:"Everything for the front: +20% production for a year, -10 stability now.",fx:k=>FX.stat(k,{stab:-10})},
+ {id:"scorch",cat:"WAR MEASURES",n:"Scorched Earth",i:"\u{1F525}",pp:20,days:120,cd:365,war:true,mods:{def:1.15,pp:0.92},
+  need:k=>Object.values(G.prov).some(p=>p.home===k&&p.owner!==k&&atWar(k,p.owner))?"":"Only when the enemy holds your home ground.",
+  d:"Leave the invader nothing: +15% defence and -8% production for 120 days."},
+ {id:"offens",cat:"WAR MEASURES",n:"General Offensive",i:"⚔",pp:50,days:90,cd:270,war:true,mods:{atk:1.12},
+  d:"Every reserve committed: +12% attack for 90 days."},
+ /* --- research --- */
+ {id:"grants",cat:"RESEARCH",n:"Research Grants",i:"\u{1F52C}",pp:50,days:180,cd:365,mods:{res:1.20},
+  d:"Money for the universities: +20% research speed for 180 days."},
+ {id:"sci",cat:"RESEARCH",n:"Recruit Foreign Scientists",i:"\u{1F9EA}",pp:80,cd:365,
+  need:k=>techInit(G.nations[k]).slots.length?"":"Nothing is being researched.",
+  d:"A quarter of the way through every project in your laboratories.",
+  fx:k=>{for(const s of techInit(G.nations[k]).slots)s.prog+=techCost(s.id)*0.25;}},
+ /* --- diplomacy, with a target --- */
+ {id:"justify",cat:"DIPLOMACY",n:"Justify a War Goal",i:"\u{1F4DC}",pp:50,days:60,cd:0,tgt:"neighbour",
+  d:"Sixty days of grievances in the press. Afterwards war on that country costs nothing to declare and brings +10 war support.",
+  done:(k,t)=>{const n=G.nations[k];(n.jw=n.jw||{})[t]=1;
+    if(k===G.player)logMsg(`\u{1F4DC} War goal justified against ${FL(t)} ${NATIONS[t].n}.`,"good");}},
+ {id:"volun",cat:"DIPLOMACY",n:"Send Volunteers",i:"\u{1F396}",pp:30,cd:180,tgt:"atwar",
+  d:"Two divisions of volunteers join a country at war, under its flag. +5 war support.",
+  fx:(k,t)=>{FX.units(t,"inf",2,3);FX.stat(k,{ws:5});
+    if(k===G.player)logMsg(`\u{1F396} Volunteers leave for ${FL(t)} ${NATIONS[t].n}.`,"good");}},
+ {id:"relat",cat:"DIPLOMACY",n:"Improve Relations",i:"\u{1F91D}",pp:25,cd:90,tgt:"grudge",
+  d:"Envoys and concessions: the target's grudge against you falls by 20.",
+  fx:(k,t)=>{const T=G.nations[t];T.grudge=Math.max(0,(T.grudge||0)-20);}}
+];
+/* one country, one era: the decisions only that government could take */
+const NAT_DECISIONS={
+ "ww2:GER":[{id:"olymp",n:"The Berlin Olympics",i:"\u{1F3C5}",pp:30,cd:99999,year:[1936,1936],
+   d:"August 1936: the games as a showcase. +10 stability, +40 production.",fx:k=>FX.stat(k,{stab:10,pp:40})}],
+ "ww2:USA":[{id:"fires",n:"Fireside Chat",i:"\u{1F4FB}",pp:20,cd:180,
+   d:"Roosevelt on the radio: +10 stability, +5 war support.",fx:k=>FX.stat(k,{stab:10,ws:5})}],
+ "ww2:UK":[{id:"digv",n:"Dig for Victory",i:"\u{1F955}",pp:20,cd:365,war:true,
+   d:"Allotments in every park and less to import: +10 stability, +60 production.",fx:k=>FX.stat(k,{stab:10,pp:60})}],
+ "ww2:SOV":[{id:"o227",n:"Order No. 227",i:"✋",pp:0,days:180,cd:720,war:true,mods:{def:1.20},
+   d:"July 1942, 'Not one step back': +20% defence for 180 days, -5 stability.",fx:k=>FX.stat(k,{stab:-5})}],
+ "ww2:ITA":[{id:"grain",n:"The Battle for Grain",i:"\u{1F33E}",pp:25,cd:365,
+   d:"Self-sufficiency in wheat: +8 stability, +30 production.",fx:k=>FX.stat(k,{stab:8,pp:30})}],
+ "ww2:FRA":[{id:"conges",n:"Paid Holidays",i:"\u{1F3D6}",pp:20,cd:99999,year:[1936,1937],
+   d:"June 1936: the first congés payés. +12 stability.",fx:k=>FX.stat(k,{stab:12})}],
+ "ww2:JAP":[{id:"nsm",n:"National Spiritual Mobilisation",i:"\u{1F38C}",pp:25,cd:365,
+   d:"1937: the nation steeled for a long war. +12 war support.",fx:k=>FX.stat(k,{ws:12})}],
+ "ww2:CHN":[{id:"nlm",n:"The New Life Movement",i:"\u{1F3EF}",pp:20,cd:365,
+   d:"Chiang's civic campaign: +8 stability.",fx:k=>FX.stat(k,{stab:8})}]
+};
+function decList(k){return [...((NAT_DECISIONS[ERA+":"+k]||[]).map(x=>Object.assign({cat:"NATIONAL"},x))),...DECISIONS];}
+function decDef(k,id){return decList(k).find(x=>x.id===id)||null;}
+function decState(n){return n.dec||(n.dec={});}
+/* the product of every modifier in force */
+function decMod(k,key){
+  const n=G&&G.nations[k];if(!n||!n.dec)return 1;
+  let m=1;
+  for(const id in n.dec){const s=n.dec[id];if(!s.until||s.until<=G.day)continue;
+    const D=decDef(k,id);if(D&&D.mods&&D.mods[key])m*=D.mods[key];}
+  return m;
+}
+function decTargets(k,D){
+  const me=G.nations[k];
+  if(D.tgt==="neighbour"){const s=new Set();
+    for(const p of natProvs(k))for(const j of p.adj){const q=G.prov[j];if(q&&q.owner!==k)s.add(q.owner);}
+    return [...s].filter(o=>FX.alive(o)&&!allied(k,o)&&!atWar(k,o)&&!(me.jw&&me.jw[o])&&G.nations[o].puppet!==k&&me.puppet!==o);}
+  if(D.tgt==="atwar")return Object.keys(G.nations).filter(o=>o!==k&&FX.alive(o)&&G.nations[o].atWar.size&&!atWar(k,o)&&
+    ![...G.nations[o].atWar].some(e=>allied(k,e)));
+  if(D.tgt==="grudge")return Object.keys(G.nations).filter(o=>o!==k&&FX.alive(o)&&(G.nations[o].grudge||0)>0&&!atWar(k,o));
+  return [];
+}
+/* why it cannot be taken now, or "" */
+function decWhy(k,D,t){
+  const n=G.nations[k],s=decState(n)[D.id];
+  if(s&&s.until>G.day)return `In force for ${s.until-G.day} more days.`;
+  if(s&&D.cd>=99999)return "Already taken.";
+  if(s&&s.cd>G.day)return `Available again in ${s.cd-G.day} days.`;
+  if(D.year){const y=G.date.getFullYear();if(y<D.year[0]||y>D.year[1])return `Only in ${D.year[0]===D.year[1]?D.year[0]:D.year[0]+"-"+D.year[1]}.`;}
+  if(D.war&&!n.atWar.size)return "Only at war.";
+  if(D.need){const w=D.need(k);if(w)return w;}
+  if(D.tgt&&!t&&!decTargets(k,D).length)return "No country to aim it at.";
+  if(n.pp<(D.pp||0))return `Costs ${D.pp} production.`;
+  return "";
+}
+function decTake(k,id,t){
+  const n=G.nations[k],D=decDef(k,id);if(!D)return false;
+  if(D.tgt&&!decTargets(k,D).includes(t))return false;
+  if(decWhy(k,D,t))return false;
+  n.pp-=D.pp||0;
+  const s=decState(n)[id]={tgt:t||null};
+  if(D.days)s.until=G.day+D.days;
+  s.cd=G.day+(D.days||0)+(D.cd||0);
+  if(D.fx)D.fx(k,t);
+  if(k===G.player)logMsg(`\u{1F4CB} Decision taken: ${D.n}${t?" ("+NATIONS[t].n+")":""}.`,"good");
+  return true;
+}
+/* timed decisions that finish with an act (justification) */
+function decTick(){
+  for(const k in G.nations){const n=G.nations[k];if(!n.alive||!n.dec)continue;
+    for(const id in n.dec){const s=n.dec[id];
+      if(s.until&&s.until===G.day){const D=decDef(k,id);
+        if(D&&D.done&&s.tgt&&FX.alive(s.tgt))D.done(k,s.tgt);
+        if(k===G.player&&D&&!D.done)logMsg(`\u{1F4CB} ${D.n} has run its course.`,"");}}}
+  /* the AI: a little of the obvious, now and then */
+  if(G.day%20===0)for(const k in G.nations){const n=G.nations[k];
+    if(k===G.player||!n.alive||!n.ai)continue;
+    if(n.stab<45&&decTake(k,"propa"))continue;
+    if(n.atWar.size&&n.pp>200&&decTake(k,"convert"))continue;
+    if(n.atWar.size&&(n.mp||0)<60)decTake(k,"reserves");}
+}
+window.takeDecision=(id,t)=>{if(!G||!G.nations)return;
+  if(decTake(G.player,id,t||undefined)){sfx("focus");renderPanel();refreshHUD();}
+  else{const D=decDef(G.player,id);if(D)logMsg(`${D.n}: ${decWhy(G.player,D,t)||"not possible now."}`,"war");}};
+
+/* ================================= TRADE =================================
+   The trade screen the game was missing: what you produce, what you burn,
+   and CONTRACTS -- a steady flow of a resource bought from a named country
+   for production every day, the way the real thing works, rather than only
+   the panic-buy market. A contract delivers what the seller can spare (it
+   keeps a reserve), the buyer pays for what arrives, and it lapses on war,
+   on the seller's collapse, or when the buyer cannot pay. Trade partners
+   and allies sell at a fifth off. The AI buys too when it runs short. */
+const TRADE_R=["oil",...RESKEYS];
+/* Oil is a far smaller economy than ore: an oil province yields about 0.12 a
+   day against 1-8 for a mine, so its contracts come in tenths and cost more
+   a barrel (the open market sells it at 1.5 PP a unit). */
+const TRADE_PRICE={oil:3.0,steel:1.2,rubber:1.4,alu:1.4,tung:1.6};
+const trSizes=r=>r==="oil"?[0.1,0.25,0.5]:[1,2,4];
+const trReserve=r=>r==="oil"?20:30;
+function trStock(n,r){return r==="oil"?(n.oil||0):((n.stock&&n.stock[r])||0);}
+function trInc(n,r){return r==="oil"?(n.oilInc||0):((n.income&&n.income[r])||0);}
+function trAdd(n,r,v){if(r==="oil")n.oil=(n.oil||0)+v;else n.stock[r]=(n.stock[r]||0)+v;}
+function trDiscount(a,b){const A=G.nations[a];return (allied(a,b)||(A.trade&&A.trade.has(b)))?0.8:1;}
+function trPrice(a,b,r,amt){return +(TRADE_PRICE[r]*amt*trDiscount(a,b)).toFixed(2);}
+/* who will sell r to k, best first; a seller allied to k's enemy refuses */
+function trSellers(k,r){
+  const out=[];
+  for(const o in G.nations){if(o===k)continue;const S=G.nations[o];
+    if(!S.alive||atWar(k,o))continue;
+    const inc=trInc(S,r),st=trStock(S,r);
+    if(r==="oil"?(inc<0.1&&st<40):(inc<0.4&&st<60))continue;
+    const hostile=[...S.allies].some(x=>atWar(k,x));
+    out.push({o,inc,st,hostile});}
+  return out.sort((a,b)=>(a.hostile-b.hostile)||(b.inc-a.inc)||(b.st-a.st));
+}
+function trSign(k,o,r,amt){
+  const n=G.nations[k],S=G.nations[o];
+  if(!S||!S.alive||atWar(k,o)||!TRADE_PRICE[r])return false;
+  if([...S.allies].some(x=>atWar(k,x)))return false;
+  n.contracts=n.contracts||[];
+  if(n.contracts.some(c=>c.from===o&&c.r===r))return false;
+  n.contracts.push({from:o,r,amt});
+  if(k===G.player)logMsg(`\u{1F4E6} Contract signed: ${amt} ${r==="oil"?"oil":RESOURCES[r].n.toLowerCase()} a day from ${FL(o)} ${NATIONS[o].n}.`,"good");
+  return true;
+}
+function trTick(){
+  for(const k in G.nations){const n=G.nations[k];if(!n.alive||!n.contracts||!n.contracts.length)continue;
+    for(const c of [...n.contracts]){
+      const S=G.nations[c.from];
+      const drop=why=>{n.contracts.splice(n.contracts.indexOf(c),1);
+        if(k===G.player)logMsg(`\u{1F4E6} Contract with ${NATIONS[c.from]?NATIONS[c.from].n:c.from} ended: ${why}.`,"war");};
+      if(!S||!S.alive){drop("the seller is gone");continue;}
+      if(atWar(k,c.from)){drop("we are at war");continue;}
+      /* the seller keeps a reserve of a month's own use before it ships */
+      const spare=Math.max(0,trStock(S,c.r)-trReserve(c.r));
+      const got=Math.min(c.amt,spare);
+      const cost=trPrice(k,c.from,c.r,got);
+      if(got<=0)continue;
+      if(n.pp<cost){drop("we cannot pay");continue;}
+      trAdd(S,c.r,-got);trAdd(n,c.r,got);n.pp-=cost;S.pp+=cost;
+    }
+  }
+  /* the AI signs where it is short */
+  if(G.day%30===0)for(const k in G.nations){const n=G.nations[k];
+    if(k===G.player||!n.alive||!n.ai)continue;n.contracts=n.contracts||[];
+    if(n.contracts.length>=3||n.pp<40)continue;
+    for(const r of TRADE_R){
+      if(trStock(n,r)>25||trInc(n,r)>(r==="oil"?0.1:0.5))continue;
+      const s=trSellers(k,r).find(x=>!x.hostile);
+      if(s&&trSign(k,s.o,r,trSizes(r)[0]))break;
+    }}
+}
+window.signContract=(o,r,amt)=>{if(!G||!G.nations)return;
+  if(trSign(G.player,o,r,+amt)){sfx("coin");renderPanel();}
+  else logMsg("They will not sign that contract.","war");};
+window.cancelContract=(i,exp)=>{if(!G||!G.nations)return;
+  if(exp){const [b,j]=String(i).split(":");const B=G.nations[b];if(B&&B.contracts){B.contracts.splice(+j,1);logMsg(`\u{1F4E6} Exports to ${NATIONS[b].n} stopped.`,"war");}}
+  else{const me=G.nations[G.player];if(me.contracts)me.contracts.splice(+i,1);}
+  renderPanel();};
+window.trPick=r=>{window._trR=r;renderPanel();};
 window.spyOp=(op,target)=>{if(!G||!G.nations)return;
   const me=G.nations[G.player];
   if((me.spyCd||0)>G.day){logMsg("Your agents need time to regroup.","war");return;}
@@ -20670,7 +20983,12 @@ function mpSerialize(){
       n.focusMeta?JSON.stringify(n.focusMeta):"",
       /* the weapons tree (v24+): what was researched since the start (the
          baseline is rebuilt from the start year) and the slots in progress */
-      n.techs?JSON.stringify({t:n.techNew,s:n.slots.map(x=>[x.id,+x.prog.toFixed(2)])}):""];}
+      n.techs?JSON.stringify({t:n.techNew,s:n.slots.map(x=>[x.id,+x.prog.toFixed(2)])}):"",
+      /* decisions in force / cooling down, justified war goals and trade
+         contracts (v24+) */
+      JSON.stringify({d:n.dec||{},j:n.jw||{},c:n.contracts||[],
+        /* today's output, so the trade screen is right before the first day passes */
+        i:n.income||{},o:+(n.oilInc||0).toFixed(3)})];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
@@ -20758,6 +21076,10 @@ function mpApplyState(S){
       /* technologies: rebuild the start-year baseline, then replay what was
          researched since WITHOUT granting its levels again (they are saved in
          res already) -- only the unit bonuses are derived, not stored */
+      n.dec={};n.jw={};n.contracts=[];
+      if(a[43]){try{const m=JSON.parse(a[43]);n.dec=m.d||{};n.jw=m.j||{};
+        if(m.i&&typeof m.i==="object")n.income=Object.assign(n.income||{},m.i);n.oilInc=+m.o||0;
+        n.contracts=(m.c||[]).filter(c=>c&&TRADE_PRICE[c.r]&&c.from&&+c.amt>0);}catch(e){}}
       n.techs=null;techInit(n);
       if(a[42]){try{const m=JSON.parse(a[42]);
         for(const id of (m.t||[]))if(TECH[id]&&!n.techs[id]){n.techs[id]=1;n.techNew.push(id);
