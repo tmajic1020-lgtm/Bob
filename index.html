@@ -111,6 +111,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
    two of them were simply off the edge of the screen. The panel widens for this
    one view and goes back afterwards. */
 #panel.wide{width:min(600px,94vw)}
+#panel.full{left:132px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
+#panel.full .ftwrap{max-height:calc(100vh - 300px);cursor:grab}
+#panel.full .ftwrap.drag{cursor:grabbing;user-select:none}
+#panel .tslots{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+@media(max-width:700px){#panel.full{left:4px;right:4px;top:52px;bottom:48px}#panel.full .ftwrap{max-height:calc(100vh - 340px)}}
 .resslot{display:flex;align-items:center;gap:10px;padding:9px 10px;margin:8px 0 12px;
   background:linear-gradient(#232b20,#181e16);border:1px solid #4a5340;border-left:3px solid #6b5a34}
 .resslot.busy{border-left-color:var(--amber)}
@@ -3889,15 +3894,9 @@ function tick(){
     n.stab=Math.min(100,n.stab);
     if(n.stab<=0)collapseNation(k);
     n.rp+=ps.length*0.012*techMul(k,"ind")*(MODS.swift?3:1)*(MODS.industry?1.5:1)*(MODS.rockets?2:1);
-    if(n.researching){
-      n.resProg+=ps.length*0.012*techMul(k,"ind")*2;
-      const cost=resCost(n,n.researching);
-      if(n.resProg>=cost){
-        n.res[n.researching]++;n.resProg=0;
-        if(k===G.player){logMsg(`Research complete: ${RESNAMES[n.researching]} ${roman(n.res[n.researching])}`,"good");sfx("good");}
-        n.researching=null;
-      }
-    }
+    /* the laboratories: every slot works at the same rate (v24+ weapons
+       tree; the old single abstract ladder is gone) */
+    techTick(k,resProgPerDay(k));
   }
   // mobilization: every nation raises reserves over time — faster at war
   for(const k in G.nations){
@@ -4815,7 +4814,7 @@ function battles(){
       const hardA=sideHardness(lineA.front), armA=sideArmor(lineA.front);
       const hardB=sideHardness(lineB.front), armB=sideArmor(lineB.front);
       const pw=(arr,side,def,eHard,eArm)=>arr.reduce((s,u)=>
-        s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*divCombat(u,def,eHard,eArm),0);
+        s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*qual(u.nat,u.type)*divCombat(u,def,eHard,eArm),0);
       let pa=(pw(lineA.front,A,p.owner===A,hardB,armB)+pw(lineA.rear,A,p.owner===A,hardB,armB)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
       let pb=(pw(lineB.front,B,p.owner===B,hardA,armA)+pw(lineB.rear,B,p.owner===B,hardA,armA)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
@@ -4872,8 +4871,8 @@ function battles(){
 function navalBattle(fa,fb,A,B,pid){
   const side=arr=>{
     const o={gun:0,air:0,asw:0,sub:0};
-    for(const f of arr){const c=shipOf(f);
-      o.gun+=f.str*c.gun;o.air+=f.str*c.air;o.asw+=f.str*c.asw;
+    for(const f of arr){const c=shipOf(f),qq=qual(f.nat,f.cls);
+      o.gun+=f.str*c.gun*qq;o.air+=f.str*c.air*qq;o.asw+=f.str*c.asw*qq;
       if(f.cls==="sub")o.sub+=f.str;}
     return o;
   };
@@ -4972,7 +4971,7 @@ function airTable(){
     if(!w.target)continue;
     const m=t[w.target]||(t[w.target]={});
     /* A wing with no airframes to replace its losses is a wing on paper. */
-    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air")*eqpMul(w);
+    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air")*eqpMul(w)*qual(w.nat,w.wt);
   }
   _airTblDay=G.day;_airTblN=G.wings.length;_airDirty=false;_airTbl=t;
   return t;
@@ -5058,7 +5057,7 @@ function airOps(){
     if(!w.target)continue;
     const p=provOf(w.target),c=wingOf(w);
     const wx=weatherAt(p),ctrl=airControl(w.nat,w.target);
-    const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl;
+    const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl*qual(w.nat,w.wt);
     const here=byProv[w.target]||[];
     if(c.ground>0){
       p.garrison=Math.max(0,p.garrison-eff*0.15*c.ground);
@@ -5339,11 +5338,7 @@ function aiTurn(k){
     n.milShare=Math.max(0,Math.min(0.9,base+(1-armed)*0.25));
   }
   // research
-  if(!n.researching){
-    const keys=["ind","land","nav","air"];
-    const pick=keys[Math.floor(Math.random()*keys.length)];
-    if(n.rp>=0)n.researching=pick;
-  }
+  techAiPick(k);
   // build — deploy at FRONT-LINE provinces (adjacent to an enemy), not random rear ones
   const ps=natProvs(k);if(!ps.length)return;
   const myUnits=G.units.filter(u=>u.nat===k).length;
@@ -7422,12 +7417,262 @@ function rpPerDay(k){
   return natProvs(k).length*0.012*techMul(k,"ind")
         *(MODS.swift?3:1)*(MODS.industry?1.5:1)*(MODS.rockets?2:1);
 }
-function resProgPerDay(k){
-  const n=G&&G.nations[k];if(!n)return 0;
-  return natProvs(k).length*0.012*techMul(k,"ind")*2;
-}
 const RESDESC={ind:"+25% production & research per level",land:"+25% army attack & speed per level",nav:"+25% fleet power & speed per level",air:"+25% air wing effect per level"};
 function resCost(n,k){return 10+n.res[k]*14;}
+/* ========================== WEAPONS AND INVENTIONS ==========================
+   Four abstract ladders ("Land Doctrine IV") said nothing about what a
+   country was actually building. The research screen is now a tree of real
+   weapons and inventions, each with the YEAR it historically came into
+   service, from the composite bow to drone swarms, so every era has
+   something on its own horizon.
+
+   THE YEAR IS THE RULE. A technology researched in its own year or later
+   costs its base time. Researching it AHEAD of its year adds that much time
+   again for every year early -- one year ahead doubles it, three years
+   triples-plus -- so a 1936 country can rush the jet fighter, but it will
+   pay eight times over for it. Behind time earns nothing extra; being late
+   is its own penalty.
+
+   What a technology does: it raises its branch's research level (the same
+   multipliers the game has always used -- production, army attack and speed,
+   fleet power, air power) by a fraction, and makes the kind of unit it is
+   about better by 10% (`n.tq[type]`, read in land, naval and air combat).
+   A country starts the game already holding everything invented before its
+   start year: that is the baseline its research levels already reflect, so
+   it grants nothing again. */
+const TECH_BR=[
+  {k:"ind",n:"INDUSTRY",  i:"\u{1F3ED}"},{k:"inf",n:"INFANTRY", i:"\u{1F52B}"},
+  {k:"arm",n:"ARMOUR",    i:"\u{1F6E1}"},{k:"art",n:"ARTILLERY",i:"\u{1F4A5}"},
+  {k:"air",n:"AIR",       i:"✈"},   {k:"nav",n:"NAVAL",    i:"⚓"}];
+/* [id, branch, line, year, name, unit improved, what it was]
+   Within a line each technology needs the one before it; `x` adds a
+   requirement from another line. */
+const TECH_RAW=[
+ ["water","ind","ind",1200,"Water Mills","","Grinding, sawing and forging by waterpower."],
+ ["paiza","ind","ind",1222,"The Paiza","","Tablets of authority that open every road and storehouse."],
+ ["yam","ind","ind",1235,"The Yam Relay Post","","Ogedei's horse relays across the empire."],
+ ["blast","ind","ind",1340,"The Blast Furnace","","Cast iron in quantity."],
+ ["print","ind","ind",1450,"The Printing Press","","Gutenberg's movable type."],
+ ["newc","ind","ind",1712,"The Newcomen Engine","","Steam pumping the mines dry."],
+ ["watt","ind","ind",1769,"Watt's Steam Engine","","The separate condenser: steam for every mill."],
+ ["canned","ind","ind",1810,"Canned Rations","","Appert's preserved food for armies and fleets."],
+ ["rail","ind","ind",1825,"Railways","","Stockton to Darlington."],
+ ["bess","ind","ind",1856,"The Bessemer Process","","Cheap steel."],
+ ["elec","ind","ind",1882,"Electric Power","","Edison's Pearl Street station."],
+ ["assem","ind","ind",1913,"The Assembly Line","","Highland Park: a car every ninety minutes."],
+ ["synth","ind","ind",1936,"Synthetic Fuel","","Oil from coal by hydrogenation.",{oil:60}],
+ ["mtool","ind","ind",1938,"Machine Tools","","Precision mass production."],
+ ["trans","ind","ind",1947,"The Transistor","","Bell Labs."],
+ ["ic","ind","ind",1958,"The Integrated Circuit","","Kilby and Noyce."],
+ ["micro","ind","ind",1971,"The Microprocessor","","The Intel 4004."],
+ ["net","ind","ind",1991,"The World Wide Web","","Networked logistics and command."],
+ ["ml","ind","ind",2012,"Machine Learning","","Deep neural networks."],
+ ["quant","ind","ind",2032,"Quantum Computing","","Still on the horizon."],
+ ["atom","ind","atom",1942,"Atomic Research","","Chicago Pile-1: a controlled chain reaction.",{atom:1},["mtool"]],
+ ["reactor","ind","atom",1954,"Nuclear Power","","Obninsk, the first grid reactor."],
+ ["fusion","ind","atom",2040,"Fusion Power","","A promise for half a century."],
+
+ ["bow","inf","inf",1200,"The Composite Bow","inf","Horn, wood and sinew."],
+ ["xbow","inf","inf",1250,"Crossbow Companies","inf","Genoese and Chinese crossbowmen."],
+ ["handc","inf","inf",1288,"The Hand Cannon","inf","The Heilongjiang gun, the oldest dated firearm."],
+ ["arq","inf","inf",1520,"The Arquebus","inf","Matchlock infantry."],
+ ["flint","inf","inf",1700,"Flintlock and Bayonet","inf","Every musketeer his own pikeman."],
+ ["baker","inf","inf",1800,"The Baker Rifle","inf","Rifles for skirmishers and the 95th."],
+ ["perc","inf","inf",1807,"The Percussion Cap","inf","Forsyth's detonating lock: no more misfires in the rain."],
+ ["minie","inf","inf",1850,"The Minie Rifle","inf","Rifled muskets for the line."],
+ ["gatl","inf","inf",1862,"The Gatling Gun","inf","Six barrels and a crank."],
+ ["breech","inf","inf",1866,"Breech-Loading Rifles","inf","The Dreyse and the Chassepot."],
+ ["maxim","inf","inf",1884,"The Maxim Gun","inf","The first true machine gun."],
+ ["mauser","inf","inf",1898,"Bolt-Action Magazine Rifles","inf","The Mauser 98."],
+ ["lmg","inf","inf",1916,"Light Machine Guns","inf","The Lewis gun and the Chauchat."],
+ ["gpmg","inf","inf",1936,"General-Purpose Machine Guns","inf","The MG 34."],
+ ["semi","inf","inf",1939,"Semi-Automatic Rifles","inf","The M1 Garand in general issue."],
+ ["atr","inf","inf",1942,"Shoulder-Fired Anti-Tank Rockets","inf","The bazooka and the Panzerfaust."],
+ ["assault","inf","inf",1944,"Assault Rifles","inf","The StG 44."],
+ ["ak","inf","inf",1949,"The AK-47","inf","Kalashnikov's rifle enters service."],
+ ["nvg","inf","inf",1965,"Night Vision","inf","Image intensifiers."],
+ ["atgm","inf","inf",1972,"Wire-Guided Anti-Tank Missiles","inf","Infantry that can kill a tank at two miles."],
+ ["kevlar","inf","inf",1985,"Kevlar Body Armour","inf","PASGT helmets and vests."],
+ ["ffm","inf","inf",1996,"Fire-and-Forget Missiles","inf","The Javelin."],
+ ["idrone","inf","inf",2015,"Infantry Drones","inf","Every squad its own reconnaissance."],
+ ["exo","inf","inf",2030,"Powered Exoskeletons","inf","Still experimental."],
+
+ ["lance","arm","arm",1200,"Heavy Lancers","arm","Stirrup and couched lance."],
+ ["plate","arm","arm",1380,"Plate Armour","arm","The knight's full harness."],
+ ["cuir","arm","arm",1630,"Cuirassiers","arm","Armoured cavalry with pistols."],
+ ["hussar","arm","arm",1760,"Light Cavalry Doctrine","arm","Hussars for reconnaissance and pursuit."],
+ ["lancer","arm","arm",1811,"Lancer Regiments","arm","The Polish lancers copied by every army."],
+ ["acar","arm","arm",1910,"Armoured Cars","arm","Rolls-Royce and Austin."],
+ ["tank","arm","arm",1916,"The Tank","arm","The Mark I at Flers-Courcelette."],
+ ["turret","arm","arm",1918,"The Rotating Turret","arm","The Renault FT."],
+ ["ltank","arm","arm",1934,"Light Tanks","arm","Fast and thinly armoured."],
+ ["mtank","arm","arm",1937,"Medium Tanks","arm","The Panzer III and IV, the Matilda."],
+ ["longg","arm","arm",1941,"Long-Barrelled Tank Guns","arm","The T-34's 76mm, the long 75."],
+ ["htank","arm","arm",1942,"Heavy Tanks","arm","The Tiger and the KV."],
+ ["tdest","arm","arm",1943,"Tank Destroyers","arm","Hunters, not fighters."],
+ ["mbt","arm","arm",1955,"Main Battle Tanks","arm","One tank to replace three classes."],
+ ["stab","arm","arm",1965,"Gun Stabilisers","arm","Firing on the move."],
+ ["chob","arm","arm",1976,"Composite Armour","arm","Chobham."],
+ ["era","arm","arm",1982,"Reactive Armour","arm","Explosive blocks against shaped charges."],
+ ["aps","arm","arm",2004,"Active Protection","arm","Shooting down the missile in flight."],
+ ["atank","arm","arm",2030,"Autonomous Tanks","arm","Still on the drawing board."],
+
+ ["sieng","art","art",1214,"Captured Siege Engineers","art","Jin and Persian engineers taken into Mongol service."],
+ ["fire","art","art",1232,"Fire Lances and Rockets","art","Kaifeng: gunpowder used against the Mongols."],
+ ["treb","art","art",1250,"The Counterweight Trebuchet","art","Siege engines of the great sieges."],
+ ["thund","art","art",1274,"Thunder-Crash Bombs","art","Exploding shells, thrown at Hakata."],
+ ["bomb","art","art",1380,"Bombards","art","Gunpowder against walls."],
+ ["siege","art","art",1453,"Great Siege Guns","art","The guns that broke Constantinople."],
+ ["field","art","art",1630,"Light Field Guns","art","Gustavus Adolphus's regimental pieces."],
+ ["grib","art","art",1765,"The Gribeauval System","art","Standard calibres and parts."],
+ ["shrap","art","art",1803,"The Shrapnel Shell","art","Henry Shrapnel's spherical case."],
+ ["congr","art","art",1805,"Congreve Rockets","art","Used at Copenhagen and Leipzig."],
+ ["rifart","art","art",1859,"Rifled Artillery","art","The Armstrong gun."],
+ ["qf","art","art",1897,"Quick-Firing Field Guns","art","The French 75."],
+ ["howz","art","art",1914,"Heavy Howitzers","art","The guns that broke the Belgian forts."],
+ ["barr","art","art",1917,"The Creeping Barrage","art","Fire walking ahead of the infantry."],
+ ["rocket","art","art",1941,"Rocket Artillery","art","The Katyusha."],
+ ["sph","art","art",1960,"Self-Propelled Howitzers","art","Guns that keep up with the tanks."],
+ ["mlrs","art","art",1983,"Multiple Rocket Launchers","art","The MLRS."],
+ ["gps","art","art",2005,"Precision-Guided Shells","art","Excalibur."],
+ ["aagun","art","aa",1935,"Anti-Aircraft Guns","aa","The 88 and the Bofors 40mm.",null,["qf"]],
+ ["prox","art","aa",1944,"The Proximity Fuse","aa","Shells that burst beside the aircraft."],
+ ["sam","art","aa",1965,"Surface-to-Air Missiles","aa","The SA-2."],
+ ["laser","art","aa",2027,"Laser Air Defence","aa","Entering service now."],
+
+ ["ballo","air","air",1794,"Observation Balloons","fig","Fleurus: the first military aircraft."],
+ ["flight","air","air",1903,"Powered Flight","fig","Kitty Hawk."],
+ ["interr","air","air",1915,"The Interrupter Gear","fig","Firing through the propeller."],
+ ["mono","air","air",1935,"Monoplane Fighters","fig","The Bf 109, Hurricane, Spitfire."],
+ ["radar","air","air",1939,"Radar Interception","fig","Chain Home and the controller."],
+ ["jet","air","air",1944,"Jet Fighters","fig","The Me 262 and the Meteor."],
+ ["sonic","air","air",1954,"Supersonic Fighters","fig","The F-100 and the MiG-19."],
+ ["aam","air","air",1960,"Air-to-Air Missiles","fig","The Sidewinder."],
+ ["fbw","air","air",1974,"Fly-by-Wire","fig","The F-16."],
+ ["stealth","air","air",1983,"Stealth","fig","The F-117."],
+ ["sixth","air","air",2033,"Sixth-Generation Fighters","fig","In development."],
+ ["hbomb","air","bomb",1917,"Heavy Bombers","stb","The Gotha raids on London.",null,["flight"]],
+ ["four","air","bomb",1938,"Four-Engine Bombers","stb","The B-17 and the Lancaster."],
+ ["press","air","bomb",1944,"Pressurised Bombers","stb","The B-29."],
+ ["lgb","air","bomb",1972,"Laser-Guided Bombs","cas","Paveway, at the Thanh Hoa bridge."],
+ ["uav","air","bomb",2005,"Armed Drones","cas","The Predator and the Reaper."],
+ ["swarm","air","bomb",2028,"Drone Swarms","cas","On the horizon."],
+ ["dive","air","cas",1936,"Dive Bombers","cas","The Stuka.",null,["flight"]],
+ ["torp","air","cas",1938,"Torpedo Bombers","nvb","The Swordfish and the Kate."],
+ ["heli","air","cas",1965,"Helicopter Gunships","cas","The Huey Cobra."],
+
+ ["rudder","nav","nav",1200,"Stern Rudder and Compass","cap","Sailing out of sight of land."],
+ ["carrack","nav","nav",1420,"The Carrack","cap","Ocean-going hulls."],
+ ["galleon","nav","nav",1540,"The Galleon","cap","Gun decks on a sailing ship."],
+ ["sotl","nav","nav",1650,"Ships of the Line","cap","Two and three gun decks in line ahead."],
+ ["copper","nav","nav",1780,"Copper Sheathing","cap","Clean hulls and faster ships."],
+ ["steamb","nav","nav",1807,"The Steamboat","cap","Fulton's Clermont on the Hudson."],
+ ["screw","nav","nav",1845,"The Screw Propeller","cap","Steam at sea."],
+ ["iron","nav","nav",1859,"Ironclads","cap","La Gloire and HMS Warrior."],
+ ["monit","nav","nav",1862,"Turreted Monitors","cap","Hampton Roads."],
+ ["dread","nav","nav",1906,"The Dreadnought","cap","All big guns, turbines."],
+ ["fastbb","nav","nav",1937,"Fast Battleships","cap","The Iowa, the Richelieu, the Littorio."],
+ ["gmc","nav","nav",1960,"Guided Missile Cruisers","cap","Missiles replace the big gun."],
+ ["aegis","nav","nav",1983,"Aegis","cap","USS Ticonderoga."],
+ ["railg","nav","nav",2035,"Railguns","cap","Tested, not yet fielded."],
+ ["tboat","nav","dd",1880,"Torpedo Boats","dd","The Whitehead torpedo goes to sea.",null,["iron"]],
+ ["destr","nav","dd",1904,"Destroyers","dd","Torpedo-boat destroyers."],
+ ["asdic","nav","dd",1918,"ASDIC","dd","Sonar."],
+ ["hedge","nav","dd",1942,"Hedgehog and Squid","dd","Throwing the charges ahead."],
+ ["diesub","nav","sub",1906,"Diesel Submarines","sub","U-1.",null,["screw"]],
+ ["snork","nav","sub",1944,"The Snorkel","sub","The Type XXI."],
+ ["nsub","nav","sub",1955,"Nuclear Submarines","sub","USS Nautilus."],
+ ["aip","nav","sub",2000,"Air-Independent Propulsion","sub","The Gotland class."],
+ ["carrier","nav","cv",1922,"Aircraft Carriers","cv","Hosho, the first built as one.",null,["dread","flight"]],
+ ["armdk","nav","cv",1940,"Armoured Flight Decks","cv","The Illustrious class."],
+ ["angle","nav","cv",1952,"The Angled Deck","cv","And the steam catapult."],
+ ["super","nav","cv",1961,"Nuclear Supercarriers","cv","USS Enterprise."]
+];
+const TECH={},TECH_LIST=[];
+(function(){
+  const last={};
+  for(const r of TECH_RAW){
+    const [id,br,line,year,n,q,d,sp,x]=r;
+    const req=[];if(last[line])req.push(last[line]);if(x)req.push(...x);
+    const t={id,br,line,year,n,q,d,sp:sp||null,req,
+      /* each branch feeds the research level the game already used for it */
+      track:br==="ind"?"ind":br==="air"?"air":br==="nav"?"nav":"land",
+      gain:br==="ind"?0.5:br==="air"||br==="nav"?0.3:0.2};
+    TECH[id]=t;TECH_LIST.push(t);last[line]=id;
+  }
+})();
+const TECH_BASE=30;            // progress units at the tech's own year
+const TECH_QUAL=0.10;          // how much better the unit it is about gets
+function curYearF(){
+  if(!G||!G.date)return YEAR||1936;
+  const d=G.date,y=d.getFullYear();
+  return y+(d-new Date(y,0,1))/(365.25*864e5);
+}
+/* Every year ahead of the historical date adds the base time again. */
+function techAhead(t){return Math.max(0,t.year-curYearF());}
+function techCost(id){const t=TECH[id];return t?TECH_BASE*(1+techAhead(t)):Infinity;}
+function techSlots(k){
+  const n=natProvs(k).length;
+  return Math.min(4,2+Math.floor(n/15));
+}
+/* What a nation knows: everything invented before the year its campaign
+   opened, granted silently, plus what it has researched since. */
+function techInit(n){
+  if(n.techs)return n;
+  n.techs={};n.techNew=[];n.slots=[];n.tq={};
+  for(const t of TECH_LIST)if(t.year<(YEAR||1936))n.techs[t.id]=1;
+  return n;
+}
+function techOpen(n,id){
+  const t=TECH[id];techInit(n);
+  if(!t||n.techs[id])return false;
+  if(n.slots.some(s=>s.id===id))return false;
+  return t.req.every(r=>n.techs[r]);
+}
+function techGrant(k,id,quiet){
+  const n=G.nations[k],t=TECH[id];if(!n||!t)return;techInit(n);
+  if(n.techs[id])return;
+  n.techs[id]=1;n.techNew.push(id);
+  n.res[t.track]=+((n.res[t.track]||0)+t.gain).toFixed(2);
+  if(t.q)n.tq[t.q]=+((n.tq[t.q]||0)+TECH_QUAL).toFixed(2);
+  if(t.sp&&!quiet){if(t.sp.oil)n.oil+=t.sp.oil;if(t.sp.atom)n.atomicOk=true;}
+  else if(t.sp&&t.sp.atom)n.atomicOk=true;
+}
+function techStart(k,id){
+  const n=G.nations[k];if(!n)return false;techInit(n);
+  if(!techOpen(n,id)||n.slots.length>=techSlots(k))return false;
+  n.slots.push({id,prog:0});return true;
+}
+function techTick(k,rate){
+  const n=G.nations[k];techInit(n);
+  for(const s of [...n.slots]){
+    s.prog+=rate;
+    if(s.prog>=techCost(s.id)){
+      n.slots.splice(n.slots.indexOf(s),1);
+      techGrant(k,s.id);
+      if(k===G.player){const t=TECH[s.id];
+        logMsg(`\u{1F52C} Research complete: ${t.n} (${t.year}).`,"good");sfx("good");}
+    }
+  }
+}
+/* the AI: whatever is open and cheapest right now, with a little chance */
+function techAiPick(k){
+  const n=G.nations[k];techInit(n);
+  while(n.slots.length<techSlots(k)){
+    const open=TECH_LIST.filter(t=>techOpen(n,t.id)).sort((a,b)=>techCost(a.id)-techCost(b.id));
+    if(!open.length)return;
+    const pick=open[Math.floor(Math.random()*Math.min(3,open.length))];
+    n.slots.push({id:pick.id,prog:0});
+  }
+}
+/* How much a unit's own technology adds: +10% per invention about it. */
+function qual(nat,type){const n=G.nations[nat];return 1+((n&&n.tq&&n.tq[type])||0);}
+/* progress per day per slot: a base every country has, plus its size, times
+   its industry. A one-province country is slow; it is not frozen. */
+function resProgPerDay(k){
+  const n=G&&G.nations[k];if(!n)return 0;
+  return (0.12+natProvs(k).length*0.006)*techMul(k,"ind")*(MODS.swift?2:1);
+}
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
 
 /* ============================== RENDER ============================== */
@@ -17283,7 +17528,11 @@ function openPanel(name){
   renderPanel();
 }
 function renderPanel(){
-  {const _p=$("#panel");if(_p&&curPanel!=="research")_p.classList.remove("wide");}
+  {const _p=$("#panel");if(_p){_p.classList.remove("wide");
+    /* the two trees get the screen, as in the real game: a 600px box packed
+       their nodes shoulder to shoulder */
+    _p.classList.toggle("full",curPanel==="research"||curPanel==="focus");
+    if(curPanel!=="research"&&curPanel!=="focus")delete _p.dataset.p;}}
   if(!curPanel)return;
   if(!G&&curPanel!=="settings"&&curPanel!=="mods")return;   // settings and mods work before a campaign
   const el=$("#panel");const me=G?G.nations[G.player]:null;
@@ -17632,63 +17881,88 @@ function renderPanel(){
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
   if(curPanel==="research"){
-    el.classList.add("wide");
     /* ===================== THE RESEARCH SCREEN ============================
-       Four progress bars in a column told you what you were researching and
-       nothing else — not what came before it, not what it leads to, not how
-       far along the road you are. A research screen is a TREE: a column per
-       branch, a card per level, each one showing its own state at a glance —
-       done, running, next, or still out of reach — and a slot at the top
-       carrying whatever the laboratories are actually working on with the days
-       left on it.
-
-       One laboratory, as before. Handing out extra research slots would change
-       the balance of the game rather than the look of it, and that is not what
-       was asked for. */
-    const cur=me.researching, curCost=cur?resCost(me,cur):0;
-    const pct=cur?Math.min(100,me.resProg/curCost*100):0;
-    /* Two different rates, and using the wrong one would put a plausible but
-       wrong number on the screen: research POINTS accrue at one rate, and
-       progress on the thing in the slot at twice that. The countdown is the
-       second; the income shown beside it is the first. */
-    const progDay=Math.max(0.0001,resProgPerDay(G.player));
-    const rpDay=rpPerDay(G.player);
-    const daysLeft=cur?Math.max(1,Math.ceil((curCost-me.resProg)/progDay)):0;
-    let h=`<h2>RESEARCH</h2>
-    <div class="resslot ${cur?"busy":""}">
-      <div class="resicon">${cur?RESICON[cur]:"\u2699"}</div>
-      <div style="flex:1;min-width:0">
-        ${cur?`<b style="white-space:nowrap">${RESNAMES[cur]} ${roman(me.res[cur]+1)}</b>
+       A tree of real technologies laid out on a TIME AXIS, as the real game
+       does: a column per branch, a row per year, so how far ahead of its
+       date a technology sits is visible as distance down the screen. Each
+       box says what it costs NOW -- its base time plus the base again for
+       every year ahead of history. Slots across the top, one per
+       laboratory. */
+    techInit(me);
+    /* the panel is re-rendered as the days pass: keep where the player has
+       scrolled to, and only open on the present the first time */
+    const _old=el.querySelector(".ftwrap"), _keep=_old&&el.dataset.p==="research"?[_old.scrollLeft,_old.scrollTop]:null;
+    const Y=curYearF(), rate=Math.max(0.0001,resProgPerDay(G.player)), nSlots=techSlots(G.player);
+    const days=id=>{const s=me.slots.find(x=>x.id===id);
+      return Math.max(1,Math.ceil((techCost(id)-(s?s.prog:0))/rate));};
+    let h=`<h2>RESEARCH · ${Math.floor(Y)}</h2><div class="tslots">`;
+    for(let i=0;i<nSlots;i++){
+      const s=me.slots[i];
+      if(s){const t=TECH[s.id],c=techCost(s.id),pct=Math.min(100,s.prog/c*100),ah=techAhead(t);
+        h+=`<div class="resslot busy"><div class="resicon">${TECH_BR.find(b=>b.k===t.br).i}</div>
+          <div style="flex:1;min-width:0"><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${t.n}</b>
           <div class="bar" style="margin:4px 0 3px"><i style="width:${pct}%"></i></div>
-          <small style="color:var(--dim);white-space:nowrap">${Math.round(pct)}% \u00b7 ${daysLeft} day${daysLeft===1?"":"s"} remaining</small>`
-        :`<b style="color:var(--dim);white-space:nowrap">RESEARCH SLOT IDLE</b>
-          <div class="bar" style="margin:4px 0 3px"><i style="width:0%"></i></div>
-          <small style="color:var(--dim);white-space:nowrap">Choose a technology below</small>`}
-      </div>
-      <div style="text-align:right"><b style="color:var(--amber)">${me.rp.toFixed(1)}</b>
-        <small style="color:var(--dim);display:block">RP \u00b7 +${rpDay.toFixed(2)}/day</small></div>
-    </div>
-    <div class="restree">`;
-    for(const k of["ind","land","nav","air"]){
-      const lvl=me.res[k];
-      h+=`<div class="rescol"><div class="reshead">${RESICON[k]} ${RESNAMES[k].toUpperCase()}</div>`;
-      /* Five rungs of the ladder: the two you have climbed, the one you are on,
-         and the two ahead — enough to see where the branch is going without
-         turning the panel into a wall. */
-      for(let L=Math.max(1,lvl-1);L<=lvl+3;L++){
-        const done=L<=lvl, running=cur===k&&L===lvl+1, next=!done&&L===lvl+1;
-        const cost=10+(L-1)*14;
-        const st=done?"done":running?"running":next?"next":"locked";
-        h+=`<div class="restech ${st}" ${next&&!cur?`onclick="startRes('${k}')"`:""}>
-          <span class="rlv">${roman(L)}</span>
-          <span class="rnm">${RESNAMES[k]} ${roman(L)}</span>
-          <span class="rct">${done?"\u2713":running?Math.round(pct)+"%":cost+" RP"}</span>
-        </div>`;
-      }
-      h+=`<div class="resfoot">${RESDESC[k]}</div></div>`;
+          <small style="color:var(--dim)">${Math.round(pct)}% · ${days(s.id)} days${ah>=0.05?` · <span style="color:var(--amber)">${ah.toFixed(1)} yr early</span>`:""}</small></div>
+          <button class="tbtn" title="Stop: the work done is lost" onclick="stopRes('${s.id}')">✕</button></div>`;}
+      else h+=`<div class="resslot"><div class="resicon">⚙</div><div style="flex:1"><b style="color:var(--dim)">SLOT ${i+1} IDLE</b>
+          <small style="color:var(--dim);display:block">Choose a technology below</small></div></div>`;
     }
-    h+=`</div>`;
+    h+=`</div><div style="color:var(--dim);font-size:11px;margin:6px 0">Base time ${Math.ceil(TECH_BASE/rate)} days at your rate.
+      <span style="color:var(--amber)">Every year AHEAD of a technology's historical date adds its base time again</span>
+      (two years early = three times as long). Each one raises its branch and makes the units it is about 10% better.</div>`;
+    /* which technologies to draw: the last thirty years and the next
+       twenty-five, plus anything open or in a slot wherever it falls */
+    const show=TECH_LIST.filter(t=>(t.year>=Y-30&&t.year<=Y+25)||techOpen(me,t.id)||me.slots.some(s=>s.id===t.id));
+    const years=[...new Set(show.map(t=>t.year))].sort((a,b)=>a-b);
+    const rowOf={};let row=0;const yrRow=[];
+    for(const y of years){
+      let tall=1;
+      for(const b of TECH_BR){const here=show.filter(t=>t.br===b.k&&t.year===y);
+        here.forEach((t,i)=>rowOf[t.id]=row+i);tall=Math.max(tall,here.length);}
+      yrRow.push([y,row]);row+=tall;
+    }
+    const NW=152,NH=66,GX=34,GY=22,LX=52;
+    const col={};TECH_BR.forEach((b,i)=>col[b.k]=i);
+    const nx=t=>LX+col[t.br]*(NW+GX), ny=t=>rowOf[t.id]*(NH+GY);
+    const TW=LX+TECH_BR.length*(NW+GX)-GX, TH=row*(NH+GY)-GY;
+    h+=`<div class="ftwrap"><div class="ftree" style="width:${TW}px;height:${TH+26}px">
+      <div class="fthead" style="gap:${GX}px;margin-left:${LX}px">`;
+    for(const b of TECH_BR)h+=`<span style="width:${NW}px">${b.i} ${b.n}</span>`;
+    h+=`</div><svg width="${TW}" height="${TH}" style="top:26px">`;
+    /* the time axis: a rule and a label at each year, and the present */
+    for(const [y,r] of yrRow){const yy=r*(NH+GY)+NH/2;
+      h+=`<text x="4" y="${yy+4}" font-size="11" fill="${y<=Y?"#7ea86a":"#8a8470"}">${y}</text>
+        <line x1="${LX-8}" y1="${yy}" x2="${TW}" y2="${yy}" stroke="#1f261c" stroke-width="1"/>`;}
+    {const nowR=yrRow.findIndex(([y])=>y>Y);
+     const yy=nowR<0?TH+GY/2:nowR===0?-GY/2:yrRow[nowR][1]*(NH+GY)-GY/2;
+     h+=`<line x1="0" y1="${yy}" x2="${TW}" y2="${yy}" stroke="#e8a33d" stroke-width="1.5" stroke-dasharray="6 4"/>
+       <text x="${TW-4}" y="${yy-4}" text-anchor="end" font-size="10" fill="#e8a33d">TODAY · ${G.date.getFullYear()}</text>`;}
+    for(const t of show)for(const r of t.req){const p=TECH[r];if(!p||rowOf[r]===undefined)continue;
+      const x1=nx(p)+NW/2,y1=ny(p)+NH,x2=nx(t)+NW/2,y2=ny(t);
+      const lit=!!me.techs[r],c=lit?"#5d7a4e":"#2b3327";
+      const pts=x1===x2?`${x1},${y1} ${x2},${y2}`:`${x1},${y1} ${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}`;
+      h+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2"/>`;}
+    h+=`</svg>`;
+    const free=me.slots.length<nSlots;
+    for(const t of show){
+      const done=!!me.techs[t.id], s=me.slots.find(x=>x.id===t.id), open=techOpen(me,t.id);
+      const st=done?"done":s?"running":open?(free?"open":"locked"):"locked";
+      const ah=techAhead(t);
+      const badge=done?"✓":s?Math.round(100*s.prog/techCost(t.id))+"%":open?`${days(t.id)}d${ah>=0.05?` · <span style="color:#e8a33d">+${Math.round(ah*100)}%</span>`:""}`:"\u{1F512}";
+      const tip=`${t.n} (${t.year}). ${t.d} +${t.gain} ${RESNAMES[t.track]}`+(t.q?`, ${t.q.toUpperCase()} units +10%`:"")+
+        (t.sp&&t.sp.oil?`, +${t.sp.oil} oil`:"")+(t.sp&&t.sp.atom?", nuclear weapons without Industry III":"")+"."+
+        (ah>=0.05&&!done?` ${ah.toFixed(1)} years ahead of its time: +${Math.round(ah*100)}% research time.`:"")+
+        (!done&&!open?" Needs "+t.req.filter(r=>!me.techs[r]).map(r=>TECH[r].n).join(" and ")+" first.":"");
+      const click=st==="open"?` onclick="if(!window._ftDragged)startRes('${t.id}')"`:"";
+      h+=`<div class="fnode ${st}" style="left:${nx(t)}px;top:${ny(t)+26}px;width:${NW}px;height:${NH}px"${click} title="${tip.replace(/"/g,"&quot;")}">
+        <span class="fn">${t.n}</span><span class="fs">${t.year} · ${badge}</span></div>`;
+    }
+    h+=`</div></div>`;
     el.innerHTML=h;
+    /* open on the present, not on 1200 */
+    const wrap=el.querySelector(".ftwrap");el.dataset.p="research";
+    if(wrap){if(_keep){wrap.scrollLeft=_keep[0];wrap.scrollTop=_keep[1];}
+      else{const nowR=yrRow.findIndex(([y])=>y>Y-3);if(nowR>0)wrap.scrollTop=yrRow[nowR][1]*(NH+GY);}}
   }
   if(curPanel==="air"){
     const wings=G.wings.filter(w=>w.nat===G.player);
@@ -17723,7 +17997,7 @@ function renderPanel(){
        round -- CSS grid for the nodes and guessed offsets for the lines --
        puts the elbows NEAR the nodes instead of on them, and a tree whose
        lines miss its nodes is worse than no lines at all. */
-    el.classList.add("wide");
+    const _old=el.querySelector(".ftwrap"), _keep=_old&&el.dataset.p==="focus"+(window.FOCUS_TAB||"")?[_old.scrollLeft,_old.scrollTop]:null;
     me.focusDone=me.focusDone||{};
     /* Two tabs: the country's own tree first -- it is the one that differs
        from game to game -- and the common trunk everyone shares. Drawn side by
@@ -17739,9 +18013,10 @@ function renderPanel(){
     let maxC=0,maxR=0;
     for(const k in FOC){const f=FOC[k];
       if(f.col>maxC)maxC=f.col; if(f.row>maxR)maxR=f.row;}
-    /* five branches (Germany, Italy, Japan...) do not fit the panel at the
-       four-branch width, so the boxes narrow rather than scroll off */
-    const NW=maxC>=4?98:112,NH=64,GX=maxC>=4?12:18,GY=28;
+    /* Spread out like the real game's tree: wide boxes with room between
+       them, so the lines between rungs read as lines and not as seams. The
+       panel is full-size now and scrolls (or drags) when a tree is bigger. */
+    const NW=150,NH=72,GX=46,GY=48;
     const TW=(maxC+1)*(NW+GX)-GX, TH=(maxR+1)*(NH+GY)-GY;
     const nx=f=>f.col*(NW+GX), ny=f=>f.row*(NH+GY);
     const state=k=>{
@@ -17810,7 +18085,7 @@ function renderPanel(){
       const badge=st==="done"?"\u2713":st==="running"?Math.round(me.focus.prog/FOCUS_DAYS*100)+"%"
         :st==="excluded"?"\u2715":st==="locked"?"\u{1F512}":FOCUS_DAYS+"d";
       const why=(st==="locked"||st==="excluded")?" \u2014 "+focusWhy(me,k):"";
-      const click=(st==="open")?` onclick="pickFocus('${k}')"`:"";
+      const click=(st==="open")?` onclick="if(!window._ftDragged)pickFocus('${k}')"`:"";
       h+=`<div class="fnode ${cls}" style="left:${nx(f)}px;top:${ny(f)+22}px;width:${NW}px;height:${NH}px"${click} title="${(f.d+why).replace(/"/g,"&quot;")}">
         <span class="fi">${f.i}</span><span class="fn">${f.n}</span><span class="fs">${badge}</span></div>`;
     }
@@ -17821,6 +18096,8 @@ function renderPanel(){
     h+=`<div style="color:var(--dim);font-size:11px;margin-top:8px">${sel?sel.d:
       "One focus at a time, "+FOCUS_DAYS+" days each, each one taken once. A locked node needs the ones above it finished first; a red dashed bar joins two choices that rule each other out, and a dotted line means any one of the focuses above will do."}</div>`;
     el.innerHTML=h;
+    el.dataset.p="focus"+(window.FOCUS_TAB||"");
+    {const w=el.querySelector(".ftwrap");if(w&&_keep){w.scrollLeft=_keep[0];w.scrollTop=_keep[1];}}
   }
   if(curPanel==="credits"){
     /* Built from the same tables the game uses, so a quote or a photograph
@@ -18537,7 +18814,27 @@ window.spyOp=(op,target)=>{if(!G||!G.nations)return;
 };
 window.startRes=k=>{if(!G||!G.nations)return;
   if(MP.role==="guest"){MP.send({type:"res",nat:G.player,k});logMsg("Research order sent...");return;}
-  const me=G.nations[G.player];if(!me.researching){me.researching=k;me.resProg=0;renderPanel();}};
+  if(techStart(G.player,k)){sfx("focus");renderPanel();refreshHUD();}};
+/* take a technology back out of its slot; the work done on it is lost */
+window.stopRes=k=>{if(!G||!G.nations)return;const me=techInit(G.nations[G.player]);
+  const i=me.slots.findIndex(s=>s.id===k);if(i>=0){me.slots.splice(i,1);renderPanel();refreshHUD();}};
+/* The two trees are bigger than the screen, so they pan by dragging, as a map
+   does. A drag of more than a few pixels is a pan and swallows the click that
+   follows it, so letting go over a box does not start that box. Touch keeps
+   its native scrolling (pointercancel ends the drag). */
+(function(){let d=null;
+  const end=()=>{if(!d)return;window._ftDragged=d.moved;d.w.classList.remove("drag");d=null;
+    setTimeout(()=>{window._ftDragged=false;},0);};
+  document.addEventListener("pointerdown",e=>{
+    const w=e.target&&e.target.closest&&e.target.closest("#panel .ftwrap");
+    if(!w||e.button!==0||e.pointerType==="touch")return;
+    d={w,x:e.clientX,y:e.clientY,l:w.scrollLeft,t:w.scrollTop,moved:false};window._ftDragged=false;});
+  document.addEventListener("pointermove",e=>{if(!d)return;
+    const dx=e.clientX-d.x,dy=e.clientY-d.y;
+    if(!d.moved&&Math.hypot(dx,dy)>6){d.moved=true;d.w.classList.add("drag");}
+    if(d.moved){d.w.scrollLeft=d.l-dx;d.w.scrollTop=d.t-dy;}});
+  document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
+})();
 window.setAir=m=>{if(!G||!G.nations)return;G.airMode=m;if(m==="auto")for(const w of G.wings)if(w.nat===G.player)w.target=null;renderPanel();};
 window.renderPanel=renderPanel;
 /* capture originals: window.X overwrites the same binding as `function X(){}`,
@@ -18608,10 +18905,11 @@ function refreshHUD(){
      }else{el.textContent="none";el.parentNode.style.color="var(--dim)";}}}
   {const el=$("#hResT");
    if(el){
-     if(me.researching&&RESNAMES[me.researching]){
-       const c=resCost(me,me.researching);
-       el.textContent=RESNAMES[me.researching]+" "+Math.round(100*Math.min(1,me.resProg/c))+"%";
-       el.parentNode.style.color="";
+     techInit(me);
+     if(me.slots.length){
+       const s=me.slots[0],t=TECH[s.id];
+       el.textContent=t.n+" "+Math.round(100*Math.min(1,s.prog/techCost(s.id)))+"%"+(me.slots.length>1?" +"+(me.slots.length-1):"");
+       el.parentNode.style.color=me.slots.length<techSlots(G.player)?"var(--amber)":"";
      }else{el.textContent="idle";el.parentNode.style.color="var(--amber)";}}}
   {const cp=G.prov[capOf(G.player)],el2=$("#hWxT");
    if(el2&&cp){const w=weatherAt(cp);
@@ -20369,7 +20667,10 @@ function mpSerialize(){
       EQ_KINDS.map(kk=>Math.round(eqpPool(n)[kk])).join(","), +milShareOf(k).toFixed(2),
       /* who a generated national tree leans on and claims (v24+), so it does
          not rename itself on reload */
-      n.focusMeta?JSON.stringify(n.focusMeta):""];}
+      n.focusMeta?JSON.stringify(n.focusMeta):"",
+      /* the weapons tree (v24+): what was researched since the start (the
+         baseline is rebuilt from the start year) and the slots in progress */
+      n.techs?JSON.stringify({t:n.techNew,s:n.slots.map(x=>[x.id,+x.prog.toFixed(2)])}):""];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
@@ -20454,6 +20755,15 @@ function mpApplyState(S){
       n.focusMeta=null;
       if(a[41]){try{const m=JSON.parse(a[41]);if(m&&typeof m==="object")n.focusMeta={p:String(m.p||""),t:String(m.t||"")};}catch(e){}}
       if(a[38])for(const f of String(a[38]).split(","))if(fok(f))n.focusDone[f]=1;
+      /* technologies: rebuild the start-year baseline, then replay what was
+         researched since WITHOUT granting its levels again (they are saved in
+         res already) -- only the unit bonuses are derived, not stored */
+      n.techs=null;techInit(n);
+      if(a[42]){try{const m=JSON.parse(a[42]);
+        for(const id of (m.t||[]))if(TECH[id]&&!n.techs[id]){n.techs[id]=1;n.techNew.push(id);
+          const t=TECH[id];if(t.q)n.tq[t.q]=+((n.tq[t.q]||0)+TECH_QUAL).toFixed(2);if(t.sp&&t.sp.atom)n.atomicOk=true;}
+        for(const x of (m.s||[]))if(TECH[x[0]]&&!n.techs[x[0]])n.slots.push({id:x[0],prog:+x[1]||0});
+      }catch(e){}}
       n.focus=fok(a[36])?{key:a[36],prog:+a[37]||0}:null;
       /* Saves from before the split have neither. A nation loads with an empty
          warehouse at the default share, and its divisions -- which carry no eq
@@ -20498,7 +20808,7 @@ function mpApplyOrder(o){
       if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;}}
   }
   if(o.type==="buy")buyFor(nat,o.t,o.pid,o.grp|0);
-  if(o.type==="res"){const n=G.nations[nat];if(!n.researching){n.researching=o.k;n.resProg=0;}}
+  if(o.type==="res"){techStart(nat,o.k);}
   if(o.type==="war")declareWar(nat,o.target);
   if(o.type==="ally")proposeAlliance(nat,o.target);
   if(o.type==="union")proposeUnion(nat,o.target);

@@ -1702,3 +1702,50 @@ for 1936, 1939, 1941, 1943 and 1945).
   out the Balkan Pact.
 - Other eras still use the 1914/Cold War/today written trees for the great
   powers and the generated tree for everyone else.
+
+## Room to breathe, and a research tree of real weapons
+
+Owner: "spread them out like real game ... add research ... researching
+weapons, and if it's too far away it adds that much time to its original
+time".
+
+**The trees get the screen.** FOCUS and RESEARCH open the panel as `.full`
+(left of the side buttons to the right edge, bottom clear of the log,
+z-index 12 so the log does not draw over it). Focus nodes 150x72 with gaps
+46/48 instead of 112x64 packed at 18/28. Both trees pan by mouse drag
+(`.ftwrap`, a drag over 6px swallows the click so letting go over a box does
+not start it; touch keeps native scroll), and the panel re-renders each day
+WITHOUT losing the scroll position (`el.dataset.p` marks which tree the old
+scroll belongs to; first open of research jumps to the present).
+
+**Research is real technologies on a time axis** (`TECH_RAW`, 131 of them,
+1200-2040): Industry, Infantry, Armour, Artillery (with an anti-air line),
+Air (fighters, bombers, close support) and Naval (capitals, escorts,
+submarines, carriers) -- the composite bow to drone swarms, with dated
+techs inside every era (the Paiza and Kaifeng's fire lances for 1206,
+Shrapnel, Congreve, the percussion cap and Fulton for 1803, the Gatling and
+the Monitor for 1861). Columns are branches, rows are years, a dashed TODAY
+line, each box showing what it costs NOW.
+
+- **The rule asked for:** cost = TECH_BASE x (1 + years ahead of the
+  historical date), fractional by the game date. A year early doubles it;
+  Germany's jet fighter in January 1936 is 1,154 days against 129 for a
+  1936 technology. Behind time earns nothing.
+- **What a technology does:** + a fraction of its branch's old research
+  level (ind +0.5, air/nav +0.3, land +0.2 -- the multipliers every system
+  already reads), and +10% to the unit type it is about (`n.tq[type]`,
+  through `qual()` in land combat `pw`, naval `side()`, and both air
+  calculations). Specials: Synthetic Fuel +60 oil, Atomic Research = nukes
+  without Industry III.
+- **Baseline:** a nation starts knowing everything dated before the start
+  YEAR, granted silently -- the era's starting levels already reflect it.
+- **Slots:** 2, +1 per 15 provinces, max 4. Rate per slot (0.12 + 0.006 x
+  provinces) x industry, so a one-province country is slow but not frozen.
+  The AI fills empty slots with one of the three cheapest open techs.
+  Measured over two years from 1936: majors 9-12 techs, minors 4-6.
+- **Save:** nation field a[42] = researched-since-start ids + slots. Load
+  rebuilds the baseline from YEAR and replays them for the unit bonuses only
+  (the levels are saved in res already). MP guest orders ("res") call
+  techStart.
+- The old single abstract ladder (`n.researching`) is no longer advanced;
+  its save fields stay for old saves.
