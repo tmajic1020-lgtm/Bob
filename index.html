@@ -169,7 +169,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 .fnode.open:active{transform:scale(.97)}
 .fnode.locked{opacity:.34}
 .fthead{display:flex;gap:8px;margin-bottom:6px}
-.fthead span{font-size:9.5px;letter-spacing:1px;color:var(--amber);text-align:center;
+.fthead span{font-size:9.5px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--amber);text-align:center;
   border-bottom:1px solid var(--line);padding-bottom:4px;box-sizing:border-box}
 #tip{position:absolute;pointer-events:none;background:#0e130fcc;border:1px solid var(--line);padding:5px 8px;font-size:11px;display:none;z-index:20;max-width:220px}
 #speedbox{position:absolute;bottom:8px;right:8px;display:flex;gap:5px;align-items:center;background:#11160fb0;border:1px solid var(--line);padding:5px 8px}
@@ -5730,168 +5730,6 @@ const OK={
   all:(...fs)=>k=>{for(const f of fs){const r=f(k);if(r)return r;}return "";}
 };
 const NAT_FOCUS={
-/* ------------------------------- 1936 -------------------------------- */
-"ww2:GER":{heads:["THE REICH","FOREIGN POLICY","WEHRMACHT"],nodes:{
- rhine:{c:0,r:0,n:"Remilitarise the Rhineland",i:"\u{1F3F0}",d:"Troops back across the Rhine. Forts in the Rhineland and Frankfurt, and +10 war support.",
-   fx:k=>{FX.build(k,["rhi","fra"],"fort");FX.stat(k,{ws:10});}},
- fyp:{c:0,r:1,req:["rhine"],n:"Four Year Plan",i:"\u{1F3ED}",d:"A factory each in Berlin and Hamburg and +60 production.",
-   fx:k=>{FX.build(k,["ber","ham"],"fac");FX.stat(k,{pp:60});}},
- autark:{c:0,r:2,req:["fyp"],n:"Autarky",i:"\u{1F6E2}",d:"Synthetic fuel and buna rubber: +60 oil, +60 rubber, +80 steel.",
-   fx:k=>FX.stat(k,{oil:60,stock:{rubber:60,steel:80}})},
- totmob:{c:0,r:3,req:["autark"],n:"Total Mobilisation",i:"\u{1F465}",d:"+150 manpower, +80 production, +10 war support.",
-   fx:k=>FX.stat(k,{mp:150,pp:80,ws:10})},
- acp:{c:1,r:0,n:"Anti-Comintern Pact",i:"\u{1F91D}",d:"An alliance with Japan.",ok:OK.ally("JAP"),fx:k=>FX.ally(k,"JAP")},
- anschl:{c:1,r:1,req:["rhine"],n:"Anschluss",i:"\u{1F985}",d:"Austria joins the Reich: Vienna, its army and its treasury.",
-   ok:OK.war("AUT"),fx:k=>FX.annex(k,"AUT")},
- sudet:{c:1,r:2,req:["anschl"],n:"Demand the Sudetenland",i:"\u{1F4DC}",d:"Bohemia is handed over at Munich without a shot.",
-   ok:OK.claim("pra"),fx:k=>FX.give(k,["pra"])},
- mrp:{c:1,r:3,req:["sudet"],n:"Molotov–Ribbentrop Pact",i:"\u{1F58B}",d:"A non-aggression pact with the Soviet Union.",
-   ok:OK.ally("SOV"),fx:k=>FX.pact(k,"SOV")},
- danzig:{c:1,r:4,req:["mrp"],n:"Danzig or War",i:"⚔",d:"War with Poland, and +15 war support to fight it.",
-   ok:OK.war("POL"),fx:k=>{FX.stat(k,{ws:15});FX.war(k,"POL");}},
- panzer:{c:2,r:0,n:"Panzerwaffe",i:"\u{1F6E1}",d:"Two armoured divisions and a Land Doctrine level.",
-   fx:k=>{FX.units(k,"arm",2,4);FX.stat(k,{res:{land:1}});}},
- luft:{c:2,r:1,req:["panzer"],n:"The Luftwaffe",i:"✈",d:"Two fighter wings and a tactical bomber wing.",
-   fx:k=>{FX.wings(k,"fig",2,3);FX.wings(k,"cas",1,3);}},
- planz:{c:2,r:2,req:["luft"],n:"Plan Z",i:"⚓",d:"A capital squadron and two U-boat flotillas at Hamburg.",
-   fx:k=>{FX.fleet(k,"cap",1,4,"ham");FX.fleet(k,"sub",2,2,"ham");}},
- pos:{c:2,r:3,req:["acp"],n:"Pact of Steel",i:"\u{1F517}",d:"An alliance with Italy.",ok:OK.ally("ITA"),fx:k=>FX.ally(k,"ITA")},
- westw:{c:2,r:4,req:["panzer","rhine"],n:"The Westwall",i:"\u{1F9F1}",d:"Forts along every border with France and the Low Countries.",
-   fx:k=>{FX.build(k,[...FX.border(k,"FRA"),...FX.border(k,"BEL"),...FX.border(k,"HOL"),...FX.border(k,"LUX")],"fort");}}
-}},
-"ww2:ITA":{heads:["IMPERO","MARE NOSTRUM","THE AXIS","THE STRESA FRONT"],nodes:{
- eth:{c:0,r:0,n:"The Ethiopian War",i:"⚔",d:"War with Ethiopia for the empire in the Horn of Africa.",ok:OK.war("ETH"),fx:k=>FX.war(k,"ETH")},
- impero:{c:0,r:1,req:["eth"],n:"Proclaim the Impero",i:"\u{1F451}",d:"+10 stability, +10 war support and +60 production.",fx:k=>FX.stat(k,{stab:10,ws:10,pp:60})},
- libya:{c:0,r:2,req:["impero"],n:"Fortify Libya",i:"\u{1F3F0}",d:"Forts at Tripoli, Benghazi and Tobruk and two divisions in Tripoli.",
-   fx:k=>{FX.build(k,["trp","ben","tob"],"fort");FX.units(k,"inf",2,3,"trp");}},
- alb:{c:0,r:3,req:["impero"],n:"Occupy Albania",i:"\u{1F3EF}",d:"Albania becomes part of the kingdom.",ok:OK.war("ALB"),fx:k=>FX.annex(k,"ALB")},
- mare:{c:1,r:0,n:"Mare Nostrum",i:"⚓",d:"Two capital squadrons at Naples.",fx:k=>FX.fleet(k,"cap",2,4,"nap")},
- taranto:{c:1,r:1,req:["mare"],n:"Taranto Naval Base",i:"\u{1F6A2}",d:"A Naval Engineering level and a fort at Bari.",
-   fx:k=>{FX.stat(k,{res:{nav:1}});FX.build(k,["bari"],"fort");}},
- subs:{c:1,r:2,req:["taranto"],n:"The Submarine Arm",i:"▾",d:"Three submarine flotillas.",fx:k=>FX.fleet(k,"sub",3,2,"nap")},
- axis:{c:2,r:0,excl:["stresa"],n:"Rome–Berlin Axis",i:"\u{1F517}",d:"An alliance with Germany. Rules out the Stresa Front.",ok:OK.ally("GER"),fx:k=>FX.ally(k,"GER")},
- greece:{c:2,r:1,req:["axis"],n:"Claims on Greece",i:"⚔",d:"War with Greece.",ok:OK.war("GRC"),fx:k=>{FX.stat(k,{ws:10});FX.war(k,"GRC");}},
- yugo:{c:2,r:2,req:["greece"],n:"Croatian Ambitions",i:"⚔",d:"War with Yugoslavia.",ok:OK.war("SRB"),fx:k=>FX.war(k,"SRB")},
- stresa:{c:3,r:0,excl:["axis"],n:"The Stresa Front",i:"\u{1F91D}",d:"Alliances with Britain and France. Rules out the Axis.",
-   ok:OK.all(OK.ally("UK"),OK.ally("FRA")),fx:k=>{FX.ally(k,"UK");FX.ally(k,"FRA");}},
- danub:{c:3,r:1,req:["stresa"],n:"Danubian Pact",i:"\u{1F58B}",d:"Alliances with Austria and Hungary.",fx:k=>{FX.ally(k,"AUT");FX.ally(k,"HUN");}},
- brenner:{c:3,r:2,req:["danub"],n:"Watch on the Brenner",i:"\u{1F3F0}",d:"Forts on every border with Germany and Austria.",
-   fx:k=>FX.build(k,[...FX.border(k,"GER"),...FX.border(k,"AUT")],"fort",2)}
-}},
-"ww2:JAP":{heads:["ZAIBATSU","CHINA","NORTH OR SOUTH","IMPERIAL NAVY"],nodes:{
- zai:{c:0,r:0,n:"Zaibatsu Cooperation",i:"\u{1F3ED}",d:"Factories in Tokyo and Osaka and +40 production.",
-   fx:k=>{FX.build(k,["tok","osa"],"fac");FX.stat(k,{pp:40});}},
- manch:{c:0,r:1,req:["zai"],n:"Develop Manchukuo",i:"⛏",d:"Manchurian coal and iron: +120 steel, +20 oil.",fx:k=>FX.stat(k,{stock:{steel:120},oil:20})},
- tri:{c:0,r:2,req:["zai"],n:"Tripartite Pact",i:"\u{1F517}",d:"Alliances with Germany and Italy.",fx:k=>{FX.ally(k,"GER");FX.ally(k,"ITA");}},
- mpb:{c:1,r:0,n:"Marco Polo Bridge",i:"⚔",d:"War with China, and +15 war support.",ok:OK.war("CHN"),fx:k=>{FX.stat(k,{ws:15});FX.war(k,"CHN");}},
- kwant:{c:1,r:1,req:["mpb"],n:"The Kwantung Army",i:"\u{1F396}",d:"Four infantry divisions and an armoured one.",
-   fx:k=>{FX.units(k,"inf",4,3);FX.units(k,"arm",1,3);}},
- north:{c:2,r:1,req:["mpb"],excl:["south"],n:"Strike North",i:"⬆",d:"War with the Soviet Union over Siberia. Rules out Strike South.",
-   ok:OK.war("SOV"),fx:k=>{FX.stat(k,{ws:10});FX.war(k,"SOV");}},
- south:{c:2,r:2,req:["mpb"],excl:["north"],n:"Strike South",i:"⬇",d:"War with the Netherlands for the oil of the Indies, and +40 oil. Rules out Strike North.",
-   ok:OK.war("HOL"),fx:k=>{FX.stat(k,{ws:10,oil:40});FX.war(k,"HOL");}},
- sphere:{c:2,r:3,req:["north","south"],any:true,n:"Co-Prosperity Sphere",i:"\u{1F310}",d:"+10 stability, +80 rubber, +80 production.",
-   fx:k=>FX.stat(k,{stab:10,pp:80,stock:{rubber:80}})},
- kido:{c:3,r:0,n:"Kido Butai",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,3,"tok")},
- yamato:{c:3,r:1,req:["kido"],n:"Yamato Class",i:"■",d:"A heavy capital squadron.",fx:k=>FX.fleet(k,"cap",1,5,"hir")},
- navair:{c:3,r:2,req:["yamato"],n:"Naval Aviation",i:"✈",d:"Two naval bomber wings and an Aviation level.",
-   fx:k=>{FX.wings(k,"nvb",2,3);FX.stat(k,{res:{air:1}});}}
-}},
-"ww2:SOV":{heads:["FIVE-YEAR PLANS","THE PURGE","OR THE OFFICERS","RED ARMY"],nodes:{
- fyp:{c:0,r:0,n:"Second Five-Year Plan",i:"\u{1F3ED}",d:"Factories in Moscow and Leningrad.",fx:k=>FX.build(k,["mos","len"],"fac")},
- urals:{c:0,r:1,req:["fyp"],n:"Industry Beyond the Urals",i:"⛰",d:"Factories in the Urals and Novosibirsk and an Industry level.",
-   fx:k=>{FX.build(k,["ura","nov"],"fac");FX.stat(k,{res:{ind:1}});}},
- stakh:{c:0,r:2,req:["urals"],n:"Stakhanovite Movement",i:"⚒",d:"+120 production and +100 steel.",fx:k=>FX.stat(k,{pp:120,stock:{steel:100}})},
- purge:{c:1,r:0,excl:["officers"],n:"The Great Purge",i:"\u{1F5E1}",d:"+20 stability, at the cost of the officer corps: -10 war support.",
-   fx:k=>FX.stat(k,{stab:20,ws:-10})},
- mrp:{c:1,r:1,req:["purge","officers"],any:true,n:"Molotov–Ribbentrop Pact",i:"\u{1F58B}",d:"A non-aggression pact with Germany.",
-   ok:OK.ally("GER"),fx:k=>FX.pact(k,"GER")},
- finland:{c:1,r:2,req:["mrp"],n:"Claims on Finland",i:"⚔",d:"The Winter War.",ok:OK.war("FIN"),fx:k=>FX.war(k,"FIN")},
- baltic:{c:1,r:3,req:["mrp"],n:"Baltic Bases",i:"\u{1F4DC}",d:"Estonia, Latvia and Lithuania are absorbed into the Union.",
-   ok:k=>["EST","LVA","LTU"].some(FX.alive)?"":"The Baltic states are gone already.",
-   fx:k=>{for(const t of["EST","LVA","LTU"])if(FX.alive(t)&&!atWar(k,t))FX.annex(k,t);}},
- officers:{c:2,r:0,excl:["purge"],n:"Rehabilitate the Officers",i:"\u{1F396}",d:"Tukhachevsky keeps his post: a Land Doctrine level. Rules out the Purge.",
-   fx:k=>FX.stat(k,{res:{land:1}})},
- china:{c:2,r:1,req:["purge","officers"],any:true,n:"Sino-Soviet Treaty",i:"\u{1F91D}",d:"An alliance with China.",ok:OK.ally("CHN"),fx:k=>FX.ally(k,"CHN")},
- deep:{c:3,r:0,n:"Deep Battle",i:"\u{1F6E1}",d:"Two armoured divisions and a Land Doctrine level.",fx:k=>{FX.units(k,"arm",2,4);FX.stat(k,{res:{land:1}});}},
- kv:{c:3,r:1,req:["deep"],n:"Heavy Tanks",i:"\u{1F6E1}",d:"Two heavy armoured divisions.",fx:k=>FX.units(k,"arm",2,5)},
- vvs:{c:3,r:2,req:["deep"],n:"The Red Air Force",i:"✈",d:"Three fighter wings.",fx:k=>FX.wings(k,"fig",3,3)},
- fareast:{c:3,r:3,req:["vvs"],n:"Far Eastern Front",i:"\u{1F3D4}",d:"Three divisions and a fort at Vladivostok.",
-   fx:k=>{FX.units(k,"inf",3,3,"vla");FX.build(k,["vla"],"fort");}}
-}},
-"ww2:UK":{heads:["THE EMPIRE","REARMAMENT","APPEASEMENT","STAND FIRM"],nodes:{
- conf:{c:0,r:0,n:"Imperial Conference",i:"\u{1F451}",d:"Alliances with Canada, Australia and South Africa, and +5 stability.",
-   fx:k=>{for(const t of["CAN","AUS","SAF"])FX.ally(k,t);FX.stat(k,{stab:5});}},
- inda:{c:0,r:1,req:["conf"],n:"The Indian Army",i:"\u{1F396}",d:"Three divisions raised in the Raj (or at home, if the Raj is gone).",
-   fx:k=>{if(FX.alive("IND")&&(allied(k,"IND")||G.nations.IND.puppet===k))FX.units("IND","inf",3,3);else FX.units(k,"inf",3,3);}},
- sing:{c:0,r:2,req:["conf"],n:"Fortress Singapore",i:"\u{1F3F0}",d:"Two fort levels and a capital squadron at Singapore.",
-   fx:k=>{FX.build(k,["sin"],"fort",2);FX.fleet(k,"cap",1,4,"sin");}},
- suez:{c:0,r:3,req:["conf"],n:"Defend Suez",i:"⚓",d:"A fort and two divisions at Suez.",fx:k=>{FX.build(k,["sue"],"fort");FX.units(k,"inf",2,3,"sue");}},
- shadow:{c:1,r:0,n:"Shadow Factories",i:"\u{1F3ED}",d:"Factories in Birmingham and Manchester.",fx:k=>FX.build(k,["bir","man2"],"fac")},
- radar:{c:1,r:1,req:["shadow"],n:"Chain Home",i:"\u{1F4E1}",d:"Radar along the coast: an Aviation level and two fighter wings.",
-   fx:k=>{FX.stat(k,{res:{air:1}});FX.wings(k,"fig",2,3);}},
- hg:{c:1,r:2,req:["radar"],n:"The Home Guard",i:"\u{1F465}",d:"+80 manpower and a fort in London.",fx:k=>{FX.stat(k,{mp:80});FX.build(k,["lon"],"fort");}},
- appease:{c:2,r:0,excl:["firm"],n:"Peace for Our Time",i:"\u{1F58B}",d:"+15 stability and a pact with Germany. Rules out Standing Firm.",
-   fx:k=>{FX.stat(k,{stab:15});FX.pact(k,"GER");}},
- rn:{c:2,r:1,req:["appease","firm"],any:true,n:"The Royal Navy",i:"⚓",d:"Two capital squadrons and two escort flotillas.",
-   fx:k=>{FX.fleet(k,"cap",2,4);FX.fleet(k,"dd",2,2);}},
- firm:{c:3,r:0,excl:["appease"],n:"Stand Firm",i:"⚔",d:"+15 war support and an alliance with France. Rules out appeasement.",
-   fx:k=>{FX.stat(k,{ws:15});FX.ally(k,"FRA");}},
- guar:{c:3,r:1,req:["firm"],n:"Guarantee Poland",i:"\u{1F6E1}",d:"An alliance with Poland.",ok:OK.ally("POL"),fx:k=>FX.ally(k,"POL")}
-}},
-"ww2:USA":{heads:["NEW DEAL","ARSENAL","NEUTRALITY","TWO-OCEAN NAVY"],nodes:{
- nd:{c:0,r:0,n:"The New Deal",i:"\u{1F3ED}",d:"Factories in New York and Chicago and +10 stability.",
-   fx:k=>{FX.build(k,["nyc","chi"],"fac");FX.stat(k,{stab:10});}},
- tva:{c:0,r:1,req:["nd"],n:"Tennessee Valley Authority",i:"⚡",d:"A factory in Georgia and an Industry level.",
-   fx:k=>{FX.build(k,["atl"],"fac");FX.stat(k,{res:{ind:1}});}},
- draft:{c:0,r:2,req:["nd"],n:"Selective Service",i:"\u{1F465}",d:"+200 manpower and four infantry divisions.",
-   fx:k=>{FX.stat(k,{mp:200});FX.units(k,"inf",4,3);}},
- cash:{c:1,r:0,n:"Cash and Carry",i:"\u{1F4B5}",d:"+80 production and +100 steel.",fx:k=>FX.stat(k,{pp:80,stock:{steel:100}})},
- arsenal:{c:1,r:1,req:["cash"],n:"Arsenal of Democracy",i:"⚙",d:"An Industry level and +120 production.",fx:k=>FX.stat(k,{res:{ind:1},pp:120})},
- interv:{c:1,r:2,req:["arsenal"],excl:["neutral"],n:"Interventionism",i:"⚔",d:"Alliances with Britain and France, +15 war support. Rules out the Neutrality Acts.",
-   fx:k=>{FX.stat(k,{ws:15});FX.ally(k,"UK");FX.ally(k,"FRA");}},
- neutral:{c:2,r:2,req:["arsenal"],excl:["interv"],n:"The Neutrality Acts",i:"\u{1F54A}",d:"+15 stability. Rules out intervention.",fx:k=>FX.stat(k,{stab:15})},
- vinson:{c:3,r:0,n:"The Vinson Act",i:"⚓",d:"Two capital squadrons.",fx:k=>FX.fleet(k,"cap",2,4,"sfo")},
- twoo:{c:3,r:1,req:["vinson"],n:"Two-Ocean Navy",i:"◆",d:"Two carrier groups.",fx:k=>FX.fleet(k,"cv",2,3,"sfo")},
- phil:{c:3,r:2,req:["vinson"],n:"Fortify the Philippines",i:"\u{1F3F0}",d:"A fort and two divisions at Manila.",
-   fx:k=>{FX.build(k,["mnl"],"fort");FX.units(k,"inf",2,3,"mnl");}}
-}},
-"ww2:FRA":{heads:["THE REPUBLIC","LIGNE MAGINOT","ALLIANCES"],nodes:{
- matig:{c:0,r:0,n:"Matignon Agreements",i:"\u{1F91D}",d:"+10 stability and +40 production.",fx:k=>FX.stat(k,{stab:10,pp:40})},
- natarm:{c:0,r:1,req:["matig"],n:"Nationalise the Arms Industry",i:"\u{1F3ED}",d:"Factories in Paris and Lyon.",fx:k=>FX.build(k,["par","lyo"],"fac")},
- colon:{c:0,r:2,req:["natarm"],n:"Colonial Troops",i:"\u{1F396}",d:"Three divisions at Algiers.",fx:k=>FX.units(k,"inf",3,3,"alg")},
- magi:{c:1,r:0,n:"Extend the Maginot Line",i:"\u{1F3F0}",d:"Two fort levels on every border with Germany.",fx:k=>FX.build(k,FX.border(k,"GER"),"fort",2)},
- arden:{c:1,r:1,req:["magi"],n:"Close the Ardennes",i:"\u{1F332}",d:"Forts on the Belgian and Luxembourg borders too.",
-   fx:k=>FX.build(k,[...FX.border(k,"BEL"),...FX.border(k,"LUX")],"fort",2)},
- charb:{c:1,r:2,req:["magi"],n:"Char B1",i:"\u{1F6E1}",d:"Two armoured divisions.",fx:k=>FX.units(k,"arm",2,4)},
- petite:{c:2,r:0,n:"The Little Entente",i:"\u{1F91D}",d:"Alliances with Czechoslovakia, Romania and Yugoslavia.",
-   fx:k=>{for(const t of["CZE","ROM","SRB"])FX.ally(k,t);}},
- fsov:{c:2,r:1,req:["petite"],n:"Franco-Soviet Treaty",i:"\u{1F58B}",d:"An alliance with the Soviet Union.",ok:OK.ally("SOV"),fx:k=>FX.ally(k,"SOV")},
- entente:{c:2,r:2,req:["petite"],n:"Entente Cordiale",i:"\u{1F91D}",d:"An alliance with Britain.",ok:OK.ally("UK"),fx:k=>FX.ally(k,"UK")}
-}},
-"ww2:CHN":{heads:["NANJING DECADE","UNITED FRONT","NATIONAL ARMY"],nodes:{
- nanj:{c:0,r:0,n:"The Nanjing Decade",i:"\u{1F3ED}",d:"Factories in Shanghai and Wuhan.",fx:k=>FX.build(k,["sha","wuh"],"fac")},
- burma:{c:0,r:1,req:["nanj"],n:"The Burma Road",i:"\u{1F6E3}",d:"+100 steel and +30 oil from the south.",fx:k=>FX.stat(k,{stock:{steel:100},oil:30})},
- chq:{c:0,r:2,req:["burma"],n:"Move to Chongqing",i:"\u{1F3D4}",d:"Two fort levels and a factory in Chongqing.",
-   fx:k=>{FX.build(k,["chq"],"fort",2);FX.build(k,["chq"],"fac");}},
- uf:{c:1,r:0,n:"Second United Front",i:"\u{1F91D}",d:"+15 stability and +150 manpower.",fx:k=>FX.stat(k,{stab:15,mp:150})},
- sino:{c:1,r:1,req:["uf"],n:"Sino-Soviet Treaty",i:"\u{1F58B}",d:"An alliance with the Soviet Union.",ok:OK.ally("SOV"),fx:k=>FX.ally(k,"SOV")},
- tigers:{c:1,r:2,req:["uf"],n:"The Flying Tigers",i:"✈",d:"Two fighter wings.",fx:k=>FX.wings(k,"fig",2,3)},
- germ:{c:2,r:0,n:"German Advisers",i:"\u{1F396}",d:"Three divisions and a Land Doctrine level.",fx:k=>{FX.units(k,"inf",3,3);FX.stat(k,{res:{land:1}});}},
- yellow:{c:2,r:1,req:["germ"],n:"Hold the Yellow River",i:"\u{1F3F0}",d:"Forts at Beijing and Xian.",fx:k=>FX.build(k,["bei","xan"],"fort")}
-}},
-"ww2:POL":{heads:["SANACJA","INTERMARIUM","THE WEST","THE ARMY"],nodes:{
- cop:{c:0,r:0,n:"Central Industrial Region",i:"\u{1F3ED}",d:"Factories in Krakow and Lublin.",fx:k=>FX.build(k,["kra","lub"],"fac")},
- gdy:{c:0,r:1,req:["cop"],n:"The Port of Gdynia",i:"⚓",d:"A fort at Danzig and an escort flotilla.",fx:k=>{FX.build(k,["gda"],"fort");FX.fleet(k,"dd",1,2,"gda");}},
- inter:{c:1,r:0,excl:["west"],n:"Intermarium",i:"\u{1F91D}",d:"Alliances with the Baltic states, Romania and Hungary. Rules out the western guarantees.",
-   fx:k=>{for(const t of["LTU","LVA","EST","ROM","HUN"])FX.ally(k,t);}},
- west:{c:2,r:0,excl:["inter"],n:"Western Guarantees",i:"\u{1F6E1}",d:"Alliances with France and Britain. Rules out Intermarium.",
-   fx:k=>{FX.ally(k,"FRA");FX.ally(k,"UK");}},
- armour:{c:3,r:0,n:"Polish Armour",i:"\u{1F6E1}",d:"Two armoured divisions.",fx:k=>FX.units(k,"arm",2,3)},
- vist:{c:3,r:1,req:["armour"],n:"Defend the Vistula",i:"\u{1F3F0}",d:"A fort and three divisions at Warsaw.",fx:k=>{FX.build(k,["war"],"fort");FX.units(k,"inf",3,3,"war");}},
- eastf:{c:3,r:2,req:["inter","west"],any:true,n:"Fortify Both Frontiers",i:"\u{1F9F1}",d:"Forts on every border with Germany and the Soviet Union.",
-   fx:k=>FX.build(k,[...FX.border(k,"GER"),...FX.border(k,"SOV")],"fort")}
-}},
 /* ------------------------------- 1914 -------------------------------- */
 "ww1:GER":{heads:["WELTPOLITIK","MITTELEUROPA","THE ARMY"],nodes:{
  fleet:{c:0,r:0,n:"The High Seas Fleet",i:"⚓",d:"Two dreadnought squadrons at Hamburg.",fx:k=>FX.fleet(k,"cap",2,4,"ham")},
@@ -5987,6 +5825,899 @@ const NAT_FOCUS={
  rocket:{c:2,r:1,req:["navy"],n:"The Rocket Force",i:"\u{1F680}",d:"An Aviation level and a strategic bomber wing.",fx:k=>{FX.stat(k,{res:{air:1}});FX.wings(k,"stb",1,3);}}
 }}
 };
+/* ---------------------- writing a tree down compactly ----------------------
+   Seventy countries' trees are a lot of nodes, and a description typed beside
+   each effect drifts from what the effect does. So an effect is built ONCE,
+   by a constructor that carries all three things a node needs from it: what
+   it does (fx), what to tell the player (d), and whether the world still
+   offers it (ok). A node is then
+     N(id, col, row, name, icon, [req...], "one line of history", [effects], {excl, any})
+   and its tooltip is that line of history followed by the effects, spelled
+   out from the same objects that apply them. Descriptions are built when the
+   tree is first opened, so they can name provinces and nations as they are. */
+const _nn=t=>(NATIONS[t]&&NATIONS[t].n)||t;
+const _pn=id=>(G&&G.prov&&G.prov[id]&&G.prov[id].name)||id;
+const _and=a=>a.length<2?(a[0]||""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
+const _pl=(n,one,many)=>n===1?"a"+(/^[aeiou]/i.test(one)?"n ":" ")+one:n+" "+many;
+const SHIPN={cap:["capital squadron","capital squadrons"],dd:["escort flotilla","escort flotillas"],
+  sub:["submarine flotilla","submarine flotillas"],cv:["carrier group","carrier groups"]};
+const WINGN={fig:["fighter wing","fighter wings"],cas:["tactical bomber wing","tactical bomber wings"],
+  stb:["strategic bomber wing","strategic bomber wings"],nvb:["naval bomber wing","naval bomber wings"]};
+const RESN={ind:"an Industry level",land:"a Land Doctrine level",nav:"a Naval Engineering level",air:"an Aviation level"};
+const E={
+  st(o){const p=[],sg=v=>(v>0?"+":"")+v;
+    if(o.pp)p.push(sg(o.pp)+" production"); if(o.oil)p.push(sg(o.oil)+" oil");
+    if(o.mp)p.push(sg(o.mp)+" manpower"); if(o.stab)p.push(sg(o.stab)+" stability");
+    if(o.ws)p.push(sg(o.ws)+" war support");
+    if(o.res)for(const r in o.res)p.push(RESN[r]||r);
+    if(o.stock)for(const r in o.stock)p.push(sg(o.stock[r])+" "+((RESOURCES[r]||{n:r}).n.toLowerCase()));
+    return {d:_and(p),fx:k=>FX.stat(k,o)};},
+  inf(n,pid,str){return {d:_pl(n,"infantry division","infantry divisions")+(pid?" at "+_pn(pid):""),fx:k=>FX.units(k,"inf",n,str||3,pid)};},
+  arm(n,pid,str){return {d:_pl(n,"armoured division","armoured divisions")+(pid?" at "+_pn(pid):""),fx:k=>FX.units(k,"arm",n,str||4,pid)};},
+  fac(pids,lv){return {d:(lv>1?lv+" factory levels":"a factory")+" in "+_and(pids.map(_pn)),fx:k=>FX.build(k,pids,"fac",lv||1)};},
+  fort(pids,lv){return {d:(lv>1?lv+" fort levels":"a fort")+" in "+_and(pids.map(_pn)),fx:k=>FX.build(k,pids,"fort",lv||1)};},
+  depot(pids){return {d:"a supply depot in "+_and(pids.map(_pn)),fx:k=>FX.build(k,pids,"depot")};},
+  fortB(nats,lv){return {d:(lv>1?lv+" fort levels":"forts")+" all along the border with "+_and(nats.map(_nn)),
+    fx:k=>FX.build(k,[].concat(...nats.map(t=>FX.border(k,t))),"fort",lv||1)};},
+  fleet(cls,n,pid,str){return {d:_pl(n,SHIPN[cls][0],SHIPN[cls][1])+(pid?" at "+_pn(pid):""),fx:k=>FX.fleet(k,cls,n,str||(cls==="cap"?4:cls==="cv"?3:2),pid)};},
+  wing(wt,n,str){return {d:_pl(n,WINGN[wt][0],WINGN[wt][1]),fx:k=>FX.wings(k,wt,n,str||3)};},
+  ally(...ts){return {d:"an alliance with "+_and(ts.map(_nn)),
+    ok:ts.length===1?OK.ally(ts[0]):(k=>ts.some(t=>FX.alive(t)&&!atWar(k,t))?"":`None of ${_and(ts.map(_nn))} can be allied now.`),
+    fx:k=>{for(const t of ts)FX.ally(k,t);}};},
+  war(t){return {d:"war with "+_nn(t),ok:OK.war(t),fx:k=>FX.war(k,t)};},
+  pact(t){return {d:"a non-aggression pact with "+_nn(t),ok:OK.ally(t),fx:k=>FX.pact(k,t)};},
+  annex(t){return {d:_nn(t)+" is absorbed, with its provinces, army and treasury",ok:OK.war(t),fx:k=>FX.annex(k,t)};},
+  give(pids,from){return {d:_and(pids.map(_pn))+" handed over without a shot",ok:OK.claim(pids[0]),fx:k=>FX.give(k,pids)};},
+  free(){return {d:"independence from our overlord",ok:k=>G.nations[k].puppet?"":"We answer to no one already.",
+    fx:k=>{const n=G.nations[k],o=n.puppet;if(!o)return;n.puppet=null;n.allies.delete(o);if(G.nations[o])G.nations[o].allies.delete(k);
+      terDirty=true;logMsg(`${FL(k)} ${NATIONS[k].n} is independent of ${FL(o)} ${NATIONS[o].n}.`,"good");}};},
+  atom(){return {d:"a nuclear programme: warheads without Industry III",fx:k=>{G.nations[k].atomicOk=true;}};}
+};
+function N(id,c,r,n,i,req,hist,eff,o){
+  o=o||{};
+  return {id,c,r,n,i,req,excl:o.excl,any:o.any,
+    d:(hist?hist+" ":"")+(eff.length?_and(eff.map(e=>e.d).filter(Boolean)).replace(/^./,m=>m.toUpperCase())+".":""),
+    ok:k=>{for(const e of eff)if(e.ok){const w=e.ok(k);if(w)return w;}return "";},
+    fx:k=>{for(const e of eff)e.fx(k);}};
+}
+/* ============================ THE TREES OF 1936 ============================
+   Every country alive in any WWII start (1936, 1939, 1941, 1943, 1945) has its
+   own tree here, written from what that country actually did, debated or was
+   offered between 1936 and 1945. Choices that history forced on a government
+   are either/or (`excl`). These are written from the history, not copied from
+   any other game: where a focus carries a name, it is the name of the real
+   policy, treaty, battle or programme. */
+const NF=(k,heads,f)=>{NAT_FOCUS["ww2:"+k]=()=>({heads,nodes:f()});};
+(function(){
+const {st,inf,arm,fac,fort,depot,fortB,fleet,wing,ally,war,pact,annex,give,free,atom}=E;
+/* ------------------------------- GERMANY -------------------------------- */
+NF("GER",["THE ECONOMY","ROAD TO WAR","DIPLOMACY","WEHRMACHT","AIR & NAVY"],()=>[
+ N("four",0,0,"Four Year Plan","\u{1F3ED}",[],"Goering's plan of October 1936 to make the Reich ready for war in four years.",[fac(["ber","ham"]),st({pp:60})]),
+ N("reichsw",0,1,"Reichswerke Hermann Goering","⚒",["four"],"State steelworks on low-grade German ore.",[st({stock:{steel:120}}),fac(["rhi"])]),
+ N("synth",0,2,"Synthetic Fuel and Buna","\u{1F6E2}",["reichsw"],"Coal into petrol at Leuna, and synthetic rubber.",[st({oil:80,stock:{rubber:60}})]),
+ N("autob",0,3,"The Reichsautobahn","\u{1F6E3}",["four"],"Motorways built as much for the army as for the motorist.",[depot(["ber"]),st({res:{ind:1}})]),
+ N("totwar",0,4,"Total War Economy","⚙",["synth","autob"],"Speer's ministry and the economy put entirely on a war footing.",[st({pp:150,mp:150,ws:10})]),
+ N("rhine",1,0,"Remilitarise the Rhineland","\u{1F3F0}",[],"March 1936: troops back across the Rhine in defiance of Locarno.",[fort(["rhi","fra"]),st({ws:10})]),
+ N("anschl",1,1,"Anschluss","\u{1F985}",["rhine"],"March 1938: Austria joins the Reich.",[annex("AUT")]),
+ N("sudet",1,2,"The Munich Agreement","\u{1F4DC}",["anschl"],"September 1938: Britain and France agree to the cession of the Sudetenland.",[give(["pra"])]),
+ N("prague",1,3,"Occupation of Prague","\u{1F985}",["sudet"],"March 1939: what was left of Czechoslovakia is taken.",[annex("CZE")]),
+ N("danzig",1,4,"Danzig or War","⚔",["prague","mrp"],"1 September 1939.",[st({ws:15}),war("POL")]),
+ N("gelb",1,5,"Fall Gelb","⚔",["danzig"],"May 1940: through the Low Countries and the Ardennes.",[war("BEL"),war("HOL"),war("LUX")]),
+ N("acp",2,0,"Anti-Comintern Pact","\u{1F91D}",[],"November 1936, with Japan.",[ally("JAP")]),
+ N("steel",2,1,"Pact of Steel","\u{1F517}",["acp"],"May 1939, with Mussolini's Italy.",[ally("ITA")]),
+ N("mrp",2,2,"Molotov-Ribbentrop Pact","\u{1F58B}",["sudet"],"August 1939: a pact with Stalin, and Poland divided in a secret protocol.",[pact("SOV")]),
+ N("tri",2,3,"The Tripartite Pact","\u{1F310}",["steel"],"Hungary, Romania and Bulgaria sign on in 1940-41.",[ally("HUN","ROM","BUL")]),
+ N("weser",2,4,"Operation Weseruebung","⚓",["danzig"],"April 1940: Denmark and Norway, for the iron ore road.",[war("DEN"),war("NOR")]),
+ N("barb",2,5,"Operation Barbarossa","⚔",["mrp","gelb"],"22 June 1941.",[st({ws:15}),war("SOV")]),
+ N("panzer",3,0,"The Panzerwaffe","\u{1F6E1}",[],"Guderian's armoured divisions.",[arm(2),st({res:{land:1}})]),
+ N("motor",3,1,"Motorised Infantry","\u{1F69A}",["panzer"],"Infantry that can keep up with the tanks.",[arm(1,null,3),inf(2)]),
+ N("westw",3,2,"The Westwall","\u{1F9F1}",["rhine","panzer"],"The Siegfried Line, facing France.",[fortB(["FRA","BEL","HOL","LUX"])]),
+ N("conscr",3,3,"Universal Conscription","\u{1F465}",["motor"],"The Wehrmacht expands from 21 divisions towards a hundred.",[st({mp:200}),inf(4)]),
+ N("tiger",3,4,"Heavy Panzers","\u{1F6E1}",["conscr"],"Tigers and Panthers.",[arm(2,null,5)]),
+ N("luft",4,0,"The Luftwaffe","✈",[],"Unveiled openly in 1935.",[wing("fig",2),wing("cas",1)]),
+ N("stuka",4,1,"The Stuka","✈",["luft"],"Dive bombers as flying artillery.",[wing("cas",2),st({res:{air:1}})]),
+ N("planz",4,2,"Plan Z","⚓",["luft"],"A fleet to challenge Britain, planned for 1944.",[fleet("cap",1,"ham"),fleet("sub",2,"ham")]),
+ N("uboat",4,3,"The U-Boat Arm","▾",["planz"],"Doenitz's wolf packs.",[fleet("sub",3,"ham")]),
+ N("bism",4,4,"Bismarck and Tirpitz","■",["planz"],"The two great battleships.",[fleet("cap",1,"ham",5)])
+]);
+/* -------------------------------- ITALY --------------------------------- */
+NF("ITA",["THE IMPERO","MARE NOSTRUM","THE AXIS","STRESA FRONT","THE ARMY"],()=>[
+ N("eth",0,0,"The Ethiopian War","⚔",[],"October 1935 to May 1936.",[war("ETH")]),
+ N("impero",0,1,"Proclaim the Impero","\u{1F451}",["eth"],"May 1936: Victor Emmanuel III is proclaimed Emperor of Ethiopia.",[st({stab:10,ws:10,pp:60})]),
+ N("aoi",0,2,"Italian East Africa","\u{1F3DC}",["impero"],"Garrison the new empire.",[fort(["add"]),inf(2,"add")]),
+ N("libya",0,3,"Fortify Libya","\u{1F3F0}",["impero"],"Balbo's Libya, facing British Egypt.",[fort(["trp","ben","tob"]),inf(2,"trp")]),
+ N("alb",0,4,"Occupy Albania","\u{1F3EF}",["impero"],"April 1939.",[annex("ALB")]),
+ N("mare",1,0,"Mare Nostrum","⚓",[],"The Mediterranean as an Italian lake.",[fleet("cap",2,"nap")]),
+ N("taranto",1,1,"Taranto","\u{1F6A2}",["mare"],"The fleet's great base.",[fort(["bari"]),st({res:{nav:1}})]),
+ N("littorio",1,2,"The Littorio Class","■",["taranto"],"Three of the fastest battleships afloat.",[fleet("cap",1,"nap",5)]),
+ N("subs",1,3,"The Submarine Arm","▾",["taranto"],"The second-largest submarine fleet in the world.",[fleet("sub",3,"nap")]),
+ N("decima",1,4,"Decima MAS","\u{1F30A}",["subs"],"Frogmen and human torpedoes.",[st({res:{nav:1}}),fleet("dd",2,"nap")]),
+ N("axis",2,0,"Rome-Berlin Axis","\u{1F517}",[],"November 1936: the axis around which Europe would turn.",[ally("GER")],{excl:["stresa"]}),
+ N("acp",2,1,"Anti-Comintern Pact","\u{1F91D}",["axis"],"Italy joins in November 1937.",[ally("JAP")]),
+ N("greece",2,2,"The Greco-Italian War","⚔",["axis"],"October 1940, out of Albania.",[war("GRC")]),
+ N("yugo",2,3,"The Invasion of Yugoslavia","⚔",["greece"],"April 1941.",[war("SRB")]),
+ N("egypt",2,4,"The Invasion of Egypt","⚔",["axis","libya"],"September 1940: Graziani crosses into Egypt.",[war("UK")]),
+ N("stresa",3,0,"The Stresa Front","\u{1F91D}",[],"April 1935: Italy, Britain and France against German revision.",[ally("UK","FRA")],{excl:["axis"]}),
+ N("danub",3,1,"The Rome Protocols","\u{1F58B}",["stresa"],"Italy as protector of Austria and Hungary.",[ally("AUT","HUN")]),
+ N("brenner",3,2,"Watch on the Brenner","\u{1F3F0}",["danub"],"In 1934 Mussolini sent divisions to the pass.",[fortB(["GER","AUT"],2)]),
+ N("balkan",3,3,"Balkan Settlement","\u{1F91D}",["danub"],"The 1937 Belgrade agreement with Yugoslavia.",[pact("SRB"),st({stab:5})]),
+ N("binary",4,0,"Binary Divisions","\u{1F396}",[],"Pariani's reform: smaller, more numerous divisions.",[inf(3),st({res:{land:1}})]),
+ N("ariete",4,1,"The Ariete Division","\u{1F6E1}",["binary"],"Italy's armour.",[arm(2,null,3)]),
+ N("alpini",4,2,"The Alpini","⛰",["binary"],"Mountain troops of the northern frontier.",[inf(2,"mil"),fort(["mil"])]),
+ N("regia",4,3,"Regia Aeronautica","✈",[],"Balbo's air force.",[wing("fig",2),wing("cas",1)]),
+ N("ansaldo",4,4,"Ansaldo and Fiat","\u{1F3ED}",["regia"],"The arms works of the north.",[fac(["mil","trn"])])
+]);
+/* -------------------------------- JAPAN --------------------------------- */
+NF("JAP",["INDUSTRY","CHINA","NORTH OR SOUTH","THE NAVY","DIPLOMACY"],()=>[
+ N("zai",0,0,"The Zaibatsu","\u{1F3ED}",[],"Mitsubishi, Mitsui and Sumitomo put to work for the state.",[fac(["tok","osa"]),st({pp:40})]),
+ N("manch",0,1,"Develop Manchukuo","⛏",["zai"],"The Manchurian Five-Year Plan of 1937.",[st({stock:{steel:120},oil:20})]),
+ N("korea",0,2,"Industrialise Korea","\u{1F3ED}",["zai"],"Factories in the north of the peninsula.",[fac(["seo","pyo"])]),
+ N("natmob",0,3,"National Mobilisation Law","\u{1F465}",["manch","korea"],"1938: the whole economy at the state's disposal.",[st({mp:150,pp:80,ws:10})]),
+ N("mpb",1,0,"The Marco Polo Bridge","⚔",[],"7 July 1937.",[st({ws:15}),war("CHN")]),
+ N("kwant",1,1,"The Kwantung Army","\u{1F396}",["mpb"],"Japan's army in Manchuria.",[inf(4),arm(1,null,3)]),
+ N("shang",1,2,"The Shanghai Expeditionary Army","⚓",["mpb"],"August 1937.",[inf(3,"tok")]),
+ N("nanking",1,3,"The Wang Jingwei Regime","\u{1F4DC}",["shang"],"A collaborating Chinese government in Nanking, 1940.",[st({stab:5,pp:60})]),
+ N("north",2,1,"Strike North","⬆",["mpb"],"The army's plan: Siberia. Khalkhin Gol in 1939 was its test.",[st({ws:10}),war("SOV")],{excl:["south","neutral"]}),
+ N("south",2,2,"Strike South","⬇",["mpb"],"The navy's plan: the oil of the Indies.",[st({ws:10,oil:40}),war("HOL")],{excl:["north"]}),
+ N("indoch",2,3,"Occupy Indochina","\u{1F3EF}",["south"],"July 1941, which brought the American oil embargo.",[war("FRA")]),
+ N("pearl",2,4,"Pearl Harbor","⚔",["south"],"7 December 1941.",[st({ws:15}),war("USA"),war("UK")]),
+ N("sphere",2,5,"Co-Prosperity Sphere","\u{1F310}",["north","south"],"An empire in Asia under the name of Asian solidarity.",[st({stab:10,pp:80,stock:{rubber:80}})],{any:true}),
+ N("kido",3,0,"Kido Butai","◆",[],"The carrier striking force.",[fleet("cv",2,"tok")]),
+ N("yamato",3,1,"The Yamato Class","■",["kido"],"The largest battleships ever built.",[fleet("cap",1,"hir",5)]),
+ N("navair",3,2,"Naval Aviation","✈",["kido"],"Torpedo bombers that sank the Prince of Wales.",[wing("nvb",2),st({res:{air:1}})]),
+ N("zero",3,3,"The Zero","✈",["navair"],"The A6M fighter.",[wing("fig",3)]),
+ N("lance",3,4,"The Long Lance","\u{1F680}",["yamato"],"The Type 93 torpedo.",[st({res:{nav:1}}),fleet("dd",2,"tok")]),
+ N("acp",4,0,"Anti-Comintern Pact","\u{1F91D}",[],"November 1936, with Germany.",[ally("GER")]),
+ N("tri",4,1,"The Tripartite Pact","\u{1F517}",["acp"],"September 1940.",[ally("GER","ITA")]),
+ N("neutral",4,2,"Soviet-Japanese Neutrality Pact","\u{1F58B}",["tri"],"April 1941: the north made quiet.",[pact("SOV")],{excl:["north"]}),
+ N("thai",4,3,"Alliance with Thailand","\u{1F91D}",["south"],"December 1941.",[ally("SEA")])
+]);
+/* ---------------------------- SOVIET UNION ------------------------------ */
+NF("SOV",["FIVE-YEAR PLANS","THE PURGE","THE OFFICERS","DIPLOMACY","RED ARMY"],()=>[
+ N("fyp2",0,0,"Second Five-Year Plan","\u{1F3ED}",[],"1933-37: heavy industry above all.",[fac(["mos","len"])]),
+ N("urals",0,1,"Industry Beyond the Urals","⛰",["fyp2"],"Magnitogorsk and the new cities of the east.",[fac(["ura","nov"]),st({res:{ind:1}})]),
+ N("stakh",0,2,"The Stakhanovite Movement","⚒",["urals"],"Norms broken and broken again.",[st({pp:120,stock:{steel:100}})]),
+ N("fyp3",0,3,"Third Five-Year Plan","\u{1F3ED}",["stakh"],"1938: armaments first.",[fac(["sta","kie"])]),
+ N("evac",0,4,"Evacuate the Factories","\u{1F682}",["fyp3"],"1941: 1,500 plants moved east by rail.",[fac(["oms","tas"]),depot(["ura"])]),
+ N("purge",1,0,"The Great Purge","\u{1F5E1}",[],"1937-38. Most of the high command is shot.",[st({stab:20,ws:-10})],{excl:["officers"]}),
+ N("nkvd",1,1,"NKVD Troops","\u{1F512}",["purge"],"Internal troops of the commissariat.",[inf(3),st({stab:5})]),
+ N("cult",1,2,"The Short Course","\u{1F4D5}",["nkvd"],"1938: the official history of the Party.",[st({stab:10,ws:10})]),
+ N("officers",2,0,"Rehabilitate the Officers","\u{1F396}",[],"The road not taken: Tukhachevsky keeps his post.",[st({res:{land:1}})],{excl:["purge"]}),
+ N("zhukov",2,1,"Zhukov's Reforms","\u{1F6E1}",["officers"],"The lessons of Khalkhin Gol, applied.",[arm(2),st({res:{land:1}})]),
+ N("china",2,2,"Sino-Soviet Treaty","\u{1F91D}",["purge","officers"],"August 1937: aid to Chiang against Japan.",[ally("CHN")],{any:true}),
+ N("mrp",3,0,"Molotov-Ribbentrop Pact","\u{1F58B}",["purge","officers"],"August 1939.",[pact("GER")],{any:true}),
+ N("finland",3,1,"The Winter War","❄",["mrp"],"30 November 1939.",[war("FIN")]),
+ N("baltic",3,2,"The Baltic Bases","\u{1F4DC}",["mrp"],"1940: the three Baltic states incorporated.",[annex("EST"),annex("LVA"),annex("LTU")]),
+ N("bess",3,3,"The Bessarabian Ultimatum","\u{1F4DC}",["mrp"],"June 1940, to Romania.",[give(["kish"])]),
+ N("grand",3,4,"The Grand Alliance","\u{1F91D}",["mrp"],"After June 1941: Britain and America.",[ally("UK","USA")]),
+ N("deep",4,0,"Deep Battle","\u{1F6E1}",[],"Triandafillov's and Tukhachevsky's doctrine.",[arm(2),st({res:{land:1}})]),
+ N("t34",4,1,"The T-34","\u{1F6E1}",["deep"],"The tank of the war.",[arm(2,null,5)]),
+ N("vvs",4,2,"The Red Air Force","✈",["deep"],"Sturmoviks and Yaks.",[wing("fig",2),wing("cas",2)]),
+ N("fareast",4,3,"The Far Eastern Front","\u{1F3D4}",["vvs"],"Blucher's and then Zhukov's army facing Japan.",[inf(3,"vla"),fort(["vla"])]),
+ N("stavka",4,4,"Stavka","⭐",["t34","fareast"],"The supreme command, and the reserves it husbanded.",[st({mp:250,ws:10}),inf(4)])
+]);
+/* ---------------------------- BRITISH EMPIRE ---------------------------- */
+NF("UK",["THE EMPIRE","REARMAMENT","APPEASEMENT","STAND FIRM","ROYAL NAVY"],()=>[
+ N("conf",0,0,"Imperial Conference","\u{1F451}",[],"1937: the dominions meet at the Coronation.",[ally("CAN","AUS","SAF"),st({stab:5})]),
+ N("inda",0,1,"The Indian Army","\u{1F396}",["conf"],"The largest volunteer army in history.",[{d:"three divisions raised in the Raj",fx:k=>{if(FX.alive("IND")&&(allied(k,"IND")||G.nations.IND.puppet===k))FX.units("IND","inf",3,3);else FX.units(k,"inf",3,3);}}]),
+ N("sing",0,2,"Fortress Singapore","\u{1F3F0}",["conf"],"The bastion of the East.",[fort(["sin"],2),fleet("cap",1,"sin")]),
+ N("suez",0,3,"Defend Suez","⚓",["conf"],"The artery of the Empire.",[fort(["sue"]),inf(2,"sue")]),
+ N("egypt",0,4,"The Anglo-Egyptian Treaty","\u{1F4DC}",["suez"],"August 1936.",[ally("EGY")]),
+ N("shadow",1,0,"Shadow Factories","\u{1F3ED}",[],"Car plants built to switch to aircraft.",[fac(["bir","man2"])]),
+ N("radar",1,1,"Chain Home","\u{1F4E1}",["shadow"],"Radar round the coast by 1939.",[st({res:{air:1}}),wing("fig",2)]),
+ N("spit",1,2,"Spitfires and Hurricanes","✈",["radar"],"Fighter Command.",[wing("fig",2,3)]),
+ N("bomber",1,3,"Bomber Command","\u{1F4A3}",["shadow"],"The Lancaster force.",[wing("stb",2)]),
+ N("hg",1,4,"The Home Guard","\u{1F465}",["radar"],"1940.",[st({mp:80}),fort(["lon"])]),
+ N("appease",2,0,"Peace for Our Time","\u{1F58B}",[],"Chamberlain's road to Munich.",[st({stab:15}),pact("GER")],{excl:["firm"]}),
+ N("talk",2,1,"Rearm While We Talk","\u{1F4B7}",["appease"],"Buying time was the other half of appeasement.",[st({pp:100})]),
+ N("firm",3,0,"Stand Firm","⚔",[],"Churchill's case from the back benches.",[st({ws:15}),ally("FRA")],{excl:["appease"]}),
+ N("guar",3,1,"Guarantee Poland","\u{1F6E1}",["firm","talk"],"31 March 1939.",[ally("POL")],{any:true}),
+ N("guargr",3,2,"Guarantee Greece and Romania","\u{1F6E1}",["guar"],"April 1939.",[ally("GRC","ROM")]),
+ N("turkey",3,3,"The Anglo-Turkish Treaty","\u{1F91D}",["guar"],"October 1939, with France.",[ally("TUR")]),
+ N("rn",4,0,"The Royal Navy","⚓",["appease","firm"],"Still the largest fleet in the world.",[fleet("cap",2),fleet("dd",2)],{any:true}),
+ N("carriers",4,1,"The Illustrious Class","◆",["rn"],"Armoured flight decks.",[fleet("cv",2)]),
+ N("convoy",4,2,"Western Approaches","\u{1F6A2}",["rn"],"The Battle of the Atlantic.",[fleet("dd",3)]),
+ N("faa",4,3,"The Fleet Air Arm","✈",["carriers"],"Swordfish over Taranto.",[wing("nvb",2)])
+]);
+/* ---------------------------- UNITED STATES ----------------------------- */
+NF("USA",["NEW DEAL","ARSENAL","NEUTRALITY","INTERVENTION","THE NAVY"],()=>[
+ N("nd",0,0,"The New Deal","\u{1F3ED}",[],"Roosevelt's second term.",[fac(["nyc","chi"]),st({stab:10})]),
+ N("tva",0,1,"Tennessee Valley Authority","⚡",["nd"],"Dams and power for the South.",[fac(["atl"]),st({res:{ind:1}})]),
+ N("wpa",0,2,"Works Progress Administration","\u{1F6E0}",["nd"],"Roads, bridges, airfields.",[st({pp:80,stab:5}),depot(["chi"])]),
+ N("draft",0,3,"Selective Service","\u{1F465}",["wpa"],"September 1940, the first peacetime draft.",[st({mp:200}),inf(4)]),
+ N("cash",1,0,"Cash and Carry","\u{1F4B5}",[],"1939: the democracies may buy, if they carry it home.",[st({pp:80,stock:{steel:100}})]),
+ N("arsenal",1,1,"Arsenal of Democracy","⚙",["cash"],"December 1940.",[st({res:{ind:1},pp:120})]),
+ N("liberty",1,2,"Liberty Ships","\u{1F6A2}",["arsenal"],"A ship a day.",[fleet("dd",3)]),
+ N("b17",1,3,"The Flying Fortress","✈",["arsenal"],"Daylight precision bombing.",[wing("stb",2)]),
+ N("manh",1,4,"The Manhattan Project","☢",["arsenal"],"1942.",[atom()]),
+ N("neutral",2,0,"The Neutrality Acts","\u{1F54A}",[],"1935-37: no arms to belligerents.",[st({stab:15})],{excl:["interv"]}),
+ N("hemis",2,1,"Hemisphere Defence","\u{1F30E}",["neutral"],"The Declaration of Panama, 1939.",[ally("MEX","BRA","CAN")]),
+ N("goodn",2,2,"The Good Neighbor Policy","\u{1F91D}",["hemis"],"No more Marines in Latin America.",[ally("CUB","PAN","COL"),st({stab:5})]),
+ N("interv",3,0,"Interventionism","⚔",["cash"],"The case for joining the war before it reaches America.",[st({ws:15}),ally("UK")],{excl:["neutral"]}),
+ N("lendl",3,1,"Lend-Lease","\u{1F4E6}",["interv"],"March 1941.",[st({pp:60,ws:5}),ally("CHN")]),
+ N("charter",3,2,"The Atlantic Charter","\u{1F4DC}",["lendl"],"August 1941.",[ally("FRA","SOV")]),
+ N("japwar",3,3,"Day of Infamy","⚔",["charter"],"8 December 1941.",[st({ws:20}),war("JAP")]),
+ N("vinson",4,0,"The Vinson Act","⚓",[],"1938: a navy twenty per cent larger.",[fleet("cap",2,"sfo")]),
+ N("twoo",4,1,"Two-Ocean Navy Act","◆",["vinson"],"July 1940.",[fleet("cv",2,"sfo")]),
+ N("essex",4,2,"The Essex Class","◆",["twoo"],"Twenty-four fleet carriers.",[fleet("cv",2,"nyc"),wing("nvb",1)]),
+ N("phil",4,3,"Fortify the Philippines","\u{1F3F0}",["vinson"],"MacArthur's Philippine army.",[fort(["mnl"]),inf(2,"mnl")]),
+ N("marines",4,4,"The Fleet Marine Force","\u{1F396}",["phil"],"Amphibious warfare.",[inf(2,"sfo",4)])
+]);
+/* -------------------------------- FRANCE -------------------------------- */
+NF("FRA",["THE REPUBLIC","LIGNE MAGINOT","ALLIANCES","THE EMPIRE"],()=>[
+ N("matig",0,0,"The Matignon Agreements","\u{1F91D}",[],"June 1936: the Popular Front's settlement with labour.",[st({stab:10,pp:40})]),
+ N("natarm",0,1,"Nationalise the Arms Industry","\u{1F3ED}",["matig"],"August 1936.",[fac(["par","lyo"])]),
+ N("rearm",0,2,"The 1936 Rearmament Plan","⚙",["natarm"],"Fourteen billion francs over four years.",[st({pp:80}),inf(2)]),
+ N("reyn",0,3,"Reynaud's War Cabinet","⚔",["rearm"],"March 1940.",[st({ws:15,mp:80})]),
+ N("magi",1,0,"Extend the Maginot Line","\u{1F3F0}",[],"Concrete along the German frontier.",[fortB(["GER"],2)]),
+ N("arden",1,1,"Close the Ardennes","\u{1F332}",["magi"],"The gap history found.",[fortB(["BEL","LUX"],2)]),
+ N("charb",1,2,"The Char B1","\u{1F6E1}",["magi"],"The heaviest tank in Europe in 1940.",[arm(2)]),
+ N("dlm",1,3,"Light Mechanised Divisions","\u{1F69A}",["charb"],"The cavalry, motorised.",[arm(2,null,3)]),
+ N("deg",1,4,"De Gaulle's Armoured Corps","\u{1F6E1}",["dlm"],"The professional armoured army he argued for in 1934.",[arm(2,null,5),st({res:{land:1}})]),
+ N("petite",2,0,"The Little Entente","\u{1F91D}",[],"Czechoslovakia, Romania and Yugoslavia.",[ally("CZE","ROM","SRB")]),
+ N("fsov",2,1,"Franco-Soviet Treaty","\u{1F58B}",["petite"],"Ratified February 1936.",[ally("SOV")]),
+ N("entente",2,2,"Entente Cordiale","\u{1F91D}",["petite"],"Britain.",[ally("UK")]),
+ N("poland",2,3,"Franco-Polish Alliance","\u{1F91D}",["entente"],"1921, renewed 1939.",[ally("POL")]),
+ N("colon",3,0,"Colonial Troops","\u{1F396}",[],"The Armee d'Afrique.",[inf(3,"alg")]),
+ N("dakar",3,1,"Dakar","⚓",["colon"],"Base of the South Atlantic.",[fort(["dak"]),fleet("dd",1,"dak")]),
+ N("indo",3,2,"Defend Indochina","\u{1F3EF}",["colon"],"The colony Japan wanted.",[fort(["han"]),inf(2,"han")]),
+ N("levant",3,3,"Army of the Levant","\u{1F3DC}",["colon"],"Syria and Lebanon.",[inf(2,"dam")]),
+ N("marine",3,4,"The Marine Nationale","⚓",[],"The fourth-largest fleet in the world.",[fleet("cap",2,"mar")]),
+ N("rich",3,5,"The Richelieu","■",["marine"],"The fastest battleship in Europe.",[fleet("cap",1,"mar",5)])
+]);
+/* -------------------------------- CHINA --------------------------------- */
+NF("CHN",["NANJING DECADE","UNITED FRONT","NATIONAL ARMY","THE WARLORDS"],()=>[
+ N("nanj",0,0,"The Nanjing Decade","\u{1F3ED}",[],"Railways, banks and factories under the Nationalists.",[fac(["sha","wuh"])]),
+ N("fabi",0,1,"The Fabi Currency Reform","\u{1F4B5}",["nanj"],"November 1935.",[st({pp:80,stab:5})]),
+ N("burma",0,2,"The Burma Road","\u{1F6E3}",["fabi"],"The back door from British Burma, 1938.",[st({stock:{steel:100},oil:30})]),
+ N("chq",0,3,"Move to Chongqing","\u{1F3D4}",["burma"],"The wartime capital behind the gorges.",[fort(["chq"],2),fac(["chq"])]),
+ N("uf",1,0,"The Second United Front","\u{1F91D}",[],"The Xi'an Incident, December 1936: Nationalists and Communists against Japan.",[st({stab:15,mp:150})]),
+ N("sino",1,1,"Sino-Soviet Treaty","\u{1F58B}",["uf"],"August 1937.",[ally("SOV")]),
+ N("tigers",1,2,"The Flying Tigers","✈",["uf"],"Chennault's American volunteers.",[wing("fig",2)]),
+ N("usa",1,3,"American Aid","\u{1F4E6}",["tigers"],"Lend-Lease over the Hump.",[ally("USA"),st({pp:60})]),
+ N("germ",2,0,"German Advisers","\u{1F396}",[],"Von Seeckt's and von Falkenhausen's mission.",[inf(3),st({res:{land:1}})]),
+ N("shang",2,1,"Defend Shanghai","\u{1F3F0}",["germ"],"The German-trained divisions, 1937.",[fort(["sha"]),inf(3,"sha")]),
+ N("yellow",2,2,"Hold the Yellow River","\u{1F3F0}",["germ"],"North China.",[fort(["bei","xan"])]),
+ N("taier",2,3,"Taierzhuang","⚔",["shang"],"April 1938, the first great victory.",[st({ws:15,mp:100})]),
+ N("guangxi",3,0,"The Guangxi Clique","\u{1F91D}",[],"Li Zongren and Bai Chongxi bring their armies.",[inf(3,"can")]),
+ N("yunnan",3,1,"The Yunnan Clique","\u{1F91D}",["guangxi"],"Long Yun's province.",[inf(2,"kun")]),
+ N("ma",3,2,"The Ma Clique","\u{1F40E}",["guangxi"],"The Muslim cavalry of the north-west.",[inf(2,"xan")]),
+ N("xinj",3,3,"Bring Back Xinjiang","\u{1F3DC}",["ma"],"Sheng Shicai turns from Moscow to Chongqing, 1942.",[st({stab:10}),depot(["xin"])])
+]);
+})();
+(function(){
+const {st,inf,arm,fac,fort,depot,fortB,fleet,wing,ally,war,pact,annex,give,free,atom}=E;
+/* -------------------------------- POLAND -------------------------------- */
+NF("POL",["SANACJA","INTERMARIUM","THE WEST","THE ARMY"],()=>[
+ N("cop",0,0,"Central Industrial Region","\u{1F3ED}",[],"Kwiatkowski's COP, begun 1936 in the safe heart of the country.",[fac(["kra","lub"])]),
+ N("sixy",0,1,"The Six-Year Plan","⚙",["cop"],"1936-42: armaments ahead of everything.",[st({pp:80}),fac(["war"])]),
+ N("gdy",0,2,"The Port of Gdynia","⚓",["cop"],"Poland's own harbour, built from a fishing village.",[fort(["gda"]),fleet("dd",1,"gda")]),
+ N("orp",0,3,"Orzel and the Submarines","▾",["gdy"],"The navy that escaped in 1939.",[fleet("sub",1,"gda")]),
+ N("inter",1,0,"Intermarium","\u{1F91D}",[],"Pilsudski's dream of a bloc from the Baltic to the Black Sea.",[ally("LTU","LVA","EST","ROM","HUN")],{excl:["west"]}),
+ N("third",1,1,"Beck's Third Europe","\u{1F58B}",["inter"],"Neither Berlin nor Moscow.",[st({stab:10}),pact("GER")]),
+ N("west",2,0,"Western Guarantees","\u{1F6E1}",[],"France's alliance and, in 1939, Britain's guarantee.",[ally("FRA","UK")],{excl:["inter"]}),
+ N("loan",2,1,"The Rambouillet Loan","\u{1F4B5}",["west"],"1936: French money for Polish guns.",[st({pp:100})]),
+ N("armour",3,0,"The 7TP Tanks","\u{1F6E1}",[],"Poland's own light tank.",[arm(2,null,3)]),
+ N("cav",3,1,"Motorised Cavalry","\u{1F40E}",["armour"],"The 10th Cavalry Brigade, Maczek's 'black brigade'.",[arm(1,null,3),st({res:{land:1}})]),
+ N("vist",3,2,"Defend the Vistula","\u{1F3F0}",["armour"],"Warsaw's line.",[fort(["war"]),inf(3,"war")]),
+ N("both",3,3,"Fortify Both Frontiers","\u{1F9F1}",["inter","west"],"Poland stood between two powers.",[fortB(["GER","SOV"])],{any:true})
+]);
+/* -------------------------------- AUSTRIA ------------------------------- */
+NF("AUT",["THE STANDESTAAT","FOREIGN POLICY","DEFENCE"],()=>[
+ N("stand",0,0,"The Fatherland Front","\u{1F3DB}",[],"Schuschnigg's one-party corporate state.",[st({stab:15})]),
+ N("monte",0,1,"Alpine Montan","\u{1F3ED}",["stand"],"The steelworks of Styria.",[fac(["vie"]),st({stock:{steel:100}})]),
+ N("habs",0,2,"A Habsburg Restoration","\u{1F451}",["stand"],"Otto von Habsburg, the monarchists' answer to Anschluss.",[st({stab:10,ws:10})]),
+ N("rome",1,0,"The Rome Protocols","\u{1F58B}",[],"Mussolini as Austria's protector.",[ally("ITA","HUN")]),
+ N("plebis",1,1,"Call the Plebiscite","\u{1F5F3}",["rome"],"Schuschnigg's vote of 13 March 1938, which was never held.",[st({ws:15,stab:5})]),
+ N("bund",2,0,"Expand the Bundesheer","\u{1F396}",[],"Conscription reintroduced in 1936.",[inf(3),st({mp:50})]),
+ N("border",2,1,"Fortify the German Border","\u{1F3F0}",["bund"],"Defend the Salzach and the Inn.",[fortB(["GER"],2)])
+]);
+/* ---------------------------- CZECHOSLOVAKIA ---------------------------- */
+NF("CZE",["DEFENCE","ALLIANCES","INDUSTRY","MUNICH"],()=>[
+ N("ropik",0,0,"The Border Fortifications","\u{1F3F0}",[],"The concrete line through the Sudeten mountains.",[fortB(["GER"],2)]),
+ N("south",0,1,"The Southern Line","\u{1F9F1}",["ropik"],"After the Anschluss Austria is a border too.",[fortB(["AUT","HUN"])]),
+ N("army",0,2,"The Czechoslovak Army","\u{1F396}",["ropik"],"Thirty-five divisions mobilised in September 1938.",[inf(3),st({mp:80})]),
+ N("ent",1,0,"The Little Entente","\u{1F91D}",[],"With Romania and Yugoslavia.",[ally("ROM","SRB")]),
+ N("fra",1,1,"The French Treaty","\u{1F91D}",["ent"],"1924.",[ally("FRA")]),
+ N("sov",1,2,"The Soviet Treaty","\u{1F58B}",["fra"],"1935, binding only if France acted first.",[ally("SOV")]),
+ N("skoda",2,0,"The Skoda Works","\u{1F3ED}",[],"One of the largest arms makers in Europe.",[fac(["pra"])]),
+ N("lt38",2,1,"The LT vz. 38","\u{1F6E1}",["skoda"],"A tank good enough that Germany used it for years.",[arm(2,null,3)]),
+ N("fight",3,0,"Defend the Republic","⚔",["army"],"The road Benes did not take.",[st({ws:20,mp:80})],{excl:["accept"]}),
+ N("accept",3,1,"Accept Munich","\u{1F58B}",["army"],"30 September 1938.",[st({stab:10}),pact("GER")],{excl:["fight"]})
+]);
+/* -------------------------------- HUNGARY ------------------------------- */
+NF("HUN",["THE REGENCY","REVISION","THE AXIS","THE ARMY"],()=>[
+ N("horthy",0,0,"Horthy's Regency","\u{1F451}",[],"A kingdom without a king, ruled by an admiral without a sea.",[st({stab:10})]),
+ N("gyor",0,1,"The Gyor Programme","\u{1F3ED}",["horthy"],"March 1938: a billion pengo for rearmament.",[fac(["bud"]),st({res:{ind:1}})]),
+ N("bled",0,2,"The Bled Agreement","\u{1F58B}",["gyor"],"August 1938: the Little Entente concedes Hungary's right to rearm.",[st({stab:5}),pact("ROM")]),
+ N("revis",1,0,"Revisionism","\u{1F5FA}",[],"'Nem, nem, soha' - no, no, never to Trianon.",[st({ws:15})]),
+ N("vien1",1,1,"The First Vienna Award","\u{1F4DC}",["revis","rome"],"November 1938: southern Slovakia returned.",[give(["bra"])],{any:true}),
+ N("vien2",1,2,"The Second Vienna Award","\u{1F4DC}",["vien1"],"August 1940: northern Transylvania.",[give(["clj"])]),
+ N("rome",2,0,"The Rome Protocols","\u{1F91D}",[],"1934, with Italy and Austria.",[ally("ITA","AUT")]),
+ N("tri",2,1,"Join the Tripartite Pact","\u{1F517}",["rome"],"November 1940.",[ally("GER")]),
+ N("yugo",2,2,"Eternal Friendship with Yugoslavia","\u{1F58B}",["rome"],"December 1940.",[pact("SRB")]),
+ N("honved",3,0,"Expand the Honved","\u{1F396}",[],"",[inf(3)]),
+ N("toldi",3,1,"Toldi and Turan","\u{1F6E1}",["honved"],"Hungary's own tanks.",[arm(1,null,3)]),
+ N("carp",3,2,"Fortify the Carpathians","⛰",["honved"],"The Arpad Line.",[fortB(["ROM","SOV"])])
+]);
+/* -------------------------------- ROMANIA ------------------------------- */
+NF("ROM",["THE KINGDOM","OIL","WEST OR AXIS","THE ARMY"],()=>[
+ N("carol",0,0,"King Carol's Royal Dictatorship","\u{1F451}",[],"February 1938.",[st({stab:15})]),
+ N("malaxa",0,1,"The Malaxa Works","\u{1F3ED}",["carol"],"Locomotives and arms in Bucharest.",[fac(["buc"])]),
+ N("resita",0,2,"Resita","⚒",["malaxa"],"Steel of the Banat.",[st({stock:{steel:100}})]),
+ N("ploesti",1,0,"Ploiesti","\u{1F6E2}",[],"The largest oilfield in Europe outside the USSR.",[st({oil:120})]),
+ N("refin",1,1,"Expand the Refineries","\u{1F3ED}",["ploesti"],"Astra Romana, Steaua Romana, Concordia.",[st({oil:60,pp:60})]),
+ N("bpact",2,0,"The Balkan Pact","\u{1F91D}",[],"1934, with Greece, Turkey and Yugoslavia.",[ally("GRC","TUR","SRB")],{excl:["axis"]}),
+ N("guar",2,1,"The Anglo-French Guarantee","\u{1F6E1}",["bpact"],"April 1939.",[ally("UK","FRA")]),
+ N("axis",3,0,"Antonescu and the Axis","\u{1F517}",[],"November 1940.",[ally("GER","ITA")],{excl:["bpact"]}),
+ N("munch",3,1,"Operation Muenchen","⚔",["axis"],"June 1941: to take back Bessarabia.",[st({ws:15}),war("SOV")]),
+ N("carline",3,2,"The Carol Line","\u{1F3F0}",["carol"],"Fortifications facing Hungary and the USSR.",[fortB(["HUN","SOV"])]),
+ N("navy",3,3,"The Black Sea Flotilla","⚓",["carline"],"Destroyers out of Constanta.",[fleet("dd",2,"cta")])
+]);
+/* ------------------------------- BULGARIA ------------------------------- */
+NF("BUL",["THE TSARDOM","FOREIGN POLICY","THE ARMY"],()=>[
+ N("boris",0,0,"Boris III's Personal Rule","\u{1F451}",[],"After the 1934 coup, the Tsar governs himself.",[st({stab:10})]),
+ N("tob",0,1,"Tobacco for Germany","\u{1F4B5}",["boris"],"Most of the crop sold to the Reich.",[st({pp:60})]),
+ N("varna",0,2,"The Port of Varna","⚓",["tob"],"",[fort(["var"]),fleet("dd",1,"var")]),
+ N("salon",1,0,"The Salonika Agreement","\u{1F58B}",[],"July 1938: Neuilly's limits on the army lifted.",[st({res:{land:1}}),inf(2)]),
+ N("craiova",1,1,"The Treaty of Craiova","\u{1F4DC}",["salon"],"September 1940: Southern Dobruja returned without a war.",[st({stab:10,ws:5})]),
+ N("tri",1,2,"Join the Tripartite Pact","\u{1F517}",["salon"],"March 1941.",[ally("GER")],{excl:["neut"]}),
+ N("thrace",1,3,"Occupation of Thrace and Macedonia","⚔",["tri"],"April 1941.",[war("GRC")]),
+ N("neut",2,0,"Stay Out of It","\u{1F54A}",["salon"],"Boris refused to send a single soldier against the Soviets.",[st({stab:15}),pact("SOV")],{excl:["tri"]}),
+ N("rhod",2,1,"Fortify the Rhodopes","⛰",["neut"],"",[fortB(["GRC","TUR"])])
+]);
+/* -------------------------------- GREECE -------------------------------- */
+NF("GRC",["THE FOURTH OF AUGUST","ALLIANCES","DEFENCE"],()=>[
+ N("metax",0,0,"The Metaxas Regime","\u{1F3DB}",[],"4 August 1936.",[st({stab:15})]),
+ N("ship",0,1,"Shipping and Tobacco","\u{1F6A2}",["metax"],"The merchant fleet's earnings.",[st({pp:60})]),
+ N("navy",0,2,"The Royal Hellenic Navy","⚓",["ship"],"The cruiser Averof and the destroyers.",[fleet("cap",1,"ath",3),fleet("dd",2,"ath")]),
+ N("bpact",1,0,"The Balkan Pact","\u{1F91D}",[],"With Turkey, Romania and Yugoslavia.",[ally("TUR","ROM","SRB")]),
+ N("brit",1,1,"The British Guarantee","\u{1F6E1}",["bpact"],"April 1939.",[ally("UK")]),
+ N("line",2,0,"The Metaxas Line","\u{1F3F0}",[],"Forts along the Bulgarian frontier.",[fortB(["BUL"],2)]),
+ N("pindus",2,1,"Defend Epirus","⛰",["line"],"Facing Italian Albania.",[fortB(["ALB"]),inf(2,"slk")]),
+ N("oxi",2,2,"Oxi","✋",["pindus"],"28 October 1940: No.",[st({ws:25,mp:100})])
+]);
+/* ------------------------------ YUGOSLAVIA ------------------------------ */
+NF("SRB",["THE KINGDOM","ALLIANCES","THE ARMY"],()=>[
+ N("stoj",0,0,"Stojadinovic's Government","\u{1F3DB}",[],"1935-39, courting Rome and Berlin.",[st({stab:5,pp:40})]),
+ N("sporaz",0,1,"The Cvetkovic-Macek Agreement","\u{1F91D}",["stoj"],"August 1939: the Banovina of Croatia.",[st({stab:15})]),
+ N("bor",0,2,"The Bor Copper Mines","⛏",["stoj"],"",[st({stock:{alu:60,steel:60}})]),
+ N("ent",1,0,"The Little Entente","\u{1F91D}",[],"",[ally("CZE","ROM")]),
+ N("tri",1,1,"Sign the Tripartite Pact","\u{1F517}",["ent"],"25 March 1941.",[ally("GER","ITA")],{excl:["coup"]}),
+ N("coup",1,2,"The Belgrade Coup","⚔",["ent"],"27 March 1941: 'better war than the pact'.",[st({ws:20}),ally("UK","GRC")],{excl:["tri"]}),
+ N("army",2,0,"The Royal Yugoslav Army","\u{1F396}",[],"",[inf(4)]),
+ N("north",2,1,"Fortify the North","\u{1F3F0}",["army"],"",[fortB(["GER","AUT","HUN","ITA"])]),
+ N("navy",2,2,"The Adriatic Fleet","⚓",["army"],"",[fleet("dd",2)])
+]);
+/* -------------------------------- ALBANIA ------------------------------- */
+NF("ALB",["THE KINGDOM","FOREIGN POLICY","DEFENCE"],()=>[
+ N("zog",0,0,"King Zog's Rule","\u{1F451}",[],"Zog I, King of the Albanians since 1928.",[st({stab:10})]),
+ N("roads",0,1,"Roads and the Port of Durres","\u{1F6E3}",["zog"],"",[depot(["tir"]),st({pp:40})]),
+ N("tirana",1,0,"The Treaty of Tirana","\u{1F91D}",[],"Italy's protectorate in all but name.",[ally("ITA"),st({pp:60})],{excl:["balk"]}),
+ N("balk",1,1,"Turn to the Balkans","\u{1F91D}",[],"Out from under Rome.",[ally("SRB","GRC")],{excl:["tirana"]}),
+ N("gend",2,0,"The Gendarmerie","\u{1F396}",[],"Trained by British officers.",[inf(2)]),
+ N("tirfort",2,1,"Fortify Tirana","\u{1F3F0}",["gend"],"",[fort(["tir"],2)]),
+ N("resist",2,2,"Resist the Invasion","⚔",["tirfort"],"April 1939, at Durres.",[st({ws:20,mp:30})])
+]);
+/* -------------------------------- TURKEY -------------------------------- */
+NF("TUR",["KEMALISM","THE STRAITS","DIPLOMACY","THE ARMY"],()=>[
+ N("kemal",0,0,"The Six Arrows","\u{1F3DB}",[],"Ataturk's republicanism, nationalism, statism.",[st({stab:10})]),
+ N("fyp",0,1,"The First Five-Year Plan","\u{1F3ED}",["kemal"],"1934: Sumerbank's state factories.",[fac(["ank","ist"])]),
+ N("karabuk",0,2,"Karabuk Steel","⚒",["fyp"],"The first steelworks, 1939.",[st({stock:{steel:100}})]),
+ N("chrome",0,3,"Chromite for Both Sides","⛏",["fyp"],"Sold first to the Allies, then to Germany.",[st({pp:80,stock:{tung:40}})]),
+ N("montreux",1,0,"The Montreux Convention","\u{1F4DC}",[],"July 1936: the Straits back in Turkish hands.",[fort(["ist"],2)]),
+ N("hatay",1,1,"The Hatay Question","\u{1F5FA}",["montreux"],"1939: Alexandretta joins Turkey.",[st({ws:10,stab:5})]),
+ N("bpact",2,0,"The Balkan Pact","\u{1F91D}",[],"",[ally("GRC","ROM","SRB")]),
+ N("saad",2,1,"The Treaty of Saadabad","\u{1F58B}",["bpact"],"1937, with Iran, Iraq and Afghanistan.",[ally("PER","IRQ","AFG")]),
+ N("allies",2,2,"The Tripartite Treaty","\u{1F91D}",["bpact"],"October 1939, with Britain and France.",[ally("UK","FRA")],{excl:["germ"]}),
+ N("germ",2,3,"German-Turkish Friendship","\u{1F58B}",["bpact"],"June 1941.",[pact("GER"),st({stab:5})],{excl:["allies"]}),
+ N("army",3,0,"The Turkish Army","\u{1F396}",[],"",[inf(3)]),
+ N("east",3,1,"The Eastern Frontier","\u{1F3F0}",["army"],"Facing the Soviet Caucasus.",[fortB(["SOV"])])
+]);
+/* ------------------------------ SWITZERLAND ----------------------------- */
+NF("SUI",["ARMED NEUTRALITY","THE REDOUBT","THE ECONOMY"],()=>[
+ N("neut",0,0,"Armed Neutrality","\u{1F54A}",[],"Every man a soldier, every soldier at home.",[st({stab:10,ws:10})]),
+ N("guisan",0,1,"General Guisan","\u{1F396}",["neut"],"Commander-in-chief from August 1939.",[inf(3),st({mp:80})]),
+ N("rutli",0,2,"The Rutli Report","\u{1F5E3}",["guisan"],"25 July 1940: the officers told they will fight.",[st({ws:15})]),
+ N("reduit",1,0,"The National Redoubt","⛰",["neut"],"The army withdraws into the Alps.",[fort(["brn"],3)]),
+ N("border",1,1,"Fortify the Frontier","\u{1F9F1}",["reduit"],"",[fortB(["GER","ITA","FRA"])]),
+ N("banks",2,0,"The Swiss Banks","\u{1F3E6}",[],"",[st({pp:100})]),
+ N("oerl",2,1,"Oerlikon and SIG","\u{1F3ED}",["banks"],"Guns sold to everyone.",[fac(["brn"]),st({res:{land:1}})]),
+ N("air",2,2,"The Swiss Air Force","✈",["oerl"],"Which shot down German aircraft in 1940.",[wing("fig",2)])
+]);
+/* -------------------------------- BELGIUM ------------------------------- */
+NF("BEL",["NEUTRALITY","DEFENCE","THE CONGO"],()=>[
+ N("neut",0,0,"Return to Neutrality","\u{1F54A}",[],"October 1936: Leopold III ends the French alliance.",[st({stab:10})],{excl:["west"]}),
+ N("west",0,1,"The Western Alliance","\u{1F91D}",[],"Stay with France and Britain.",[ally("FRA","UK")],{excl:["neut"]}),
+ N("mob",0,2,"General Mobilisation","\u{1F465}",["neut","west"],"Twenty-two divisions in 1939.",[inf(3),st({mp:80})],{any:true}),
+ N("eben",1,0,"Fort Eben-Emael","\u{1F3F0}",[],"The strongest fort in the world, on the Albert Canal.",[fort(["bxl"],2)]),
+ N("kw",1,1,"The KW Line","\u{1F9F1}",["eben"],"Koningshooikt to Wavre.",[fortB(["GER","HOL"])]),
+ N("um",2,0,"Union Miniere","⛏",[],"Katanga's copper, cobalt and uranium.",[st({pp:60,stock:{alu:60}})]),
+ N("rubber",2,1,"Congo Rubber","◍",["um"],"",[st({stock:{rubber:80}})]),
+ N("fp",2,2,"The Force Publique","\u{1F396}",["um"],"Which fought in Ethiopia in 1941.",[inf(2,"kin")])
+]);
+/* ------------------------------ NETHERLANDS ----------------------------- */
+NF("HOL",["NEUTRALITY","THE INDIES","DEFENCE"],()=>[
+ N("neut",0,0,"Strict Neutrality","\u{1F54A}",[],"It had worked in 1914.",[st({stab:10})],{excl:["allied"]}),
+ N("allied",0,1,"Staff Talks with the Allies","\u{1F91D}",[],"",[ally("UK","FRA")],{excl:["neut"]}),
+ N("abda",0,2,"ABDA Command","\u{1F310}",["allied"],"American-British-Dutch-Australian, 1942.",[ally("USA","AUS")]),
+ N("oil",1,0,"The Oil of the Indies","\u{1F6E2}",[],"Royal Dutch Shell's fields in Sumatra and Borneo.",[st({oil:100})]),
+ N("rubber",1,1,"Rubber and Tin","◍",["oil"],"",[st({stock:{rubber:100,tung:30}})]),
+ N("knil",1,2,"The KNIL","\u{1F396}",["oil"],"The Royal Netherlands East Indies Army.",[inf(3,"jkt")]),
+ N("fleet",1,3,"A Fleet for the Indies","⚓",["knil"],"Karel Doorman's cruisers.",[fleet("cap",1,"jkt",3),fleet("dd",2,"jkt")]),
+ N("water",2,0,"The Water Line","\u{1F30A}",[],"Flood the polders round Holland.",[fort(["ams"],2)]),
+ N("grebbe",2,1,"The Grebbe Line","\u{1F9F1}",["water"],"",[fortB(["GER"])]),
+ N("philips",2,2,"Philips and Fokker","\u{1F3ED}",["grebbe"],"",[fac(["ams"]),wing("fig",1)])
+]);
+/* ------------------------------ LUXEMBOURG ------------------------------ */
+NF("LUX",["THE GRAND DUCHY","THE ECONOMY","DEFENCE"],()=>[
+ N("charl",0,0,"Grand Duchess Charlotte","\u{1F451}",[],"",[st({stab:10})]),
+ N("neut",0,1,"Perpetual Neutrality","\u{1F54A}",["charl"],"Guaranteed since 1867.",[st({stab:5})]),
+ N("exile",0,2,"The Government in Exile","\u{1F91D}",["charl"],"London, 1940.",[ally("UK","BEL","HOL")]),
+ N("arbed",1,0,"ARBED Steel","⚒",[],"",[st({stock:{steel:100}}),fac(["lxm"])]),
+ N("benelux",1,1,"The Customs Union","\u{1F4B5}",["arbed"],"With Belgium since 1921.",[st({pp:40}),pact("BEL")]),
+ N("corps",2,0,"The Volunteer Company","\u{1F396}",[],"The whole army: about 400 men.",[inf(1)]),
+ N("schuster",2,1,"The Schuster Line","\u{1F9F1}",["corps"],"Roadblocks on the German border, 1939.",[fortB(["GER"])])
+]);
+/* -------------------------------- DENMARK ------------------------------- */
+NF("DEN",["SOCIAL DEMOCRACY","FOREIGN POLICY","THE NORTH ATLANTIC"],()=>[
+ N("staun",0,0,"Stauning's Government","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("farm",0,1,"Bacon and Butter","\u{1F4B5}",["staun"],"Exports to Britain and Germany.",[st({pp:60})]),
+ N("pact",1,0,"Non-Aggression with Germany","\u{1F58B}",[],"May 1939, the only Nordic state that signed.",[pact("GER")],{excl:["nordic"]}),
+ N("nordic",1,1,"Nordic Defence Union","\u{1F91D}",[],"",[ally("NOR","SWD","FIN")],{excl:["pact"]}),
+ N("cph",1,2,"Fortify Copenhagen","\u{1F3F0}",["pact","nordic"],"",[fort(["cph"],2),fleet("dd",1,"cph")],{any:true}),
+ N("cryol",2,0,"Greenland Cryolite","⛏",[],"The only natural source of the mineral aluminium smelting needs.",[st({stock:{alu:100}})]),
+ N("iceland",2,1,"Defend Iceland","❄",["cryol"],"",[inf(1,"rey")]),
+ N("kauff",2,2,"Kauffmann's Agreement","\u{1F4DC}",["cryol"],"April 1941: the minister in Washington invites the US into Greenland.",[ally("USA")])
+]);
+/* -------------------------------- NORWAY -------------------------------- */
+NF("NOR",["THE GOVERNMENT","NEUTRALITY","DEFENCE"],()=>[
+ N("nyg",0,0,"Nygaardsvold's Government","\u{1F3DB}",[],"Labour, from 1935.",[st({stab:10})]),
+ N("nortr",0,1,"Nortraship","\u{1F6A2}",["nyg"],"The merchant fleet, the fourth largest in the world.",[st({pp:80}),fleet("dd",1)]),
+ N("vemork",0,2,"Vemork","⚡",["nortr"],"Hydro-electric power, and heavy water.",[st({res:{ind:1}})]),
+ N("neut",1,0,"Strict Neutrality","\u{1F54A}",[],"",[st({stab:10})],{excl:["nordic"]}),
+ N("nordic",1,1,"Nordic Defence Union","\u{1F91D}",[],"",[ally("SWD","DEN","FIN")],{excl:["neut"]}),
+ N("allies",1,2,"With the Allies","\u{1F91D}",["neut","nordic"],"After 9 April 1940, from London.",[ally("UK")],{any:true}),
+ N("oscar",2,0,"Oscarsborg","\u{1F3F0}",[],"The fortress that sank the Bluecher.",[fort(["osl"],2)]),
+ N("narvik",2,1,"Defend Narvik","⛰",["oscar"],"The iron ore port.",[fort(["nar"]),inf(2,"nar")])
+]);
+/* -------------------------------- SWEDEN -------------------------------- */
+NF("SWD",["THE PEOPLE'S HOME","NEUTRALITY","DEFENCE"],()=>[
+ N("hansson",0,0,"Folkhemmet","\u{1F3DB}",[],"Per Albin Hansson's 'people's home'.",[st({stab:10})]),
+ N("ore",0,1,"Iron Ore of Kiruna","⛏",["hansson"],"The steel of half of Europe.",[st({stock:{steel:150},pp:60})]),
+ N("bofors",0,2,"Bofors","\u{1F3ED}",["ore"],"The 40mm gun every navy wanted.",[fac(["got"]),st({res:{land:1}})]),
+ N("neut",1,0,"Swedish Neutrality","\u{1F54A}",[],"Non-belligerent, and careful about it.",[st({stab:10})],{excl:["nordic"]}),
+ N("nordic",1,1,"Nordic Defence Union","\u{1F91D}",[],"",[ally("NOR","DEN","FIN")],{excl:["neut"]}),
+ N("finvol",1,2,"Volunteers for Finland","❄",["nordic"],"8,000 Swedes in the Winter War.",[st({ws:10})]),
+ N("navy",2,0,"The Gotland","⚓",[],"An aircraft-carrying cruiser.",[fleet("cap",1,"sto",3),fleet("dd",1,"sto")]),
+ N("saab",2,1,"SAAB","✈",["navy"],"Founded 1937 to build the air force at home.",[wing("fig",2)]),
+ N("def",2,2,"The 1942 Defence Act","\u{1F3F0}",["saab"],"",[fortB(["NOR","FIN"]),inf(2)])
+]);
+/* -------------------------------- FINLAND ------------------------------- */
+NF("FIN",["THE REPUBLIC","THE WINTER WAR","FOREIGN POLICY"],()=>[
+ N("kallio",0,0,"Kallio's Presidency","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("valmet",0,1,"The State Aircraft Factory","✈",["kallio"],"",[wing("fig",2)]),
+ N("petsamo",0,2,"Petsamo Nickel","⛏",["kallio"],"",[st({stock:{steel:60,tung:30}})]),
+ N("mline",1,0,"The Mannerheim Line","\u{1F3F0}",[],"Across the Karelian Isthmus.",[fortB(["SOV"],2)]),
+ N("sk",1,1,"The Civil Guard","\u{1F396}",["mline"],"Suojeluskunta: skiers and marksmen.",[inf(3),st({mp:60})]),
+ N("motti",1,2,"Motti Tactics","❄",["sk"],"Cut the column, then destroy it piece by piece.",[st({res:{land:1},ws:15})]),
+ N("nordic",2,0,"Nordic Orientation","\u{1F91D}",[],"",[ally("SWD","NOR")],{excl:["cont"]}),
+ N("cont",2,1,"The Continuation War","⚔",["mline"],"June 1941, alongside Germany.",[ally("GER"),war("SOV")],{excl:["nordic"]})
+]);
+/* --------------------------- THE BALTIC STATES -------------------------- */
+NF("EST",["THE ERA OF SILENCE","THE ECONOMY","DEFENCE"],()=>[
+ N("pats",0,0,"Pats's Authoritarian Rule","\u{1F3DB}",[],"The 'era of silence', from 1934.",[st({stab:10})]),
+ N("bent",0,1,"The Baltic Entente","\u{1F91D}",["pats"],"",[ally("LVA","LTU")]),
+ N("shale",1,0,"Oil Shale","\u{1F6E2}",[],"Fuel from rock, one of the first industries of its kind.",[st({oil:60})]),
+ N("tal",1,1,"The Port of Tallinn","⚓",["shale"],"",[fac(["tal"]),fleet("sub",1,"tal")]),
+ N("narva",2,0,"Fortify the Narva","\u{1F3F0}",[],"",[fortB(["SOV"],2)]),
+ N("kaitse",2,1,"Kaitseliit","\u{1F396}",["narva"],"The Defence League.",[inf(2)])
+]);
+NF("LVA",["THE ULMANIS REGIME","THE ECONOMY","DEFENCE"],()=>[
+ N("ulm",0,0,"Ulmanis's Rule","\u{1F3DB}",[],"Since the coup of May 1934.",[st({stab:10})]),
+ N("bent",0,1,"The Baltic Entente","\u{1F91D}",["ulm"],"",[ally("EST","LTU")]),
+ N("riga",1,0,"VEF and the Port of Riga","\u{1F3ED}",[],"Radios, cameras, aircraft.",[fac(["rig"])]),
+ N("timber",1,1,"Timber and Flax","\u{1F332}",["riga"],"",[st({pp:60})]),
+ N("daug",2,0,"Fortify the Daugava","\u{1F3F0}",[],"",[fortB(["SOV"],2)]),
+ N("aiz",2,1,"The Aizsargi","\u{1F396}",["daug"],"The home guard.",[inf(2)])
+]);
+NF("LTU",["THE NATIONALISTS","VILNIUS","DEFENCE"],()=>[
+ N("smet",0,0,"Smetona's Presidency","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("bent",0,1,"The Baltic Entente","\u{1F91D}",["smet"],"",[ally("LVA","EST")]),
+ N("claim",1,0,"Vilnius, Our Capital","\u{1F5FA}",[],"Kaunas was only ever the temporary capital.",[st({ws:15})]),
+ N("vil",1,1,"Recover Vilnius","⚔",["claim"],"",[war("POL")],{excl:["ult"]}),
+ N("ult",1,2,"Accept the 1938 Ultimatum","\u{1F58B}",["claim"],"Diplomatic relations with Poland, at last.",[pact("POL"),st({stab:10})],{excl:["vil"]}),
+ N("kaunas",2,0,"The Kaunas Fortress","\u{1F3F0}",[],"",[fort(["kau"],2)]),
+ N("saul",2,1,"The Riflemen's Union","\u{1F396}",["kaunas"],"",[inf(2)])
+]);
+/* -------------------------------- IRELAND ------------------------------- */
+NF("IRE",["THE CONSTITUTION","NEUTRALITY","THE EMERGENCY"],()=>[
+ N("const",0,0,"Bunreacht na hEireann","\u{1F4DC}",[],"The 1937 Constitution.",[st({stab:15})]),
+ N("ports",0,1,"The Treaty Ports","⚓",["const"],"1938: Britain hands back Cobh, Berehaven and Lough Swilly.",[fort(["dub"])]),
+ N("shannon",0,2,"The Shannon Scheme","⚡",["const"],"",[fac(["dub"])]),
+ N("neut",1,0,"Irish Neutrality","\u{1F54A}",[],"",[st({stab:10})],{excl:["north"]}),
+ N("north",1,1,"Claim the Six Counties","\u{1F5FA}",[],"",[st({ws:15}),war("UK")],{excl:["neut"]}),
+ N("army",2,0,"The Defence Forces","\u{1F396}",[],"Expanded for the Emergency.",[inf(3)]),
+ N("ships",2,1,"Irish Shipping Ltd","\u{1F6A2}",["army"],"1941.",[fleet("dd",1,"dub")])
+]);
+/* ------------------------------- PORTUGAL ------------------------------- */
+NF("POR",["THE ESTADO NOVO","DIPLOMACY","THE EMPIRE"],()=>[
+ N("salaz",0,0,"Salazar's Estado Novo","\u{1F3DB}",[],"",[st({stab:15})]),
+ N("legion",0,1,"The Portuguese Legion","\u{1F396}",["salaz"],"1936.",[inf(2)]),
+ N("wolf",0,2,"The Wolfram Trade","⛏",["salaz"],"Tungsten sold to both sides.",[st({stock:{tung:100},pp:40})]),
+ N("old",1,0,"The Oldest Alliance","\u{1F91D}",[],"England, since 1373.",[ally("UK")]),
+ N("iber",1,1,"The Iberian Pact","\u{1F58B}",["old"],"March 1939, with Franco.",[pact("SPA")]),
+ N("azores",1,2,"The Azores Bases","⚓",["old"],"Leased to Britain in 1943.",[st({ws:5,pp:40})]),
+ N("navy",2,0,"The Naval Programme","⚓",[],"",[fleet("dd",2,"lis")]),
+ N("angola",2,1,"Garrison Angola","\u{1F3F0}",["navy"],"",[fort(["lua"]),inf(1,"lua")]),
+ N("moz",2,2,"Garrison Mozambique","\u{1F3F0}",["navy"],"",[fort(["mpt"]),inf(1,"mpt")])
+]);
+/* --------------------------------- SPAIN -------------------------------- */
+NF("SPA",["THE CIVIL WAR","NATIONALISTS","REPUBLICANS","THE ECONOMY"],()=>[
+ N("war",0,0,"The Civil War","⚔",[],"July 1936.",[st({mp:100,ws:10}),inf(3)]),
+ N("nat",1,0,"Nationalist Victory","\u{1F985}",["war"],"",[st({stab:15}),inf(2,"sev")],{excl:["rep"]}),
+ N("hend",1,1,"Hendaye","\u{1F58B}",["nat"],"October 1940: Franco keeps Spain out.",[pact("GER"),st({stab:10})],{excl:["felix"]}),
+ N("felix",1,2,"Operation Felix","⚔",["nat"],"The plan to take Gibraltar.",[ally("GER","ITA"),war("UK")],{excl:["hend"]}),
+ N("blue",1,3,"The Blue Division","\u{1F396}",["nat"],"Volunteers to the Eastern Front.",[st({ws:10,res:{land:1}})]),
+ N("rep",2,0,"Republican Victory","\u{1F3DB}",["war"],"",[st({stab:10}),ally("FRA")],{excl:["nat"]}),
+ N("sov",2,1,"Soviet Aid","\u{1F91D}",["rep"],"Tanks and aircraft, paid for in gold.",[ally("SOV"),arm(1,null,3)]),
+ N("pyr",0,1,"Fortify the Pyrenees","⛰",["war"],"",[fortB(["FRA"])]),
+ N("recon",3,0,"Reconstruction","\u{1F3D7}",["war"],"",[fac(["mad","bcn"])]),
+ N("rio",3,1,"Rio Tinto and the Wolfram","⛏",["recon"],"",[st({stock:{steel:80,tung:60}})]),
+ N("navy",3,2,"The Fleet","⚓",["recon"],"",[fleet("cap",1,"bcn",3),fleet("dd",2,"bcn")])
+]);
+})();
+(function(){
+const {st,inf,arm,fac,fort,depot,fortB,fleet,wing,ally,war,pact,annex,give,free,atom}=E;
+/* -------------------------------- CANADA -------------------------------- */
+NF("CAN",["THE DOMINION","THE ARSENAL","THE FORCES"],()=>[
+ N("king",0,0,"Mackenzie King's Government","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("empire",0,1,"Stand with Britain","\u{1F91D}",["king"],"10 September 1939, a week after Britain, by Canada's own vote.",[ally("UK")]),
+ N("ogd",0,2,"The Ogdensburg Agreement","\u{1F58B}",["empire"],"August 1940: a joint defence board with the United States.",[ally("USA")]),
+ N("howe",1,0,"C. D. Howe's Department","\u{1F3ED}",[],"Munitions and Supply.",[fac(["tor","mtl"])]),
+ N("ships",1,1,"Corvettes and Freighters","\u{1F6A2}",["howe"],"",[fleet("dd",3,"hal")]),
+ N("bcatp",1,2,"Commonwealth Air Training Plan","✈",["howe"],"131,000 aircrew trained on the prairies.",[wing("fig",2),st({res:{air:1}})]),
+ N("army",2,0,"The Canadian Active Service Force","\u{1F396}",[],"",[inf(3)]),
+ N("hal",2,1,"Defend Halifax","\u{1F3F0}",["army"],"The convoy port.",[fort(["hal"],2)]),
+ N("conscr",2,2,"The Conscription Plebiscite","\u{1F5F3}",["army"],"1942: 'not necessarily conscription, but conscription if necessary'.",[st({mp:120,stab:-5})])
+]);
+/* ------------------------------- AUSTRALIA ------------------------------ */
+NF("AUS",["THE COMMONWEALTH","INDUSTRY","DEFENCE"],()=>[
+ N("lyons",0,0,"The Lyons Government","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("brit",0,1,"Imperial Defence","\u{1F91D}",["lyons"],"'Britain is at war; as a result, Australia is also at war.'",[ally("UK")],{excl:["look"]}),
+ N("look",0,2,"Look to America","\u{1F91D}",["lyons"],"Curtin, December 1941.",[ally("USA")],{excl:["brit"]}),
+ N("bhp",1,0,"BHP Steel","⚒",[],"Newcastle and Port Kembla.",[st({stock:{steel:100}}),fac(["syd"])]),
+ N("cac",1,1,"Commonwealth Aircraft Corporation","✈",["bhp"],"1936.",[fac(["mel"]),wing("fig",2)]),
+ N("aif",2,0,"The Second AIF","\u{1F396}",[],"",[inf(4)]),
+ N("darwin",2,1,"Fortify Darwin","\u{1F3F0}",["aif"],"",[fort(["dar"]),inf(2,"dar")]),
+ N("bline",2,2,"The Brisbane Line","\u{1F9F1}",["darwin"],"",[fort(["bri","syd"])]),
+ N("ran",2,3,"The Royal Australian Navy","⚓",["aif"],"",[fleet("cap",1,"syd",3),fleet("dd",2,"syd")]),
+ N("ng",2,4,"New Guinea Force","\u{1F332}",["darwin"],"Kokoda, 1942.",[inf(2,"buk")])
+]);
+/* ------------------------------ SOUTH AFRICA ---------------------------- */
+NF("SAF",["THE UNION","THE ECONOMY","THE FORCES"],()=>[
+ N("fusion",0,0,"Fusion","\u{1F3DB}",[],"Hertzog and Smuts in one United Party.",[st({stab:10})]),
+ N("smuts",0,1,"Smuts Takes the Union to War","⚔",["fusion"],"September 1939, by 80 votes to 67.",[ally("UK"),st({ws:10})],{excl:["hertz"]}),
+ N("hertz",0,2,"Hertzog's Neutrality","\u{1F54A}",["fusion"],"The motion that lost.",[st({stab:10})],{excl:["smuts"]}),
+ N("gold",1,0,"The Gold of the Rand","\u{1F4B0}",[],"",[st({pp:100})]),
+ N("iscor",1,1,"ISCOR","⚒",["gold"],"State steel at Pretoria.",[fac(["jhb"]),st({stock:{steel:100}})]),
+ N("udf",2,0,"The Union Defence Force","\u{1F396}",[],"Volunteers only: the 'red oath'.",[inf(3)]),
+ N("saaf",2,1,"The South African Air Force","✈",["udf"],"",[wing("fig",2)]),
+ N("cape",2,2,"Seaward Defence","⚓",["udf"],"The Cape route.",[fort(["cpt"]),fleet("dd",1,"cpt")])
+]);
+/* -------------------------------- MEXICO -------------------------------- */
+NF("MEX",["THE REVOLUTION","OIL","DIPLOMACY","THE ARMY"],()=>[
+ N("card",0,0,"Cardenas's Reforms","\u{1F3DB}",[],"The six-year plan of 1934.",[st({stab:10})]),
+ N("land",0,1,"Land Reform","\u{1F33E}",["card"],"Eighteen million hectares to the ejidos.",[st({stab:10,mp:60})]),
+ N("rail",0,2,"Nationalise the Railways","\u{1F682}",["card"],"1937.",[depot(["mex"]),st({res:{ind:1}})]),
+ N("expro",1,0,"The Oil Expropriation","\u{1F6E2}",[],"18 March 1938.",[st({oil:100,ws:10})]),
+ N("pemex",1,1,"PEMEX","\u{1F3ED}",["expro"],"",[fac(["ver","mty"])]),
+ N("allies",2,0,"Join the Allies","\u{1F91D}",[],"May 1942, after U-boats sank two tankers.",[ally("USA"),war("GER")]),
+ N("e201",2,1,"Escuadron 201","✈",["allies"],"The Aztec Eagles, over Luzon in 1945.",[wing("fig",1)]),
+ N("army",3,0,"Rearm the Army","\u{1F396}",[],"",[inf(3)])
+]);
+/* ------------------------------ CENTRAL AMERICA ------------------------- */
+NF("GUA",["UBICO","THE ECONOMY","DEFENCE"],()=>[
+ N("ubico",0,0,"Ubico's Rule","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("belize",0,1,"Claim Belize","\u{1F5FA}",["ubico"],"Guatemala never accepted British Honduras.",[st({ws:15})]),
+ N("ufco",1,0,"The United Fruit Company","\u{1F34C}",[],"",[st({pp:60})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["ufco"],"December 1941.",[ally("USA")]),
+ N("army",2,0,"The National Army","\u{1F396}",[],"",[inf(2)]),
+ N("fort",2,1,"Fortify Guatemala City","\u{1F3F0}",["army"],"",[fort(["gua"])])
+]);
+NF("HON",["CARIAS","THE ECONOMY","DEFENCE"],()=>[
+ N("carias",0,0,"Carias Andino's Rule","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("banana",1,0,"The Banana Republic","\u{1F34C}",[],"United Fruit and Standard Fruit.",[st({pp:60})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["banana"],"December 1941.",[ally("USA")]),
+ N("army",2,0,"The Army","\u{1F396}",[],"",[inf(2)]),
+ N("air",2,1,"The Honduran Air Force","✈",["army"],"",[wing("cas",1)])
+]);
+NF("ELS",["MARTINEZ","THE ECONOMY","DEFENCE"],()=>[
+ N("mart",0,0,"Hernandez Martinez's Rule","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("coffee",1,0,"Coffee","☕",[],"",[st({pp:60})]),
+ N("bank",1,1,"The Central Reserve Bank","\u{1F3E6}",["coffee"],"1934.",[st({pp:40,stab:5})]),
+ N("allies",1,2,"Join the Allies","\u{1F91D}",["bank"],"December 1941.",[ally("USA")]),
+ N("army",2,0,"The Army","\u{1F396}",[],"",[inf(2)])
+]);
+NF("NIC",["SOMOZA","THE ECONOMY","DEFENCE"],()=>[
+ N("som",0,0,"Somoza Takes Power","\u{1F3DB}",[],"1937.",[st({stab:10})]),
+ N("gn",0,1,"The Guardia Nacional","\u{1F396}",["som"],"",[inf(2)]),
+ N("gold",1,0,"Gold and Coffee","\u{1F4B0}",[],"",[st({pp:60})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["gold"],"December 1941.",[ally("USA")]),
+ N("fort",2,0,"Fortify Managua","\u{1F3F0}",[],"",[fort(["mga"])])
+]);
+NF("CRI",["THE REPUBLIC","REFORM","DEFENCE"],()=>[
+ N("cortes",0,0,"Cortes's Government","\u{1F3DB}",[],"Roads and schools.",[st({stab:10}),depot(["sjo"])]),
+ N("cald",1,0,"Calderon's Social Guarantees","\u{1F91D}",["cortes"],"1943: the labour code and social security.",[st({stab:15})]),
+ N("coffee",1,1,"Coffee and Bananas","☕",["cortes"],"",[st({pp:60})]),
+ N("allies",2,0,"Join the Allies","\u{1F91D}",[],"December 1941, before the United States did.",[ally("USA")]),
+ N("army",2,1,"The Army","\u{1F396}",[],"",[inf(1)])
+]);
+NF("PAN",["THE REPUBLIC","THE CANAL","DEFENCE"],()=>[
+ N("arias",0,0,"Arnulfo Arias","\u{1F3DB}",[],"The 1941 constitution.",[st({stab:10})]),
+ N("treaty",1,0,"The Hull-Alfaro Treaty","\u{1F4DC}",[],"1936: the protectorate clause ended.",[st({stab:5,pp:60})]),
+ N("canal",1,1,"Defend the Canal","\u{1F3F0}",["treaty"],"",[fort(["pty"],2),ally("USA")]),
+ N("police",2,0,"The National Police","\u{1F396}",[],"Panama's only force.",[inf(1)])
+]);
+/* ------------------------------ CARIBBEAN ------------------------------- */
+NF("CUB",["BATISTA","THE ECONOMY","DEFENCE"],()=>[
+ N("bat",0,0,"Batista Behind the Throne","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("const",0,1,"The 1940 Constitution","\u{1F4DC}",["bat"],"",[st({stab:10})]),
+ N("sugar",1,0,"Sugar","\u{1F36C}",[],"Sold to America at a fixed price for the war.",[st({pp:80})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["sugar"],"December 1941.",[ally("USA")]),
+ N("navy",2,0,"Anti-Submarine Patrols","⚓",[],"A Cuban patrol boat sank U-176 in 1943.",[fleet("dd",1,"hav")]),
+ N("army",2,1,"The Army","\u{1F396}",[],"",[inf(2)])
+]);
+NF("DOM",["TRUJILLO","THE ECONOMY","DEFENCE"],()=>[
+ N("tru",0,0,"Trujillo's Rule","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("debt",0,1,"The Trujillo-Hull Treaty","\u{1F4DC}",["tru"],"1940: customs back in Dominican hands.",[st({pp:60})]),
+ N("sugar",1,0,"Sugar","\u{1F36C}",[],"",[st({pp:40})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["sugar"],"December 1941.",[ally("USA")]),
+ N("army",2,0,"The Army","\u{1F396}",[],"",[inf(2)])
+]);
+NF("HAI",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("vinc",0,0,"Stenio Vincent's Presidency","\u{1F3DB}",[],"The first after the American occupation ended in 1934.",[st({stab:10})]),
+ N("sisal",1,0,"Sisal and Rubber","◍",[],"SHADA's wartime rubber scheme.",[st({stock:{rubber:40},pp:30})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["sisal"],"December 1941.",[ally("USA")]),
+ N("garde",2,0,"The Garde d'Haiti","\u{1F396}",[],"",[inf(1)])
+]);
+/* ----------------------------- SOUTH AMERICA ---------------------------- */
+NF("BRA",["THE ESTADO NOVO","THE ECONOMY","DIPLOMACY","THE FORCES"],()=>[
+ N("vargas",0,0,"The Estado Novo","\u{1F3DB}",[],"Vargas's coup of November 1937.",[st({stab:15})]),
+ N("west",0,1,"The March to the West","\u{1F6E3}",["vargas"],"",[depot(["cui","man"])]),
+ N("volta",1,0,"Volta Redonda","⚒",[],"The steelworks America paid for.",[fac(["rio"]),st({stock:{steel:120}})]),
+ N("sao",1,1,"Sao Paulo's Industry","\u{1F3ED}",["volta"],"",[fac(["sao"])]),
+ N("rubber",1,2,"The Rubber Soldiers","◍",["volta"],"Amazon rubber for the Allies.",[st({stock:{rubber:100}})]),
+ N("allies",2,0,"Join the Allies","\u{1F91D}",[],"August 1942.",[ally("USA"),war("GER")],{excl:["axis"]}),
+ N("axis",2,1,"Courting Berlin","\u{1F58B}",[],"The Integralists and the generals who admired Germany.",[pact("GER"),st({pp:60})],{excl:["allies"]}),
+ N("feb",3,0,"The Brazilian Expeditionary Force","\u{1F396}",["allies"],"'The snake will smoke' - Italy, 1944.",[inf(4)]),
+ N("navy",3,1,"Modernise the Navy","⚓",[],"",[fleet("cap",1,"rio",3),fleet("dd",2,"rio")])
+]);
+NF("ARG",["THE INFAMOUS DECADE","THE ECONOMY","NEUTRALITY","THE FORCES"],()=>[
+ N("conc",0,0,"The Concordancia","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("goun",0,1,"The GOU Revolution","\u{1F396}",["conc"],"June 1943, and Peron's rise.",[st({stab:5,ws:10}),inf(2)]),
+ N("ypf",1,0,"YPF","\u{1F6E2}",[],"State oil since 1922.",[st({oil:60})]),
+ N("subst",1,1,"Import Substitution","\u{1F3ED}",["ypf"],"",[fac(["bue","cor"])]),
+ N("fma",1,2,"The Military Aircraft Factory","✈",["subst"],"Cordoba.",[wing("fig",2)]),
+ N("neut",2,0,"Argentine Neutrality","\u{1F54A}",[],"",[st({stab:10})],{excl:["break"]}),
+ N("break",2,1,"Break with the Axis","\u{1F91D}",[],"January 1944.",[ally("USA","UK")],{excl:["neut"]}),
+ N("navy",3,0,"The Rivadavia Battleships","⚓",[],"",[fleet("cap",1,"bue")]),
+ N("army",3,1,"Army of the Andes","\u{1F396}",[],"",[inf(3)])
+]);
+NF("CHL",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("aless",0,0,"Alessandri's Second Term","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("front",0,1,"The Popular Front","\u{1F91D}",["aless"],"Aguirre Cerda, 1938.",[st({stab:5,pp:40})]),
+ N("corfo",1,0,"CORFO","\u{1F3ED}",[],"1939: the state development corporation.",[fac(["scl"])]),
+ N("copper",1,1,"Copper","⛏",["corfo"],"",[st({stock:{steel:60,alu:40},pp:40})]),
+ N("allies",1,2,"Break with the Axis","\u{1F91D}",["copper"],"1943.",[ally("USA")]),
+ N("navy",2,0,"The Chilean Navy","⚓",[],"The battleship Almirante Latorre.",[fleet("cap",1,"scl",3)]),
+ N("army",2,1,"The Army","\u{1F396}",[],"",[inf(2)])
+]);
+NF("PERU",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("bena",0,0,"Benavides","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("prado",0,1,"Prado's Alignment","\u{1F91D}",["bena"],"",[ally("USA")]),
+ N("talara",1,0,"The Talara Oilfields","\u{1F6E2}",[],"",[st({oil:40})]),
+ N("guano",1,1,"Cotton, Sugar and Guano","\u{1F4B5}",["talara"],"",[st({pp:60})]),
+ N("ecu",2,0,"The War with Ecuador","⚔",[],"July 1941.",[war("ECU")]),
+ N("air",2,1,"The Peruvian Air Corps","✈",[],"",[wing("fig",1),wing("cas",1)]),
+ N("army",2,2,"The Army","\u{1F396}",["air"],"",[inf(2)])
+]);
+NF("BOL",["AFTER THE CHACO","THE ECONOMY","DEFENCE"],()=>[
+ N("toro",0,0,"Military Socialism","\u{1F3DB}",[],"Toro and then Busch, 1936-39.",[st({stab:10})]),
+ N("so",0,1,"Nationalise Standard Oil","\u{1F6E2}",["toro"],"March 1937, the first in Latin America.",[st({oil:60})]),
+ N("tin",1,0,"Tin and Tungsten","⛏",[],"Patino's mines.",[st({stock:{tung:80},pp:40})]),
+ N("allies",1,1,"Join the Allies","\u{1F91D}",["tin"],"1943.",[ally("USA")]),
+ N("revenge",2,0,"Revenge for the Chaco","⚔",[],"",[war("PAR")]),
+ N("army",2,1,"The Andean Army","\u{1F396}",[],"",[inf(2)]),
+ N("lpb",2,2,"Fortify La Paz","\u{1F3F0}",["army"],"",[fort(["lpb"])])
+]);
+NF("PAR",["AFTER THE CHACO","THE ECONOMY","DEFENCE"],()=>[
+ N("feb",0,0,"The February Revolution","\u{1F3DB}",[],"Franco's government of 1936.",[st({stab:10})]),
+ N("estig",0,1,"Estigarribia's Constitution","\u{1F4DC}",["feb"],"1940.",[st({stab:10})]),
+ N("chaco",1,0,"Victory in the Chaco","\u{1F3C6}",[],"The 1938 peace.",[st({ws:10,pp:40})]),
+ N("arg",1,1,"Lean on Argentina","\u{1F91D}",["chaco"],"",[ally("ARG")]),
+ N("hold",2,0,"Hold the Chaco","\u{1F3F0}",[],"",[fortB(["BOL"])]),
+ N("army",2,1,"The Army","\u{1F396}",["hold"],"",[inf(2)]),
+ N("gunb",2,2,"The River Gunboats","⚓",["army"],"Paraguay and Humaita.",[fleet("dd",1)])
+]);
+NF("URU",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("terra",0,0,"Terra's Government","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("baldo",0,1,"Baldomir's Restoration","\u{1F4DC}",["terra"],"The 1942 constitution.",[st({stab:10})]),
+ N("beef",1,0,"Beef and Wool","\u{1F404}",[],"",[st({pp:60})]),
+ N("plate",1,1,"The River Plate","⚓",["beef"],"December 1939: the Graf Spee in Montevideo.",[st({ws:10}),fort(["mvd"])]),
+ N("allies",2,0,"Break with the Axis","\u{1F91D}",["plate"],"January 1942.",[ally("USA","UK")]),
+ N("army",2,1,"The Army","\u{1F396}",[],"",[inf(1)])
+]);
+NF("COL",["THE LIBERAL REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("lopez",0,0,"La Revolucion en Marcha","\u{1F3DB}",[],"Lopez Pumarejo's reforms.",[st({stab:10,pp:40})]),
+ N("coffee",1,0,"Coffee","☕",[],"",[st({pp:60})]),
+ N("barr",1,1,"Barrancabermeja Oil","\u{1F6E2}",["coffee"],"",[st({oil:40})]),
+ N("allies",1,2,"Join the Allies","\u{1F91D}",["barr"],"1943.",[ally("USA")]),
+ N("army",2,0,"The Army","\u{1F396}",[],"",[inf(2)]),
+ N("bog",2,1,"Fortify Bogota","\u{1F3F0}",["army"],"",[fort(["bog"])])
+]);
+NF("VEN",["THE TRANSITION","OIL","DEFENCE"],()=>[
+ N("lopez",0,0,"Lopez Contreras","\u{1F3DB}",[],"After Gomez, 1935.",[st({stab:10})]),
+ N("medina",0,1,"Medina Angarita","\u{1F4DC}",["lopez"],"",[st({stab:5,pp:40})]),
+ N("mara",1,0,"Lake Maracaibo","\u{1F6E2}",[],"The second-largest exporter in the world.",[st({oil:120})]),
+ N("law43",1,1,"The Hydrocarbons Law of 1943","\u{1F4DC}",["mara"],"Fifty-fifty with the companies.",[st({pp:100})]),
+ N("allies",1,2,"Join the Allies","\u{1F91D}",["mara"],"",[ally("USA")]),
+ N("army",2,0,"The Army","\u{1F396}",[],"",[inf(2)]),
+ N("navy",2,1,"The Navy","⚓",["army"],"",[fleet("dd",1)])
+]);
+NF("ECU",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("paez",0,0,"Federico Paez","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("cacao",1,0,"Cacao and Bananas","\u{1F34C}",[],"",[st({pp:40})]),
+ N("oil",1,1,"Oil of the Coast","\u{1F6E2}",["cacao"],"Santa Elena.",[st({oil:30})]),
+ N("galap",1,2,"The Galapagos Base","⚓",["oil"],"Leased to the United States, 1942.",[ally("USA")]),
+ N("border",2,0,"The Peruvian Border","\u{1F3F0}",[],"",[fortB(["PERU"])]),
+ N("army",2,1,"The Army","\u{1F396}",["border"],"",[inf(2)])
+]);
+})();
+(function(){
+const {st,inf,arm,fac,fort,depot,fortB,fleet,wing,ally,war,pact,annex,give,free,atom}=E;
+/* ------------------------------ AFRICA ------------------------------ */
+NF("EGY",["THE KINGDOM","THE TREATY","THE ARMY"],()=>[
+ N("farouk",0,0,"King Farouk","\u{1F451}",[],"Crowned 1936, at sixteen.",[st({stab:10})]),
+ N("misr",0,1,"Bank Misr's Industries","\u{1F3ED}",["farouk"],"Talaat Harb's Egyptian-owned companies.",[fac(["cai"])]),
+ N("aswan",0,2,"The Aswan Dam","⚡",["misr"],"",[depot(["asw"]),st({res:{ind:1}})]),
+ N("treaty",1,0,"The Anglo-Egyptian Treaty","\u{1F4DC}",[],"August 1936.",[ally("UK")],{excl:["indep"]}),
+ N("montreux",1,1,"The Montreux Convention","\u{1F4DC}",["treaty"],"1937: the Capitulations abolished.",[st({pp:60,stab:5})]),
+ N("indep",1,2,"Full Independence","✊",[],"The Wafd's demand: British troops out.",[st({ws:15,stab:-5})],{excl:["treaty"]}),
+ N("arab",1,3,"The Arab League","\u{1F91D}",["montreux","indep"],"Cairo, March 1945.",[ally("IRQ","SAU","YEM")],{any:true}),
+ N("army",2,0,"Expand the Egyptian Army","\u{1F396}",[],"",[inf(3)]),
+ N("alex",2,1,"Fortify Alexandria","\u{1F3F0}",["army"],"",[fort(["ale"])])
+]);
+NF("ETH",["THE EMPIRE","RESISTANCE","FOREIGN POLICY"],()=>[
+ N("mob",0,0,"General Mobilisation","\u{1F465}",[],"Haile Selassie's proclamation of October 1935.",[inf(4),st({mp:80})]),
+ N("guard",0,1,"The Imperial Guard","\u{1F396}",["mob"],"Trained by Belgian officers.",[inf(2,"add",4)]),
+ N("add",0,2,"Defend Addis Ababa","\u{1F3F0}",["guard"],"",[fort(["add"],2)]),
+ N("arb",1,0,"The Arbegnoch","⚔",[],"The Patriots, who never stopped fighting.",[inf(3),st({ws:20})]),
+ N("gideon",1,1,"Gideon Force","\u{1F91D}",["arb"],"Wingate and the Emperor's return, 1941.",[ally("UK")]),
+ N("league",2,0,"Appeal to the League","\u{1F3DB}",[],"Geneva, 30 June 1936: 'It is us today. It will be you tomorrow.'",[st({stab:15})]),
+ N("air",2,1,"The Ethiopian Air Force","✈",["league"],"",[wing("fig",1)])
+]);
+NF("LBR",["THE REPUBLIC","THE ECONOMY","DEFENCE"],()=>[
+ N("barclay",0,0,"Edwin Barclay's Presidency","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("tubman",0,1,"Tubman's Open Door","\u{1F6AA}",["barclay"],"1944.",[st({pp:60})]),
+ N("firestone",1,0,"Firestone","◍",[],"The largest rubber plantation in the world.",[st({stock:{rubber:120}})]),
+ N("usa",1,1,"The Defense Agreement","\u{1F91D}",["firestone"],"1942: Roberts Field for the Allies.",[ally("USA")]),
+ N("lff",2,0,"The Frontier Force","\u{1F396}",[],"",[inf(2)])
+]);
+/* -------------------------------- MIDDLE EAST --------------------------------- */
+NF("IRQ",["THE KINGDOM","OIL","DIPLOMACY","THE ARMY"],()=>[
+ N("ghazi",0,0,"King Ghazi","\u{1F451}",[],"",[st({stab:10})]),
+ N("ipc",1,0,"The Iraq Petroleum Company","\u{1F6E2}",[],"Kirkuk.",[st({oil:80})]),
+ N("pipe",1,1,"The Kirkuk-Haifa Pipeline","\u{1F6E2}",["ipc"],"",[st({pp:60})]),
+ N("brit",2,0,"The Anglo-Iraqi Treaty","\u{1F4DC}",[],"1930.",[ally("UK")],{excl:["sq"]}),
+ N("sq",2,1,"The Golden Square","⚔",[],"April 1941: Rashid Ali's coup.",[ally("GER"),war("UK")],{excl:["brit"]}),
+ N("saad",2,2,"The Treaty of Saadabad","\u{1F91D}",["brit","sq"],"",[ally("TUR","PER","AFG")],{any:true}),
+ N("army",3,0,"The Iraqi Army","\u{1F396}",[],"",[inf(3)]),
+ N("basra",3,1,"Fortify Basra","\u{1F3F0}",["army"],"",[fort(["bas"])])
+]);
+NF("SAU",["THE KINGDOM","OIL","DIPLOMACY"],()=>[
+ N("ibn",0,0,"Ibn Saud's Kingdom","\u{1F451}",[],"Unified in 1932.",[st({stab:10})]),
+ N("army",0,1,"The White Army","\u{1F396}",["ibn"],"",[inf(2)]),
+ N("rail",0,2,"Repair the Hejaz Railway","\u{1F682}",["ibn"],"",[depot(["jed"])]),
+ N("casoc",1,0,"The CASOC Concession","\u{1F6E2}",[],"Standard Oil of California, 1933.",[st({oil:40})]),
+ N("dammam",1,1,"Dammam No. 7","\u{1F6E2}",["casoc"],"March 1938: oil in commercial quantity.",[st({oil:100,pp:60})]),
+ N("taif",2,0,"The Treaty of Taif","\u{1F58B}",[],"1934, with Yemen.",[pact("YEM")]),
+ N("brit",2,1,"Friendship with Britain","\u{1F91D}",["taif"],"",[ally("UK")]),
+ N("usa",2,2,"The Quincy Meeting","\u{1F6A2}",["brit"],"Roosevelt and Ibn Saud, February 1945.",[ally("USA")])
+]);
+NF("YEM",["THE IMAMATE","FOREIGN POLICY","DEFENCE"],()=>[
+ N("yahya",0,0,"Imam Yahya","\u{1F451}",[],"",[st({stab:10})]),
+ N("coffee",0,1,"Mocha Coffee","☕",["yahya"],"",[st({pp:40})]),
+ N("taif",1,0,"The Treaty of Taif","\u{1F58B}",[],"",[pact("SAU")]),
+ N("italy",1,1,"The Italian Treaty","\u{1F91D}",["taif"],"Renewed 1937.",[ally("ITA")],{excl:["aden"]}),
+ N("aden",1,2,"Claim Aden","\u{1F5FA}",["taif"],"Yemen never recognised the Protectorate.",[st({ws:15})],{excl:["italy"]}),
+ N("tribes",2,0,"Zaydi Levies","\u{1F396}",[],"",[inf(3)]),
+ N("sanaa",2,1,"Fortify Sana'a","\u{1F3F0}",["tribes"],"",[fort(["sna"])])
+]);
+NF("OMN",["THE SULTANATE","FOREIGN POLICY","DEFENCE"],()=>[
+ N("said",0,0,"Sultan Said bin Taimur","\u{1F451}",[],"From 1932.",[st({stab:10})]),
+ N("dhofar",0,1,"Dhofar","\u{1F334}",["said"],"",[st({pp:40})]),
+ N("brit",1,0,"British Protection","\u{1F91D}",[],"",[ally("UK")]),
+ N("levies",2,0,"The Muscat Levies","\u{1F396}",[],"",[inf(1)]),
+ N("fort",2,1,"Fortify Muscat","\u{1F3F0}",["levies"],"",[fort(["msc"])])
+]);
+NF("PER",["REZA SHAH","OIL","DIPLOMACY","THE ARMY"],()=>[
+ N("reza",0,0,"Reza Shah's Modernisation","\u{1F451}",[],"",[st({stab:10,pp:60})]),
+ N("tir",0,1,"The Trans-Iranian Railway","\u{1F682}",["reza"],"Caspian to Gulf, 1938.",[depot(["teh"]),st({res:{ind:1}})]),
+ N("isf",0,2,"The Isfahan Mills","\u{1F3ED}",["reza"],"",[fac(["isf"])]),
+ N("aioc",1,0,"Anglo-Iranian Oil","\u{1F6E2}",[],"Abadan, the largest refinery in the world.",[st({oil:100})]),
+ N("saad",2,0,"The Treaty of Saadabad","\u{1F91D}",[],"1937.",[ally("TUR","IRQ","AFG")]),
+ N("germ",2,1,"German Technicians","\u{1F58B}",["saad"],"Reza Shah's turn to Berlin.",[pact("GER"),st({res:{ind:1}})],{excl:["tri"]}),
+ N("tri",2,2,"The Tripartite Treaty of Alliance","\u{1F91D}",["saad"],"January 1942, with Britain and the USSR.",[ally("UK","SOV")],{excl:["germ"]}),
+ N("army",3,0,"The Imperial Army","\u{1F396}",[],"",[inf(3)])
+]);
+NF("AFG",["MODERNISATION","FOREIGN POLICY","THE ARMY"],()=>[
+ N("zahir",0,0,"Zahir Shah's Reign","\u{1F451}",[],"",[st({stab:10})]),
+ N("milli",0,1,"Bank-e Milli","\u{1F3E6}",["zahir"],"1932: the national bank and its companies.",[st({pp:60}),fac(["kbl"])]),
+ N("road",0,2,"The Roads to Kabul","\u{1F6E3}",["milli"],"",[depot(["kbl"])]),
+ N("saad",1,0,"The Treaty of Saadabad","\u{1F91D}",[],"",[ally("TUR","PER","IRQ")]),
+ N("neut",1,1,"Afghan Neutrality","\u{1F54A}",["saad"],"",[st({stab:10})],{excl:["push"]}),
+ N("push",1,2,"Pashtunistan","\u{1F5FA}",["saad"],"The lands beyond the Durand Line.",[st({ws:15}),war("IND")],{excl:["neut"]}),
+ N("army",2,0,"The Royal Army","\u{1F396}",[],"",[inf(2)]),
+ N("khyber",2,1,"Fortify the Passes","⛰",["army"],"",[fortB(["IND"])])
+]);
+/* ------------------------------- ASIA ------------------------------- */
+NF("IND",["THE RAJ","INDUSTRY","FREEDOM","DEFENCE"],()=>[
+ N("act",0,0,"The Government of India Act","\u{1F4DC}",[],"Provincial elections, 1937.",[st({stab:10})]),
+ N("loyal",0,1,"Loyal to the Crown","\u{1F451}",["act"],"",[ally("UK"),st({stab:5})],{excl:["quit"]}),
+ N("army",0,2,"The Indian Army","\u{1F396}",["loyal"],"Two and a half million volunteers.",[inf(4),st({mp:200})]),
+ N("tata",1,0,"Tata Steel","⚒",[],"Jamshedpur.",[fac(["cal"]),st({stock:{steel:120}})]),
+ N("bombay",1,1,"The Bombay Mills","\u{1F3ED}",["tata"],"",[fac(["bom"])]),
+ N("rin",1,2,"The Royal Indian Navy","⚓",["bombay"],"",[fleet("dd",2,"bom")]),
+ N("quit",2,0,"Quit India","✊",["act"],"August 1942.",[st({ws:15}),free()],{excl:["loyal"]}),
+ N("ina",2,1,"The Indian National Army","⚔",["quit"],"Subhas Chandra Bose.",[inf(3)]),
+ N("front",3,0,"The North-West Frontier","⛰",[],"",[fortB(["AFG"])]),
+ N("burma",3,1,"The Burma Front","\u{1F332}",["front"],"Imphal and Kohima.",[fort(["rgn"]),inf(2,"rgn")])
+]);
+NF("SEA",["PHIBUN","THE INDOCHINA QUESTION","THE WAR","DEFENCE"],()=>[
+ N("phibun",0,0,"Phibun's Nationalism","\u{1F3DB}",[],"Prime minister from 1938.",[st({stab:5,ws:10})]),
+ N("thai",0,1,"Siam Becomes Thailand","\u{1F4DC}",["phibun"],"June 1939.",[st({stab:10})]),
+ N("rice",0,2,"Rice and Teak","\u{1F33E}",["thai"],"",[st({pp:60,stock:{rubber:40}})]),
+ N("fra",1,0,"The Franco-Thai War","⚔",["phibun"],"Late 1940, for the lost provinces.",[war("FRA")]),
+ N("jap",2,0,"Alliance with Japan","\u{1F91D}",["phibun"],"21 December 1941.",[ally("JAP")],{excl:["free"]}),
+ N("free",2,1,"The Free Thai Movement","\u{1F91D}",["phibun"],"Seni Pramoj in Washington refused to deliver the declaration of war.",[ally("UK","USA")],{excl:["jap"]}),
+ N("navy",3,0,"The Royal Thai Navy","⚓",[],"",[fleet("dd",2,"bkk")]),
+ N("army",3,1,"The Army","\u{1F396}",[],"",[inf(2)]),
+ N("north",3,2,"Fortify Chiang Mai","\u{1F3F0}",["army"],"",[fort(["cmi"])])
+]);
+NF("MAN",["THE STATE","INDUSTRY","THE ARMY"],()=>[
+ N("puyi",0,0,"Emperor Kangde","\u{1F451}",[],"Puyi enthroned in 1934.",[st({stab:10})]),
+ N("concord",0,1,"The Concordia Association","\u{1F3DB}",["puyi"],"",[st({stab:5,pp:40})]),
+ N("fyp",1,0,"The Manchurian Five-Year Plan","\u{1F3ED}",[],"1937.",[fac(["har"])]),
+ N("anshan",1,1,"The Showa Steel Works","⚒",["fyp"],"Anshan.",[st({stock:{steel:150}})]),
+ N("smr",1,2,"The South Manchuria Railway","\u{1F682}",["fyp"],"",[depot(["har"]),st({res:{ind:1}})]),
+ N("army",2,0,"The Manchukuo Imperial Army","\u{1F396}",[],"",[inf(3)]),
+ N("mong",2,1,"The Mongolian Border","\u{1F3F0}",["army"],"After Nomonhan.",[fortB(["MON","SOV"])])
+]);
+NF("MON",["THE PEOPLE'S REPUBLIC","THE SOVIET TIE","DEFENCE"],()=>[
+ N("choi",0,0,"Choibalsan","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("herds",0,1,"The Herds","\u{1F40E}",["choi"],"",[st({pp:30,mp:40})]),
+ N("pact",1,0,"The Mutual Assistance Protocol","\u{1F91D}",[],"March 1936, with the USSR.",[ally("SOV")]),
+ N("aid",1,1,"Soviet Military Aid","\u{1F6E1}",["pact"],"",[arm(1,null,3),inf(2)]),
+ N("cav",2,0,"The Mongolian Cavalry","\u{1F40E}",[],"",[inf(3)]),
+ N("khalk",2,1,"Khalkhin Gol","\u{1F3F0}",["cav"],"1939.",[fortB(["MAN"])])
+]);
+NF("TBT",["THE REGENCY","FOREIGN POLICY","DEFENCE"],()=>[
+ N("reting",0,0,"The Reting Regency","\u{1F3DB}",[],"",[st({stab:10})]),
+ N("search",0,1,"Find the Fourteenth Dalai Lama","☸",["reting"],"Found in Amdo in 1937.",[st({stab:15})]),
+ N("trade",1,0,"The Trade with India","\u{1F4B5}",[],"Wool and the wartime route to China.",[st({pp:40})]),
+ N("mission",1,1,"The British Mission","\u{1F58B}",["trade"],"Lhasa, 1936.",[pact("UK")]),
+ N("army",2,0,"Reform the Tibetan Army","\u{1F396}",[],"",[inf(2)]),
+ N("chamdo",2,1,"Fortify Chamdo","\u{1F3F0}",["army"],"",[fortB(["CHN"])])
+]);
+NF("NPL",["THE RANAS","FOREIGN POLICY","THE ARMY"],()=>[
+ N("rana",0,0,"Juddha Shumsher","\u{1F451}",[],"Rana prime minister.",[st({stab:10})]),
+ N("kat",0,1,"Rebuild Kathmandu","\u{1F3D7}",["rana"],"After the 1934 earthquake.",[st({pp:40})]),
+ N("treaty",1,0,"The 1923 Treaty with Britain","\u{1F91D}",[],"",[ally("UK")]),
+ N("gurkha",1,1,"Gurkha Battalions","\u{1F396}",["treaty"],"Some 250,000 served.",[inf(3)]),
+ N("fort",2,0,"Fortify the Valley","\u{1F3F0}",[],"",[fort(["ktm"])])
+]);
+})();
 /* ---------------- everybody else: a tree from where they stand ----------------
    Two decisions are made once per campaign and kept with the save (the tree
    must not rename itself when a border moves): the PATRON, the power this
@@ -6073,7 +6804,10 @@ function focusTree(k){
   const spec=NAT_FOCUS[ERA+":"+k];
   const key=ERA+":"+k+":"+(spec?"h":JSON.stringify(focusMetaOf(k)))+":"+(NATIONS[k]&&NATIONS[k].n);
   const hit=_ftCache.get(key);if(hit)return hit;
-  const S=spec||focusGen(k);
+  /* a written tree is a function (its descriptions name provinces, so they
+     are built when the world exists) returning nodes as a list */
+  const S=spec?(typeof spec==="function"?spec():spec):focusGen(k);
+  if(Array.isArray(S.nodes)){const o={};for(const x of S.nodes)o[x.id]=x;S.nodes=o;}
   const nodes=Object.assign({},FOCUSES);
   const pre=x=>"n_"+x;
   for(const id in S.nodes){const f=S.nodes[id];
@@ -17002,10 +17736,12 @@ function renderPanel(){
     const tally=nat=>{let d=0,t=0;for(const k in TREE.nodes)if(!!TREE.nodes[k].nat===nat){t++;if(me.focusDone[k])d++;}return d+"/"+t;};
     /* 64 tall, not 56: a two-line name -- "National Propaganda", "Strategic
        Reserves" -- pushed its own badge out of the bottom of the box. */
-    const NW=112,NH=64,GX=18,GY=28;
     let maxC=0,maxR=0;
     for(const k in FOC){const f=FOC[k];
       if(f.col>maxC)maxC=f.col; if(f.row>maxR)maxR=f.row;}
+    /* five branches (Germany, Italy, Japan...) do not fit the panel at the
+       four-branch width, so the boxes narrow rather than scroll off */
+    const NW=maxC>=4?98:112,NH=64,GX=maxC>=4?12:18,GY=28;
     const TW=(maxC+1)*(NW+GX)-GX, TH=(maxR+1)*(NH+GY)-GY;
     const nx=f=>f.col*(NW+GX), ny=f=>f.row*(NH+GY);
     const state=k=>{
@@ -17045,12 +17781,17 @@ function renderPanel(){
       <div class="fthead" style="gap:${GX}px">`;
     for(let c=0;c<=maxC;c++)h+=`<span style="width:${NW}px${tab==="nat"?";color:#ffd791;border-bottom-color:#6a5a2a":""}">${HEADS[c]||""}</span>`;
     h+=`</div><svg width="${TW}" height="${TH}" style="top:22px">`;
+    const dots=[];
     for(const k in FOC){
       const f=FOC[k];
       /* an either/or: a red dashed bar between the two choices */
       for(const x of (f.excl||[])){const o=FOC[x];if(!o||x<k)continue;
         const ax=nx(f)+NW/2,ay=ny(f)+NH/2,bx=nx(o)+NW/2,by=ny(o)+NH/2;
-        h+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#a5402e" stroke-width="2" stroke-dasharray="5 4"/>`;}
+        h+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#a5402e" stroke-width="2" stroke-dasharray="5 4"/>`;
+        /* and a mark in the gap between them, where the line is not hidden
+           behind either box */
+        const gx=ax===bx?ax:(Math.min(ax,bx)+Math.abs(bx-ax)/2), gy=ay===by?ay:(Math.min(ay,by)+Math.abs(by-ay)/2);
+        dots.push(`<circle cx="${gx}" cy="${gy}" r="7" fill="#2a1512" stroke="#c2553f" stroke-width="1.5"/><text x="${gx}" y="${gy+3.5}" text-anchor="middle" font-size="10" fill="#e07a62">\u2715</text>`);}
       for(const r of (f.req||[])){
         const pf=FOC[r];if(!pf)continue;
         const x1=nx(pf)+NW/2, y1=ny(pf)+NH, x2=nx(f)+NW/2, y2=ny(f);
@@ -17062,7 +17803,7 @@ function renderPanel(){
         h+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"${dash}/>`;
       }
     }
-    h+=`</svg>`;
+    h+=dots.join("")+`</svg>`;
     for(const k in FOC){
       const f=FOC[k], st=state(k);
       const cls=st==="waiting"||st==="excluded"?"locked":st;

@@ -1667,3 +1667,38 @@ the national half sat off the right edge where nobody scrolled.
   run for every alive nation in all seven eras with no error; Anschluss
   completes (Austria gone, Vienna German); a generated tree's meta, finished
   focuses and running focus survive save/load.
+
+### Every WWII country, written out
+
+Owner: "give EVERY country its actual focus tree ... do all of them". Every
+nation alive in any WWII start -- 70 in 1936, all of them -- now has a
+hand-written tree (`NF("KEY",heads,()=>[N(...)...])`), 638 focuses in 1936.
+None is generated any more in that era (`ft2/run.js` reports `generated:[]`
+for 1936, 1939, 1941, 1943 and 1945).
+
+- **Written from the history, not copied.** Paradox's focus trees are their
+  game design, the same rule that keeps their art and music out of this
+  file. Each focus is named for the real policy, treaty, battle or
+  programme (the Four Year Plan, the Vienna Awards, Oxi, the Treaty of
+  Craiova, Dammam No. 7, Quit India...) and its tooltip opens with one
+  line of what actually happened. The choices governments really faced are
+  either/or: Hendaye or Operation Felix, the Golden Square or the treaty,
+  Smuts or Hertzog, the Belgrade coup or the Pact, Free Thai or Japan.
+- **A small DSL keeps 638 tooltips honest** (`E`, `N`): an effect
+  constructor returns fx, its description AND its availability check
+  together, so the text cannot drift from what the focus does. Specs are
+  functions evaluated when a tree is first opened, so descriptions can name
+  provinces. New effect: `E.free()` (a puppet's independence -- Quit India).
+- Five-branch trees narrow the boxes (98px, gap 12) instead of scrolling
+  off the panel; headings are nowrap/ellipsis. Either/or pairs get a red
+  circled x in the gap between them -- the dashed line alone was hidden
+  behind the boxes.
+- Checks (`ft2/static.py`, `ft2/run.js`, `ft2/flow.js`): every referenced
+  province and nation exists; no duplicate ids or grid cells; every req and
+  excl names a node of its own tree; every node's ok() and fx run for every
+  nation in every WWII start year with no error and no "undefined" in any
+  text; Hungary's First Vienna Award is locked until Revisionism, then
+  hands Slovakia over and survives save/load; Romania taking the Axis rules
+  out the Balkan Pact.
+- Other eras still use the 1914/Cold War/today written trees for the great
+  powers and the generated tree for everyone else.
