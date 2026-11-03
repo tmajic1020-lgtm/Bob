@@ -121,6 +121,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 #panel .trrow.on{background:#2a2415;color:#ffd791}
 #panel .trrow.trhd{cursor:default;color:var(--amber);font-size:10px;letter-spacing:1px;border-bottom:1px solid var(--line)}
 #panel .trrow.trhd:hover{background:none}
+#panel .ftwrap .fthead{position:sticky;top:-12px;z-index:3;background:#11160f;padding-top:6px}
+#panel .restabs{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 2px}
+#panel .restabs .tbtn{font-size:10px;padding:4px 7px}
+#panel .restabs small{color:#7ea86a;margin-left:2px}
 #panel .tslots{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
 @media(max-width:700px){#panel.full{left:4px;right:4px;top:52px;bottom:48px}#panel.full .ftwrap{max-height:calc(100vh - 340px)}}
 .resslot{display:flex;align-items:center;gap:10px;padding:9px 10px;margin:8px 0 12px;
@@ -1936,8 +1940,8 @@ const MINISTERS={
 function steelMul(k){if(!epochAtLeast("22.0"))return 1;return shortOn(k,"steel")?0.82:1;}
 function natAtkMul(k){const n=G.nations[k];if(!n)return 1;
   let m=(k==="ZOM"?1.5:1)*ideoOf(n).atk*((DOCTRINES[n.doctrine]||{atk:1}).atk)*(n.cab&&n.cab.staff?1.10:1)*(MODS.blitz?1.35:1)*(MODS.trench?0.6:1);
-  m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m*decMod(k,"atk");}
-function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.doctrine]||{def:1}).def*(MODS.trench?1.35:1)*decMod(k,"def");}
+  m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m*decMod(k,"atk")*techMod(k,"atk");}
+function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.doctrine]||{def:1}).def*(MODS.trench?1.35:1)*decMod(k,"def")*techMod(k,"def");}
 function warDeclCost(me){return Math.round(40*ideoOf(me).war*(me.cab&&me.cab.dip?0.7:1)*(MODS.coldwar?3:1));}
 function playerDeclareWar(o){if(!G||!G.nations)return;
   const me=G.nations[G.player];
@@ -3833,6 +3837,7 @@ function tick(){
         if(net>0)v*=Math.max(MODS.navaldom?0.22:0.35,1-net*0.09);
       }
       pp+=v;oil+=p.oil;
+      if(p.b&&p.b.synth){oil+=p.b.synth;resInc.rubber+=p.b.synth*0.5;}
       /* Resources ride on exactly the same multiplier the province's
          production does, so occupation, bombing and a blockade choke the ore
          and the rubber the same way they choke the money -- which is what
@@ -3860,7 +3865,7 @@ function tick(){
     {const _ms=milShareOf(k);
      if(_ms>0){
        const pool=eqpPool(n);
-       const made=n.ppRate*_ms*EQ_RATE*0.1;
+       const made=n.ppRate*_ms*EQ_RATE*0.1*(1+0.08*bldSum(k,"mil"));
        /* SHARED OUT BY WHAT IS ACTUALLY SHORT. A separate slider per arm would
           be a third thing to fiddle with for a decision the country has already
           made by what it chose to field: an armoured army wants armour. With
@@ -4139,7 +4144,7 @@ function tick(){
   }
   garrisonRegen();
   resUpkeepTick();
-  pactTick();lendTick();wearinessTick();resTradeTick();decTick();trTick();
+  pactTick();lendTick();wearinessTick();resTradeTick();decTick();trTick();bldTick();
   resistanceTick();
   if(G.day%3===0)bombRecover();
   for(const k in G.nations){const n=G.nations[k];if(n.alive&&!n.ai)runGroups(k);}
@@ -4442,6 +4447,7 @@ function moveUnits(arr,kind){
       const w=weatherAt(dest);
       spd*=kind==="fleet"?Math.max(0.62,w.move):terOf(dest).move*w.move*riverSlow(dest);
     }
+    if(kind==="army"&&dest)spd*=1+0.06*bldLv(dest,"infra");   // roads and railways
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
     if(kind==="army"&&shortOn(u.nat,"rubber"))spd*=0.80;  // no tyres, no tracks, no pace
     if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
@@ -4983,7 +4989,11 @@ function airTable(){
     if(!w.target)continue;
     const m=t[w.target]||(t[w.target]={});
     /* A wing with no airframes to replace its losses is a wing on paper. */
-    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air")*eqpMul(w)*qual(w.nat,w.wt);
+    /* radar here or next door, and air bases at home */
+    const tp=G.prov[w.target];let rad=0;
+    if(tp){if(tp.owner===w.nat)rad=bldLv(tp,"radar");
+      for(const j of tp.adj){const q=G.prov[j];if(q&&q.owner===w.nat)rad=Math.max(rad,bldLv(q,"radar"));}}
+    m[w.nat]=(m[w.nat]||0)+wingOf(w).air*w.str*techMul(w.nat,"air")*eqpMul(w)*qual(w.nat,w.wt)*(1+0.5*rad)*airbMul(w.nat);
   }
   _airTblDay=G.day;_airTblN=G.wings.length;_airDirty=false;_airTbl=t;
   return t;
@@ -5069,7 +5079,7 @@ function airOps(){
     if(!w.target)continue;
     const p=provOf(w.target),c=wingOf(w);
     const wx=weatherAt(p),ctrl=airControl(w.nat,w.target);
-    const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl*qual(w.nat,w.wt);
+    const eff=w.str*techMul(w.nat,"air")*wx.air*ctrl*qual(w.nat,w.wt)*airbMul(w.nat);
     const here=byProv[w.target]||[];
     if(c.ground>0){
       p.garrison=Math.max(0,p.garrison-eff*0.15*c.ground);
@@ -5101,6 +5111,7 @@ function airOps(){
     // flak over the target
     let flak=0;
     for(const u of here)if(u.type==="aa"&&atWar(w.nat,u.nat))flak+=u.str;
+    if(atWar(w.nat,p.owner))flak+=bldLv(p,"aa")*1.5;
     if(flak>0){const d2=flak*0.5/(Math.max(1,techMul(w.nat,"air"))*c.tough);w.hp-=d2;eqpHurt(w,d2);}
     /* Losing the air over a target is paid for in aircraft: an escorted
        formation gets home, an unescorted one does not. */
@@ -6972,15 +6983,66 @@ const BUILDINGS={
          d:"Dug in. Every level stiffens the defence and widens the front a defender can hold.",
          have:p=>(p.fort||0),cap:()=>3,
          fx:p=>{p.fort=(p.fort||0)+1;}},
-  fac:  {n:"Factory",i:"\u{1F3ED}",pp:40,days:120,
+  fac:  {n:"Civilian Factory",i:"\u{1F3ED}",pp:40,days:120,
          d:"+1 province value, permanently \u2014 more production and more research every day it stands.",
          have:p=>(p.fac||0),cap:()=>2,
          fx:p=>{p.fac=(p.fac||0)+1;p.val++;terDirty=true;}},
   depot:{n:"Supply Depot",i:"\u{1F69B}",pp:60,days:45,
          d:"A supply source in its own right \u2014 the only way to hold ground a long way from any city you own.",
          have:p=>(p.depot?1:0),cap:()=>1,
-         fx:p=>{p.depot=1;G.supply=null;}}
+         fx:p=>{p.depot=1;G.supply=null;}},
+  /* The rest of the real game's construction list. Each is stored in p.b
+     (saved as province field 13) and read where the game already computes
+     the thing it improves; `tech` names the technology it needs. */
+  mil:  bld("mil",{n:"Military Factory",i:"\u2699",pp:50,days:150,cap:()=>3,
+         d:"Guns, tanks and aircraft: every level in the country adds 8% to equipment output."}),
+  dock: bld("dock",{n:"Dockyard",i:"\u2693",pp:50,days:150,cap:p=>p.coastal?2:0,
+         d:"Coastal provinces only. Every level in the country builds warships 10% faster."}),
+  infra:bld("infra",{n:"Infrastructure",i:"\u{1F6E3}",pp:20,days:40,cap:()=>5,
+         d:"Roads and railways: divisions move into this province 6% faster per level."}),
+  airb: bld("airb",{n:"Air Base",i:"\u{1F6EB}",pp:30,days:60,cap:()=>3,
+         d:"Every level in the country makes your air wings 4% stronger, up to +40%."}),
+  navb: bld("navb",{n:"Naval Base",i:"\u{1F6F3}",pp:30,days:60,cap:p=>p.coastal?3:0,
+         d:"Coastal provinces only. Your fleets anchored here repair faster, more with every level."}),
+  radar:bld("radar",{n:"Radar Station",i:"\u{1F4E1}",pp:35,days:60,cap:()=>2,tech:"rdet",
+         d:"Your aircraft over this province and its neighbours count 50% more per level in the fight for the air."}),
+  aa:   bld("aa",{n:"Anti-Air Guns",i:"\u{1F3AF}",pp:25,days:45,cap:()=>3,
+         d:"Flak over this province shoots at enemy aircraft, like one and a half anti-air divisions per level."}),
+  synth:bld("synth",{n:"Synthetic Refinery",i:"\u{1F6E2}",pp:45,days:120,cap:()=>2,tech:"synth",
+         d:"Oil and rubber from coal: +0.12 oil and +0.5 rubber a day per level."}),
+  rocket:bld("rocket",{n:"Rocket Site",i:"\u{1F680}",pp:60,days:120,cap:()=>1,tech:"bmiss",
+         d:"While at war it fires on the nearest enemy province every ten days, wrecking its garrison and industry."}),
+  reactor:bld("reactor",{n:"Nuclear Reactor",i:"\u2622",pp:120,days:240,cap:()=>1,tech:"reactor",
+         d:"Each reactor builds the warheads in the production queue 50% faster."})
 };
+function bld(k,o){return Object.assign(o,{have:p=>(p.b&&p.b[k])||0,
+  fx:p=>{p.b=p.b||{};p.b[k]=(p.b[k]||0)+1;G._bld=null;if(k==="airb"||k==="radar")airDirty();}});}
+/* the country's total of a building, counted once a day for everyone */
+function bldSum(k,key){
+  if(!G._bld||G._bld.day!==G.day||G._bld.n!==G.uid){
+    const m={};for(const id in G.prov){const p=G.prov[id];if(!p.b)continue;
+      const o=m[p.owner]||(m[p.owner]={});for(const b in p.b)o[b]=(o[b]||0)+p.b[b];}
+    G._bld={day:G.day,n:G.uid,m};}
+  return (G._bld.m[k]&&G._bld.m[k][key])||0;
+}
+const bldLv=(p,key)=>(p&&p.b&&p.b[key])||0;
+const airbMul=k=>1+Math.min(0.4,0.04*bldSum(k,"airb"));
+function bldNeedTech(k,B){return B.tech&&!techInit(G.nations[k]).techs[B.tech]?TECH[B.tech]:null;}
+/* naval bases mend the fleets lying in them; rocket sites fire */
+function bldTick(){
+  for(const f of G.fleets){if(f.to)continue;const p=G.prov[f.at];const lv=bldLv(p,"navb");
+    if(lv&&p.owner===f.nat&&f.hp<f.str*10)f.hp=Math.min(f.str*10,f.hp+0.25*lv);}
+  if(G.day%10)return;
+  for(const id in G.prov){const p=G.prov[id];if(!bldLv(p,"rocket"))continue;
+    const k=p.owner,n=G.nations[k];if(!n||!n.alive||!n.atWar.size)continue;
+    let best=null,bd=1e9;
+    for(const qid in G.prov){const q=G.prov[qid];if(!atWar(k,q.owner))continue;
+      const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<bd&&d<260){bd=d;best=q;}}
+    if(!best)continue;
+    best.garrison=Math.max(0,best.garrison-2);best.bombed=Math.min(0.9,(best.bombed||0)+0.08);
+    if(k===G.player||best.owner===G.player)logMsg(`\u{1F680} ${FL(k)} rockets fall on ${best.name}.`,k===G.player?"good":"war");
+  }
+}
 /* How many sites a country can run at once. One always, and then what its
    industry and its standing factories will support. */
 function conSlots(k){
@@ -6998,13 +7060,14 @@ function conSlots(k){
 function conDays(k,what){
   const B=BUILDINGS[what];
   if(!B)return 60;
-  return Math.max(10,Math.round(B.days/Math.max(0.5,techMul(k,"ind"))));
+  return Math.max(10,Math.round(B.days/Math.max(0.5,techMul(k,"ind"))/techMod(k,"con")));
 }
 function conSites(k){return (G.build||[]).filter(o=>o.nat===k);}
 function buildIn(pid,what){
   if(!G||!G.nations)return;
   const me=G.nations[G.player],p=provOf(pid),B=BUILDINGS[what];
   if(!p||!B||p.owner!==G.player)return;
+  {const t=bldNeedTech(G.player,B);if(t){logMsg(`${B.n} needs ${t.n} first.`,"war");return;}}
   G.build=G.build||[];
   const queuedHere=G.build.filter(o=>o.nat===G.player&&o.at===pid&&o.what===what).length;
   if(B.have(p)+queuedHere>=B.cap(p)){
@@ -7452,10 +7515,48 @@ function resCost(n,k){return 10+n.res[k]*14;}
    A country starts the game already holding everything invented before its
    start year: that is the baseline its research levels already reflect, so
    it grants nothing again. */
+/* The eleven categories of the real game's research screen, each its own
+   tab: equipment, the companies that support a division, and the three
+   doctrines, which improve a whole arm rather than one weapon. */
 const TECH_BR=[
-  {k:"ind",n:"INDUSTRY",  i:"\u{1F3ED}"},{k:"inf",n:"INFANTRY", i:"\u{1F52B}"},
-  {k:"arm",n:"ARMOUR",    i:"\u{1F6E1}"},{k:"art",n:"ARTILLERY",i:"\u{1F4A5}"},
-  {k:"air",n:"AIR",       i:"✈"},   {k:"nav",n:"NAVAL",    i:"⚓"}];
+  {k:"ind", n:"INDUSTRY",      i:"\u{1F3ED}"},{k:"elec",n:"ELECTRONICS",   i:"\u{1F4E1}"},
+  {k:"inf", n:"INFANTRY",      i:"\u{1F52B}"},{k:"sup", n:"SUPPORT",       i:"\u{1F527}"},
+  {k:"arm", n:"ARMOUR",        i:"\u{1F6E1}"},{k:"art", n:"ARTILLERY",     i:"\u{1F4A5}"},
+  {k:"ldoc",n:"LAND DOCTRINE", i:"\u{1F5FA}"},{k:"air", n:"AIR",           i:"\u2708"},
+  {k:"adoc",n:"AIR DOCTRINE",  i:"\u{1F3AF}"},{k:"nav", n:"NAVAL",         i:"\u2693"},
+  {k:"ndoc",n:"NAVAL DOCTRINE",i:"\u{1F9ED}"}];
+/* a doctrine's bonus lands on a whole arm: the group a unit type belongs to */
+var RES_TAB="ind";
+const TECH_LINE_N={ind:"Production",atom:"Nuclear",cons:"Construction",prod:"Methods",mat:"Materials",
+  radio:"Radio",radar:"Radar",crypt:"Codes and Ciphers",comp:"Computing",rocket:"Rockets",
+  inf:"Small Arms",supw:"Support Weapons",mot:"Motorised",spec:"Special Forces",
+  eng:"Engineers",recon:"Reconnaissance",med:"Medical",log:"Logistics",
+  arm:"Armour",art:"Field Artillery",aa:"Anti-Air",at:"Anti-Tank",
+  mob:"Manoeuvre",defd:"Defence",deep:"Deep Battle",fire:"Fire Planning",
+  air:"Fighters",bomb:"Bombers",cas:"Close Support",tac:"Tactical Bombers",trn:"Transport",
+  astrat:"Strategic Bombing",acas:"Ground Support",asup:"Air Superiority",
+  nav:"Capital Ships",dd:"Escorts",sub:"Submarines",cv:"Carriers",crui:"Cruisers",land:"Landing Craft",
+  battle:"Fleet Battle",trade:"Trade War",carr:"Carriers and Landings"};
+const UNIT_N={inf:"infantry",arm:"armour",art:"artillery",aa:"anti-air",dd:"escorts",sub:"submarines",cap:"capital ships",cv:"carriers",
+  fig:"fighters",cas:"tactical bombers",stb:"strategic bombers",nvb:"naval bombers",land:"the whole army",navy:"the whole navy",air:"the whole air force"};
+/* what a technology does, spelled out from the same fields that apply it */
+function techEffTxt(t){
+  const p=[];
+  if(t.q)p.push(`${UNIT_N[t.q]||t.q} +${TECH_GROUP[t.q]?10:5}%`);
+  const sp=t.sp||{};
+  if(sp.res)p.push(`research +${Math.round(sp.res*100)}%`);
+  if(sp.con)p.push(`construction +${Math.round(sp.con*100)}%`);
+  if(sp.atk)p.push(`army attack +${Math.round(sp.atk*100)}%`);
+  if(sp.def)p.push(`army defence +${Math.round(sp.def*100)}%`);
+  if(sp.oil)p.push(`+${sp.oil} oil`);
+  if(sp.mp)p.push(`+${sp.mp} manpower`);
+  if(sp.stock)for(const r in sp.stock)p.push(`+${sp.stock[r]} ${RESOURCES[r].n.toLowerCase()}`);
+  if(sp.atom)p.push("nuclear weapons without Industry III");
+  for(const k in BUILDINGS)if(BUILDINGS[k].tech===t.id)p.push(`unlocks the ${BUILDINGS[k].n.toLowerCase()}`);
+  return p.length?", "+p.join(", "):"";
+}
+const TECH_GROUP={inf:"land",arm:"land",art:"land",aa:"land",dd:"navy",sub:"navy",cap:"navy",cv:"navy",
+  fig:"air",cas:"air",stb:"air",nvb:"air"};
 /* [id, branch, line, year, name, unit improved, what it was]
    Within a line each technology needs the one before it; `x` adds a
    requirement from another line. */
@@ -7598,7 +7699,145 @@ const TECH_RAW=[
  ["carrier","nav","cv",1922,"Aircraft Carriers","cv","Hosho, the first built as one.",null,["dread","flight"]],
  ["armdk","nav","cv",1940,"Armoured Flight Decks","cv","The Illustrious class."],
  ["angle","nav","cv",1952,"The Angled Deck","cv","And the steam catapult."],
- ["super","nav","cv",1961,"Nuclear Supercarriers","cv","USS Enterprise."]
+ ["super","nav","cv",1961,"Nuclear Supercarriers","cv","USS Enterprise."],
+ /* ---- INDUSTRY: construction, production methods, materials ---- */
+ ["concr","ind","cons",1867,"Reinforced Concrete","","Monier's iron-reinforced concrete.",{con:0.10}],
+ ["prefab","ind","cons",1936,"Prefabrication","","Standard parts made off site.",{con:0.10}],
+ ["crane","ind","cons",1942,"Heavy Construction Plant","","Tower cranes and bulldozers.",{con:0.10}],
+ ["earth","ind","cons",1956,"Containerisation","","The shipping container: logistics on a new scale.",{con:0.10}],
+ ["modul","ind","cons",2005,"Modular Construction","","Whole sections built in the factory.",{con:0.10}],
+ ["intch","ind","prod",1801,"Interchangeable Parts","","Whitney's muskets and the Springfield Armory."],
+ ["taylor","ind","prod",1911,"Scientific Management","","Time and motion studies."],
+ ["flow","ind","prod",1937,"Flow Production","","Whole factories laid out around the line."],
+ ["sqc","ind","prod",1942,"Statistical Quality Control","","Shewhart's charts in the munitions plants."],
+ ["nc","ind","prod",1952,"Numerical Control","","Machine tools driven by punched tape."],
+ ["robot","ind","prod",1961,"Industrial Robots","","Unimate on the General Motors line."],
+ ["lean","ind","prod",1973,"Lean Production","","The Toyota Production System."],
+ ["addm","ind","prod",2012,"Additive Manufacturing","","Printed parts at the front."],
+ ["hallh","ind","mat",1886,"Aluminium Electrolysis","","Hall-Heroult: aluminium becomes cheap.",{stock:{alu:60}}],
+ ["buna","ind","mat",1937,"Synthetic Rubber","","Buna and GR-S.",{stock:{rubber:80}}],
+ ["crack","ind","mat",1937,"Catalytic Cracking","","Houdry's process: more fuel from every barrel.",{oil:40}],
+ ["plast","ind","mat",1950,"Plastics and Composites","","Nylon, fibreglass, then carbon fibre."],
+ /* ---- ELECTRONICS: radio, radar, codes, computing, rockets ---- */
+ ["telegr","elec","radio",1844,"The Electric Telegraph","","Morse's line from Washington to Baltimore."],
+ ["wirel","elec","radio",1901,"Wireless Telegraphy","","Marconi across the Atlantic."],
+ ["triode","elec","radio",1906,"The Triode Valve","","De Forest's Audion: amplification."],
+ ["tankrad","elec","radio",1935,"Tank and Aircraft Radio","arm","Every tank a radio, every commander in contact."],
+ ["walkie","elec","radio",1941,"The Walkie-Talkie","inf","The SCR-300 backpack set."],
+ ["satcom","elec","radio",1962,"Satellite Communications","","Telstar."],
+ ["datal","elec","radio",1995,"Digital Battle Networks","land","Every unit on one picture."],
+ ["rdet","elec","radar",1935,"Radio Detection","fig","Watson-Watt's Daventry experiment."],
+ ["cmag","elec","radar",1940,"The Cavity Magnetron","dd","Centimetric radar small enough for ships and aircraft."],
+ ["airad","elec","radar",1941,"Airborne Interception Radar","fig","Night fighters that can see."],
+ ["phased","elec","radar",1960,"Phased-Array Radar","aa","Beams steered without moving the dish."],
+ ["awacs","elec","radar",1977,"Airborne Early Warning","fig","The E-3 Sentry."],
+ ["cipher","elec","crypt",1926,"Machine Encryption","","Rotor machines for military signals."],
+ ["bombe","elec","crypt",1940,"Electromechanical Codebreaking","","The Bombe at Bletchley Park.",{atk:0.03}],
+ ["colos","elec","crypt",1944,"Programmable Codebreakers","","Colossus.",{atk:0.02,def:0.02}],
+ ["pubkey","elec","crypt",1976,"Public-Key Cryptography","","Diffie-Hellman.",{def:0.03}],
+ ["analyz","elec","comp",1931,"The Differential Analyser","","Bush's mechanical computer at MIT.",{res:0.03}],
+ ["eniac","elec","comp",1945,"The Electronic Computer","","ENIAC.",{res:0.05}],
+ ["stored","elec","comp",1949,"Stored-Program Computers","","EDSAC.",{res:0.05}],
+ ["mainf","elec","comp",1964,"Mainframes","","The System/360.",{res:0.05}],
+ ["pc","elec","comp",1981,"Personal Computers","","A computer on every desk.",{res:0.05}],
+ ["genai","elec","comp",2022,"Generative AI","","Large language models.",{res:0.05}],
+ ["lfrock","elec","rocket",1926,"The Liquid-Fuel Rocket","","Goddard at Auburn."],
+ ["bmiss","elec","rocket",1944,"Ballistic Missiles","art","The V-2. Unlocks rocket sites."],
+ ["sat","elec","rocket",1957,"Satellites","","Sputnik.",{res:0.03}],
+ ["icbm","elec","rocket",1959,"Intercontinental Missiles","art","The R-7 and the Atlas."],
+ ["gpsn","elec","rocket",1978,"Satellite Navigation","land","GPS."],
+ ["hyper","elec","rocket",2028,"Hypersonic Missiles","art","Entering service."],
+ /* ---- INFANTRY: support weapons, motorisation, special forces ---- */
+ ["mortar","inf","supw",1915,"The Trench Mortar","inf","The Stokes mortar."],
+ ["infat","inf","supw",1934,"Infantry Anti-Tank Guns","inf","The 37mm in every regiment."],
+ ["recoil","inf","supw",1944,"Recoilless Rifles","inf","Artillery a squad can carry."],
+ ["motinf","inf","mot",1935,"Motorised Infantry","inf","Lorried infantry for the armoured divisions."],
+ ["halft","inf","mot",1939,"Half-Tracks","inf","The Sd.Kfz. 251 and the M3."],
+ ["apc","inf","mot",1960,"Armoured Personnel Carriers","inf","The M113."],
+ ["ifv","inf","mot",1966,"Infantry Fighting Vehicles","inf","The BMP-1."],
+ ["mount","inf","spec",1915,"Mountain Troops","inf","Alpini, Gebirgsjaeger and Chasseurs alpins."],
+ ["para","inf","spec",1936,"Paratroopers","inf","Soviet manoeuvres at Kiev, 1935-36."],
+ ["marine","inf","spec",1942,"Amphibious Assault Troops","inf","Raiders, commandos and the Marine divisions."],
+ ["sof","inf","spec",1980,"Special Operations Forces","inf","Delta, the SAS and Spetsnaz."],
+ /* ---- SUPPORT companies ---- */
+ ["sapper","sup","eng",1772,"Sappers and Miners","land","The first permanent engineer companies."],
+ ["combeng","sup","eng",1916,"Combat Engineers","land","Assault pioneers with flamethrowers and charges."],
+ ["bailey","sup","eng",1942,"Bailey Bridges","land","A bridge in a day."],
+ ["funnies","sup","eng",1944,"Armoured Engineers","arm","Hobart's Funnies."],
+ ["recon1","sup","recon",1935,"Divisional Reconnaissance","land","Scouts on motorcycles and in armoured cars."],
+ ["recon2","sup","recon",1943,"Armoured Reconnaissance","arm","Recon battalions with light tanks."],
+ ["recon3","sup","recon",1985,"Battlefield Surveillance","land","Radar and sensors at division level."],
+ ["fieldh","sup","med",1854,"Field Hospitals","land","Nightingale at Scutari.",{mp:40}],
+ ["bloodb","sup","med",1937,"Blood Banks","land","Fantus in Chicago, and the Spanish Civil War.",{mp:60}],
+ ["penic","sup","med",1943,"Penicillin","land","Mass-produced for D-Day.",{mp:120}],
+ ["medevac","sup","med",1951,"Helicopter Evacuation","land","Korea.",{mp:60}],
+ ["railtr","sup","log",1866,"Railway Troops","land","The Prussian Eisenbahntruppe."],
+ ["motort","sup","log",1914,"Motor Transport","land","The Paris taxis to the Marne."],
+ ["jerry","sup","log",1937,"The Jerrycan","land","Twenty litres that do not leak."],
+ ["convoys","sup","log",1944,"Truck Convoy Systems","land","The Red Ball Express."],
+ ["helilift","sup","log",1956,"Helicopter Lift","land","Air mobility."],
+ /* ---- LAND DOCTRINE ---- */
+ ["tercio","ldoc","mob",1534,"The Tercio","",
+  "Pike and shot in one formation.",{atk:0.02}],
+ ["corps","ldoc","mob",1805,"The Corps System","","Napoleon's self-contained army corps.",{atk:0.03}],
+ ["auftrag","ldoc","mob",1870,"Mission Command","","Auftragstaktik: the aim, not the method.",{atk:0.03}],
+ ["storm","ldoc","mob",1917,"Stormtroop Tactics","","Infiltration at Riga and Caporetto.",{atk:0.03}],
+ ["beweg","ldoc","mob",1935,"Manoeuvre Warfare","","Concentrated armour and the breakthrough.",{atk:0.04}],
+ ["blitz","ldoc","mob",1939,"Combined-Arms Breakthrough","arm","Tanks, aircraft and radio together.",{atk:0.04}],
+ ["kgruppe","ldoc","mob",1942,"Battle Groups","","Kampfgruppen formed for the task.",{atk:0.03}],
+ ["airland","ldoc","mob",1982,"AirLand Battle","","Striking the follow-on echelons.",{atk:0.04}],
+ ["netcen","ldoc","mob",2001,"Network-Centric Warfare","","Information as the decisive weapon.",{atk:0.03}],
+ ["entren","ldoc","defd",1864,"Field Entrenchment","","Petersburg and Plevna.",{def:0.03}],
+ ["depth","ldoc","defd",1917,"Defence in Depth","","The elastic defence of 1917.",{def:0.04}],
+ ["method","ldoc","defd",1921,"Methodical Battle","","The French bataille conduite.",{def:0.04}],
+ ["hedgeh","ldoc","defd",1942,"Hedgehog Defence","","Villages held as strongpoints.",{def:0.03}],
+ ["layered","ldoc","defd",1943,"Layered Defence","","The belts at Kursk.",{def:0.04}],
+ ["active","ldoc","defd",1976,"Active Defence","","Trading space for attrition in the Fulda Gap.",{def:0.03}],
+ ["deepb","ldoc","deep",1936,"Deep Battle","","Triandafillov's operations in depth.",{atk:0.03}],
+ ["deepop","ldoc","deep",1943,"Deep Operations","","Bagration.",{atk:0.04}],
+ ["omg","ldoc","deep",1981,"Operational Manoeuvre Groups","","Raiding forces for the rear.",{atk:0.03}],
+ ["tot","ldoc","fire",1918,"Predicted Fire","art","Hitting without ranging shots first."],
+ ["tot2","ldoc","fire",1943,"Time on Target","art","Every gun's shells arriving at once."],
+ ["counterb","ldoc","fire",1970,"Counter-Battery Radar","art","Finding the enemy's guns from their shells."],
+ /* ---- NAVAL DOCTRINE ---- */
+ ["line","ndoc","battle",1653,"The Line of Battle","cap","The Fighting Instructions."],
+ ["breakl","ndoc","battle",1782,"Breaking the Line","cap","The Saintes and Trafalgar."],
+ ["mahan","ndoc","battle",1890,"Command of the Sea","navy","Mahan's The Influence of Sea Power upon History."],
+ ["decis","ndoc","battle",1930,"The Decisive Battle","cap","Kantai Kessen."],
+ ["seactl","ndoc","battle",1960,"Sea Control","navy","Holding the sea lanes against a submarine fleet."],
+ ["convoy","ndoc","trade",1917,"The Convoy System","dd","Merchantmen sailing together under escort."],
+ ["wolfp","ndoc","trade",1940,"Wolfpack Tactics","sub","Doenitz's Rudeltaktik."],
+ ["huntk","ndoc","trade",1943,"Hunter-Killer Groups","dd","Escort carriers and support groups."],
+ ["amphd","ndoc","carr",1934,"Amphibious Doctrine","navy","The Tentative Manual for Landing Operations."],
+ ["cvtf","ndoc","carr",1942,"Carrier Task Forces","cv","The fleet built round the carriers."],
+ ["airsea","ndoc","carr",2010,"Air-Sea Battle","navy","Joint strike against anti-access."],
+ /* ---- AIR DOCTRINE ---- */
+ ["douhet","adoc","astrat",1921,"Command of the Air","stb","Douhet."],
+ ["indweb","adoc","astrat",1935,"Industrial Web Theory","stb","The Air Corps Tactical School."],
+ ["area","adoc","astrat",1942,"Area Bombing","stb","The Butt Report's conclusion, and Harris."],
+ ["escort","adoc","astrat",1944,"Long-Range Escort","fig","Mustangs over Berlin."],
+ ["fac","adoc","acas",1943,"Forward Air Controllers","cas","Pilots on the ground calling the strike."],
+ ["cobra","adoc","acas",1944,"Carpet Bombing for Breakthrough","cas","Operation Cobra."],
+ ["interd","adoc","acas",1950,"Air Interdiction","cas","Cutting the supply lines behind the front."],
+ ["fingerf","adoc","asup",1938,"The Finger-Four","fig","Moelders's formation in Spain."],
+ ["bigwing","adoc","asup",1940,"Massed Fighter Wings","fig","The Big Wing debate."],
+ ["ooda","adoc","asup",1976,"Energy-Manoeuvrability Theory","fig","Boyd."],
+ /* ---- ARTILLERY: anti-tank line ---- */
+ ["atgun","art","at",1928,"Anti-Tank Guns","art","The 37mm Pak 36."],
+ ["hvat","art","at",1941,"High-Velocity Anti-Tank Guns","art","The 17-pounder and the Pak 40."],
+ ["tdsp","art","at",1943,"Self-Propelled Anti-Tank Guns","art","Marders and Hellcats."],
+ /* ---- AIR: tactical bombers and transports ---- */
+ ["medbmb","air","tac",1936,"Twin-Engine Medium Bombers","cas","The He 111 and the B-25.",null,["flight"]],
+ ["jetbmb","air","tac",1944,"Jet Bombers","cas","The Arado Ar 234."],
+ ["transp","air","trn",1935,"Transport Aircraft","cas","The DC-3.",null,["flight"]],
+ /* ---- NAVAL: cruisers and landing craft ---- */
+ ["prcrui","nav","crui",1880,"Protected Cruisers","cap","An armoured deck over the machinery.",null,["iron"]],
+ ["ltcrui","nav","crui",1910,"Light Cruisers","cap","Fast scouts for the fleet."],
+ ["hvcrui","nav","crui",1922,"Treaty Heavy Cruisers","cap","Ten thousand tons and eight-inch guns."],
+ ["aacrui","nav","crui",1941,"Anti-Aircraft Cruisers","cv","The Atlanta class."],
+ ["lcraft","nav","land",1938,"Landing Craft","dd","The Higgins boat.",null,["destr"]],
+ ["lst","nav","land",1942,"Tank Landing Ships","dd","The LST."],
+ ["hover","nav","land",1965,"Hovercraft","dd","The SR.N series."]
 ];
 const TECH={},TECH_LIST=[];
 (function(){
@@ -7608,8 +7847,8 @@ const TECH={},TECH_LIST=[];
     const req=[];if(last[line])req.push(last[line]);if(x)req.push(...x);
     const t={id,br,line,year,n,q,d,sp:sp||null,req,
       /* each branch feeds the research level the game already used for it */
-      track:br==="ind"?"ind":br==="air"?"air":br==="nav"?"nav":"land",
-      gain:br==="ind"?0.5:br==="air"||br==="nav"?0.3:0.2};
+      track:br==="ind"||br==="elec"?"ind":br==="air"||br==="adoc"?"air":br==="nav"||br==="ndoc"?"nav":"land",
+      gain:br==="ind"?0.5:br==="sup"?0.15:br==="inf"||br==="arm"||br==="art"?0.2:0.3};
     TECH[id]=t;TECH_LIST.push(t);last[line]=id;
   }
 })();
@@ -7641,14 +7880,24 @@ function techOpen(n,id){
   if(n.slots.some(s=>s.id===id))return false;
   return t.req.every(r=>n.techs[r]);
 }
-function techGrant(k,id,quiet){
+/* The lasting part of a technology, which a load replays: the unit or arm
+   it improves (a whole arm, from a doctrine, by half as much), and research,
+   construction, attack and defence modifiers. */
+function techTq(n,t){
+  const add=(k,v)=>{n.tq[k]=+((n.tq[k]||0)+v).toFixed(3);};
+  if(t.q)add(t.q,TECH_GROUP[t.q]?TECH_QUAL:TECH_QUAL/2);
+  if(t.sp){for(const k of["res","con","atk","def"])if(t.sp[k])add(k,t.sp[k]);
+    if(t.sp.atom)n.atomicOk=true;}
+}
+function techGrant(k,id){
   const n=G.nations[k],t=TECH[id];if(!n||!t)return;techInit(n);
   if(n.techs[id])return;
   n.techs[id]=1;n.techNew.push(id);
   n.res[t.track]=+((n.res[t.track]||0)+t.gain).toFixed(2);
-  if(t.q)n.tq[t.q]=+((n.tq[t.q]||0)+TECH_QUAL).toFixed(2);
-  if(t.sp&&!quiet){if(t.sp.oil)n.oil+=t.sp.oil;if(t.sp.atom)n.atomicOk=true;}
-  else if(t.sp&&t.sp.atom)n.atomicOk=true;
+  techTq(n,t);
+  /* and the one-off part, which a load does not repeat */
+  if(t.sp){if(t.sp.oil)n.oil+=t.sp.oil;if(t.sp.mp)n.mp=(n.mp||0)+t.sp.mp;
+    if(t.sp.stock){n.stock=n.stock||{};for(const r in t.sp.stock)n.stock[r]=(n.stock[r]||0)+t.sp.stock[r];}}
 }
 function techStart(k,id){
   const n=G.nations[k];if(!n)return false;techInit(n);
@@ -7678,12 +7927,14 @@ function techAiPick(k){
   }
 }
 /* How much a unit's own technology adds: +10% per invention about it. */
-function qual(nat,type){const n=G.nations[nat];return 1+((n&&n.tq&&n.tq[type])||0);}
+function qual(nat,type){const n=G.nations[nat];if(!n||!n.tq)return 1;
+  return 1+(n.tq[type]||0)+(n.tq[TECH_GROUP[type]]||0);}
+const techMod=(k,key)=>{const n=G&&G.nations[k];return 1+((n&&n.tq&&n.tq[key])||0);};
 /* progress per day per slot: a base every country has, plus its size, times
    its industry. A one-province country is slow; it is not frozen. */
 function resProgPerDay(k){
   const n=G&&G.nations[k];if(!n)return 0;
-  return (0.12+natProvs(k).length*0.006)*techMul(k,"ind")*(MODS.swift?2:1)*decMod(k,"res");
+  return (0.12+natProvs(k).length*0.006)*techMul(k,"ind")*(MODS.swift?2:1)*decMod(k,"res")*techMod(k,"res");
 }
 function roman(x){return["","I","II","III","IV","V","VI","VII","VIII","IX","X"][x]||x;}
 
@@ -17584,6 +17835,9 @@ function renderPanel(){
         const B=BUILDINGS[_k];
         const q=_here.filter(o=>o.what===_k);
         const had=B.have(p), cap=B.cap(p);
+        if(cap<=0)continue;
+        const _lk=bldNeedTech(G.player,B);
+        if(_lk&&!had&&!q.length){h+=`<div class="row"><span style="color:var(--dim)">${B.i} ${B.n}</span><span style="color:var(--dim)">\u{1F512} needs ${_lk.n}</span></div>`;continue;}
         if(q.length){
           /* a site in progress: how far, and the chance to call it off */
           const o=q[0], pct=Math.round(100*(o.total-o.left)/o.total);
@@ -17655,10 +17909,17 @@ function renderPanel(){
           <div class="bar" style="margin-bottom:3px"><i style="width:${pct}%;background:${working?"var(--amber)":"#5a6355"}"></i></div>`;
       });
     }
-    h+=`<div class="row" style="gap:3px;margin-top:8px">${Object.keys(BUILDINGS).map(k=>
-      `<button class="tbtn ${k===CON_TAB?"on":""}" style="flex:1;font-size:10px" onclick="setConTab('${k}')">${BUILDINGS[k].i} ${BUILDINGS[k].n.toUpperCase()}</button>`).join("")}</div>
-    <div style="color:var(--dim);font-size:11px">${B.d} ${B.pp} PP \u00b7 ${conDays(G.player,CON_TAB)} days${B.cap({})>1?" \u00b7 up to "+B.cap({})+" levels":""}.</div>`;
-    const ps=natProvs(G.player).map(p=>({p,f:conFrontOf(p),q:conQueued(p.id,CON_TAB),had:B.have(p),cap:B.cap(p)}));
+    /* a tab per building, as in the real game's construction screen; the
+       count is how many you have of it across the country */
+    h+=`<div class="restabs">${Object.keys(BUILDINGS).map(k=>{const Bk=BUILDINGS[k];
+      const tot=natProvs(G.player).reduce((s,p)=>s+Bk.have(p),0),lock=bldNeedTech(G.player,Bk);
+      return `<button class="tbtn ${k===CON_TAB?"on":""}" style="${lock?"opacity:.55":""}" onclick="setConTab('${k}')">${Bk.i} ${Bk.n.toUpperCase()}${tot?` <small>${tot}</small>`:""}${lock?" \u{1F512}":""}</button>`;}).join("")}</div>`;
+    const lockT=bldNeedTech(G.player,B);
+    const capMax=Math.max(B.cap({}),B.cap({coastal:true}));
+    h+=`<div style="color:var(--dim);font-size:11px">${B.d} ${B.pp} PP \u00b7 ${conDays(G.player,CON_TAB)} days${capMax>1?" \u00b7 up to "+capMax+" levels":""}.
+      ${lockT?`<span style="color:#d08a6a">Needs the technology ${lockT.n} (${lockT.year}) \u2014 research it first.</span>`:""}</div>`;
+    const ps=natProvs(G.player).map(p=>({p,f:conFrontOf(p),q:conQueued(p.id,CON_TAB),had:B.have(p),cap:B.cap(p)})).filter(r=>r.cap>0);
+    if(!ps.length)h+=`<div style="color:var(--dim);margin-top:8px">None of your provinces can take this \u2014 it needs a coast.</div>`;
     if(CON_TAB==="fort"){
       const nFront=ps.filter(r=>r.f>=2&&r.had+r.q<r.cap).length,nBorder=ps.filter(r=>r.f>=1&&r.had+r.q<r.cap).length;
       h+=`<div class="row" style="gap:3px;margin-top:4px">
@@ -17676,7 +17937,7 @@ function renderPanel(){
         const full=r.had+r.q>=r.cap;
         h+=`<div class="row" style="align-items:center"><span><a href="#" style="color:var(--ink)" onclick="goProv('${r.p.id}');return false">${capOf(G.player)===r.p.id?"\u2605 ":""}${r.p.name}</a> <span style="color:var(--dim);font-size:10px">${terOf(r.p).i}</span></span>
           <span><span title="built / being built / free" style="letter-spacing:1px;color:${r.had?"var(--amber)":"var(--dim)"}">${pips}</span>
-          <button class="tbtn" style="font-size:9px;padding:1px 6px;margin-left:4px" ${full||me.pp<B.pp?"disabled":""} onclick="buildIn('${r.p.id}','${CON_TAB}')">${full?"\u2713":"+ "+B.pp+" PP"}</button></span></div>`;
+          <button class="tbtn" style="font-size:9px;padding:1px 6px;margin-left:4px" ${full||me.pp<B.pp||lockT?"disabled":""} onclick="buildIn('${r.p.id}','${CON_TAB}')">${full?"\u2713":"+ "+B.pp+" PP"}</button></span></div>`;
       }
     }
     el.innerHTML=h;
@@ -17977,7 +18238,7 @@ function renderPanel(){
     techInit(me);
     /* the panel is re-rendered as the days pass: keep where the player has
        scrolled to, and only open on the present the first time */
-    const _old=el.querySelector(".ftwrap"), _keep=_old&&el.dataset.p==="research"?[_old.scrollLeft,_old.scrollTop]:null;
+    const _old=el.querySelector(".ftwrap"), _keep=_old&&el.dataset.p==="research"+(window.RES_TAB||"")?[_old.scrollLeft,_old.scrollTop]:null;
     const Y=curYearF(), rate=Math.max(0.0001,resProgPerDay(G.player)), nSlots=techSlots(G.player);
     const days=id=>{const s=me.slots.find(x=>x.id===id);
       return Math.max(1,Math.ceil((techCost(id)-(s?s.prog:0))/rate));};
@@ -17996,24 +18257,33 @@ function renderPanel(){
     h+=`</div><div style="color:var(--dim);font-size:11px;margin:6px 0">Base time ${Math.ceil(TECH_BASE/rate)} days at your rate.
       <span style="color:var(--amber)">Every year AHEAD of a technology's historical date adds its base time again</span>
       (two years early = three times as long). Each one raises its branch and makes the units it is about 10% better.</div>`;
-    /* which technologies to draw: the last thirty years and the next
-       twenty-five, plus anything open or in a slot wherever it falls */
-    const show=TECH_LIST.filter(t=>(t.year>=Y-30&&t.year<=Y+25)||techOpen(me,t.id)||me.slots.some(s=>s.id===t.id));
+    /* ONE TAB PER CATEGORY, as in the real game. Within a tab each line of
+       development is a column and the years run down the side, so how far
+       ahead of its date a technology sits is distance down the screen. The
+       last forty years and the next thirty are drawn, plus anything open or
+       in a slot wherever it falls. */
+    const tab=TECH_BR.some(b=>b.k===window.RES_TAB)?window.RES_TAB:"ind";
+    const openIn=b=>TECH_LIST.filter(t=>t.br===b&&techOpen(me,t.id)).length;
+    h+=`<div class="restabs">${TECH_BR.map(b=>{const o=openIn(b.k),run=me.slots.some(s=>TECH[s.id].br===b.k);
+      return `<button class="tbtn${b.k===tab?" on":""}" onclick="RES_TAB='${b.k}';renderPanel()">${b.i} ${b.n}${run?" \u25CF":""}${o?` <small>${o}</small>`:""}</button>`;}).join("")}</div>`;
+    const show=TECH_LIST.filter(t=>t.br===tab&&((t.year>=Y-40&&t.year<=Y+30)||techOpen(me,t.id)||me.slots.some(s=>s.id===t.id)));
+    const lines=[...new Set(TECH_LIST.filter(t=>t.br===tab).map(t=>t.line))].filter(l=>show.some(t=>t.line===l));
     const years=[...new Set(show.map(t=>t.year))].sort((a,b)=>a-b);
     const rowOf={};let row=0;const yrRow=[];
     for(const y of years){
       let tall=1;
-      for(const b of TECH_BR){const here=show.filter(t=>t.br===b.k&&t.year===y);
+      for(const l of lines){const here=show.filter(t=>t.line===l&&t.year===y);
         here.forEach((t,i)=>rowOf[t.id]=row+i);tall=Math.max(tall,here.length);}
       yrRow.push([y,row]);row+=tall;
     }
-    const NW=152,NH=66,GX=34,GY=22,LX=52;
-    const col={};TECH_BR.forEach((b,i)=>col[b.k]=i);
-    const nx=t=>LX+col[t.br]*(NW+GX), ny=t=>rowOf[t.id]*(NH+GY);
-    const TW=LX+TECH_BR.length*(NW+GX)-GX, TH=row*(NH+GY)-GY;
+    const NW=168,NH=66,GX=40,GY=24,LX=52;
+    const col={};lines.forEach((l,i)=>col[l]=i);
+    const nx=t=>LX+col[t.line]*(NW+GX), ny=t=>rowOf[t.id]*(NH+GY);
+    const TW=LX+Math.max(1,lines.length)*(NW+GX)-GX, TH=Math.max(1,row)*(NH+GY)-GY;
+    if(!show.length)h+=`<div style="color:var(--dim);margin-top:10px">Nothing in this category within reach of ${Math.floor(Y)}.</div>`;
     h+=`<div class="ftwrap"><div class="ftree" style="width:${TW}px;height:${TH+26}px">
       <div class="fthead" style="gap:${GX}px;margin-left:${LX}px">`;
-    for(const b of TECH_BR)h+=`<span style="width:${NW}px">${b.i} ${b.n}</span>`;
+    for(const l of lines)h+=`<span style="width:${NW}px">${(TECH_LINE_N[l]||l).toUpperCase()}</span>`;
     h+=`</div><svg width="${TW}" height="${TH}" style="top:26px">`;
     /* the time axis: a rule and a label at each year, and the present */
     for(const [y,r] of yrRow){const yy=r*(NH+GY)+NH/2;
@@ -18022,7 +18292,7 @@ function renderPanel(){
     {const nowR=yrRow.findIndex(([y])=>y>Y);
      const yy=nowR<0?TH+GY/2:nowR===0?-GY/2:yrRow[nowR][1]*(NH+GY)-GY/2;
      h+=`<line x1="0" y1="${yy}" x2="${TW}" y2="${yy}" stroke="#e8a33d" stroke-width="1.5" stroke-dasharray="6 4"/>
-       <text x="${TW-4}" y="${yy-4}" text-anchor="end" font-size="10" fill="#e8a33d">TODAY · ${G.date.getFullYear()}</text>`;}
+       <text x="${TW-4}" y="${yy-4}" text-anchor="end" font-size="10" fill="#e8a33d">TODAY \u00b7 ${G.date.getFullYear()}</text>`;}
     for(const t of show)for(const r of t.req){const p=TECH[r];if(!p||rowOf[r]===undefined)continue;
       const x1=nx(p)+NW/2,y1=ny(p)+NH,x2=nx(t)+NW/2,y2=ny(t);
       const lit=!!me.techs[r],c=lit?"#5d7a4e":"#2b3327";
@@ -18035,8 +18305,7 @@ function renderPanel(){
       const st=done?"done":s?"running":open?(free?"open":"locked"):"locked";
       const ah=techAhead(t);
       const badge=done?"✓":s?Math.round(100*s.prog/techCost(t.id))+"%":open?`${days(t.id)}d${ah>=0.05?` · <span style="color:#e8a33d">+${Math.round(ah*100)}%</span>`:""}`:"\u{1F512}";
-      const tip=`${t.n} (${t.year}). ${t.d} +${t.gain} ${RESNAMES[t.track]}`+(t.q?`, ${t.q.toUpperCase()} units +10%`:"")+
-        (t.sp&&t.sp.oil?`, +${t.sp.oil} oil`:"")+(t.sp&&t.sp.atom?", nuclear weapons without Industry III":"")+"."+
+      const tip=`${t.n} (${t.year}). ${t.d} +${t.gain} ${RESNAMES[t.track]}`+techEffTxt(t)+"."+
         (ah>=0.05&&!done?` ${ah.toFixed(1)} years ahead of its time: +${Math.round(ah*100)}% research time.`:"")+
         (!done&&!open?" Needs "+t.req.filter(r=>!me.techs[r]).map(r=>TECH[r].n).join(" and ")+" first.":"");
       const click=st==="open"?` onclick="if(!window._ftDragged)startRes('${t.id}')"`:"";
@@ -18046,7 +18315,7 @@ function renderPanel(){
     h+=`</div></div>`;
     el.innerHTML=h;
     /* open on the present, not on 1200 */
-    const wrap=el.querySelector(".ftwrap");el.dataset.p="research";
+    const wrap=el.querySelector(".ftwrap");el.dataset.p="research"+(window.RES_TAB||"");
     if(wrap){if(_keep){wrap.scrollLeft=_keep[0];wrap.scrollTop=_keep[1];}
       else{const nowR=yrRow.findIndex(([y])=>y>Y-3);if(nowR>0)wrap.scrollTop=yrRow[nowR][1]*(NH+GY);}}
   }
@@ -18714,7 +18983,10 @@ function buyFor(nat,t,pid,grp){
 function productionTick(){
   if(!G.queue||!G.queue.length)return;
   const done=[];
-  for(const o of G.queue){o.left--;if(o.left<=0)done.push(o);}
+  /* dockyards speed warships, reactors speed warheads */
+  for(const o of G.queue){
+    o.left-=o.t.startsWith("s_")?1+0.1*bldSum(o.nat,"dock"):o.t==="nuke"?1+0.5*bldSum(o.nat,"reactor"):1;
+    if(o.left<=0)done.push(o);}
   if(!done.length)return;
   G.queue=G.queue.filter(o=>o.left>0);
   for(const o of done){
@@ -20959,7 +21231,7 @@ const MP={role:null,code:null,ref:null,
   send(o){if(this.ref)this.ref.child("orders").push(o);}
 };
 function mpSerialize(){
-  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0,+(p.bombed||0).toFixed(3),+(p.push||0).toFixed(3),p.pushBy||""];}
+  const prov={};for(const id in G.prov){const p=G.prov[id];prov[id]=[p.owner,+p.garrison.toFixed(1),p.val,p.nuked,p.fort||0,p.fac||0,p.oil,p.occ||0,p.occBy||"",p.depot||0,+(p.bombed||0).toFixed(3),+(p.push||0).toFixed(3),p.pushBy||"",p.b?JSON.stringify(p.b):""];}
   const nat={};
   for(const k in G.nations){const n=G.nations[k];
     nat[k]=[+n.pp.toFixed(1),+n.rp.toFixed(1),+n.oil.toFixed(1),n.nukes,+n.stab.toFixed(1),
@@ -21013,7 +21285,9 @@ function mpApplyState(S){
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5],grp:a[6]||0}));
   G.build=(S.build||[]).filter(a=>BUILDINGS[a[3]]).map(a=>({bid:a[0],nat:a[1],at:a[2],what:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
-  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb]=S.prov[id];
+  for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb,bj]=S.prov[id];
+    /* the newer buildings (v24+); a save without them has none */
+    p.b={};if(bj){try{const m=JSON.parse(bj);for(const k in m)if(BUILDINGS[k]&&+m[k]>0)p.b[k]=+m[k];}catch(e){}}
     if(p.owner!==o)terDirty=true;p.owner=o;p.garrison=g;p.val=v;p.nuked=nk;p.fort=ft||0;p.fac=fc||0;if(ol!==undefined)p.oil=ol;if(oc!==undefined){p.occ=oc;p.occBy=ob||null;}
     if(p.depot!==(dp||0)){p.depot=dp||0;G.supply=null;}
     if(bm)p.bombed=bm; else delete p.bombed;
@@ -21082,8 +21356,7 @@ function mpApplyState(S){
         n.contracts=(m.c||[]).filter(c=>c&&TRADE_PRICE[c.r]&&c.from&&+c.amt>0);}catch(e){}}
       n.techs=null;techInit(n);
       if(a[42]){try{const m=JSON.parse(a[42]);
-        for(const id of (m.t||[]))if(TECH[id]&&!n.techs[id]){n.techs[id]=1;n.techNew.push(id);
-          const t=TECH[id];if(t.q)n.tq[t.q]=+((n.tq[t.q]||0)+TECH_QUAL).toFixed(2);if(t.sp&&t.sp.atom)n.atomicOk=true;}
+        for(const id of (m.t||[]))if(TECH[id]&&!n.techs[id]){n.techs[id]=1;n.techNew.push(id);techTq(n,TECH[id]);}
         for(const x of (m.s||[]))if(TECH[x[0]]&&!n.techs[x[0]])n.slots.push({id:x[0],prog:+x[1]||0});
       }catch(e){}}
       n.focus=fok(a[36])?{key:a[36],prog:+a[37]||0}:null;

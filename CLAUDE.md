@@ -1795,3 +1795,55 @@ open market moved here too (it is still in POLICY).
 - Probe pitfall: a test scenario that declares war can lose the province
   that produced a resource; "+0.0 steel" was Germany without the Rhineland,
   not a display fault (a clean game reads +3).
+
+## Research and construction the way the real game lays them out
+
+Owner (voice-typed): "research the things that you research in actual
+[Hearts of Iron] four, and make the tabs for construction ... there's other
+tabs".
+
+**Research: eleven category tabs** (`TECH_BR`): Industry, Electronics,
+Infantry, Support, Armour, Artillery, Land Doctrine, Air, Air Doctrine,
+Naval, Naval Doctrine -- the real game's categories. 127 technologies added
+(261 in all), written from history rather than copied: construction methods
+and materials (reinforced concrete, Buna, catalytic cracking), electronics
+(telegraph to Generative AI, the cavity magnetron, the Bombe and Colossus,
+ENIAC, the V-2, GPS), support companies (engineers, reconnaissance, field
+hospitals and penicillin, logistics), motorised and special-forces infantry,
+anti-tank guns, tactical bombers and transports, cruisers and landing craft,
+and three doctrines (the Corps System, Mission Command, Stormtroop Tactics,
+Deep Battle, Defence in Depth, Methodical Battle, AirLand Battle; Mahan, the
+convoy system, wolfpacks, carrier task forces; Douhet, the Finger-Four,
+Forward Air Controllers).
+- Each tab draws its own LINES as columns (`TECH_LINE_N`) on the year axis,
+  with an open-technology count on the tab and a dot where a slot is busy.
+  Column headings are sticky. `RES_TAB` is the tab; the scroll key includes it.
+- **Line names are global**: `last[line]` chains a line's techs in table
+  order, so a doctrine line called "cas" would have chained onto the air
+  line's helicopter. Doctrine lines are astrat/acas/asup; within a line the
+  rows must be in year order (two were not, and were moved).
+- New effects (`techTq`, replayed on load; one-off oil/manpower/stock only
+  on grant): `q` may be a unit type (+10%) or an arm -- land/navy/air,
+  +5% to every type in it (`TECH_GROUP`, read in `qual`); `sp.res`
+  research speed, `sp.con` construction speed (conDays), `sp.atk`/`sp.def`
+  national land attack/defence (natAtkMul/natDefMul, via `techMod`).
+  Checked: Combined-Arms Breakthrough +4% attack, Layered Defence +4%
+  defence, Sea Control +5% to capital ships, ENIAC +5% research, the
+  tooltip spelling all of it out (`techEffTxt`).
+
+**Construction: thirteen tabs.** Added Military Factory (+8% equipment
+output per level, nationwide), Dockyard (coastal; warships 10% faster per
+level), Infrastructure (divisions move into the province 6% faster per
+level), Air Base (+4% air power per level, cap +40%), Naval Base (coastal;
+anchored fleets repair), Radar Station (needs Radio Detection; aircraft
+over the province and its neighbours +50% per level in the fight for the
+air), Anti-Air Guns (1.5 AA divisions of flak per level), Synthetic
+Refinery (needs Synthetic Fuel; +0.12 oil, +0.5 rubber a day), Rocket Site
+(needs Ballistic Missiles; at war, strikes the nearest enemy province every
+ten days), Nuclear Reactor (needs Nuclear Power; warheads 50% faster).
+"Factory" is now "Civilian Factory".
+- Stored in `p.b`, saved as province field 13; `bld(k,{...})` builds the
+  entry; `bldSum(nation,key)` is cached per day AND cleared when anything
+  finishes (the first cut counted a factory finished that morning as 0).
+- Coastal-only buildings list only coastal provinces; a technology-locked
+  tab says what to research. The AI does not build the new types.
