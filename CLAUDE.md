@@ -1847,3 +1847,35 @@ ten days), Nuclear Reactor (needs Nuclear Power; warheads 50% faster).
   finishes (the first cut counted a factory finished that morning as 0).
 - Coastal-only buildings list only coastal provinces; a technology-locked
   tab says what to research. The AI does not build the new types.
+
+## Outlines of countries that don't exist
+
+Owner: "don't leave the outlines of different countries that don't exist".
+The atlas frontiers are today's, and both the border pass and the coast pass
+(which strokes each country's whole outer ring) drew all of them in every
+era: the Soviet republics across the USSR, French West Africa's colonies,
+the Raj's internal lines, Yugoslavia's republics.
+
+- `_obPrep` (at load): every coast-ring segment is keyed by its endpoints;
+  a segment in exactly two countries' rings is a land frontier and knows
+  its pair. 97% of the border-line segments match (11,933 of 12,328);
+  unmatched ones are always drawn. Segments are grouped into 5,660 cases
+  (country pair x ownership cell).
+- `_obRebuild` (end of `renderTerritory`): each side's holder is the mode of
+  the owner grid over THAT country's cells within 3 (then 6) cells of the
+  segment -- so a coarse cell over the line cannot vote for the wrong side
+  -- falling back to `natOfCountry` for a country thinner than a cell. Same
+  holder on both sides: the segment is not drawn. coastTiles/borderTiles are
+  rebuilt only when a verdict changes; 18-41ms when they do.
+- It follows ownership: Poland given to the USSR drops the Ukraine-Poland
+  segments, restored brings them back. HIST_LINES are still stroked.
+- 1936 drops: the USSR's republics, French West/Equatorial Africa, British
+  East and Southern Africa, India/Pakistan/Bangladesh/Burma, Indochina,
+  Yugoslavia, Czechia/Slovakia, the modern Oder line inside Germany.
+- It exposed a routing fault: MODERN_OVERRIDE had no Romania, Koreas or
+  Syria, so 2026 painted Romania HUNGARIAN and both Koreas JAPANESE off the
+  1936 NAME2NAT -- invisible while the line between them was still drawn.
+  Now "@buc", "@seo", "@pyo", "@dam" (Lebanon "@dam").
+- Still merged in 2026 because they have no province: Togo/Ghana, Benin,
+  Gambia, Lesotho, eSwatini, Bhutan, Djibouti, Kosovo, Israel/Jordan
+  (painted Egyptian), Cyprus (Turkish). Each is a province away from fixed.

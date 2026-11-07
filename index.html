@@ -8518,6 +8518,9 @@ const MODERN_OVERRIDE={
 "Singapore":"SGP","Cambodia":"CAM","Colombia":"COL","Venezuela":"VEN","Ecuador":"ECU","Panama":"PAN",
 "Peru":"PERU","Bolivia":"BOL","Chile":"CHL","Philippines":"PHI",
 "Uzbekistan":"UZB","Turkmenistan":"TKM","Kyrgyzstan":"KGZ","Tajikistan":"TJK","Georgia":"GEO","Armenia":"ARM","Azerbaijan":"AZE","Mongolia":"MON","Latvia":"LVA","Estonia":"EST","Lithuania":"LTU","Moldova":"MDA",
+/* Romania, the Koreas and Syria fell through to NAME2NAT, which is 1936:
+   Romania painted Hungarian and both Koreas Japanese in 2026. */
+"Romania":"@buc","South Korea":"@seo","North Korea":"@pyo","Syria":"@dam","Lebanon":"@dam",
 "Belize":"*",
 "Jamaica":"*",
 "Bahamas":"*",
@@ -9447,6 +9450,79 @@ function strokeTiles(T,z){
     const P=T.tiles[ty*T.PW+tx];if(P)ctx.stroke(P);
   }
 }
+/* OUTLINES ONLY WHERE THE OWNERS DIFFER. The atlas is today's world: its
+   frontiers are the modern ones, and drawing every one of them ruled the
+   Soviet republics across the USSR, the colonies of French West Africa across
+   one French fill, and the Raj's neighbours through the British Empire -- the
+   outlines of countries that did not exist. Each atlas frontier segment
+   appears in exactly two countries' rings, so it knows the two countries on
+   either side; each side is read off the ownership grid (the cells of THAT
+   country near the segment, so a coarse cell over the line cannot vote for
+   the wrong side), and a segment with the same holder on both sides is not
+   drawn. It follows ownership: the German-Polish line goes when Poland falls
+   and comes back if it is freed. Coastlines are never touched. */
+let _OB=null,_obVer=null;
+function _obKey(a,b){return (a[0]<b[0]||(a[0]===b[0]&&a[1]<b[1]))?a[0]+","+a[1]+","+b[0]+","+b[1]:b[0]+","+b[1]+","+a[0]+","+a[1];}
+function _obPrep(feats,coastRings,coastFeat,borderLines){
+  const pairs=new Map();
+  coastRings.forEach((r,ri)=>{const f=coastFeat[ri];
+    for(let i=0;i<r.length;i++){const k=_obKey(r[i],r[(i+1)%r.length]);
+      let e=pairs.get(k);if(!e)pairs.set(k,e=[]);if(e.indexOf(f)<0)e.push(f);}});
+  /* one record per distinct (country pair, ownership cell): most segments share
+     both, so a rebuild decides a few thousand cases rather than a few hundred
+     thousand segments */
+  const cases=new Map(),cA=[],cB=[],cX=[],cY=[];
+  const segCase=(a,b)=>{
+    const e=pairs.get(_obKey(a,b));if(!e||e.length!==2)return -1;
+    const A=Math.min(e[0],e[1]),B=Math.max(e[0],e[1]);
+    const p=PX((a[0]+b[0])/2,(a[1]+b[1])/2),cx=p[0]/TS|0,cy=p[1]/TS|0;
+    const k=A+"|"+B+"|"+cx+"|"+cy;let c=cases.get(k);
+    if(c===undefined){c=cA.length;cases.set(k,c);cA.push(A);cB.push(B);cX.push(cx);cY.push(cy);}
+    return c;
+  };
+  const tag=(lines,closed)=>lines.map(r=>{const n=closed?r.length:r.length-1,s=new Int32Array(n);
+    for(let i=0;i<n;i++)s[i]=segCase(r[i],r[(i+1)%r.length]);return s;});
+  _OB={coast:coastRings,coastS:tag(coastRings,true),bord:borderLines,bordS:tag(borderLines,false),
+       cA:Int32Array.from(cA),cB:Int32Array.from(cB),cX:Int32Array.from(cX),cY:Int32Array.from(cY),
+       allCoast:coastTiles,allBord:borderTiles};
+  _obVer=null;
+}
+function _obSide(F,cx,cy,owner,w,h,natIdx){
+  for(const R of [3,6]){
+    const cnt=new Map();let best=0,bo=0;
+    for(let y=Math.max(0,cy-R);y<=Math.min(h-1,cy+R);y++)for(let x=Math.max(0,cx-R);x<=Math.min(w-1,cx+R);x++){
+      const j=y*w+x;if(countryPix[j]!==F+1)continue;const o=owner[j];if(!o)continue;
+      const v=(cnt.get(o)||0)+1;cnt.set(o,v);if(v>best){best=v;bo=o;}
+    }
+    if(bo)return bo;
+  }
+  /* a country thinner than a cell (the Gambia) never owns one: its route */
+  const n=natOfCountry(countryNames[F]);
+  return (n&&natIdx[n])||0;
+}
+function _obRebuild(owner,w,h,natKeys){
+  if(!_OB||!countryPix||countryPix.length!==w*h)return;
+  const natIdx={};natKeys.forEach((k,i)=>natIdx[k]=i+1);
+  const N=_OB.cA.length,keep=new Uint8Array(N);
+  for(let c=0;c<N;c++){
+    const a=_obSide(_OB.cA[c],_OB.cX[c],_OB.cY[c],owner,w,h,natIdx);
+    const b=_obSide(_OB.cB[c],_OB.cX[c],_OB.cY[c],owner,w,h,natIdx);
+    keep[c]=(a&&b&&a===b)?0:1;
+  }
+  if(_obVer&&_obVer.length===N){let same=true;for(let c=0;c<N;c++)if(_obVer[c]!==keep[c]){same=false;break;}if(same)return;}
+  _obVer=keep;
+  const runs=(lines,segs,closed)=>{const out=[];
+    lines.forEach((r,ri)=>{const s=segs[ri];let cur=null;
+      for(let i=0;i<s.length;i++){
+        const c=s[i];if(c>=0&&!keep[c]){if(cur&&cur.length>1)out.push(cur);cur=null;continue;}
+        if(!cur)cur=[r[i]];cur.push(r[(i+1)%r.length]);
+      }
+      if(cur&&cur.length>1)out.push(cur);});
+    return out;};
+  const cr=runs(_OB.coast,_OB.coastS,true),br=runs(_OB.bord,_OB.bordS,false);
+  coastTiles=[tileRings(cr,false,8),tileRings(cr,false,3),tileRings(cr,false,1)];
+  borderTiles=[tileRings(br,false,6),tileRings(br,false,2),tileRings(br,false,1)];
+}
 function atlasBorders(){
   const Q=ATLAS50.q;
   return ATLAS50.b.map(r=>_decRing(r,Q));
@@ -9464,8 +9540,8 @@ async function loadRealMap(){
     landPath=land;icePath=ice;borderPath=bp;realMap=true;
     try{_landTiles=buildLandTiles(feats);}catch(e){_landTiles=null;}
     {
-      const rings=[];
-      for(const f of feats)for(const poly of f.geometry.coordinates)rings.push(poly[0]);
+      const rings=[],rfeat=[];
+      feats.forEach((f,fi)=>{for(const poly of f.geometry.coordinates){rings.push(poly[0]);rfeat.push(fi);}});
       /* THREE LEVELS OF DETAIL. Stroking the world's full coastline was sixty
          per cent of the frame at world zoom — and at world zoom a thirty-second
          of a degree is a fiftieth of a pixel, so every one of those points was
@@ -9474,6 +9550,7 @@ async function loadRealMap(){
       coastTiles=[tileRings(rings,true,8),tileRings(rings,true,3),tileRings(rings,true,1)];
       const bl=atlasBorders();
       borderTiles=[tileRings(bl,false,6),tileRings(bl,false,2),tileRings(bl,false,1)];
+      try{_obPrep(feats,rings,rfeat,bl);}catch(e){_OB=null;}
     }
     buildLandMask();groundDirty=true;terDirty=true;
     await rasterizeCountries(feats);
@@ -13395,6 +13472,7 @@ function renderTerritory(){
      rather than being faded out with it — a frontier is the one thing on the
      map you always want to be able to find. */
   buildNatEdges(owner,w,h);
+  try{_obRebuild(owner,w,h,natKeys);}catch(e){}
   terDirty=false;
 }
 /* If anything at all goes wrong inside a frame, the next frame must still be
