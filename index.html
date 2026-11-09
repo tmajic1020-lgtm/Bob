@@ -337,6 +337,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn" data-p="prov">PROVINCE</button>
   <button class="tbtn" data-p="army">ARMY</button>
   <button class="tbtn" data-p="build">RECRUIT</button>
+  <button class="tbtn" data-p="prod">PRODUCTION</button>
   <button class="tbtn" data-p="con">CONSTRUCTION</button>
   <button class="tbtn" data-p="research">RESEARCH</button>
   <button class="tbtn" data-p="air">AIR COMMAND</button>
@@ -2574,6 +2575,64 @@ function milShareOf(k){
   if(!n)return 0.35;
   return n.milShare===undefined?0.35:Math.max(0,Math.min(1,n.milShare));
 }
+/* PRODUCTION LINES, as the real game runs them. The military share of
+   industry is counted in MILITARY FACTORIES (about five per production point
+   on guns, plus each Military Factory building's 8%), and the factories are
+   assigned to lines: infantry equipment, armour, airframes. In AUTO the
+   lines follow what the army is short of, as before; in MANUAL the player
+   sets each line and a factory left unassigned makes nothing.
+   Every line has an EFFICIENCY. A line that keeps running gets better at
+   it, a third of the way to the cap in a month; a factory moved onto a line
+   arrives at the floor and drags the line's average down; a line left idle
+   retools away. Output is scaled so that the efficiency a 1936 economy
+   starts at (PE_BASE) makes exactly what the old single split made --
+   a long-running line is worth up to 18% more, a brand-new one 30%. */
+const PE_BASE=0.85,PE_CAP=1.0,PE_MIN=0.25,PE_GROW=0.012,PE_DECAY=0.004;
+function plOf(n){
+  if(!n.pl||typeof n.pl!=="object")n.pl={m:0,f:{gun:0,arm:0,air:0},e:{}};
+  for(const kk of EQ_KINDS){if(typeof n.pl.f[kk]!=="number")n.pl.f[kk]=0;
+    if(typeof n.pl.e[kk]!=="number")n.pl.e[kk]=PE_BASE;}
+  if(!n.pl.o)n.pl.o={};
+  return n.pl;
+}
+function milFactories(k){
+  const n=G.nations&&G.nations[k];if(!n)return 0;
+  return Math.max(1,Math.round((n.ppRate||0)*milShareOf(k)*5*(1+0.08*bldSum(k,"mil"))));
+}
+function plManual(k){const n=G.nations[k];return !!(n&&n.pl&&n.pl.m&&epochAtLeast("24.0"));}
+/* the share of military output each line gets today, and what is idle */
+function plShares(k){
+  const n=G.nations[k],pl=plOf(n),F=milFactories(k),sh={};
+  if(plManual(k)){
+    let tot=0;for(const kk of EQ_KINDS)tot+=pl.f[kk];
+    /* fewer factories than assigned (a province lost, the share cut): every
+       line runs short in proportion. The assignment itself is NOT rewritten
+       -- right after a load the factory count reads 1 until the economy has
+       run a day, and rewriting then wiped every line to zero. */
+    for(const kk of EQ_KINDS)sh[kk]=pl.f[kk]/Math.max(F,tot);
+    return {sh,F,idle:Math.max(0,F-tot)};
+  }
+  const want={};let tot=0;
+  for(const kk of EQ_KINDS){want[kk]=eqpGap(k,kk);tot+=want[kk];}
+  for(const kk of EQ_KINDS)sh[kk]=tot>0.001?want[kk]/tot:(kk==="gun"?1:0);
+  return {sh,F,idle:0};
+}
+/* efficiency moves once a day, after the line has run */
+/* In AUTO a line the army does not need today is held ready rather than
+   torn down -- it only retools away when a player empties it by hand.
+   Measured: letting AUTO lines decay put Germany's armour and airframe lines
+   at the 25% floor within a year of peace, so the AI went to war at a third
+   of its output. */
+function plEffTick(n,sh,manual){
+  if(!epochAtLeast("24.0"))return;
+  const pl=plOf(n);
+  for(const kk of EQ_KINDS){
+    if(sh[kk]>0.001)pl.e[kk]+=PE_GROW*(PE_CAP-pl.e[kk]);
+    else if(manual)pl.e[kk]=Math.max(PE_MIN,pl.e[kk]-PE_DECAY);
+    else if(pl.e[kk]<PE_BASE)pl.e[kk]=Math.min(PE_BASE,pl.e[kk]+PE_GROW*(PE_BASE-pl.e[kk]));
+  }
+}
+function plMul(n,kk){return epochAtLeast("24.0")?plOf(n).e[kk]/PE_BASE:1;}
 /* What the whole army would need to be at full establishment, which is what
    makes the stockpile figure mean something to look at. */
 /* Air wings are equipment too -- without them the airframe pool has no
@@ -3871,17 +3930,18 @@ function tick(){
           made by what it chose to field: an armoured army wants armour. With
           nothing short anywhere it all goes to the infantry pool, and the caps
           below stop that becoming a warehouse nobody needs. */
-       const want={};let tot=0;
-       for(const kk of EQ_KINDS){want[kk]=eqpGap(k,kk);tot+=want[kk];}
+       const {sh}=plShares(k),pl=plOf(n);
        for(const kk of EQ_KINDS){
-         const share=tot>0.001?want[kk]/tot:(kk==="gun"?1:0);
+         const share=sh[kk];pl.o[kk]=0;
          if(share<=0)continue;
          /* and paid for in the right stuff, or throttled to what it can pay */
-         const q=eqpPayFor(n,kk,made*share);
+         const q=eqpPayFor(n,kk,made*share*plMul(n,kk));
          if(q<=0)continue;
          const cap=Math.max(120,eqpDemand(k,kk)*2);
+         pl.o[kk]=Math.max(0,Math.min(q,cap-pool[kk]));
          pool[kk]=Math.min(cap,pool[kk]+q);
        }
+       plEffTick(n,sh,plManual(k));
        inc*=(1-_ms*0.85);
      }}
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
@@ -7122,6 +7182,26 @@ window.conBuildBand=(what,minF)=>{
   if(n){sfx("good");logMsg(`${B.i} ${n} ${B.n.toLowerCase()} site${n>1?"s":""} begun \u2014 ${n*B.pp} PP.`,"good");}
   else logMsg(ps.length?`${B.n} costs ${B.pp} PP.`:"Nothing left to build there.","war");
   renderPanel();refreshHUD();
+};
+window.plSetMode=m=>{
+  if(!G||!G.nations||!G.nations[G.player])return;
+  const k=G.player,n=G.nations[k],pl=plOf(n);
+  if(m&&!pl.m){
+    /* switching to MANUAL starts from what AUTO was doing, not from nothing */
+    const {sh,F}=plShares(k);let t=0;
+    for(const kk of EQ_KINDS){pl.f[kk]=Math.floor(sh[kk]*F);t+=pl.f[kk];}
+    pl.f.gun+=Math.max(0,F-t);
+  }
+  pl.m=m?1:0;renderPanel();
+};
+window.plAdd=(kk,d)=>{
+  if(!G||!G.nations||!G.nations[G.player]||!EQ_KIND[kk])return;
+  const k=G.player,n=G.nations[k],pl=plOf(n);if(!pl.m)return;
+  const {idle}=plShares(k);
+  d=Math.max(-pl.f[kk],Math.min(idle,Math.round(d)));if(!d)return;
+  /* new factories on a line arrive at the floor and average in */
+  if(d>0){const was=pl.f[kk];pl.e[kk]=(pl.e[kk]*was+PE_MIN*d)/(was+d);}
+  pl.f[kk]+=d;renderPanel();
 };
 window.setMilShare=v=>{
   if(!G||!G.nations||!G.nations[G.player])return;
@@ -18231,6 +18311,53 @@ function renderPanel(){
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
+  if(curPanel==="prod"){
+    el.classList.add("wide");
+    const k=G.player,pl=plOf(me),{sh,F,idle}=plShares(k),man=plManual(k),on=epochAtLeast("24.0");
+    const ms=milShareOf(k),mil=bldSum(k,"mil");
+    let h=`<h2>PRODUCTION</h2>
+      <div class="row"><span>\u{1F3ED} Military factories</span><span><b style="color:var(--amber);font-size:15px">${F}</b>${mil?` <small style="color:var(--dim)">(+${mil*8}% from ${mil} Military Factor${mil>1?"ies":"y"})</small>`:""}</span></div>
+      <div class="row"><span>Industry on guns</span><span>${Math.round(ms*100)}% military · ${Math.round((1-ms)*100)}% civilian</span></div>
+      <div class="row" style="flex-wrap:wrap;gap:3px">${[0,25,35,50,65,80].map(v=>
+        `<button class="tbtn ${Math.round(ms*100)===v?"on":""}" onclick="setMilShare(${v/100})">${v}%</button>`).join("")}</div>`;
+    if(on)h+=`<div class="row" style="gap:4px;margin-top:6px"><span style="flex:1">Assignment</span>
+        <button class="tbtn ${man?"":"on"}" onclick="plSetMode(0)" title="Factories follow whatever the army is short of">AUTO</button>
+        <button class="tbtn ${man?"on":""}" onclick="plSetMode(1)" title="You set every line; unassigned factories make nothing">MANUAL</button></div>
+      ${man&&idle?`<div style="color:var(--red);font-size:11px;margin:2px 0 4px">${idle} factor${idle>1?"ies":"y"} idle — assign ${idle>1?"them":"it"} to a line or ${idle>1?"they make":"it makes"} nothing.</div>`:""}`;
+    h+=`<h3>PRODUCTION LINES</h3>`;
+    for(const kk of EQ_KINDS){
+      const K=EQ_KIND[kk],pool=eqpPool(me)[kk],want=eqpDemand(k,kk),arm=eqpArmed(k,kk);
+      const nf=man?pl.f[kk]:Math.round(sh[kk]*F),eff=pl.e[kk],out=(pl.o&&pl.o[kk])||0;
+      const ec=eff>=0.8?"var(--green)":eff>=0.5?"var(--amber)":"var(--red)";
+      const lack=Object.keys(K.res||{}).filter(r=>(me.stock&&me.stock[r]||0)<1).map(r=>RESOURCES[r].n.toLowerCase());
+      const cost=Object.keys(K.res||{}).map(r=>RESOURCES[r].i).join("");
+      h+=`<div class="resslot${nf?" busy":""}" style="align-items:center">
+        <div class="resicon" style="font-size:22px">${K.i}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;gap:6px"><b>${K.n}</b><small style="color:var(--dim)">uses ${cost}</small></div>
+          <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px"><small style="width:62px;color:var(--dim)">Efficiency</small>
+            <div class="bar" style="flex:1;margin:0"><i style="width:${Math.round(eff/PE_CAP*100)}%;background:${ec}"></i></div>
+            <small style="width:34px;text-align:right;color:${ec}">${Math.round(eff*100)}%</small></div>
+          <small style="color:var(--dim)">${out>0.05?`+${out.toFixed(1)} a day`:nf?"stockpile full":"not in production"} · ${Math.round(pool)} in store${want?` · army ${Math.round(arm*100)}% equipped`:""}</small>
+          ${lack.length&&nf?`<br><small style="color:var(--red)">No ${lack.join(" or ")} — the line runs on the synthetic trickle.</small>`:""}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;margin-left:6px">
+          ${man?`<button class="tbtn" style="padding:0 8px" onclick="plAdd('${kk}',1)" ${idle?"":"disabled"}>+</button>`:""}
+          <b style="font-size:15px" title="military factories on this line">${nf}</b><small style="color:var(--dim);font-size:9px">factories</small>
+          ${man?`<button class="tbtn" style="padding:0 8px" onclick="plAdd('${kk}',-1)" ${nf?"":"disabled"}>−</button>`:""}
+        </div></div>`;
+    }
+    if(man)h+=`<div style="display:flex;gap:4px;margin:2px 0 6px">${EQ_KINDS.map(kk=>`<button class="tbtn" style="flex:1;font-size:10px" ${idle?"":"disabled"} onclick="plAdd('${kk}',${idle})">All idle → ${EQ_KIND[kk].i}</button>`).join("")}</div>`;
+    const q=(G.queue||[]).filter(o=>o.nat===k);
+    h+=`<h3>\u{1F6E0} UNITS IN PRODUCTION — ${q.length}</h3>`;
+    if(!q.length)h+=`<div style="color:var(--dim);font-size:11px">Nothing ordered. Divisions, ships and aircraft are ordered under RECRUIT.</div>`;
+    else h+=q.slice().sort((a,b)=>a.left-b.left).map(o=>{const pct=Math.round((1-o.left/o.total)*100),pv=G.prov[o.at];
+      return `<div class="row" style="align-items:center;gap:6px"><span style="flex:1;min-width:0">${BUILD_N[o.t]||o.t}<br><small style="color:var(--dim)">${o.t==="nuke"?"assembly":pv?pv.name:"—"} · ${o.left} day${o.left>1?"s":""} left</small>
+        <div class="bar" style="margin-top:3px"><i style="width:${pct}%"></i></div></span>
+        <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">✕</button></div>`;}).join("");
+    h+=`<div style="color:var(--dim);font-size:11px;margin-top:8px">A line gets better the longer it runs: a third of the way to 100% in a month. Factories moved onto a line arrive at ${Math.round(PE_MIN*100)}% and pull its average down. In MANUAL a line you leave empty retools away; in AUTO it is kept ready. At ${Math.round(PE_BASE*100)}% a line makes what it always did; at 100% it makes ${Math.round((PE_CAP/PE_BASE-1)*100)}% more.</div>`;
+    el.innerHTML=h;
+  }
   if(curPanel==="dec"){
     el.classList.add("wide");
     const k=G.player,st=decState(me);
@@ -21338,7 +21465,9 @@ function mpSerialize(){
          contracts (v24+) */
       JSON.stringify({d:n.dec||{},j:n.jw||{},c:n.contracts||[],
         /* today's output, so the trade screen is right before the first day passes */
-        i:n.income||{},o:+(n.oilInc||0).toFixed(3)})];}
+        i:n.income||{},o:+(n.oilInc||0).toFixed(3)}),
+      /* production lines: manual or auto, factories per line, efficiency */
+      n.pl?JSON.stringify({m:n.pl.m?1:0,f:n.pl.f,pr:+(n.ppRate||0).toFixed(3),o:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+((n.pl.o&&n.pl.o[kk])||0).toFixed(3)])),e:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+(n.pl.e[kk]||PE_BASE).toFixed(4)]))}):""];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
@@ -21432,6 +21561,14 @@ function mpApplyState(S){
       if(a[43]){try{const m=JSON.parse(a[43]);n.dec=m.d||{};n.jw=m.j||{};
         if(m.i&&typeof m.i==="object")n.income=Object.assign(n.income||{},m.i);n.oilInc=+m.o||0;
         n.contracts=(m.c||[]).filter(c=>c&&TRADE_PRICE[c.r]&&c.from&&+c.amt>0);}catch(e){}}
+      n.pl=null;
+      if(a[44]){try{const m=JSON.parse(a[44]);const pl=plOf(n);pl.m=m.m?1:0;
+        for(const kk of EQ_KINDS){if(m.f&&+m.f[kk]>=0)pl.f[kk]=Math.floor(+m.f[kk]);
+          if(m.e&&+m.e[kk]>0)pl.e[kk]=Math.max(PE_MIN,Math.min(PE_CAP,+m.e[kk]));
+          if(m.o&&+m.o[kk]>=0)pl.o[kk]=+m.o[kk];}
+        /* the factory count is read off yesterday's industry, which the
+           economy only works out when a day runs */
+        if(+m.pr>0&&!n.ppRate)n.ppRate=+m.pr;}catch(e){}}
       n.techs=null;techInit(n);
       if(a[42]){try{const m=JSON.parse(a[42]);
         for(const id of (m.t||[]))if(TECH[id]&&!n.techs[id]){n.techs[id]=1;n.techNew.push(id);techTq(n,TECH[id]);}

@@ -1879,3 +1879,41 @@ the Raj's internal lines, Yugoslavia's republics.
 - Still merged in 2026 because they have no province: Togo/Ghana, Benin,
   Gambia, Lesotho, eSwatini, Bhutan, Djibouti, Kosovo, Israel/Jordan
   (painted Egyptian), Cyprus (Turkish). Each is a province away from fixed.
+
+## Production lines
+
+Owner: "make it more like hearts of iron 4". The thing the real game is run
+from and this one lacked was the PRODUCTION screen: equipment came from one
+automatic split of the military share. Now a PRODUCTION side tab.
+
+- **Military factories**: `milFactories(k)` = ppRate x mil share x 5, x the
+  Military Factory buildings' 8% each. Germany 1936 22, USSR ~59, UK ~40,
+  Hungary 3-4, a one-province minor 1.
+- **Lines**: infantry equipment, armour, airframes (`EQ_KINDS`). AUTO
+  (default, and what the AI uses) shares output by what the army is short
+  of, exactly as before. MANUAL: +/- factories per line, "all idle ->"; an
+  unassigned factory makes nothing and the panel says so in red. Switching
+  to MANUAL starts from AUTO's current split.
+- **Efficiency** per line (`n.pl.e`): grows 1.2% of the gap to 100% a day
+  (a third of the way in a month); factories added to a line arrive at 25%
+  and average in; in MANUAL an empty line decays 0.4/day to 25%. Output is
+  x e/0.85, so the 0.85 every nation starts at makes exactly what the old
+  split did, and a long-running line up to 18% more. `plMul`, `plShares`,
+  `plEffTick`, gated at v24.0.
+- **AUTO lines do not retool.** First cut let them decay: within a year of
+  peace Germany's armour and airframe lines sat at the 25% floor, so the AI
+  would have gone to war at a third of its output. Now an idle AUTO line
+  drifts back to 0.85.
+- Measured, a year from 1936 with the same seeded dice, A/B in the same
+  session: armies 99.6/98.3% equipped before, 99.8/98.5% after; stockpiles
+  3,813/3,762 -> 4,128/4,052 (+8%, the stockpile cap holds it); same unit
+  counts.
+- **Assignments are never rewritten when factories fall short.** The first
+  cut scaled them down in place, and straight after a load the factory
+  count reads 1 (ppRate is only worked out when a day runs), so every
+  manual line loaded as zero. Shares now scale by max(F, assigned) and the
+  stored numbers stay; ppRate is also saved with the lines so the count is
+  right before the first day.
+- Save: nation field a[44] = {m,f,e,o,pr}.
+- The panel also lists units in production (the RECRUIT queue) with cancel.
+- `sweep.js` now opens PRODUCTION, DECISIONS and TRADE too.
