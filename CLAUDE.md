@@ -2186,3 +2186,37 @@ it; OFFER A PEACE DEAL opens the conference with the war score; backing the
 party flips Poland's government; guarantees and access survive save/load.
 Probe note: dipTick's monthly decay keys on G.day%30, so calling it in a
 loop without advancing the day decays the modifiers every call.
+
+## Clicking a state, clicking the sea
+
+Owner: "if you click on a province it says state, owner, any foreign claims,
+then its type of terrain; in sea it tells the type of sea and if there are
+any enemy convoys it shows".
+
+- **Province panel opens on the state**: State (capital star, victory
+  points), Controller (only when someone else holds it -- the attacker
+  mid-push, or an occupier), Core of (`p.home`), Foreign claims (the home
+  nation if someone else owns its core; releasable peoples whose cores
+  include it; anyone bordering it with a justified war goal on the owner),
+  then Owner, Ground/terrain, river, weather, supply as before.
+- **`provAt` reads the land under the cursor** (`provPix`) instead of the
+  nearest province centre, so a click on water no longer picks the nearest
+  port. On sea it only returns a province if a marker is within ~9px.
+  (Same answer on land as before: provPix IS the nearest-centre Voronoi.)
+- **Sea zones** (`SEA_ZONES`, `seaZoneAt`): ~50 named seas as lon/lat
+  boxes tried in order (enclosed seas first), each shallow or deep, then
+  the oceans by basin and band. Within 3 ownership cells (~120km) of land
+  any water reads as COASTAL waters (`seaShore`).
+- **SEA panel** (`curPanel "sea"`, `openSea`): zone name, kind with what
+  it means, position, nearest coast, weather there, a red banner counting
+  ENEMY contacts, then CONVOYS -- troop convoys (divisions crossing a sea
+  link, positioned by their progress) and merchant convoys (trade contracts
+  and lend-lease between countries that cannot reach each other overland,
+  whose capital-to-capital line passes within 4 degrees AND one end within
+  20 degrees; without that a China-Britain oil contract showed as a convoy
+  in the North Sea) -- and WARSHIPS based on its shores or sailing it.
+  Enemy entries in red with a sword. There are no convoy units in the game:
+  these are the sea-borne parts of what already moves.
+- Probe note: clicking a far-off point after re-centring the camera can land
+  on the side buttons when the camera is clamped at the world edge (an
+  Atlantic click opened SETTINGS); test seaZoneAt/provAt directly.

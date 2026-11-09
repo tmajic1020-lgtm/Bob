@@ -18501,12 +18501,121 @@ function zoomAt(sx,sy,nz,abs){
   G.cam.z=nz;clampCam();
   G.cam.x=wx-sx/G.cam.z;G.cam.y=wy-sy/G.cam.z;clampCam();
 }
+/* ============================== THE SEAS ==============================
+   The real game divides the water into named sea zones. This map had none:
+   the sea was only the space between ports. A zone here is a named box in
+   lon/lat, tried in order (enclosed seas first, then the oceans by band),
+   with a kind -- an enclosed or shelf sea is SHALLOW, the open oceans DEEP --
+   and within ~120 km of land any water reads as COASTAL. */
+const SEA_ZONES=[
+ ["Baltic Sea",9,31,53,66,"shallow"],["Gulf of Bothnia",17,26,60,66,"shallow"],["Black Sea",27,42,40.5,47,"deep"],
+ ["Sea of Azov",34.5,39.5,45,47.5,"shallow"],["Caspian Sea",46,55,36,47.5,"shallow"],["Adriatic Sea",12,20,40,46,"shallow"],
+ ["Aegean Sea",22,28.5,35,41,"deep"],["Tyrrhenian Sea",8.5,16,37.5,44.5,"deep"],["Ionian Sea",15,23,34,40,"deep"],
+ ["Western Mediterranean",-6,9,35,44,"deep"],["Central Mediterranean",9,23,30,37.5,"deep"],["Eastern Mediterranean",23,37,30,37,"deep"],
+ ["English Channel",-6,2,48.5,51.2,"shallow"],["North Sea",-4,9,51,61.5,"shallow"],["Irish Sea",-7,-2.8,51.5,56,"shallow"],
+ ["Bay of Biscay",-10,-1,43,48.5,"deep"],["Norwegian Sea",-10,20,61.5,72,"deep"],["Barents Sea",20,60,68,80,"shallow"],
+ ["White Sea",32,45,63,68,"shallow"],["Red Sea",32,44,12,30,"deep"],["Persian Gulf",47,57,23,30.5,"shallow"],
+ ["Gulf of Aden",43,52,10,15,"deep"],["Arabian Sea",52,76,5,25,"deep"],["Bay of Bengal",78,98,5,23,"deep"],
+ ["Andaman Sea",92,99,5,16,"shallow"],["Gulf of Thailand",99,105,6,14,"shallow"],["South China Sea",105,121,3,23,"deep"],
+ ["Java Sea",105,119,-8,-3,"shallow"],["Banda Sea",119,132,-8,-3,"deep"],["Celebes Sea",117,127,0,7,"deep"],
+ ["East China Sea",119,131,24,33,"shallow"],["Yellow Sea",117,127,33,41,"shallow"],["Sea of Japan",127,142,34,52,"deep"],
+ ["Sea of Okhotsk",135,162,44,62,"deep"],["Bering Sea",162,200,52,66,"deep"],["Philippine Sea",121,145,5,34,"deep"],
+ ["Coral Sea",145,165,-30,-10,"deep"],["Arafura Sea",128,142,-13,-8,"shallow"],["Tasman Sea",150,175,-47,-30,"deep"],
+ ["Gulf of Mexico",-98,-80.5,18,31,"deep"],["Caribbean Sea",-89,-60,9,22,"deep"],["Gulf of St. Lawrence",-71,-56,45,52,"shallow"],
+ ["Hudson Bay",-95,-76,51,64,"shallow"],["Labrador Sea",-64,-44,52,65,"deep"],["Denmark Strait",-45,-20,63,70,"deep"],
+ ["Gulf of Guinea",-8,10,-6,6,"deep"],["Mozambique Channel",33,49,-26,-11,"deep"],["Great Australian Bight",120,145,-40,-31,"deep"],
+ ["Arctic Ocean",-180,180,74,90,"deep"],["Southern Ocean",-180,180,-90,-55,"deep"]
+];
+function seaZoneAt(lon,lat){
+  const L=lon<-180?lon+360:lon;
+  for(const z of SEA_ZONES){
+    let lo=L;if(z[2]>180&&lo<0)lo+=360;
+    if(lo>=z[1]&&lo<=z[2]&&lat>=z[3]&&lat<=z[4])return {n:z[0],kind:z[5]};
+  }
+  /* the open oceans, by basin and band */
+  const band=lat>=40?"North":lat>=0?"Central":lat>=-35?"South":"Far South";
+  if(L>=-80&&L<=20&&!(L>-6&&lat>30&&lat<46))return {n:(lat>=0?"North ":"South ")+"Atlantic"+(lat>=40?"":lat>=0?" (Central)":""),kind:"deep"};
+  if(L>20&&L<=120&&lat<30)return {n:(lat<-35?"Southern ":"")+"Indian Ocean",kind:"deep"};
+  return {n:band+" Pacific",kind:"deep"};
+}
+/* how far from land, in ownership cells (~40 km each), up to 6 */
+function seaShore(wx,wy){
+  if(!provPix)return 9;
+  const cx=(wx/TS)|0,cy=(wy/TS)|0,w=provPixW,h=provPixH;
+  for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+    const x=cx+dx,y=cy+dy;if(x<0||y<0||x>=w||y>=h)continue;
+    if(provPix[y*w+x]>=0)return r;}
+  return 9;
+}
+let SEA_SEL=null;
+const SEA_KIND={coastal:["\u{1F3D6}","Coastal waters","Within sight of land: shore batteries, minefields and air cover reach this far."],
+  shallow:["\u{1F30A}","Shallow sea","A shelf sea: submarines are easier to find and hunt here."],
+  deep:["\u{1F30C}","Deep ocean","Open water: submarines hide best here, and convoys are most exposed."]};
+function openSea(sx,sy){
+  const[wx,wy]=S2W(sx,sy);
+  const lon=wx/MW*360-180,lat=90-wy/MH*180;
+  const z=seaZoneAt(lon,lat),sh=seaShore(wx,wy);
+  SEA_SEL={x:wx,y:wy,lon,lat,n:z.n,kind:sh<=3?"coastal":z.kind,base:z.kind,shore:sh};
+  G.sel=null;G.selUnit=null;openPanel("sea");
+}
+/* what is in a sea: zone of a point, compared by name */
+function _zoneOfXY(x,y){return seaZoneAt(x/MW*360-180,90-y/MH*180).n;}
+/* warships based on its shores or sailing in it; troop convoys crossing it;
+   merchant traffic (trade contracts and lend-lease between countries that
+   cannot reach each other overland) whose route passes within ~4 degrees */
+function seaContents(S){
+  const out={fleets:[],troops:[],merchants:[]};
+  const near=(x,y)=>_zoneOfXY(x,y)===S.n;
+  for(const f of G.fleets){const a=G.prov[f.at];if(!a)continue;
+    let x=a.x,y=a.y;if(f.to&&G.prov[f.to]){const b=G.prov[f.to];x=a.x+(b.x-a.x)*(f.prog||0);y=a.y+(b.y-a.y)*(f.prog||0);}
+    /* a port's ships count for the water off it */
+    const off=f.to?[x,y]:[x+(S.x>x?6:-6),y+(S.y>y?6:-6)];
+    if(near(off[0],off[1])||Math.hypot(S.x-x,S.y-y)<45)out.fleets.push(f);}
+  for(const u of G.units){if(!u.to)continue;const a=G.prov[u.at],b=G.prov[u.to];if(!a||!b||!isSeaLink(u.at,u.to))continue;
+    const x=a.x+(b.x-a.x)*(u.prog||0),y=a.y+(b.y-a.y)*(u.prog||0);
+    if(near(x,y)||Math.hypot(S.x-x,S.y-y)<45)out.troops.push(u);}
+  const segNear=(ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy||1;let t=((S.x-ax)*dx+(S.y-ay)*dy)/L;t=Math.max(0,Math.min(1,t));
+    return Math.hypot(S.x-(ax+dx*t),S.y-(ay+dy*t))<(4/360*MW);};
+  const route=(from,to,what)=>{const A=G.prov[capOf(from)],B=G.prov[capOf(to)];if(!A||!B||Math.abs(A.x-B.x)>MW/2)return;
+    if(findPath(A.id,B.id,"army",from)&&!isSeaLink(A.id,B.id))return;      // goes overland
+    /* and one end must be within ~20 degrees: a straight line between two
+       capitals crosses half the world's seas, and a China-Britain contract was
+       showing up as a convoy in the North Sea */
+    const R=20/360*MW;
+    if(segNear(A.x,A.y,B.x,B.y)&&(Math.hypot(A.x-S.x,A.y-S.y)<R||Math.hypot(B.x-S.x,B.y-S.y)<R))out.merchants.push({from,to,what});};
+  for(const k in G.nations){const n=G.nations[k];if(!n.alive)continue;
+    for(const c of (n.contracts||[]))if(G.nations[c.from]&&G.nations[c.from].alive)route(c.from,k,(c.r==="oil"?"oil":RESOURCES[c.r]?RESOURCES[c.r].n.toLowerCase():c.r)+" "+(+c.amt).toFixed(c.r==="oil"?2:0)+"/day");
+    for(const t in (n.lend||{}))if(G.nations[t]&&G.nations[t].alive)route(k,t,"lend-lease");}
+  return out;
+}
+/* WHICH PROVINCE IS UNDER THE CURSOR -- decided by the land actually there
+   (provPix, the cell map the ground is painted from), not by the nearest
+   province centre, which picked a neighbour near every border and a port
+   when you clicked open sea. On water it returns nothing unless a marker is
+   right under the pointer (a port, a small island the grid cannot see), so
+   a click on the sea opens the SEA panel instead. */
 function provAt(sx,sy){
   const[wx,wy]=S2W(sx,sy);
   let best=null,bd=1e9;
   for(const p of Object.values(G.prov)){const d=(p.x-wx)**2+(p.y-wy)**2;if(d<bd){bd=d;best=p;}}
   const lim=(22/Math.sqrt(G.cam.z)*1.4)**2;
+  if(provPix&&provPixW){
+    const cx=(wx/TS)|0,cy=(wy/TS)|0;
+    if(cx>=0&&cy>=0&&cx<provPixW&&cy<provPixH){
+      const pi=provPix[cy*provPixW+cx];
+      if(pi>=0){const P=Object.values(G.prov)[pi];if(P)return P;}
+      /* sea: only a marker within ~9 screen pixels still counts */
+      return bd<(9/G.cam.z)**2?best:null;
+    }
+  }
   return bd<lim?best:null;
+}
+function isSeaAt(sx,sy){
+  if(!provPix||!provPixW)return false;
+  const[wx,wy]=S2W(sx,sy),cx=(wx/TS)|0,cy=(wy/TS)|0;
+  if(cx<0||cy<0||cx>=provPixW||cy>=provPixH)return false;
+  return provPix[cy*provPixW+cx]<0;
 }
 function unitAt(sx,sy){
   /* You cannot pick up what you cannot see. Counters fade in as you zoom to
@@ -18578,8 +18687,9 @@ function clickAt(sx,sy){
     }
   }
   if(u){G.selUnit=u;G.sel=u.at;openPanel("prov");return;}
-  if(p){G.sel=p.id;G.selUnit=null;openPanel("prov");return;}
-  G.selUnit=null;G.sel=null;$("#panel").style.display="none";
+  if(p){G.sel=p.id;G.selUnit=null;SEA_SEL=null;openPanel("prov");return;}
+  if(isSeaAt(sx,sy)){openSea(sx,sy);return;}
+  G.selUnit=null;G.sel=null;SEA_SEL=null;$("#panel").style.display="none";
 }
 function hover(e){
   if(!G){return;}
@@ -18645,7 +18755,21 @@ function renderPanel(){
     if(!p){G.sel=null;el.innerHTML="<h2>PROVINCE</h2><div style='color:var(--dim)'>Click a province on the map.</div>";return;}
     const us=unitsAt(p.id),fs=fleetsAt(p.id);
     const _same=Object.values(G.prov).filter(q=>q.owner===p.owner).sort((a,b)=>(b.val-a.val)||a.name.localeCompare(b.name));
+    /* THE STATE, AS THE REAL GAME OPENS IT: whose it is, who actually holds
+       it today, whose core it is, and who else claims it */
+    const _ctl=pushOf(p)&&p.pushBy&&NATIONS[p.pushBy]?p.pushBy:(SLOWCONQ&&p.occBy&&p.occBy!==p.owner?p.occBy:p.owner);
+    const _cores=[];if(p.home&&NATIONS[p.home])_cores.push(p.home);
+    const _claims=[];
+    if(p.home&&p.home!==p.owner&&NATIONS[p.home]&&G.nations[p.home]&&G.nations[p.home].alive&&!_claims.includes(p.home))_claims.push([p.home,"its own core"]);
+    try{if(relOn())for(const r of relList())if(r.cores&&r.cores.includes(p.id)&&!G.nations["S_r"+r.id])_claims.push(["~"+r.id,r.n+" (a people without a state)",r]);}catch(e){}
+    for(const k in G.nations){const n=G.nations[k];if(!n.alive||k===p.owner||!n.jw||!n.jw[p.owner])continue;
+      if(p.adj.some(id=>G.prov[id]&&G.prov[id].owner===k))_claims.push([k,"justified war goal"]);}
+    const _sub=(k)=>k.charAt(0)==="~"?"":FL(k)+" ";
     let h=`<h2>${p.name.toUpperCase()}</h2>
+    <div class="row"><span>State</span><span>${p.name}${capOf(p.owner)===p.id?" ★ capital":""}${p.val>=3?" · victory points "+p.val:""}</span></div>
+    ${_ctl!==p.owner?`<div class="row"><span>Controller</span><span style="color:#e2614a">${FL(_ctl)} ${NATIONS[_ctl].n}</span></div>`:""}
+    <div class="row"><span>Core of</span><span>${_cores.map(k=>FL(k)+" "+NATIONS[k].n).join(", ")||"—"}</span></div>
+    <div class="row"><span>Foreign claims</span><span style="${_claims.length?"color:var(--amber)":"color:var(--dim)"}">${_claims.map(c=>c[0].charAt(0)==="~"?(typeof FLR==="function"?FLR(c[2].id,c[2].c)+" ":"")+c[1]:_sub(c[0])+NATIONS[c[0]].n+" <small>("+c[1]+")</small>").join("<br>")||"none"}</span></div>
     <div class="row"><span>Owner</span><span>${FL(p.owner)} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
     ${p.owner!==G.player&&G.nations[p.owner]&&G.nations[p.owner].alive&&p.owner!=="REB"&&p.owner!=="ZOM"?`<button class="tbtn" style="width:100%;margin:2px 0 4px" onclick="openDiplo('${p.owner}')">\u{1F310} Diplomacy with ${NATIONS[p.owner].n} \u2192</button>`:""}
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
@@ -18992,6 +19116,34 @@ function renderPanel(){
             <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">\u2715</button></div>`;
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
+  }
+  if(curPanel==="sea"){
+    const S=SEA_SEL;
+    if(!S){el.innerHTML=`<h2>SEA</h2><div style="color:var(--dim)">Click open water on the map.</div>`;return;}
+    const K=SEA_KIND[S.kind],B=SEA_KIND[S.base],C=seaContents(S),me2=G.player;
+    const side=k=>k===me2||allied(me2,k)||(G.nations[k]&&G.nations[k].puppet===me2)?"own":atWar(me2,k)?"enemy":"neutral";
+    const col={own:"var(--green)",enemy:"#e2614a",neutral:"var(--dim)"};
+    const near=Object.values(G.prov).filter(q=>q.coastal).map(q=>[q,Math.hypot(q.x-S.x,q.y-S.y)]).sort((a,b)=>a[1]-b[1])[0];
+    const wx=near?weatherAt(near[0]):WEATHER.clear;
+    let h=`<h2>${S.n.toUpperCase()}</h2>
+      <div class="row"><span>Sea</span><span>${K[0]} ${K[1]}${S.kind==="coastal"&&S.base!=="coastal"?` <small style="color:var(--dim)">(${B[1].toLowerCase()} beyond)</small>`:""}</span></div>
+      <div style="color:var(--dim);font-size:11px;margin-bottom:4px">${K[2]}</div>
+      <div class="row"><span>Position</span><span>${Math.abs(S.lat).toFixed(1)}°${S.lat>=0?"N":"S"} ${Math.abs(S.lon).toFixed(1)}°${S.lon>=0?"E":"W"}</span></div>
+      ${near?`<div class="row"><span>Nearest coast</span><span>${FL(near[0].owner)} ${near[0].name}</span></div>`:""}
+      <div class="row"><span>Weather</span><span>${wx.i} ${wx.n}${wx.air<1?" · air ×"+wx.air.toFixed(2):""}</span></div>`;
+    const enemyN=C.fleets.filter(f=>side(f.nat)==="enemy").length+C.troops.filter(u=>side(u.nat)==="enemy").length+C.merchants.filter(m=>side(m.from)==="enemy"||side(m.to)==="enemy").length;
+    if(enemyN)h+=`<div style="border:1px solid #e2614a;color:#e2614a;padding:5px 8px;margin:6px 0;font-size:12px;letter-spacing:.04em">⚠ ${enemyN} ENEMY ${enemyN===1?"CONTACT":"CONTACTS"} IN THESE WATERS</div>`;
+    h+=`<h3>\u{1F6A2} CONVOYS</h3>`;
+    if(!C.troops.length&&!C.merchants.length)h+=`<div style="color:var(--dim);font-size:11px">No convoys at sea here.</div>`;
+    for(const u of C.troops){const sd=side(u.nat);
+      h+=`<div class="row"><span style="color:${col[sd]}">${sd==="enemy"?"⚔ ":""}Troop convoy · ${FL(u.nat)} ${uName(u.type)}</span><span style="font-size:11px">${G.prov[u.at].name} → ${G.prov[u.to].name}</span></div>`;}
+    for(const m of C.merchants){const sd=side(m.from)==="enemy"||side(m.to)==="enemy"?"enemy":side(m.from)==="own"||side(m.to)==="own"?"own":"neutral";
+      h+=`<div class="row"><span style="color:${col[sd]}">${sd==="enemy"?"⚔ ":""}Merchant convoy · ${FL(m.from)}→${FL(m.to)}</span><span style="font-size:11px">${m.what}</span></div>`;}
+    h+=`<h3>⚓ WARSHIPS</h3>`;
+    if(!C.fleets.length)h+=`<div style="color:var(--dim);font-size:11px">None based here or sailing these waters.</div>`;
+    for(const f of C.fleets){const sd=side(f.nat),sh=SHIPS[f.cls]||{n:"Fleet",i:"⚓"};
+      h+=`<div class="row"><span style="color:${col[sd]}">${sd==="enemy"?"⚔ ":""}${FL(f.nat)} ${sh.i} ${sh.n}</span><span style="font-size:11px">${f.to?"at sea → "+(G.prov[f.to]?G.prov[f.to].name:""):"in "+(G.prov[f.at]?G.prov[f.at].name:"port")} · str ${f.str}</span></div>`;}
+    el.innerHTML=h;
   }
   if(curPanel==="dip"){
     el.classList.add("wide");
