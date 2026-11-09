@@ -53,6 +53,29 @@ body:not(.light) #topbar #hName{font-size:14px;letter-spacing:.06em;text-transfo
 #sidebtns .tbtn{width:110px;text-align:left;background:rgba(18,24,20,0.42);border-color:rgba(58,68,56,0.55);text-shadow:0 1px 2px rgba(0,0,0,0.85)}
 #sidebtns .tbtn:hover{background:rgba(18,24,20,0.72)}
 #sidebtns .tbtn.on{background:var(--amber);text-shadow:none}
+/* the real game's command buttons: dark, brass-edged, each with its mark */
+body:not(.light) #sidebtns .tbtn{background:linear-gradient(#262c22,#151a12);border:1px solid #4b4630;
+  border-left:3px solid #8a7440;box-shadow:0 1px 3px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);
+  letter-spacing:.03em;font-size:11px;padding:5px 8px;width:142px;white-space:nowrap;overflow:hidden}
+body:not(.light) #sidebtns .tbtn:hover{background:linear-gradient(#323a2c,#1c2217);border-left-color:#e0b85a;color:#f0d98a}
+body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);color:#1a1408;border-color:#f0d98a}
+#sidebtns .tbtn::before{display:inline-block;width:18px;text-align:center;margin-right:4px}
+#sidebtns .tbtn[data-p=prov]::before{content:"\1F3D8"}
+#sidebtns .tbtn[data-p=army]::before{content:"\2694"}
+#sidebtns .tbtn[data-p=build]::before{content:"\1F396"}
+#sidebtns .tbtn[data-p=prod]::before{content:"\1F3ED"}
+#sidebtns .tbtn[data-p=con]::before{content:"\1F3D7"}
+#sidebtns .tbtn[data-p=research]::before{content:"\1F52C"}
+#sidebtns .tbtn[data-p=air]::before{content:"\2708"}
+#sidebtns .tbtn[data-p=focus]::before{content:"\1F3AF"}
+#sidebtns .tbtn[data-p=dec]::before{content:"\1F4DC"}
+#sidebtns .tbtn[data-p=trade]::before{content:"\2696"}
+#sidebtns .tbtn[data-p=govt]::before{content:"\1F3DB"}
+#sidebtns .tbtn[data-p=policy]::before{content:"\1F4CB"}
+#sidebtns .tbtn[data-p=diplo]::before{content:"\1F310"}
+#sidebtns .tbtn[data-p=ledger]::before{content:"\1F4CA"}
+#sidebtns .tbtn[data-p=settings]::before{content:"\2699"}
+@media(max-width:700px){body:not(.light) #sidebtns .tbtn{width:auto;flex:0 0 auto}}
 #panel{top:52px;right:8px;width:300px;max-width:88vw;max-height:calc(100% - 110px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);border:2px solid var(--line);padding:12px;display:none;font-size:13px;line-height:1.45}
 #panel h2{color:var(--amber);font-size:15px;letter-spacing:2px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px}
 #panel h3{color:var(--dim);font-size:12px;margin:10px 0 4px;letter-spacing:1px}
@@ -124,7 +147,7 @@ body:not(.light) #topbar #hName{font-size:14px;letter-spacing:.06em;text-transfo
    two of them were simply off the edge of the screen. The panel widens for this
    one view and goes back afterwards. */
 #panel.wide{width:min(600px,94vw)}
-#panel.full{left:132px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
+#panel.full{left:164px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
 #panel.full .ftwrap{max-height:calc(100vh - 300px);cursor:grab}
 #panel.full .ftwrap.drag{cursor:grabbing;user-select:none}
 #panel .trtab{border:1px solid var(--line);margin-top:6px}
@@ -202,6 +225,10 @@ body:not(.light) #topbar #hName{font-size:14px;letter-spacing:.06em;text-transfo
   border-bottom:1px solid var(--line);padding-bottom:4px;box-sizing:border-box}
 #tip{position:absolute;pointer-events:none;background:#0e130fcc;border:1px solid var(--line);padding:5px 8px;font-size:11px;display:none;z-index:20;max-width:220px}
 #speedbox{position:absolute;bottom:8px;right:8px;display:flex;gap:5px;align-items:center;background:#11160fb0;border:1px solid var(--line);padding:5px 8px}
+body:not(.light) #speedbox{background:linear-gradient(#262c22,#121610);border:1px solid #8a7440;border-radius:3px;
+  box-shadow:0 2px 6px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.07);padding:5px 7px}
+body:not(.light) #speedbox .tbtn{background:linear-gradient(#0c0f0b,#1a1f17);border-color:#3c3b2b;box-shadow:inset 0 1px 3px rgba(0,0,0,.8)}
+body:not(.light) #speedbox .tbtn.on{background:linear-gradient(#d6a440,#a8792a);color:#1a1408;border-color:#f0d98a;box-shadow:none}
 #auth{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%);z-index:60;display:flex;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 #auth .box{margin:auto 0}
 body.light #auth{background:radial-gradient(ellipse at 50% 28%,#0c0c0c,#000 70%)}
@@ -14161,6 +14188,16 @@ function _drawFrame(){
   if(SHOWPROV){
     const sp=provBordersPath()||provCellPath;
     if(sp){ctx.strokeStyle="#000000";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke(sp);}
+  }else if(z>1.6&&MAPQ>=2&&!terr){
+    /* STATE LINES, as the real game draws its states: the 251 gameplay
+       provinces are its states here, and their outlines were only ever shown
+       with the PROVINCES button on, so inside a country there was nothing
+       between the faint mosaic and the national frontier. A thin line,
+       fading in from z1.6, under the frontiers. */
+    const sp=provBordersPath();
+    if(sp){ctx.save();ctx.globalAlpha=Math.min(1,(z-1.6)/1.4);
+      ctx.strokeStyle=THEME==="dark"?"rgba(12,14,16,0.42)":"rgba(40,36,28,0.40)";
+      ctx.lineWidth=Math.min(1.3,0.8+0.04*z)/z;ctx.lineJoin="round";ctx.stroke(sp);ctx.restore();}
   }
   // real country borders
   /* THE NATIONAL FRONTIERS, FROM THE ATLAS. These are the accurate ones — real

@@ -1980,3 +1980,20 @@ A 10 px reading on the corridor's south edge at z6, the same before and
 after, was the probe crossing the Danzig counters.
 Applies to every region frontier (the Kresy, Ruthenia, Karelia,
 Bessarabia...), all of which HIST_LINES strokes.
+
+### State lines, command buttons, the clock
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics better".
+
+- **State lines.** The 251 gameplay provinces play HOI4's states, and their
+  outlines (`provBordersPath`) were only drawn with PROVINCES on, so inside
+  a country there was nothing between the faint mosaic and the frontier.
+  Now always drawn from z1.6 (fading in to z3) at 0.8-1.3 screen px, 42%
+  dark, under the frontiers; PROVINCES still draws them black. MAPQ>=2.
+- **Side buttons** (dark theme, CSS): dark brass-edged command buttons with
+  an icon per panel (`[data-p=...]::before`), 142px and nowrap
+  (CONSTRUCTION wrapped at 126). `#panel.full` moved from left 132 to 164
+  to clear them. A phone-width rule puts them back to auto width in the
+  row layout -- the new selector outranked the old media query.
+- **Speed box** styled like the top bar: brass border, inset buttons, gold
+  for the active speed.
