@@ -1945,3 +1945,19 @@ Screenshots at z1.2/4/9/14 (`g/s.js`, 1936 Germany) named four faults:
 - `check100.js` and its reference capture are not in this session's
   scratchpad (they belonged to an earlier one), so this was judged on
   same-view screenshots before/after, not the 75-check score.
+
+### Victory-point marks, outlined names, the top bar
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics better".
+
+- **Province marks** were all the same disc. Now a capital is a gold STAR, a
+  city worth taking (val >= 3) a pale victory-point SQUARE, everywhere else
+  the small dark dot. Counters moved down to s*1.15 so the star clears them.
+- **Names have a dark halo** (strokeText at 0.3 of the font size, 72%), and
+  capitals/cities are bold: plain type vanished over forest and the darker
+  national colours.
+- **Top bar** (CSS only, dark theme): a brass-framed flag tab, the country
+  name in gold capitals, and every figure in its own dark inset gauge
+  instead of loose text on a strip. The light theme is untouched.
+- The coastal shelf was looked at and left alone -- it already exists and
+  was tuned to a measured reference.

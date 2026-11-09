@@ -23,6 +23,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-fami
 #cv{display:block;position:absolute;top:0;left:0;touch-action:none;cursor:grab}
 .hud{position:absolute;z-index:10}
 #topbar{top:0;left:0;right:0;height:44px;background:linear-gradient(rgba(26,33,25,0.80),rgba(17,22,15,0.80));border-bottom:2px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:13px;white-space:nowrap;overflow-x:auto}
+/* THE REAL GAME'S TOP BAR: a brass-framed flag tab hanging off the left, and
+   every figure in its own dark inset gauge rather than loose text on a strip */
+body:not(.light) #topbar{height:46px;gap:5px;padding:0 10px 0 6px;
+  background:linear-gradient(#2e3529,#1b2017 55%,#121610);border-bottom:1px solid #7a6638;
+  box-shadow:0 2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07)}
+body:not(.light) #topbar>span:not(.flag){display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 7px;
+  background:linear-gradient(#0c0f0b,#181d15);border:1px solid #3c3b2b;border-radius:3px;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.06)}
+body:not(.light) #topbar .flag{display:inline-flex;align-items:center;justify-content:center;width:58px;height:40px;flex:none;
+  background:linear-gradient(#5b4a26,#2a2212);border:1px solid #b0924e;border-radius:2px;
+  box-shadow:0 2px 4px rgba(0,0,0,.7),inset 0 0 0 1px rgba(0,0,0,.6)}
+body:not(.light) #topbar .flag .fl{width:50px;height:33px;vertical-align:0;box-shadow:0 0 0 1px rgba(0,0,0,.7)}
+body:not(.light) #topbar #hName{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:0 6px 0 4px;color:#f0d98a;text-shadow:0 1px 2px #000}
 #topbar b{color:var(--amber)}
 #topbar .flag{font-size:18px}
 .fl{display:inline-block;width:1.5em;height:1em;vertical-align:-0.12em;background-size:100% 100%;border-radius:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
@@ -14405,16 +14418,25 @@ function _drawFrame(){
     ctx.globalAlpha=_mkA;
     if(VIEW3D&&z>3.5)draw3DGround(p,r/0.62,z);
     const sel=G.sel===p.id;
-    ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
-    ctx.fillStyle=sel?"#e8a33d":(isCap?"#efe8d4":"rgba(16,18,20,0.86)");
+    /* THE REAL GAME'S MARKS: a capital is a STAR, a city worth taking is a
+       victory-point SQUARE, anywhere else a small dot. Read at a glance which
+       places on a front actually matter, where a field of identical discs said
+       nothing. */
+    const vp=!isCap&&p.val>=3;
+    ctx.beginPath();
+    if(isCap){
+      const R=r*1.55,ri=R*0.45;
+      for(let k=0;k<10;k++){const a=-Math.PI/2+k*Math.PI/5,rr=k%2?ri:R;
+        const X=p.x+Math.cos(a)*rr,Y=p.y+Math.sin(a)*rr;k?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}
+      ctx.closePath();
+    }else if(vp){const h=r*0.95;ctx.rect(p.x-h,p.y-h,h*2,h*2);}
+    else ctx.arc(p.x,p.y,r*0.85,0,7);
+    ctx.fillStyle=sel?"#e8a33d":(isCap?"#f0d98a":vp?"#ece4cc":"rgba(16,18,20,0.86)");
     ctx.fill();
+    ctx.lineJoin="miter";
     ctx.lineWidth=(sel?2.2:1.0)/Math.sqrt(z)*1.2;
-    ctx.strokeStyle=sel?"#ffd28a":(isCap?"#14171a":"rgba(238,232,214,0.72)");
+    ctx.strokeStyle=sel?"#ffd28a":(isCap||vp?"rgba(14,16,18,0.95)":"rgba(238,232,214,0.72)");
     ctx.stroke();
-    if(!isCap&&!sel&&p.val>=3){                       // a place worth taking
-      ctx.beginPath();ctx.arc(p.x,p.y,r*0.42,0,7);
-      ctx.fillStyle="rgba(238,232,214,0.80)";ctx.fill();
-    }
     if(p.coastal){ctx.beginPath();ctx.arc(p.x,p.y,r+2.0/Math.sqrt(z),0,7);ctx.strokeStyle="#7ab2c844";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke();}
     /* NAMES OF PLACES ARE FOR WHEN YOU ARE LOOKING AT A PLACE. Every province
        on Earth was labelled from a fairly wide zoom, so the map came out as a
@@ -14424,8 +14446,13 @@ function _drawFrame(){
     const isMain=p.val>=3||capOf(p.owner)===p.id;
     if((isMain?z>2.6:z>4.4)||SHOWPROV){
       const fs=z>1.8?10/z*1.6:(isMain?10:7.5)/Math.sqrt(z)*1.1;
-      ctx.fillStyle=terr?"#ffd34a":T.label;ctx.font=`${fs}px Courier New`;ctx.textAlign="center";
-      ctx.fillText(p.name,p.x,p.y-r-fs*0.45);
+      ctx.font=`${isMain?"bold ":""}${fs}px Courier New`;ctx.textAlign="center";
+      /* a dark halo under every name, as the real game prints them: plain
+         type vanished over forest and over the darker national colours */
+      const ly=p.y-r*(isCap?1.55:1)-fs*0.45;
+      ctx.lineJoin="round";ctx.lineWidth=fs*0.30;ctx.strokeStyle="rgba(10,12,10,0.72)";
+      ctx.strokeText(p.name,p.x,ly);
+      ctx.fillStyle=terr?"#ffd34a":T.label;ctx.fillText(p.name,p.x,ly);
       if(p.garrison>0.5){ctx.fillStyle=terr?"#e8c050":T.gar;ctx.fillText("🛡"+Math.round(p.garrison),p.x,p.y+r+9/z*1.6);}
       if(p.nuked&&!(VIEW3D&&z>3.5)){ctx.fillText("☢",p.x+r+5/z*1.6,p.y);}
     }
@@ -17609,7 +17636,7 @@ function piecePos(u,z,fleet){
   const ni=Math.max(0,nats.indexOf(u.nat)), cw=s*1.42;
   const lift=VIEW3D?s*0.15:0;
   return[a.x+(ni-(nats.length-1)/2)*cw,
-         a.y+s*0.95+(fleet?s*0.9:0)-lift];
+         a.y+s*1.15+(fleet?s*0.9:0)-lift];
 }
 /* the group a standing piece leads, in G order -- the first is drawn */
 function pieceGroup(u,fleet){
