@@ -1997,3 +1997,19 @@ Owner, again: "make it more like hearts of iron 4 and make the graphics better".
   row layout -- the new selector outranked the old media query.
 - **Speed box** styled like the top bar: brass border, inset buttons, gold
   for the active speed.
+
+### Clouds at the strategic zoom, and the windows
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics better".
+
+- **Clouds** (`drawClouds`, `_buildClouds`): the real game lays drifting
+  cloud over its far zoom. A 512x256 world texture from `_fbm` (seed 913,
+  5 octaves), smoothstepped 0.50-0.72, thinned toward the map's top and
+  bottom, made seamless east-west by cross-fading f(x) with f(x-w); a dark
+  copy laid 5-6 units south-east as the shadow. Drawn under the country
+  names (never hides one), alpha 0.42 at z<=1.2 fading to 0 at z2.2,
+  drifting east ~0.9 world units a second, clipped to the world. Off for
+  MAPQ<2 and the terrain lens. Built once (~50ms) on first far-zoom frame.
+- **Panels** (dark theme CSS): brass frame and shadow, the first h2 as a
+  gold title band across the top, h3 section heads in brass capitals with
+  a rule, dark buttons that light brass on hover.

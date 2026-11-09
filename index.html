@@ -79,6 +79,15 @@ body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);
 #panel{top:52px;right:8px;width:300px;max-width:88vw;max-height:calc(100% - 110px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);border:2px solid var(--line);padding:12px;display:none;font-size:13px;line-height:1.45}
 #panel h2{color:var(--amber);font-size:15px;letter-spacing:2px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px}
 #panel h3{color:var(--dim);font-size:12px;margin:10px 0 4px;letter-spacing:1px}
+/* the real game's windows: a brass frame, a gold title band, section heads
+   ruled off, dark buttons that light brass under the pointer */
+body:not(.light) #panel{background:linear-gradient(rgba(30,36,27,.97),rgba(15,19,13,.98));border:1px solid #8a7440;border-radius:3px;
+  box-shadow:0 4px 16px rgba(0,0,0,.75),inset 0 0 0 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
+body:not(.light) #panel>h2:first-child{margin:-12px -12px 10px;padding:9px 12px 8px;color:#f0d98a;text-shadow:0 1px 2px #000;
+  background:linear-gradient(90deg,rgba(138,116,64,.42),rgba(138,116,64,.08) 70%,transparent);border-bottom:1px solid #8a7440}
+body:not(.light) #panel h3{color:#c9b07a;border-bottom:1px solid rgba(138,116,64,.28);padding-bottom:3px;text-transform:uppercase}
+body:not(.light) #panel .bbtn{background:linear-gradient(#20271c,#141911);border-color:#3c3b2b;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+body:not(.light) #panel .bbtn:not([disabled]):hover{border-color:#b0924e;background:linear-gradient(#2b3325,#1a2016)}
 #panel .row{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:4px 0}
 #panel .bar{height:7px;background:#242c22;border:1px solid var(--line);flex:1}
 #panel .bar i{display:block;height:100%;background:var(--amber)}
@@ -10277,6 +10286,51 @@ function _fbm(x,y,seed,oct){
   for(let i=0;i<oct;i++){v+=_vnSmooth(x*fr,y*fr,seed+i*17)*amp;amp*=0.5;fr*=2;}
   return v;
 }
+/* CLOUDS, AS THE REAL GAME HAS THEM AT ITS STRATEGIC ZOOM: a soft drifting
+   layer over the whole world when you are far out, gone by the time you are
+   looking at a front. Under the country names, so they never hide one. A
+   world-sized texture (one texel per ~4 world units) built once from the
+   map's own value noise, made seamless east-west by cross-fading with
+   itself, and drawn twice as it drifts. */
+let _cloudCv=null,_cloudSh=null;
+function _buildClouds(){
+  const w=512,h=256,c=document.createElement("canvas");c.width=w;c.height=h;
+  const g=c.getContext("2d"),img=g.createImageData(w,h),d=img.data;
+  const S=w/9;   // noise cells across the world
+  const f=(x,y)=>_fbm(x/S,y/S*1.15,913,5);
+  for(let y=0;y<h;y++){
+    const lat=Math.abs(y/h-0.5)*2;                      // fewer clouds over the poles' edge of the map
+    for(let x=0;x<w;x++){
+      const v=((w-x)*f(x,y)+x*f(x-w,y))/w;             // seamless at x=0 / x=w
+      let a=(v-0.50)/0.22;a=a<0?0:a>1?1:a;a=a*a*(3-2*a);
+      a*=0.9-0.35*lat*lat;
+      const i=(y*w+x)*4;d[i]=236;d[i+1]=239;d[i+2]=242;d[i+3]=Math.round(a*255);
+    }
+  }
+  g.putImageData(img,0,0);
+  /* and their shadow on the ground: the same shapes, dark, laid a little
+     south-east, which is what makes them read as above the map */
+  const sh=document.createElement("canvas");sh.width=w;sh.height=h;
+  const sg=sh.getContext("2d");sg.drawImage(c,0,0);sg.globalCompositeOperation="source-in";
+  sg.fillStyle="rgb(8,12,16)";sg.fillRect(0,0,w,h);
+  _cloudCv=c;_cloudSh=sh;
+}
+function drawClouds(z){
+  if(z>=2.2||MAPQ<2||MAPSTYLE==="terrain")return;
+  const A=Math.min(1,(2.2-z)/1.0)*0.42;
+  if(A<0.01)return;
+  if(!_cloudCv){try{_buildClouds();}catch(e){_cloudCv=1;}}
+  if(_cloudCv===1)return;
+  const off=((performance.now()/1000)*0.9)%MW;           // a world unit a second, east
+  ctx.save();
+  ctx.beginPath();ctx.rect(0,0,MW,MH);ctx.clip();
+  ctx.imageSmoothingEnabled=true;
+  ctx.globalAlpha=A*0.45;
+  for(const x0 of [off-MW,off])ctx.drawImage(_cloudSh,x0+5,6,MW,MH);
+  ctx.globalAlpha=A;
+  for(const x0 of [off-MW,off])ctx.drawImage(_cloudCv,x0,0,MW,MH);
+  ctx.restore();
+}
 /* Where each nation's name is written on the map, worked out once per repaint
    from the ownership grid: {x,y} the centroid of its largest landmass, {w,h}
    that landmass's extent in world units. */
@@ -14443,6 +14497,7 @@ function _drawFrame(){
   /* The country's name goes on BEFORE the province markers and the counters,
      because it is printed on the map, not captioned over it: a division must
      never be hidden behind a letter. */
+  drawClouds(z);
   drawNationNames(z,T);
   /* THE MARKERS COME IN WITH THE ZOOM, the way the counters already do. At
      world zoom the reference shows none: it is a picture of the world, and two
