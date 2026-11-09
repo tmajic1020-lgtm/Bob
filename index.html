@@ -13344,6 +13344,28 @@ function renderTerritory(){
         }
       }
     }
+    /* THE NAME FOLLOWS THE LAND. The real game bends a country's name along
+       the shape it is written across -- Chile's name runs down a straight
+       strip, Turkey's or the Ukraine's sweeps. A second pass over each
+       landmass's cells, in its own axis frame (u along, v across), fits
+       v = c*u^2 by least squares: c is how the land bows, in 1/world unit,
+       and drawNationNames turns it into a gentle arc for the letters. */
+    {
+      const byCid=new Map();
+      for(const k in _lblComps)for(const c of _lblComps[k])if(c.area>=24)byCid.set(c.cid,c);
+      if(byCid.size){
+        const n=cbb.length,S2=new Float64Array(n),S4=new Float64Array(n),Sv=new Float64Array(n),S2v=new Float64Array(n),N=new Float64Array(n);
+        const ca=new Float64Array(n),sa=new Float64Array(n),mx=new Float64Array(n),my=new Float64Array(n),on=new Uint8Array(n);
+        for(const [cid,c] of byCid){on[cid]=1;ca[cid]=Math.cos(c.ang);sa[cid]=Math.sin(c.ang);mx[cid]=c.x/TS;my[cid]=c.y/TS;}
+        for(let i=0;i<w*h;i++){const cid=comp[i];if(!cid||!on[cid])continue;
+          const dx=(i%w)-mx[cid],dy=((i/w)|0)-my[cid];
+          const u=dx*ca[cid]+dy*sa[cid],v=-dx*sa[cid]+dy*ca[cid],u2=u*u;
+          S2[cid]+=u2;S4[cid]+=u2*u2;Sv[cid]+=v;S2v[cid]+=u2*v;N[cid]++;}
+        for(const [cid,c] of byCid){const m=N[cid];if(!m)continue;
+          const vu=S4[cid]/m-(S2[cid]/m)**2;
+          c.curv=vu>1e-6?((S2v[cid]/m-(S2[cid]/m)*(Sv[cid]/m))/vu)/TS:0;}
+      }
+    }
     /* THE NAME GOES ON THE HOMELAND. It used to go on the nation's largest
        landmass, and for an empire that is a colony: FRANCE was written across
        the Sahara and ITALY across Libya, with nothing on France or Italy. The
@@ -17502,12 +17524,14 @@ function _sprGet(key,make){
   return v;
 }
 function _sprStep(px){const b=Math.round(Math.log(Math.max(px,3))/0.0583);return[b,Math.exp(b*0.0583)];}
-function _nameSprite(name,adv,unit,px,small){
+function _nameSprite(name,adv,unit,px,small,bend){
   const[b,S]=_sprStep(px);
-  return _sprGet("n|"+name+"|"+b+"|"+(small?1:0)+"|"+THEME,()=>{
+  bend=bend||0;
+  return _sprGet("n|"+name+"|"+b+"|"+(small?1:0)+"|"+THEME+"|"+bend,()=>{
     const lw=Math.max(S*(small?0.22:0.17),1.2*DPR),pad=Math.ceil(lw+2);
+    const Wt=unit*S, sag=Math.abs(bend)*Wt;
     const c=document.createElement("canvas");
-    c.width=Math.ceil(unit*S+2*pad);c.height=Math.ceil(S*1.5+2*pad);
+    c.width=Math.ceil(Wt+2*pad+S*0.4);c.height=Math.ceil(S*1.5+2*pad+sag*1.2);
     const x=c.getContext("2d");
     x.font=NAMEFONT(S);x.textAlign="left";x.textBaseline="middle";
     x.lineJoin="round";x.miterLimit=2;
@@ -17519,8 +17543,23 @@ function _nameSprite(name,adv,unit,px,small){
     x.strokeStyle="rgba(10,12,14,0.82)";x.lineWidth=lw;
     x.fillStyle=THEME==="light"?(small?"rgba(252,250,244,0.92)":"rgba(252,250,244,0.72)")
                                :(small?"rgba(246,243,235,0.86)":"rgba(246,243,235,0.60)");
-    let cx=pad;const cy=c.height/2;
-    for(let i=0;i<name.length;i++){x.strokeText(name[i],cx,cy);x.fillText(name[i],cx,cy);cx+=adv[i]*S+S*NAMETRACK;}
+    const cy=c.height/2;
+    if(!bend){
+      let cx=pad+S*0.2;
+      for(let i=0;i<name.length;i++){x.strokeText(name[i],cx,cy);x.fillText(name[i],cx,cy);cx+=adv[i]*S+S*NAMETRACK;}
+    }else{
+      /* along y = 4*bend*Wt*(t^2 - 1/12), t = x/Wt in [-1/2,1/2]: the mean
+         offset is nought, so the name stays centred on its country; each
+         letter turned to the curve's slope there */
+      const ys=t=>4*bend*Wt*(t*t-1/12);
+      let cx=-Wt/2;x.textAlign="center";
+      for(let i=0;i<name.length;i++){
+        const aw=adv[i]*S,mid=cx+aw/2,t=mid/Wt;
+        x.save();x.translate(c.width/2+mid,cy+ys(t));x.rotate(Math.atan(8*bend*t));
+        x.strokeText(name[i],0,0);x.fillText(name[i],0,0);x.restore();
+        cx+=aw+S*NAMETRACK;
+      }
+    }
     return{cv:c,S,ox:c.width/2,oy:cy};
   });
 }
@@ -17566,11 +17605,12 @@ function drawNationNames(z,T){
     /* Along the country's own axis. The old test only knew "taller than wide",
        so it wrote every country either flat or straight down; a landmass that
        lies on a diagonal got neither. */
-    let ang=L.ang||0, along=L.along||L.w, across=L.across||L.h;
-    if(!(along>0)){along=L.w;across=L.h;ang=0;}
-    /* Keep it readable: never upside down, and never past the vertical. */
-    while(ang>Math.PI/2)ang-=Math.PI;
-    while(ang<-Math.PI/2)ang+=Math.PI;
+    let ang=L.ang||0, along=L.along||L.w, across=L.across||L.h, curv=L.curv||0;
+    if(!(along>0)){along=L.w;across=L.h;ang=0;curv=0;}
+    /* Keep it readable: never upside down, and never past the vertical. A half
+       turn flips which side "across" is, so the bow flips with it. */
+    while(ang>Math.PI/2){ang-=Math.PI;curv=-curv;}
+    while(ang<-Math.PI/2){ang+=Math.PI;curv=-curv;}
     let adv=_NAMEADV[name];
     if(!adv){
       ctx.font=NAMEFONT(100);
@@ -17597,7 +17637,12 @@ function drawNationNames(z,T){
       slant=unit*fs<=along*0.95&&Math.abs(ang)>0.15?ang:null;
       ang=0;
     }
-    plan.push({k,L,name,adv,unit,fs,ang,small,extra,slant:small?slant:null});
+    /* the bow as a fraction of the name's length: sagitta = c*(Lw/2)^2, so
+       bend = c*Lw/4; gentle (at most 11%), none when it would be a wobble,
+       none on a small name, quantised so sprites are shared */
+    let bend=0;
+    if(!small){const b=curv*unit*fs/4;bend=Math.abs(b)<0.025?0:Math.round(Math.max(-0.11,Math.min(0.11,b))*100)/100;}
+    plan.push({k,L,name,adv,unit,fs,ang,small,extra,slant:small?slant:null,bend});
   }
   /* Clash on the label's TURNED box, not the upright box round it. A long
      name on a diagonal -- SWEDEN down the Scandinavian ridge -- has an
@@ -17620,7 +17665,7 @@ function drawNationNames(z,T){
     const bx=wpx*ca+hpx*sa, by=wpx*sa+hpx*ca;
     if(sx+bx/2<0||sx-bx/2>W||sy+by/2<0||sy-by/2>H)return 0;
     const gy=e.small?1.15:1.35;
-    const me=obb(sx,sy,wpx*0.51,hpx*gy/2,e.ang);
+    const me=obb(sx,sy,wpx*0.51,hpx*gy/2+Math.abs(e.bend||0)*wpx*0.5,e.ang);
     for(const r of seen)if(!sep(me,r))return -1;
     seen.push(me);
     return 1;
@@ -17631,7 +17676,7 @@ function drawNationNames(z,T){
        per frame, and zoomed out with sixty names on screen it was nearly the
        whole frame. The sprite is built at the name's size in DEVICE pixels,
        quantised to 6% steps, so it is drawn at 97-103% scale: sharp. */
-    const sp=_nameSprite(e.name,e.adv,e.unit,e.fs*z*DPR,e.small);
+    const sp=_nameSprite(e.name,e.adv,e.unit,e.fs*z*DPR,e.small,e.small?0:(e.bend||0));
     ctx.save();
     ctx.translate(wx,wy);
     ctx.rotate(e.ang);
@@ -17673,7 +17718,7 @@ function drawNationNames(z,T){
     return false;
   };
   for(const e of retry){
-    const f0=e.fs,a0=e.ang;e.ang=0;
+    const f0=e.fs,a0=e.ang;e.ang=0;e.bend=0;
     for(let f=f0*0.8,g=0;g<12;f*=0.8,g++){
       const ff=Math.max(f||0,MINPX/z);
       e.fs=ff;e.small=ff*z<14;

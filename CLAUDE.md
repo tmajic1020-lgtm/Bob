@@ -2046,3 +2046,23 @@ line given to an army group.
   Munich 5, Konigsberg 2 (East Prussia is not reachable overland at peace,
   so the split is uneven, not wrong). Group stance/target survive save/load
   (groups were already saved whole).
+
+## Country names bend with the land
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics
+better". The real game bends a country's name along the shape it is written
+across; here every name was a straight line on the principal axis.
+
+- In `renderTerritory`, after the component walk, a second pass over each
+  labelled landmass (area >= 24 cells) in its own axis frame (u along,
+  v across) fits v = c*u^2 by least squares: `c.curv`, 1/world unit.
+- `drawNationNames`: bend = curv * labelLength / 4 (sagitta over length),
+  flipped with the angle when it is turned for readability, clamped to
+  +-0.11, dropped under 0.025 and on small names, quantised to 0.01 so the
+  sprite cache shares them. The clash box grows by the sagitta.
+- `_nameSprite(..., bend)` lays the letters along y = 4*bend*W*(t^2-1/12)
+  (mean offset nought, so the name stays centred) each turned to the slope.
+  Straight names render as before (with 0.2em padding each side).
+- 1936: 46 of ~70 big labels get a bend; the strongest are Ecuador, South
+  Africa, Yemen, Australia, Bolivia, Finland (all at the cap). Japan follows
+  the island arc, Chile stays straight.
