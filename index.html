@@ -10394,12 +10394,16 @@ function buildRails(){
   const P=Object.values(G.prov);
   if(P.length<2)return;
   const idx={};P.forEach((q,i)=>{idx[q.id]=i;});
+  /* NO RAILWAY ACROSS THE SEA. a.adj holds sea links too, so the tree laid
+     track with sleepers from Sicily to Naples and across the Mediterranean. */
+  const seaL=new Set();for(const L of LINKS)if(L.length>2&&L[2]){seaL.add(L[0]+"|"+L[1]);seaL.add(L[1]+"|"+L[0]);}
   const edges=[];
   for(let i=0;i<P.length;i++){
     const a=P[i];
     for(const bid of (a.adj||[])){
       const j=idx[bid];
       if(j===undefined||j<=i)continue;
+      if(seaL.has(a.id+"|"+bid))continue;
       const b=P[j];
       const dx=b.x-a.x;
       if(Math.abs(dx)>MW/2)continue;            // never a line across the seam
@@ -10431,20 +10435,41 @@ function buildRails(){
   }
   const trunk=new Path2D(), branch=new Path2D(), ties=new Path2D();
   const TIE=1.15, TIEH=0.42;          // world units between sleepers, and half a sleeper
+  /* A RAILWAY IS NOT RULED. Province centre to province centre in a straight
+     line read as a diagram laid over the map. Track follows the ground: each
+     line now wanders off the straight by up to 5% of its length, in two
+     smooth harmonics seeded by the two ends (so it is the same line every
+     time and both directions agree), pinned to the stations and tapered so it
+     leaves and arrives head on. A stylisation, like the 1936 frontiers. */
+  const hs=(str)=>{let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0)/4294967296;};
   for(const e of keep){
-    const a=P[e[1]], b=P[e[2]];
+    let a=P[e[1]], b=P[e[2]];
+    if(a.id>b.id){const t=a;a=b;b=t;}
     const isTrunk=(a.val||1)>=3&&(b.val||1)>=3;
     const T=isTrunk?trunk:branch;
-    T.moveTo(a.x,a.y);T.lineTo(b.x,b.y);
-    /* THE SLEEPERS, which are what make it read as a railway rather than a
-       road. Laid here as world geometry so they resolve as you come in
-       instead of being a screen-locked hatch that never does. */
     const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
     if(!(d>0.001))continue;
-    const ux=dx/d, uy=dy/d, px=-uy*TIEH, py=ux*TIEH;
-    for(let t=TIE/2;t<d;t+=TIE){
-      const cx=a.x+ux*t, cy=a.y+uy*t;
-      ties.moveTo(cx-px,cy-py);ties.lineTo(cx+px,cy+py);
+    const ux=dx/d, uy=dy/d, nx=-uy, ny=ux;
+    const r1=hs(a.id+b.id), r2=hs(b.id+a.id+"x");
+    const A1=(r1-0.5)*0.10*d, A2=(r2-0.5)*0.05*d, ph=r2*6.283;
+    const N=Math.max(4,Math.min(40,Math.round(d/1.5)));
+    const pts=[];
+    for(let k=0;k<=N;k++){const t=k/N,taper=Math.sin(Math.PI*t);
+      const off=taper*(A1+A2*Math.sin(2*Math.PI*t*2+ph)*Math.sin(Math.PI*t));
+      pts.push([a.x+dx*t+nx*off,a.y+dy*t+ny*off]);}
+    T.moveTo(pts[0][0],pts[0][1]);for(let k=1;k<pts.length;k++)T.lineTo(pts[k][0],pts[k][1]);
+    /* THE SLEEPERS, which are what make it read as a railway rather than a
+       road. Laid here as world geometry so they resolve as you come in
+       instead of being a screen-locked hatch that never does -- now along
+       the curve, square to it. */
+    let carry=TIE/2;
+    for(let k=1;k<pts.length;k++){
+      const x0=pts[k-1][0],y0=pts[k-1][1],sx=pts[k][0]-x0,sy=pts[k][1]-y0,sl=Math.hypot(sx,sy);
+      if(!(sl>0))continue;
+      const vx=sx/sl,vy=sy/sl,px=-vy*TIEH,py=vx*TIEH;
+      let t=carry;
+      for(;t<sl;t+=TIE){const cx=x0+vx*t,cy=y0+vy*t;ties.moveTo(cx-px,cy-py);ties.lineTo(cx+px,cy+py);}
+      carry=t-sl;
     }
   }
   railPath={trunk,branch,ties,n:keep.length};
@@ -13975,7 +14000,10 @@ function _drawFrame(){
   /* A mitre limit, so the two or three genuinely sharp corners in a coastline
      are bevelled instead of growing spikes. Free: it is state, not work. */
   ctx.lineJoin="miter";ctx.miterLimit=2.5;
-  ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=1.6/Math.sqrt(z);
+  /* In SCREEN pixels. 1.6/sqrt(z) world units is 1.6*sqrt(z) on screen: 1.75px
+     at the world view but six at the zoom you fight at, a black rope round
+     every coast. Held at 1.4-2.3px, under the frontier's 2.8. */
+  ctx.strokeStyle=terr?"#000000":T.coast;ctx.lineWidth=Math.min(2.3,1.35+0.07*z)/z;
   /* The coast pass strokes each country's whole outer ring, land frontiers
      included, so the modern Oder-Neisse line came from HERE as much as from
      the border pass. Same mask. */
@@ -14323,15 +14351,20 @@ function _drawFrame(){
   }
   ctx.strokeStyle=terr?"#000":T.coast;ctx.lineWidth=1/Math.sqrt(z);ctx.stroke(icePath);
   // links (faint, when zoomed)
+  /* Only the SEA lanes. Every land link was drawn as well, a web of straight
+     lines between cities on top of the railways that already show how the
+     land joins up -- the real game draws no movement graph at all. */
   if(z>3.2){
-    ctx.lineWidth=0.7/z*2;
+    ctx.lineWidth=1.1/z;
+    ctx.strokeStyle="rgba(170,205,225,0.30)";
+    ctx.setLineDash([5/z,6/z]);
+    ctx.beginPath();
     for(const L of LINKS){
-      const a=G.prov[L[0]],b=G.prov[L[1]];if(!a||!b)continue;
-      const sea=L.length>2&&L[2];
-      ctx.strokeStyle=sea?"#8ec8e855":"#00000022";
-      ctx.setLineDash(sea?[6/z*2,6/z*2]:[]);
-      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      if(!(L.length>2&&L[2]))continue;
+      const a=G.prov[L[0]],b=G.prov[L[1]];if(!a||!b||Math.abs(a.x-b.x)>MW/2)continue;
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
     }
+    ctx.stroke();
     ctx.setLineDash([]);
   }
   /* Overlays are drawn UNDER the province markers as a soft disc, so the map
@@ -14455,12 +14488,28 @@ function _drawFrame(){
   const pieces=[];
   if(z>CTRZ){
     const mineOnly=z<CTRFULL;
-    for(const f of G.fleets){if(mineOnly&&f.nat!==G.player)continue;pieces.push({u:f,fleet:true,p:piecePos(f,z,true)});}
-    for(const u of G.units){if(mineOnly&&u.nat!==G.player)continue;pieces.push({u,fleet:false,p:piecePos(u,z,false)});}
+    /* a standing stack is drawn once, by its first division, carrying the
+       whole stack's strength and organisation and a count */
+    const seen=new Set();
+    const add=(u,fleet)=>{
+      if(mineOnly&&u.nat!==G.player)return;
+      if(!u.to){const key=(fleet?"f":"u")+u.at+"|"+u.nat;if(seen.has(key))return;seen.add(key);
+        const g=pieceGroup(u,fleet);
+        if(g&&g.length>1){
+          let hp=0,str=0,org=0;for(const v of g){hp+=v.hp||0;str+=v.str||0;org+=(v.org!==undefined?v.org:1);}
+          const px=Object.create(u);px.hp=hp;px.str=str;px.org=org/g.length;px._grp=g;
+          pieces.push({u:px,fleet,p:piecePos(u,z,fleet),n:g.length});return;}
+      }
+      pieces.push({u,fleet,p:piecePos(u,z,fleet)});
+    };
+    for(const f of G.fleets)add(f,true);
+    for(const u of G.units)add(u,false);
   }
   if(VIEW3D)pieces.sort((a,b)=>a.p[1]-b.p[1]);
-  for(const it of pieces)
+  for(const it of pieces){
     drawPiece(it.u,it.fleet?shipOf(it.u).i:uIcon(it.u.type),it.fleet?"#cfe7f2":null,z,it.fleet,it.p);
+    if(it.n>1)drawStackCount(it.n,it.p,z);
+  }
   if(z>1.15)drawBattleMarkers(z);
   // air wings flying lines
   for(const w of G.wings){
@@ -17549,12 +17598,23 @@ function piecePos(u,z,fleet){
   const a=provOf(u.at);
   if(!a)return[0,0];
   if(u.to){const b=provOf(u.to);if(b)return[a.x+(b.x-a.x)*u.prog,a.y+(b.y-a.y)*u.prog];return[a.x,a.y];}
-  const stack=(fleet?G.fleets:G.units).filter(v=>v.at===u.at&&!v.to);
-  const idx=stack.indexOf(u);
-  const ang=idx*2.4, off=(idx>0?6:0)/Math.sqrt(z)*1.5;
-  const lift=VIEW3D?(8/Math.sqrt(z)*1.35)*0.15:0;
-  return[a.x+Math.cos(ang)*off,
-         a.y+Math.sin(ang)*off+(fleet?8/Math.sqrt(z):0)-lift];
+  /* ONE COUNTER PER ARMY IN A PROVINCE, as the real game does it: the
+     divisions of one country standing in one place share a counter with
+     their number on it, instead of a spiral of overlapping boxes covering the
+     city's name. It sits UNDER the city point so the name above stays
+     readable; a second country there (an ally) stands beside it. */
+  const s=8/Math.sqrt(z)*1.35;
+  const nats=[];
+  for(const v of (fleet?G.fleets:G.units))if(v.at===u.at&&!v.to&&nats.indexOf(v.nat)<0)nats.push(v.nat);
+  const ni=Math.max(0,nats.indexOf(u.nat)), cw=s*1.42;
+  const lift=VIEW3D?s*0.15:0;
+  return[a.x+(ni-(nats.length-1)/2)*cw,
+         a.y+s*0.95+(fleet?s*0.9:0)-lift];
+}
+/* the group a standing piece leads, in G order -- the first is drawn */
+function pieceGroup(u,fleet){
+  if(u.to)return null;
+  return (fleet?G.fleets:G.units).filter(v=>v.at===u.at&&!v.to&&v.nat===u.nat);
 }
 
 /* ========================= NATO COUNTERS ====================================
@@ -17629,6 +17689,22 @@ function navalSymbol(cls,bw,bh,lw,ink){
 }
 /* The counter. Drawn in the piece's own local space with the ground at y=0, so
    the same routine serves the flat map and a counter standing up in 3D. */
+/* the number of divisions in a stack, on a dark tab at the counter's
+   right shoulder -- the figure the real game prints on its counters */
+function drawStackCount(n,p,z){
+  const s=8/Math.sqrt(z)*1.35, cw=s*1.30, ch=s*0.84;
+  const txt=String(n), fs=ch*0.52;
+  ctx.save();ctx.translate(p[0],p[1]);
+  ctx.font=`bold ${fs}px ${getComputedStyle(document.body).fontFamily||"monospace"}`;
+  const tw=Math.max(ch*0.62,ctx.measureText(txt).width+ch*0.28), th=ch*0.62;
+  const x=cw/2-tw*0.35, y=-ch*0.62-th*0.35;
+  _rrect(ctx,x,y,tw,th,th*0.22);
+  ctx.fillStyle="rgba(14,16,14,0.92)";ctx.fill();
+  ctx.strokeStyle="rgba(232,200,120,0.85)";ctx.lineWidth=Math.max(0.4,0.8/Math.sqrt(z));ctx.stroke();
+  ctx.fillStyle="#f2ead6";ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(txt,x+tw/2,y+th/2+th*0.04);
+  ctx.restore();
+}
 function drawCounter(u,s,z,fleet,sel){
   const cw=s*1.30, ch=s*0.84;
   const x=-cw/2, y=-ch*0.62;
@@ -17694,7 +17770,7 @@ function drawPiece(u,glyph,color,z,fleet,pos){
     if(VIEW3D&&z>3.5&&draw3DScene(u,s,z)){    // detailed tanks/trenches/riflemen only once you zoom in close
       // era scene drawn in place of the plain block; HP bar still shown for function
     } else {
-      drawCounter(u,s,z,false,u===G.selUnit);
+      drawCounter(u,s,z,false,u===G.selUnit||!!(u._grp&&u._grp.includes(G.selUnit)));
     }
   }else{
     if(VIEW3D&&z>3.5){
@@ -17722,7 +17798,7 @@ function drawPiece(u,glyph,color,z,fleet,pos){
       ctx.strokeStyle=dark;ctx.lineWidth=Math.max(1,s*0.04)/Math.sqrt(z);
       ctx.beginPath();ctx.moveTo(s*0.14,-s*0.14);ctx.lineTo(s*0.14,-s*0.5);ctx.stroke(); // the mast
     } else {
-      drawCounter(u,s,z,true,u===G.selUnit);
+      drawCounter(u,s,z,true,u===G.selUnit||!!(u._grp&&u._grp.includes(G.selUnit)));
     }
   }
   ctx.restore();
@@ -17843,19 +17919,24 @@ function unitAt(sx,sy){
   const z=G.cam.z;
   if(z<=2.1)return null;
   const[wx,wy]=S2W(sx,sy);
-  let best=null,bd=1e9;
+  let best=null,bd=1e9,bestF=false;
   for(const u of G.units){
     if(u.nat!==G.player)continue;
     const[x,y]=piecePos(u,z,false);
-    const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;}
+    const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;bestF=false;}
   }
   for(const u of G.fleets){
     if(u.nat!==G.player)continue;
     const[x,y]=piecePos(u,z,true);
-    const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;}
+    const d=(x-wx)**2+(y-wy)**2;if(d<bd){bd=d;best=u;bestF=true;}
   }
   const lim=(14/Math.sqrt(G.cam.z)*1.5)**2;
-  return bd<lim?best:null;
+  if(!(bd<lim))return null;
+  /* a stack is one counter now, so clicking it again steps through the
+     divisions in it */
+  const g=pieceGroup(best,bestF);
+  if(g&&g.length>1){const i=g.indexOf(G.selUnit);return g[i>=0?(i+1)%g.length:0];}
+  return best;
 }
 function clickAt(sx,sy){
   if(!G)return;

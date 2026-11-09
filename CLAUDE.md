@@ -1917,3 +1917,31 @@ automatic split of the military share. Now a PRODUCTION side tab.
 - Save: nation field a[44] = {m,f,e,o,pr}.
 - The panel also lists units in production (the RECRUIT queue) with cancel.
 - `sweep.js` now opens PRODUCTION, DECISIONS and TRADE too.
+
+## The map, cleaned up the way the real game reads
+
+Owner: "make it more like hearts of iron 4 and make the graphics better".
+Screenshots at z1.2/4/9/14 (`g/s.js`, 1936 Germany) named four faults:
+
+- **Counters covered the city names.** A stack was a spiral of boxes centred
+  ON the city point, so Berlin, Warsaw, Bohemia and Krakow were unreadable.
+  Now one counter per country per province (`pieceGroup`), carrying the
+  stack's summed strength/averaged organisation and a count tab
+  (`drawStackCount`), placed UNDER the point so the name above stays clear;
+  an ally in the same province stands beside it. Clicking a stack again steps
+  through its divisions (`unitAt`) -- before, the second division in Berlin
+  could not be picked from the map at all. Counters drawn: 556 -> 470.
+- **Railways crossed the sea.** `buildRails` walked `a.adj`, which includes
+  sea links, so it laid track with sleepers Sicily-Naples and across the
+  Mediterranean. Sea links are skipped now.
+- **Railways were ruled.** Straight centre-to-centre; now a two-harmonic
+  wander up to ~5% of the length, seeded by the two ends, pinned and
+  tapered, sleepers laid square to the curve.
+- **A movement-graph web**: every LINK was stroked from z3.2, land ones too,
+  on top of the railways. Only the sea lanes are drawn now, dashed and fainter.
+- **The coastline grew with zoom.** 1.6/sqrt(z) world units is 1.6*sqrt(z)
+  screen pixels -- six at z14, a black rope. Now 1.35-2.3 px on screen,
+  under the frontier's 2.8.
+- `check100.js` and its reference capture are not in this session's
+  scratchpad (they belonged to an earlier one), so this was judged on
+  same-view screenshots before/after, not the 75-check score.
