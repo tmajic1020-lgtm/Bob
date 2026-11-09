@@ -79,6 +79,7 @@ body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);
 #panel{top:52px;right:8px;width:300px;max-width:88vw;max-height:calc(100% - 110px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);border:2px solid var(--line);padding:12px;display:none;font-size:13px;line-height:1.45}
 #panel h2{color:var(--amber);font-size:15px;letter-spacing:2px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px}
 #panel h3{color:var(--dim);font-size:12px;margin:10px 0 4px;letter-spacing:1px}
+#selbox{position:fixed;display:none;z-index:9;pointer-events:none;border:1px solid #f0d98a;background:rgba(240,217,138,0.12);box-shadow:0 0 0 1px rgba(0,0,0,.6)}
 /* the real game's windows: a brass frame, a gold title band, section heads
    ruled off, dark buttons that light brass under the pointer */
 body:not(.light) #panel{background:linear-gradient(rgba(30,36,27,.97),rgba(15,19,13,.98));border:1px solid #8a7440;border-radius:3px;
@@ -467,6 +468,7 @@ body.light #speedbox{background:#ece7d6d0}
 <div id="speedbox" class="hud" style="display:none">
   <button class="tbtn" id="bMode" onclick="cycleMapMode()">🗺 POLITICAL</button>
   <button class="tbtn" id="bProv">🏛 PROVINCES</button>
+  <button class="tbtn" id="bSel" onclick="toggleSelMode()" title="Drag a box to select divisions (Shift-drag works any time)">▢ SELECT</button>
   <button class="tbtn" id="bZoomOut">−</button>
   <button class="tbtn" id="bZoomIn">+</button>
   <button class="tbtn" id="bPause">⏸ PAUSE</button>
@@ -18178,7 +18180,7 @@ function drawPiece(u,glyph,color,z,fleet,pos){
     if(VIEW3D&&z>3.5&&draw3DScene(u,s,z)){    // detailed tanks/trenches/riflemen only once you zoom in close
       // era scene drawn in place of the plain block; HP bar still shown for function
     } else {
-      drawCounter(u,s,z,false,u===G.selUnit||!!(u._grp&&u._grp.includes(G.selUnit)));
+      drawCounter(u,s,z,false,u===G.selUnit||!!(u._grp&&u._grp.includes(G.selUnit))||!!(G.selGroup&&(G.selGroup.includes(u)||(u._grp&&u._grp.some(v=>G.selGroup.includes(v))))));
     }
   }else{
     if(VIEW3D&&z>3.5){
@@ -18240,6 +18242,10 @@ cv.addEventListener("pointerdown",e=>{
   }
   if(drag&&drag.id!==e.pointerId){pinch={a:drag,b:{id:e.pointerId,x:e.clientX,y:e.clientY},d0:0,z0:G.cam.z,f0:FP.fov};const dx=pinch.a.x-pinch.b.x,dy=pinch.a.y-pinch.b.y;pinch.d0=Math.hypot(dx,dy);return;}
   drag={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY};moved=false;
+  /* BOX SELECT, as the real game does it: Shift-drag (or any drag with SELECT
+     switched on, for touch) draws a box instead of panning, and takes every
+     division of yours inside it */
+  if(!FPV&&G&&(e.shiftKey||SELMODE))drag.box=true;
 });
 cv.addEventListener("pointermove",e=>{
   if(stick&&e.pointerId===stick.id){_fpStickTo(e.clientX,e.clientY);return;}
@@ -18256,6 +18262,7 @@ cv.addEventListener("pointermove",e=>{
   if(!drag||e.pointerId!==drag.id){if(!FPV)hover(e);return;}
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>6)moved=true;
+  if(drag.box){drag.x=e.clientX;drag.y=e.clientY;if(moved)_selBoxShow(drag);return;}
   if(FPV){
     /* Turning your head, not dragging a map. Pitch is stopped short of straight
        up and straight down so the horizon can never invert. */
@@ -18269,7 +18276,9 @@ cv.addEventListener("pointermove",e=>{
 function endPtr(e){
   if(stick&&e.pointerId===stick.id){stick=null;FP.mf=0;FP.ms=0;return;}
   if(pinch){pinch=null;drag=null;return;}
+  if(drag&&e.pointerId===drag.id&&drag.box&&moved){_selBoxEnd(drag);drag=null;return;}
   if(drag&&e.pointerId===drag.id){
+    _selBoxHide();
     if(!moved){
       if(FPV){ fpTap(e.clientX,e.clientY); }
       else clickAt(e.clientX,e.clientY);
@@ -18277,6 +18286,59 @@ function endPtr(e){
     drag=null;
   }
 }
+let SELMODE=false;
+function _selBoxEl(){let b=document.getElementById("selbox");
+  if(!b){b=document.createElement("div");b.id="selbox";document.body.appendChild(b);}return b;}
+function _selBoxShow(d){const t=document.getElementById("tip");if(t)t.style.display="none";const b=_selBoxEl(),x=Math.min(d.sx,d.x),y=Math.min(d.sy,d.y);
+  b.style.cssText=`display:block;left:${x}px;top:${y}px;width:${Math.abs(d.x-d.sx)}px;height:${Math.abs(d.y-d.sy)}px`;}
+function _selBoxHide(){const b=document.getElementById("selbox");if(b)b.style.display="none";}
+function _selBoxEnd(d){
+  _selBoxHide();
+  const [ax,ay]=S2W(Math.min(d.sx,d.x),Math.min(d.sy,d.y)),[bx,by]=S2W(Math.max(d.sx,d.x),Math.max(d.sy,d.y));
+  const z=G.cam.z,pick=[];
+  for(const u of G.units){if(u.nat!==G.player)continue;
+    const [x,y]=piecePos(u,z,false);if(x>=ax&&x<=bx&&y>=ay&&y<=by)pick.push(u);}
+  if(!pick.length){G.selGroup=null;logMsg("No divisions of yours in that box.","war");return;}
+  G.selGroup=pick;G.selUnit=pick[0];
+  sfx&&sfx("click");
+  openPanel("sel");
+}
+window.toggleSelMode=()=>{SELMODE=!SELMODE;const b=document.getElementById("bSel");if(b)b.classList.toggle("on",SELMODE);
+  logMsg(SELMODE?"\u25A2 SELECT: drag a box over your divisions. (Shift-drag does the same any time.)":"\u25A2 SELECT off: dragging pans the map again.");};
+/* what a box selection can be ordered to do */
+function _selLive(){return (G.selGroup||[]).filter(u=>G.units.includes(u));}
+window.selFormGroup=()=>{
+  const L=_selLive();if(!L.length)return 0;
+  const g=newArmyGroup();if(!g)return 0;
+  for(const u of L)u.grp=g;
+  logMsg(`\u{1F396} Army Group ${g} formed from ${L.length} division${L.length>1?"s":""}.`,"good");
+  renderPanel();return g;
+};
+window.selToGroup=g=>{
+  const L=_selLive();if(!L.length)return;
+  ensureGroup(g);for(const u of L)u.grp=g;
+  logMsg(`${L.length} division${L.length>1?"s":""} join Army Group ${g}.`,"good");renderPanel();
+};
+/* the selection's own group if they all share one, else a new group of them */
+function _selGroupId(){
+  const L=_selLive();if(!L.length)return 0;
+  const g0=L[0].grp;
+  if(g0&&L.every(u=>u.grp===g0)&&G.groups&&G.groups[g0])return g0;
+  return selFormGroup();
+}
+window.selFront=tgt=>{
+  const g=_selGroupId();if(!g)return;
+  ensureGroup(g).stance="front";G.groups[g].target=tgt||null;
+  logMsg(`\u25AC Army Group ${g} takes the front${tgt?" against "+NATIONS[tgt].n:""}.`,"good");
+  G.selGroup=null;openPanel("army");
+};
+window.selAdvance=tgt=>{
+  const g=_selGroupId();if(!g)return;
+  ensureGroup(g).stance="advance";G.groups[g].target=tgt||null;
+  logMsg(`\u2694 Army Group ${g} advances${tgt?" on "+NATIONS[tgt].n:""}.`,"good");
+  G.selGroup=null;openPanel("army");
+};
+window.selClear=()=>{G.selGroup=null;G.selUnit=null;$("#panel").style.display="none";curPanel=null;};
 let lastTap=0,lastTapX=0,lastTapY=0;
 cv.addEventListener("pointerup",e=>{
   if(stick&&e.pointerId===stick.id){stick=null;FP.mf=0;FP.ms=0;return;}
@@ -18419,6 +18481,7 @@ addEventListener("keydown",e=>{
   if(e.key==="h"||e.key==="H"){e.preventDefault();goHome();}
   else if(e.key==="b"||e.key==="B"){e.preventDefault();nextBattle();}
   else if(e.key==="m"||e.key==="M"){e.preventDefault();cycleOverlay(1);}
+  else if(e.key==="Escape"&&G.selGroup){e.preventDefault();selClear();}
 });
 $("#bAuto").onclick=()=>{
   const me=G.nations[G.player];me.autoCap=!me.autoCap;
@@ -18801,6 +18864,34 @@ function renderPanel(){
             <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">\u2715</button></div>`;
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
+  }
+  if(curPanel==="sel"){
+    const L=_selLive();
+    if(!L.length){el.innerHTML=`<h2>SELECTED</h2><div style="color:var(--dim)">Nothing selected. Shift-drag a box over your divisions on the map, or switch on ▢ SELECT at the bottom right and drag.</div>`;return;}
+    const by={};for(const u of L)by[u.type]=(by[u.type]||0)+1;
+    const at=[...new Set(L.map(u=>u.at))].map(id=>G.prov[id]&&G.prov[id].name).filter(Boolean);
+    const gs=[...new Set(L.map(u=>u.grp||0))];
+    let h=`<h2>SELECTED — ${L.length} DIVISION${L.length>1?"S":""}</h2>
+      <div class="row"><span>${Object.keys(by).map(t=>`${uIcon(t)} ${by[t]} ${uName(t).toLowerCase()}`).join(" · ")}</span></div>
+      <div style="color:var(--dim);font-size:11px">At ${at.slice(0,6).join(", ")}${at.length>6?` and ${at.length-6} more`:""}. ${gs.length===1&&gs[0]?`All in Army Group ${gs[0]}.`:""}</div>
+      <div style="color:var(--amber);font-size:11px;margin:6px 0">Click any province on the map to send them all there.</div>
+      <h3>ARMY GROUP</h3>
+      <button class="bbtn" ${myGroups().length>=GROUP_MAX&&!(gs.length===1&&gs[0])?"disabled":""} onclick="selFormGroup()">\u{1F396} Form a new army group from these<small>${myGroups().length}/${GROUP_MAX} groups in use.</small></button>`;
+    const mine=myGroups();
+    if(mine.length)h+=`<div class="row" style="gap:3px;flex-wrap:wrap">${mine.map(g=>`<button class="tbtn" style="font-size:10px" onclick="selToGroup(${g})"><i style="display:inline-block;width:9px;height:9px;background:${groupCol(g)};border:1px solid #000;margin-right:4px"></i>Join group ${g}</button>`).join("")}</div>`;
+    /* who they can face: everyone at war with us, then any unfriendly land neighbour */
+    const foes=[];
+    for(const k in G.nations)if(G.nations[k].alive&&atWar(G.player,k))foes.push(k);
+    for(const [,b] of frontPairs(G.player,null))if(foes.indexOf(b.owner)<0)foes.push(b.owner);
+    {const seen=new Set();for(const a of natProvs(G.player))for(const bid of a.adj||[]){const b=G.prov[bid];
+      if(b&&!isSeaLink(a.id,bid)&&b.owner!==G.player&&!allied(G.player,b.owner)&&!seen.has(b.owner)){seen.add(b.owner);if(foes.indexOf(b.owner)<0)foes.push(b.owner);}}}
+    h+=`<h3>▬ HOLD A FRONT</h3><div style="color:var(--dim);font-size:11px">They become one army group, spread evenly along the border and hold it.</div>
+      <div class="row" style="gap:3px;flex-wrap:wrap">${foes.slice(0,10).map(k=>`<button class="tbtn" style="font-size:10px" onclick="selFront('${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")||`<span style="color:var(--dim);font-size:11px">No land border with anyone.</span>`}</div>`;
+    const war=foes.filter(k=>atWar(G.player,k));
+    if(war.length)h+=`<h3>⚔ ADVANCE</h3><div style="color:var(--dim);font-size:11px">One army group, attacking the best ground it can reach.</div>
+      <div class="row" style="gap:3px;flex-wrap:wrap">${war.slice(0,10).map(k=>`<button class="tbtn" style="font-size:10px" onclick="selAdvance('${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")}</div>`;
+    h+=`<button class="bbtn" style="margin-top:8px" onclick="selClear()">✕ Clear selection</button>`;
+    el.innerHTML=h;
   }
   if(curPanel==="prod"){
     el.classList.add("wide");

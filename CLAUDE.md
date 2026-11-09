@@ -2104,3 +2104,31 @@ better".
 - **Victory points**: a capital's star and a VP square carry the province's
   value beside them in small gold from z4.2. First cut sized it with a floor
   of 7 WORLD units -- 42px at z6, bigger than the city names. Now 10.5/z.
+
+## Drag-select divisions into army groups; province-by-province capture
+
+Owner: "make them take province by province like real game and make it so you
+can drag over the divisions and make army groups so then you can send them to
+front lines".
+
+- **Province by province already worked** (see "Ground taken a small
+  province at a time"): checked again on Poznan at push .25/.5/.75 ->
+  3/6/8 of 9 cells, painted in the occupier's colour with stripes. Nothing
+  changed there; it was reported back to the owner with the numbers.
+- **Box select**: Shift-drag on the map (or any drag with the new
+  `#bSel` "SELECT" toggle on, for touch) draws a box (`#selbox`, a DOM div,
+  no canvas cost) instead of panning and takes every player division whose
+  counter (`piecePos`) is inside it -> `G.selGroup`, highlighted, and the
+  SELECTED panel (`curPanel "sel"`). Plain drag still pans; the hover tip
+  is hidden while boxing (it froze on the last province otherwise).
+- **SELECTED panel**: counts by type and where they stand; click a province
+  to send them all (the existing G.selGroup move order); FORM A NEW ARMY
+  GROUP (`selFormGroup`); JOIN GROUP n (`selToGroup`); HOLD A FRONT against
+  any nation at war or unfriendly land neighbour (`selFront` -> one group,
+  stance front + target, then the ARMY panel); ADVANCE on an enemy
+  (`selAdvance`). If the selection is already exactly one group, that group
+  takes the order instead of a new one being formed. Esc clears.
+- Checked with real mouse input: Shift-drag over Berlin selects 6, "front vs
+  Poland" makes Army Group 1 of 6 on FRONT/POL; SELECT-mode drag over
+  Germany selects 7 without moving the camera, clicking Munich sends the 6
+  not already there; with SELECT off a drag still pans.
