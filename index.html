@@ -10282,7 +10282,14 @@ function buildNatEdges(owner,w,h){
     const i=y*w+x,o=owner[i];
     if(!o)continue;
     const r=x<w-1?owner[i+1]:o, dn=y<h-1?owner[i+w]:o;
-    const realR=cp&&x<w-1&&cp[i+1]!==cp[i], realD=cp&&y<h-1&&cp[i+w]!==cp[i];
+    /* nor where a HISTORICAL REGION draws the line: the 1937 German-Polish
+       frontier runs through today's Poland, so this layer ruled it as a
+       two-cell staircase band (~80 km) under the exact vector frontier
+       HIST_LINES strokes -- the Polish Corridor came out doubled and thick.
+       An edge between a region-placed cell and one that is not is that
+       polygon's edge, already drawn exactly. */
+    const hr=window.__terOwner&&window.__terOwner.hr&&window.__terOwner.hr.length===w*h?window.__terOwner.hr:null;
+    const realR=cp&&x<w-1&&(cp[i+1]!==cp[i]||(hr&&hr[i+1]!==hr[i])), realD=cp&&y<h-1&&(cp[i+w]!==cp[i]||(hr&&hr[i+w]!==hr[i]));
     if(((r&&r!==o)&&!realR)||((dn&&dn!==o)&&!realD)){
       /* Two cells wide, not one. A single-cell line in a half-scale texture is
          a half-pixel on the map: it shimmers when you pan and disappears

@@ -1961,3 +1961,22 @@ Owner, again: "make it more like hearts of iron 4 and make the graphics better".
   instead of loose text on a strip. The light theme is untouched.
 - The coastal shelf was looked at and left alone -- it already exists and
   was tuned to a measured reference.
+
+### The Polish Corridor frontier was drawn twice
+
+Owner: "the German Polish border where the Polish corridor is, it's kind of
+thick". `buildNatEdges` (the frontier raster off the 2-unit ownership grid)
+draws a line wherever owners change INSIDE one atlas country -- meant for
+conquest lines -- and the 1937 German-Polish frontier runs through today's
+Poland, so it was ruled as a two-cell staircase band (~80 km, plus a soft
+shoulder) under the exact vector line HIST_LINES already strokes.
+
+Now an edge between a cell a historical region placed (`__terOwner.hr`) and
+one it did not counts as a "real" border and is left to the vector line.
+Measured as the darkest run across the corridor's west edge, against the
+German-Czech border as a control: z2 3 -> 1 px, z3 11 -> 3 px (control 2),
+z4 3 -> 2, unchanged from z6 in, where the raster has already faded out.
+A 10 px reading on the corridor's south edge at z6, the same before and
+after, was the probe crossing the Danzig counters.
+Applies to every region frontier (the Kresy, Ruthenia, Karelia,
+Bessarabia...), all of which HIST_LINES strokes.
