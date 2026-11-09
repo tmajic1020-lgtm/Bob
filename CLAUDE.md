@@ -2261,3 +2261,14 @@ lend-lease sends abroad (oil is otherwise paid per order, not burned daily);
 equipment fielded per kind; troop convoys and escorts at sea. Straight after
 a load the supply network does not exist yet (it is rebuilt lazily), so the
 panel calls computeSupply + chargeHubs when it finds no hubs.
+
+### Reverted: the solid colour layer
+
+Owner, after seeing it: "in Europe some places are blurred -- bring back the
+old graphics". The solid layer was one texel per 2-unit ownership cell
+(~40 km), drawn smoothed and magnified, so at mid zoom the small European
+countries' frontiers and coasts smeared. Both commits (solid layer and the
+darkening) were reverted with `git revert`; the map is exactly as it was
+before them, weather fading in from z0.9 again. If solid colour is wanted
+again it has to be built on the exact-wash path (per-country atlas clip,
+`_drawWashExact`), not on the coarse grid.
