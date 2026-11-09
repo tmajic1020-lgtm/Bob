@@ -2220,3 +2220,44 @@ any enemy convoys it shows".
 - Probe note: clicking a far-off point after re-centring the camera can land
   on the side buttons when the camera is clamped at the world edge (an
   Atlantic click opened SETTINGS); test seaZoneAt/provAt directly.
+
+## Every construction type, dockyards for ships, a LOGISTICS screen
+
+Owner: "for construction, add all types of construction and add production
+where you need naval and military factories and add logistics".
+
+**Construction: 16 types.** Added the three of the real game's list still
+missing:
+- Railway (`rail`, up to 3): `supplyCost` / (1 + 0.15 x level) through the
+  province, and a hub there carries 15% more (`hubCapacity`). Berlin's
+  supply cost 0.870 -> 0.669 at level 2.
+- Coastal Fort (`cfort`, coastal, up to 3): +25% defence per level, but only
+  against an attacker with no land route into the province -- a landing.
+- Fuel Silo (`silo`, up to 2): 300 oil is stored safely, +250 a silo; above
+  that 1% a day spoils (in the economy tick, after oil income). Measured:
+  900 oil with no silo -> 894 next day.
+- The Supply Depot is now called Supply Hub (same building, `depot`).
+
+**Naval production off dockyards** (`navalTick`, `n.nl`, saved as nation
+field a[45]): military factories make the army's equipment, dockyards build
+the fleet. A country's dockyards = 2 if it has a coast + 0.8 per point of
+coastal province value + 3 per Dockyard building (`navalYards`): Germany 5,
+Britain 23, Japan 18, Switzerland 0 (first cut at 0.5 per point gave Germany
+2). PRODUCTION gets a NAVAL PRODUCTION section: assign yards to each ship
+class; a line works on its next hull at 0.3 PP-worth a yard a day x its
+efficiency (starts 50%, grows like the equipment lines), paid in steel at
+0.04 a point (throttled to 15% with none), and launches the hull at the
+capital if it is a port, else the best coastal province with Dockyards.
+Ships can still be bought outright under RECRUIT. Gated at v24.0.
+Measured: 2 yards on escorts + 1 on submarines, 120 days -> one escort
+launched, the next at 21 of 22.
+
+**LOGISTICS** side tab (`curPanel "log"`): divisions by supply (full /
+stretched / strained / cut off, with the cut-off ones named and their days
+in the pocket); every supply hub with load against capacity; one-click
+Supply Hub or Railway where our own divisions are strained; railway and
+infrastructure levels; fuel stored against silo capacity, income and what
+lend-lease sends abroad (oil is otherwise paid per order, not burned daily);
+equipment fielded per kind; troop convoys and escorts at sea. Straight after
+a load the supply network does not exist yet (it is rebuilt lazily), so the
+panel calls computeSupply + chargeHubs when it finds no hubs.

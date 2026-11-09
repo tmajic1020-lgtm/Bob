@@ -74,6 +74,7 @@ body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);
 #sidebtns .tbtn[data-p=policy]::before{content:"\1F4CB"}
 #sidebtns .tbtn[data-p=diplo]::before{content:"\2694"}
 #sidebtns .tbtn[data-p=dip]::before{content:"\1F310"}
+#sidebtns .tbtn[data-p=log]::before{content:"\1F69A"}
 #sidebtns .tbtn[data-p=ledger]::before{content:"\1F4CA"}
 #sidebtns .tbtn[data-p=settings]::before{content:"\2699"}
 @media(max-width:700px){body:not(.light) #sidebtns .tbtn{width:auto;flex:0 0 auto}}
@@ -390,6 +391,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn" data-p="build">RECRUIT</button>
   <button class="tbtn" data-p="prod">PRODUCTION</button>
   <button class="tbtn" data-p="con">CONSTRUCTION</button>
+  <button class="tbtn" data-p="log">LOGISTICS</button>
   <button class="tbtn" data-p="research">RESEARCH</button>
   <button class="tbtn" data-p="air">AIR COMMAND</button>
   <button class="tbtn" data-p="focus">FOCUS</button>
@@ -1782,7 +1784,9 @@ function _weatherCalc(p,spell){
 function supplyRange(n){return 11+((n.res&&n.res.ind)||0)*1.6+(n.doctrine==="ma"?2:0);}
 function supplyCost(p){
   const w=weatherAt(p);
-  return (1/Math.max(0.3,terOf(p).sup))*(w.wear>=0.02?1.5:w.move<0.7?1.2:1);
+  /* railways: 15% cheaper per level */
+  const rl=(p.b&&p.b.rail)||0;
+  return (1/Math.max(0.3,terOf(p).sup))*(w.wear>=0.02?1.5:w.move<0.7?1.2:1)/(1+0.15*rl);
 }
 function computeSupply(){
   const sup={};
@@ -2749,6 +2753,56 @@ function milShareOf(k){
   if(!n)return 0.35;
   return n.milShare===undefined?0.35:Math.max(0,Math.min(1,n.milShare));
 }
+/* NAVAL PRODUCTION: ships come off DOCKYARDS, as the real game builds them,
+   not off the military factories that make the army's equipment. A country's
+   dockyards are its shipbuilding coast -- half a yard for every point of
+   value in the coastal provinces it holds -- plus three for every Dockyard
+   building. The player assigns them to ship classes; each line works on its
+   next hull every day (0.3 PP-worth a yard, times the line's efficiency,
+   paid in steel at 0.04 a point), and launches it at the best home port when
+   the hull's cost is reached. Efficiency starts at 50% and grows like the
+   equipment lines. Ships can still be bought outright under RECRUIT. */
+const NAV_RATE=0.30,NAV_STEEL=0.04,NAV_E0=0.5;
+function navalYards(k){
+  let v=0;for(const p of natProvs(k))if(p.coastal)v+=p.val||1;
+  /* a coastal country always has a couple of yards; measured: half a yard a
+     point gave Germany 2 against Britain's 13 */
+  return (v?2:0)+Math.round(v*0.8)+3*bldSum(k,"dock");
+}
+function navOf(n){if(!n.nl||!Array.isArray(n.nl.lines))n.nl={lines:[]};return n.nl;}
+function navPort(k){
+  const cap=G.prov[capOf(k)];if(cap&&cap.owner===k&&cap.coastal)return cap.id;
+  const ps=natProvs(k).filter(p=>p.coastal).sort((a,b)=>(((b.b&&b.b.dock)||0)-((a.b&&a.b.dock)||0))||(b.val-a.val));
+  return ps[0]?ps[0].id:null;
+}
+function navalTick(){
+  if(!epochAtLeast("24.0"))return;
+  for(const k in G.nations){const n=G.nations[k];if(!n.alive||!n.nl||!n.nl.lines.length)continue;
+    const Y=navalYards(k);let tot=0;for(const L of n.nl.lines)tot+=L.f;
+    const sc=tot>Y&&tot>0?Y/tot:1;n.stock=n.stock||{};
+    for(const L of n.nl.lines){
+      if(!SHIPS[L.c]||L.f<=0)continue;
+      let rate=L.f*sc*NAV_RATE*(L.e||NAV_E0);
+      const need=rate*NAV_STEEL,have=n.stock.steel||0;
+      if(need>0){const fr=Math.min(1,have/need);rate*=Math.max(0.15,fr);n.stock.steel=Math.max(0,have-need*fr);}
+      L.prog=(L.prog||0)+rate;L.e=Math.min(1,(L.e||NAV_E0)+PE_GROW*(1-(L.e||NAV_E0)));
+      const cost=SHIPS[L.c].cost[0];
+      if(L.prog>=cost){const port=navPort(k);
+        if(port){L.prog-=cost;addFleet(k,port,SHIPS[L.c].str,L.c);
+          if(k===G.player)logMsg(`\u2693 ${SHIPS[L.c].i} ${SHIPS[L.c].n} launched at ${G.prov[port].name}.`,"good");}
+        else L.prog=cost;}
+    }
+  }
+}
+window.navAdd=c=>{if(!SHIPS[c])return;const n=G.nations[G.player],nl=navOf(n);
+  let tot=0;for(const x of nl.lines)tot+=x.f;
+  let L=nl.lines.find(x=>x.c===c);
+  if(!L&&tot<navalYards(G.player)){L={c,f:0,prog:0,e:NAV_E0};nl.lines.push(L);}
+  if(L&&tot<navalYards(G.player)){const was=L.f;L.e=(L.e*was+NAV_E0*0.5*1)/(was+1);L.f++;}
+  else logMsg("Every dockyard is already working. Build Dockyards on the coast, or take a slip off another line.","war");
+  renderPanel();};
+window.navSub=c=>{const nl=navOf(G.nations[G.player]),L=nl.lines.find(x=>x.c===c);if(!L)return;
+  L.f=Math.max(0,L.f-1);if(!L.f&&L.prog<=0)nl.lines=nl.lines.filter(x=>x!==L);renderPanel();};
 /* PRODUCTION LINES, as the real game runs them. The military share of
    industry is counted in MILITARY FACTORIES (about five per production point
    on guns, plus each Military Factory building's 8%), and the factories are
@@ -3170,7 +3224,7 @@ const HUB_FLOOR=0.35;            /* worst supply a hopelessly overloaded hub giv
 function hubCapacity(pid){
   const p=G.prov[pid]; if(!p)return 0;
   const st=stateOf(pid);
-  return HUB_BASE + (p.val||0)*HUB_PER_VAL + ((st&&st.infra)||1)*HUB_PER_INFRA;
+  return (HUB_BASE + (p.val||0)*HUB_PER_VAL + ((st&&st.infra)||1)*HUB_PER_INFRA)*(1+0.15*((p.b&&p.b.rail)||0));
 }
 /* Which hub feeds a province: the nearest source in the nation's own
    supply fill. Recomputed with the fill, not per division, because the
@@ -4124,6 +4178,8 @@ function tick(){
     if(n.puppet&&G.nations[n.puppet]&&G.nations[n.puppet].alive){G.nations[n.puppet].pp+=inc*0.25;inc*=0.75;}
     n.pp+=inc*ideoOf(n).pp;
     n.oil+=oil*0.12;n.oilInc=oil*0.12;
+    /* fuel silos: 300 stored safely, +250 a silo; above that 1% a day spoils */
+    {const capO=300+250*bldSum(k,"silo");if(n.oil>capO)n.oil-=(n.oil-capO)*0.01;}
     // stability drifts: war grinds nations down, peace heals
     n.stab+=(n.atWar.size>0?-0.05*n.atWar.size:0.04)+consOf(n).stab-_law.eco*0.015+ideoOf(n).drift+(n.cab&&n.cab.sec?0.05:0);
     /* Recruits come in daily and the country pays for the law that produces
@@ -4317,6 +4373,7 @@ function tick(){
      drilling today; before equipTick, so what exercises wore out is drawn
      back from the stockpile the same day. */
   trainTick();
+  try{navalTick();}catch(e){}
   try{dipTick();}catch(e){}
   /* AFTER the supply map has been rebuilt and after the day's fighting, which
      is the only order that makes sense: a division is resupplied, and starves,
@@ -5081,6 +5138,12 @@ function battles(){
       const wx=weatherAt(p);pa*=wx.atk;pb*=wx.atk;
       const fortB=1+(p.fort||0)*0.12,terD=epochAtLeast("19.0")?terOf(p).def*riverDef(p):1;
       if(p.owner===B)pb*=1.25*fortB*terD*natDefMul(B); if(p.owner===A)pa*=1.25*fortB*terD*natDefMul(A);
+      /* coastal forts: only against a landing -- an attacker with no land
+         route into the province */
+      {const cf=(p.b&&p.b.cfort)||0;
+       if(cf&&(p.owner===A||p.owner===B)){const att=p.owner===B?A:B;
+         const overland=p.adj.some(id=>{const q=G.prov[id];return q&&!isSeaLink(p.id,id)&&(q.owner===att||allied(att,q.owner));});
+         if(!overland){if(p.owner===B)pb*=1+0.25*cf;else pa*=1+0.25*cf;}}}
       /* AND THE DAY'S MARGIN MOVES THE LINE. pa and pb are the whole fight by
          this point -- frontage, veterancy, generals, supply, air, naval gunfire,
          weather, the ground itself and the forts dug into it -- so the ground
@@ -7284,8 +7347,8 @@ const BUILDINGS={
          d:"+1 province value, permanently \u2014 more production and more research every day it stands.",
          have:p=>(p.fac||0),cap:()=>2,
          fx:p=>{p.fac=(p.fac||0)+1;p.val++;terDirty=true;}},
-  depot:{n:"Supply Depot",i:"\u{1F69B}",pp:60,days:45,
-         d:"A supply source in its own right \u2014 the only way to hold ground a long way from any city you own.",
+  depot:{n:"Supply Hub",i:"\u{1F69B}",pp:60,days:45,
+         d:"A supply hub: a source of supply in its own right, with its own capacity \u2014 the only way to feed an army a long way from any city you own.",
          have:p=>(p.depot?1:0),cap:()=>1,
          fx:p=>{p.depot=1;G.supply=null;}},
   /* The rest of the real game's construction list. Each is stored in p.b
@@ -7310,7 +7373,14 @@ const BUILDINGS={
   rocket:bld("rocket",{n:"Rocket Site",i:"\u{1F680}",pp:60,days:120,cap:()=>1,tech:"bmiss",
          d:"While at war it fires on the nearest enemy province every ten days, wrecking its garrison and industry."}),
   reactor:bld("reactor",{n:"Nuclear Reactor",i:"\u2622",pp:120,days:240,cap:()=>1,tech:"reactor",
-         d:"Each reactor builds the warheads in the production queue 50% faster."})
+         d:"Each reactor builds the warheads in the production queue 50% faster."}),
+  /* the rest of the real game's list */
+  rail: bld("rail",{n:"Railway",i:"\u{1F6E4}",pp:25,days:45,cap:()=>3,
+         d:"Supply runs further: every level makes moving supply through this province 15% cheaper, and a hub here carries 15% more."}),
+  cfort:bld("cfort",{n:"Coastal Fort",i:"\u{1F5FC}",pp:30,days:60,cap:p=>p.coastal?3:0,
+         d:"Coastal provinces only. Guns on the shore: +25% defence per level against an enemy who has no land route in \u2014 that is, a landing from the sea."}),
+  silo: bld("silo",{n:"Fuel Silo",i:"\u26FD",pp:20,days:30,cap:()=>2,
+         d:"Oil storage. A country stores 300 oil safely; above that 1% a day is lost. Every silo stores 250 more."})
 };
 function bld(k,o){return Object.assign(o,{have:p=>(p.b&&p.b[k])||0,
   fx:p=>{p.b=p.b||{};p.b[k]=(p.b[k]||0)+1;G._bld=null;if(k==="airb"||k==="radar")airDirty();}});}
@@ -19117,6 +19187,59 @@ function renderPanel(){
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
   }
+  if(curPanel==="log"){
+    el.classList.add("wide");
+    const k=G.player,mine=G.units.filter(u=>u.nat===k);
+    const bk={full:[],str:[],low:[],cut:[]};
+    for(const u of mine){const q=supplyPct(k,u.at)*hubStrain(k,u.at);(q<=0||(u.oos||0)>0?bk.cut:q<0.7?bk.low:q<0.999?bk.str:bk.full).push(u);}
+    const pc=a=>mine.length?Math.round(a.length/mine.length*100):0;
+    let h=`<h2>LOGISTICS</h2>
+      <h3>\u{1F69A} SUPPLY</h3>
+      <div style="display:flex;height:12px;border:1px solid #3c3b2b;margin:4px 0"><i style="width:${pc(bk.full)}%;background:#4dbb6a"></i><i style="width:${pc(bk.str)}%;background:#c9c05a"></i><i style="width:${pc(bk.low)}%;background:#e8a33d"></i><i style="width:${pc(bk.cut)}%;background:#c4452f"></i></div>
+      <div class="row"><span style="color:#4dbb6a">\u25A0 Fully supplied</span><span>${bk.full.length}</span></div>
+      <div class="row"><span style="color:#c9c05a">\u25A0 Stretched</span><span>${bk.str.length}</span></div>
+      <div class="row"><span style="color:#e8a33d">\u25A0 Strained (under 70%)</span><span>${bk.low.length}</span></div>
+      <div class="row"><span style="color:#c4452f">\u25A0 Cut off</span><span>${bk.cut.length}</span></div>`;
+    if(bk.cut.length)h+=`<div style="color:#c4452f;font-size:11px">${bk.cut.slice(0,8).map(u=>`${uName(u.type)} at ${G.prov[u.at]?G.prov[u.at].name:"?"}${u.oos?` (${u.oos} of ${OOS_LIMIT} days)`:""}`).join(" \u00b7 ")}</div>`;
+    /* hubs -- worked out with the supply network, which is rebuilt lazily;
+       straight after a load there is none yet */
+    if(!(G.hubs&&G.hubs[k])&&epochAtLeast("19.0")){try{computeSupply();chargeHubs();}catch(e){}}
+    const H=(G.hubs&&G.hubs[k])||{};
+    const hubs=Object.values(H).filter(x=>G.prov[x.id]).sort((a,b)=>(b.load/(b.cap||1))-(a.load/(a.cap||1)));
+    h+=`<h3>\u{1F3ED} SUPPLY HUBS \u2014 ${hubs.length}</h3><div style="color:var(--dim);font-size:11px">Your capital, every city of value 3+, Supply Hub buildings and ports with a fleet off them. A hub carrying more divisions than its capacity feeds them all worse.</div>`;
+    for(const x of hubs.slice(0,10)){const r=x.cap?x.load/x.cap:0,c=r>1?"#c4452f":r>0.75?"#e8a33d":"#4dbb6a",q=G.prov[x.id];
+      h+=`<div class="row" style="gap:6px"><span style="width:110px">${q.name}${q.depot?" \u{1F69B}":""}</span><span style="flex:1;height:8px;border:1px solid #3c3b2b;display:flex"><i style="width:${Math.min(100,Math.round(r*100))}%;background:${c}"></i></span><span style="width:70px;text-align:right;font-size:11px;color:${c}">${x.load.toFixed(1)}/${x.cap.toFixed(1)}</span></div>`;}
+    /* where a hub or a railway would help most: our provinces where our own
+       divisions are strained, nearest the trouble first */
+    const need={};for(const u of bk.low.concat(bk.str))need[u.at]=(need[u.at]||0)+1;
+    const sug=Object.keys(need).map(id=>G.prov[id]).filter(q=>q&&q.owner===k).sort((a,b)=>need[b.id]-need[a.id]).slice(0,4);
+    if(sug.length){h+=`<div style="color:var(--dim);font-size:11px;margin-top:4px">Where it would help most:</div><div class="row" style="gap:3px;flex-wrap:wrap">`+
+      sug.map(q=>`<button class="tbtn" style="font-size:10px" ${me.pp>=BUILDINGS.depot.pp&&!q.depot?"":"disabled"} onclick="buildIn('${q.id}','depot')">\u{1F69B} Hub at ${q.name}</button><button class="tbtn" style="font-size:10px" ${me.pp>=BUILDINGS.rail.pp?"":"disabled"} onclick="buildIn('${q.id}','rail')">\u{1F6E4} Railway at ${q.name}</button>`).join("")+`</div>`;}
+    {const rl=bldSum(k,"rail"),inf=bldSum(k,"infra");
+     h+=`<h3>\u{1F6E4} RAILWAYS AND ROADS</h3><div class="row"><span>Railway levels</span><span>${rl}</span></div><div class="row"><span>Infrastructure levels</span><span>${inf}</span></div>
+       <button class="bbtn" onclick="setConTab('rail');openPanel('con')">\u{1F6E4} Lay railways \u2192 CONSTRUCTION</button>`;}
+    /* fuel */
+    /* oil is not burned by the day here: armour, ships, aircraft and warheads
+       are paid for in oil when ordered. What flows out daily is lend-lease. */
+    {const burn=Object.keys(me.lend||{}).filter(t=>G.nations[t]&&G.nations[t].alive).length*(me.oil>2?0.25:0);
+     const inc=me.oilInc||0,capO=300+250*bldSum(k,"silo"),net=inc-burn,days=net<0?Math.floor(me.oil/(-net)):Infinity;
+     h+=`<h3>\u26FD FUEL</h3>
+       <div class="row"><span>Stored</span><span>${Math.floor(me.oil)} of ${capO} safe ${me.oil>capO?`<span style="color:#e8a33d">(spoiling)</span>`:""}</span></div>
+       <div class="bar"><i style="width:${Math.min(100,Math.round(me.oil/capO*100))}%;background:${me.oil>capO?"#e8a33d":"#4a90d9"}"></i></div>
+       <div class="row"><span>Produced \u00b7 sent abroad</span><span>+${inc.toFixed(2)} \u00b7 \u2212${burn.toFixed(2)} a day</span></div>
+       ${days!==Infinity?`<div class="row"><span>Runs dry in</span><span style="color:${days<60?"#c4452f":days<180?"#e8a33d":""}">${days} days</span></div>`:""}
+       <div style="color:var(--dim);font-size:11px">Armour, warships, aircraft and warheads are paid for in oil when they are ordered.</div>
+       <div class="row" style="gap:3px"><button class="tbtn" style="flex:1;font-size:10px" onclick="setConTab('silo');openPanel('con')">\u26FD Fuel silos</button><button class="tbtn" style="flex:1;font-size:10px" onclick="openPanel('trade')">\u2696 Buy oil \u2192 TRADE</button></div>`;}
+    /* equipment */
+    h+=`<h3>\u{1F52B} EQUIPMENT</h3>`;
+    for(const kk of EQ_KINDS){const want=Math.round(eqpDemand(k,kk));if(!want)continue;const a=eqpArmed(k,kk),c=a>=0.85?"#4dbb6a":a>=0.6?"#e8a33d":"#c4452f";
+      h+=`<div class="row"><span>${EQ_KIND[kk].i} ${EQ_KIND[kk].n}</span><span style="color:${c}">${Math.round(a*100)}% fielded \u00b7 ${Math.round(eqpPool(me)[kk])} in store</span></div>`;}
+    h+=`<button class="bbtn" onclick="openPanel('prod')">\u{1F3ED} Production lines \u2192 PRODUCTION</button>`;
+    /* at sea */
+    {const tc=G.units.filter(u=>u.nat===k&&u.to&&isSeaLink(u.at,u.to)).length,asw=G.fleets.filter(f=>f.nat===k&&f.cls==="dd").length;
+     h+=`<h3>\u{1F6A2} AT SEA</h3><div class="row"><span>Troop convoys under way</span><span>${tc}</span></div><div class="row"><span>Escort flotillas</span><span>${asw}</span></div>`;}
+    el.innerHTML=h;
+  }
   if(curPanel==="sea"){
     const S=SEA_SEL;
     if(!S){el.innerHTML=`<h2>SEA</h2><div style="color:var(--dim)">Click open water on the map.</div>`;return;}
@@ -19308,8 +19431,24 @@ function renderPanel(){
         </div></div>`;
     }
     if(man)h+=`<div style="display:flex;gap:4px;margin:2px 0 6px">${EQ_KINDS.map(kk=>`<button class="tbtn" style="flex:1;font-size:10px" ${idle?"":"disabled"} onclick="plAdd('${kk}',${idle})">All idle → ${EQ_KIND[kk].i}</button>`).join("")}</div>`;
+    if(on){
+      const Y=navalYards(k),nl=navOf(me),used=nl.lines.reduce((a,L)=>a+L.f,0),dk=bldSum(k,"dock");
+      h+=`<h3>\u2693 NAVAL PRODUCTION \u2014 DOCKYARDS</h3>
+        <div class="row"><span>Naval dockyards</span><span><b style="color:var(--amber);font-size:15px">${Y}</b> <small style="color:var(--dim)">${dk?`(${dk*3} from ${dk} Dockyard building${dk>1?"s":""})`:"build Dockyards on the coast for more"}</small></span></div>
+        <div style="color:var(--dim);font-size:11px">Warships come off dockyards; military factories make the army's equipment. ${used<Y?`<span style="color:var(--amber)">${Y-used} dockyard${Y-used>1?"s":""} idle.</span>`:""}</div>`;
+      for(const c of Object.keys(SHIPS)){const Sx=SHIPS[c],L=nl.lines.find(x=>x.c===c),f=L?L.f:0;
+        const pr=L?Math.min(1,(L.prog||0)/Sx.cost[0]):0,e=L?(L.e||NAV_E0):NAV_E0;
+        const per=f*NAV_RATE*e,eta=per>0?Math.ceil((Sx.cost[0]-(L?L.prog:0))/per):0;
+        h+=`<div class="resslot${f?" busy":""}" style="align-items:center"><div class="resicon" style="font-size:20px">${Sx.i}</div>
+          <div style="flex:1;min-width:0"><b>${Sx.n}</b><div class="bar" style="margin:4px 0 2px"><i style="width:${Math.round(pr*100)}%"></i></div>
+          <small style="color:var(--dim)">${f?`next hull in ${eta} days \u00b7 efficiency ${Math.round(e*100)}%`:"no slipways on it"} \u00b7 ${Sx.cost[0]} PP-worth a hull</small></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;margin-left:6px">
+          <button class="tbtn" style="padding:0 8px" onclick="navAdd('${c}')" ${used<Y?"":"disabled"}>+</button>
+          <b style="font-size:15px">${f}</b><small style="color:var(--dim);font-size:9px">yards</small>
+          <button class="tbtn" style="padding:0 8px" onclick="navSub('${c}')" ${f?"":"disabled"}>\u2212</button></div></div>`;}
+    }
     const q=(G.queue||[]).filter(o=>o.nat===k);
-    h+=`<h3>\u{1F6E0} UNITS IN PRODUCTION — ${q.length}</h3>`;
+    h+=`<h3>\u{1F6E0} UNITS IN PRODUCTION \u2014 ${q.length}</h3>`;
     if(!q.length)h+=`<div style="color:var(--dim);font-size:11px">Nothing ordered. Divisions, ships and aircraft are ordered under RECRUIT.</div>`;
     else h+=q.slice().sort((a,b)=>a.left-b.left).map(o=>{const pct=Math.round((1-o.left/o.total)*100),pv=G.prov[o.at];
       return `<div class="row" style="align-items:center;gap:6px"><span style="flex:1;min-width:0">${BUILD_N[o.t]||o.t}<br><small style="color:var(--dim)">${o.t==="nuke"?"assembly":pv?pv.name:"—"} · ${o.left} day${o.left>1?"s":""} left</small>
@@ -22427,7 +22566,9 @@ function mpSerialize(){
         /* today's output, so the trade screen is right before the first day passes */
         i:n.income||{},o:+(n.oilInc||0).toFixed(3)}),
       /* production lines: manual or auto, factories per line, efficiency */
-      n.pl?JSON.stringify({m:n.pl.m?1:0,f:n.pl.f,pr:+(n.ppRate||0).toFixed(3),o:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+((n.pl.o&&n.pl.o[kk])||0).toFixed(3)])),e:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+(n.pl.e[kk]||PE_BASE).toFixed(4)]))}):""];}
+      n.pl?JSON.stringify({m:n.pl.m?1:0,f:n.pl.f,pr:+(n.ppRate||0).toFixed(3),o:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+((n.pl.o&&n.pl.o[kk])||0).toFixed(3)])),e:Object.fromEntries(EQ_KINDS.map(kk=>[kk,+(n.pl.e[kk]||PE_BASE).toFixed(4)]))}):"",
+      /* naval lines (dockyards per ship class, progress, efficiency) */
+      n.nl&&n.nl.lines.length?JSON.stringify(n.nl.lines.map(L=>[L.c,L.f,+(L.prog||0).toFixed(2),+(L.e||NAV_E0).toFixed(4)])):""];}
   const modsOut={};for(const k in MODS)if(MODS[k]&&!(MODLIST.find(m=>m.id===k)||{}).local)modsOut[k]=1; // shared gameplay mods only, never the personal 3D toggle
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
@@ -22523,6 +22664,8 @@ function mpApplyState(S){
       if(a[43]){try{const m=JSON.parse(a[43]);n.dec=m.d||{};n.jw=m.j||{};
         if(m.i&&typeof m.i==="object")n.income=Object.assign(n.income||{},m.i);n.oilInc=+m.o||0;
         n.contracts=(m.c||[]).filter(c=>c&&TRADE_PRICE[c.r]&&c.from&&+c.amt>0);}catch(e){}}
+      n.nl=null;
+      if(a[45]){try{const m=JSON.parse(a[45]);n.nl={lines:m.filter(x=>SHIPS[x[0]]).map(x=>({c:x[0],f:Math.max(0,x[1]|0),prog:+x[2]||0,e:+x[3]||NAV_E0}))};}catch(e){}}
       n.pl=null;
       if(a[44]){try{const m=JSON.parse(a[44]);const pl=plOf(n);pl.m=m.m?1:0;
         for(const kk of EQ_KINDS){if(m.f&&+m.f[kk]>=0)pl.f[kk]=Math.floor(+m.f[kk]);
