@@ -9948,8 +9948,7 @@ window.__ifBoot("worlddata");try{buildLand();}catch(e){window.__ifFail("buildLan
 
 /* Voronoi-ish province territory shading: precompute ownership pixels at low res */
 let terCv=document.createElement("canvas"),terCtx=terCv.getContext("2d");
-let terSm=null,_flatCv=null;
-const SOLIDA=0.88;   // how solid the far-zoom country colour is
+let terSm=null;
 const TS=2; // 1 cell = TS world units — the OWNERSHIP grid (who holds this pixel)
 /* The flag layer used to be painted on that same TS grid, so every flag was
    drawn at half the map's resolution and then blown back up to full size when
@@ -10565,10 +10564,7 @@ const WX_TINT={snow:[244,247,250,0.28],blizzard:[252,253,255,0.44],rain:[70,92,1
   monsoon:[52,78,96,0.30],mud:[96,70,40,0.22],sand:[214,178,112,0.30]};
 function drawWeatherGround(z){
   if(!G||!provPix||!epochAtLeast("19.0")||MAPOVER!=="none"||MAPSTYLE==="terrain"||MAPQ<1)return;
-  /* only where the country colour has thinned to show the ground: far out the
-     political map is solid colour, and weather patches over it read as
-     blotches (owner: "make them one solid color") */
-  const A=Math.min(1,(z-2.6)/1.2);if(A<=0.01)return;
+  const A=Math.min(1,(z-0.9)/0.8);if(A<=0.01)return;
   const key=Math.floor(G.day/10)+":"+G.date.getMonth()+":"+provPixW;
   if(key!==_wxKey){
     _wxKey=key;
@@ -14005,17 +14001,6 @@ function renderTerritory(){
      map you always want to be able to find. */
   buildNatEdges(owner,w,h);
   try{_obRebuild(owner,w,h,natKeys);}catch(e){}
-  /* SOLID COUNTRY COLOUR for the far zoom: one flat colour a country, no
-     ground showing through, which is how the real game reads from far out.
-     drawn faded out as you zoom in, where the terrain takes over */
-  try{
-    if(!_flatCv)_flatCv=document.createElement("canvas");
-    if(_flatCv.width!==w||_flatCv.height!==h){_flatCv.width=w;_flatCv.height=h;}
-    const fg=_flatCv.getContext("2d"),fi=fg.createImageData(w,h),fd=fi.data;
-    for(let i=0;i<w*h;i++){const oi=owner[i];if(!oi)continue;const c=_flat[oi];if(!c)continue;
-      const o=i*4;fd[o]=c[0];fd[o+1]=c[1];fd[o+2]=c[2];fd[o+3]=255;}
-    fg.putImageData(fi,0,0);
-  }catch(e){_flatCv=null;}
   terDirty=false;
 }
 /* If anything at all goes wrong inside a frame, the next frame must still be
@@ -14510,10 +14495,7 @@ function _drawFrame(){
        about — that a front wants a little more ground showing than a world view
        does — so it stays, gently, over a much narrower range. */
     const t=Math.max(0,Math.min(1,(z-0.7)/3.0));      // 0.7 -> 3.7
-    /* and close in it keeps thinning, so the ground is the picture and the
-       colour a hint of whose it is (owner: "zoom in and it turns into terrain") */
-    const t2=Math.max(0,Math.min(1,(z-3.7)/5.3));     // 3.7 -> 9
-    return (1.00+(0.80-1.00)*t*t*(3-2*t))*(1-0.55*t2*t2*(3-2*t2));
+    return 1.00+(0.80-1.00)*t*t*(3-2*t);              // smoothstep
   })();
   /* A COUNTRY COLOUR IS A TINT, NOT A COAT OF PAINT. This is the last thing
      that was wrong and much the most important. Laid on as ordinary paint at
@@ -14538,13 +14520,6 @@ function _drawFrame(){
   if(!_drawWashMasked(z))ctx.drawImage(_useSmall(terSm,z)?terSm:terCv,0,0,MW,MH);
   ctx.globalAlpha=1;
   ctx.restore();
-  /* far out: solid colour over it all, fading away between zoom 1.8 and 4 */
-  if(!terr&&_flatCv&&MAPOVER==="none"&&MAPSTYLE==="political"){
-    const fa=SOLIDA*Math.max(0,Math.min(1,(4-z)/2.2));
-    if(fa>0.01){ctx.save();
-      if(z>=2.2)ctx.clip(_visibleLand(),"evenodd");
-      ctx.imageSmoothingEnabled=true;ctx.globalAlpha=fa;ctx.drawImage(_flatCv,0,0,MW,MH);ctx.restore();}
-  }
   /* LAKES. The real map's land polygons are solid across Ladoga, Onega, the
      Great Lakes and Victoria, and the lake layer was only ever drawn on the
      fallback map -- so with the real coastline in, the biggest lakes in the

@@ -2261,24 +2261,3 @@ lend-lease sends abroad (oil is otherwise paid per order, not burned daily);
 equipment fielded per kind; troop convoys and escorts at sea. Straight after
 a load the supply network does not exist yet (it is rebuilt lazily), so the
 panel calls computeSupply + chargeHubs when it finds no hubs.
-
-## Solid colour far out, terrain close in
-
-Owner: "the colors of countries are kind of just blurry, so make them one
-solid color, and if you zoom in it turns into terrain". The political layer
-was a half-strength tint whose lightness follows the ground (`_mkLut`), so
-every forest and ridge showed through as a mottle and no country was one
-colour at any zoom.
-
-- `_flatCv`: one texel per ownership cell, each country's `_flat` colour at
-  full opacity, built at the end of `renderTerritory`. Drawn over the wash in
-  the political style at SOLIDA (0.88) x a fade from z1.8 to 4.0, smoothed,
-  clipped to land from z2.2. Flags, the overlays and the lenses are untouched.
-- Close in the wash keeps thinning: `polA` now carries a second smoothstep
-  from z3.7 to z9 down to 45% of what it was, so a front is ground with a
-  hint of whose it is.
-- Weather on the ground now fades in from z2.6 to 3.8, after the solid
-  colour has gone: over a solid fill, per-province snow and overcast read as
-  blocky blotches (seen over the USSR at z1.7 on the first cut).
-- Unchanged: the frontier, coast, names and markers. The exact-wash tiles
-  (`_drawWashExact`) take the same polA, so they thin with it.
