@@ -2085,3 +2085,22 @@ snow lying in winter and storms over the provinces they hit.
   (grey-blue overcast); mud 0.22 (brown); sandstorm 0.30 (dust). First cut
   had snow at 0.42 / blizzard 0.62 and January 1936 washed Germany, Poland
   and Czechoslovakia to the same pale grey; cut by a third.
+
+## Move routes and victory-point values
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics
+better".
+
+- **Day/night was considered and not done.** The clock runs one day per
+  500ms tick at the slowest speed, so a terminator tied to game time would
+  sweep the world twice a second; the real game fades its own cycle out at
+  high speed for the same reason.
+- **Move routes** (`drawMoveRoutes`, from z2.1): every player division or
+  fleet under way shows its whole path -- from where the counter stands,
+  through each province on `u.path`, to the end -- Chaikin-smoothed, green
+  for armies, blue for fleets, with a head stopping short of the last
+  marker. Units on the same route share a line (thicker for more). Attacks
+  into enemy ground are left to the red `drawOffensiveArrows`.
+- **Victory points**: a capital's star and a VP square carry the province's
+  value beside them in small gold from z4.2. First cut sized it with a floor
+  of 7 WORLD units -- 42px at z6, bigger than the city names. Now 10.5/z.

@@ -13958,6 +13958,52 @@ function drawPlans(z){
     ctx.restore();
   }
 }
+/* MOVE ORDERS, AS THE REAL GAME DRAWS THEM: every division or fleet of the
+   player's that is under way shows its route -- from where it stands now,
+   through each province on its path, to the end -- as a green arrow (blue
+   for fleets). Attacks into enemy ground keep their own red arrow
+   (drawOffensiveArrows), so they are not drawn twice. Units on the same
+   route share one line, thicker for more of them. */
+function drawMoveRoutes(z){
+  const me=G.player,routes=new Map();
+  const add=(u,fleet)=>{
+    if(u.nat!==me||!u.to)return;
+    const fin=(u.path&&u.path.length)?u.path[u.path.length-1]:u.to;
+    const fp=G.prov[fin];if(!fp)return;
+    if(!fleet&&atWar(me,fp.owner))return;          // that is an attack: red arrow
+    const ids=[u.to].concat(u.path||[]);
+    const key=(fleet?"f":"a")+u.at+">"+ids.join(">");
+    let r=routes.get(key);
+    if(!r){const [x,y]=piecePos(u,z,fleet);routes.set(key,r={fleet,n:0,pts:[[x,y]].concat(ids.map(id=>{const q=G.prov[id];return q?[q.x,q.y]:null;}).filter(Boolean))});}
+    r.n++;
+  };
+  for(const u of G.units)add(u,false);
+  for(const f of G.fleets)add(f,true);
+  if(!routes.size)return;
+  ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+  for(const [,r] of routes){
+    let P=r.pts;
+    if(P.length<2)continue;
+    if(P.some((q,i)=>i&&Math.abs(q[0]-P[i-1][0])>MW/2))continue;   // never across the seam
+    for(let k=0;k<2&&P.length>2;k++){const Q=[P[0]];for(let i=0;i<P.length-1;i++){const a=P[i],b=P[i+1];
+      Q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}Q.push(P[P.length-1]);P=Q;}
+    /* stop short of the last marker so the head does not sit on it */
+    const e=P[P.length-1],d=P[P.length-2],L=Math.hypot(e[0]-d[0],e[1]-d[1])||1;
+    const ux=(e[0]-d[0])/L,uy=(e[1]-d[1])/L,stop=Math.min(L*0.9,7/z);
+    const ex=e[0]-ux*stop,ey=e[1]-uy*stop,head=10/z;
+    const path=new Path2D();path.moveTo(P[0][0],P[0][1]);
+    for(let i=1;i<P.length-1;i++)path.lineTo(P[i][0],P[i][1]);
+    path.lineTo(ex-ux*head*0.7,ey-uy*head*0.7);
+    const col=r.fleet?"rgba(96,170,230,0.95)":"rgba(92,196,96,0.95)",bw=(1.8+Math.min(2.5,r.n*0.4))/z;
+    ctx.strokeStyle="rgba(8,12,8,0.6)";ctx.lineWidth=bw+2.4/z;ctx.stroke(path);
+    ctx.strokeStyle=col;ctx.lineWidth=bw;ctx.stroke(path);
+    ctx.beginPath();ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-ux*head-uy*head*0.55,ey-uy*head+ux*head*0.55);
+    ctx.lineTo(ex-ux*head+uy*head*0.55,ey-uy*head-ux*head*0.55);ctx.closePath();
+    ctx.fillStyle=col;ctx.fill();ctx.strokeStyle="rgba(8,12,8,0.7)";ctx.lineWidth=1.1/z;ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawOffensiveArrows(z){
   const me=G.player,dest=new Map();
   for(const u of G.units){
@@ -14738,6 +14784,15 @@ function _drawFrame(){
     ctx.lineWidth=(sel?2.2:1.0)/Math.sqrt(z)*1.2;
     ctx.strokeStyle=sel?"#ffd28a":(isCap||vp?"rgba(14,16,18,0.95)":"rgba(238,232,214,0.72)");
     ctx.stroke();
+    /* and its worth, beside it, as the real game prints victory points */
+    if((isCap||vp)&&z>4.2&&!(VIEW3D&&z>3.5)){
+      const fv=10.5/z,R=isCap?r*1.55:r*0.95;            // ~10px on screen
+      ctx.font=`bold ${fv}px Courier New`;ctx.textAlign="left";ctx.textBaseline="middle";
+      ctx.lineJoin="round";ctx.lineWidth=fv*0.32;ctx.strokeStyle="rgba(10,12,10,0.8)";
+      ctx.strokeText(String(p.val),p.x+R+fv*0.25,p.y);
+      ctx.fillStyle="#f0d98a";ctx.fillText(String(p.val),p.x+R+fv*0.25,p.y);
+      ctx.textBaseline="alphabetic";
+    }
     if(p.coastal){ctx.beginPath();ctx.arc(p.x,p.y,r+2.0/Math.sqrt(z),0,7);ctx.strokeStyle="#7ab2c844";ctx.lineWidth=0.9/Math.sqrt(z);ctx.stroke();}
     /* NAMES OF PLACES ARE FOR WHEN YOU ARE LOOKING AT A PLACE. Every province
        on Earth was labelled from a fairly wide zoom, so the map came out as a
@@ -14802,6 +14857,7 @@ function _drawFrame(){
     drawOffensiveArrows(z);
   }
   if(z>1.4){try{drawPlans(z);}catch(e){}}
+  if(z>2.1){try{drawMoveRoutes(z);}catch(e){}}
   /* Fleets and armies, painted back to front. Standing pieces have to be drawn
      in depth order or a counter to the NORTH of another — that is, behind it —
      paints straight over the one in front of it, which is exactly what the 3D
