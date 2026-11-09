@@ -9950,6 +9950,7 @@ window.__ifBoot("worlddata");try{buildLand();}catch(e){window.__ifFail("buildLan
 let terCv=document.createElement("canvas"),terCtx=terCv.getContext("2d");
 let terSm=null,_flatCv=null;
 const SOLIDA=0.88;   // how solid the far-zoom country colour is
+const SOLIDK=0.78;   // and how dark: the owner asked for darker colours
 const TS=2; // 1 cell = TS world units — the OWNERSHIP grid (who holds this pixel)
 /* The flag layer used to be painted on that same TS grid, so every flag was
    drawn at half the map's resolution and then blown back up to full size when
@@ -14013,7 +14014,7 @@ function renderTerritory(){
     if(_flatCv.width!==w||_flatCv.height!==h){_flatCv.width=w;_flatCv.height=h;}
     const fg=_flatCv.getContext("2d"),fi=fg.createImageData(w,h),fd=fi.data;
     for(let i=0;i<w*h;i++){const oi=owner[i];if(!oi)continue;const c=_flat[oi];if(!c)continue;
-      const o=i*4;fd[o]=c[0];fd[o+1]=c[1];fd[o+2]=c[2];fd[o+3]=255;}
+      const o=i*4;fd[o]=c[0]*SOLIDK;fd[o+1]=c[1]*SOLIDK;fd[o+2]=c[2]*SOLIDK;fd[o+3]=255;}
     fg.putImageData(fi,0,0);
   }catch(e){_flatCv=null;}
   terDirty=false;

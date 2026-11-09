@@ -2282,3 +2282,6 @@ colour at any zoom.
   blocky blotches (seen over the USSR at z1.7 on the first cut).
 - Unchanged: the frontier, coast, names and markers. The exact-wash tiles
   (`_drawWashExact`) take the same polA, so they thin with it.
+- Owner: "make them a bit darker colors". The solid layer is now each
+  `_flat` colour x SOLIDK (0.78), hue kept. One constant to turn if asked
+  again.
