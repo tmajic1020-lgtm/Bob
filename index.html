@@ -5374,8 +5374,61 @@ function targetScore(p,from,nat){
 const STANCES={
   advance:{n:"ADVANCE",i:"\u2694",d:"Take ground. Attacks the best target it can reach."},
   hold   :{n:"HOLD",   i:"\u{1F6E1}",d:"Defends what you already have. Moves only to threatened ground."},
-  reserve:{n:"RESERVE",i:"\u25CB",d:"Stands fast. Stays where it is and repairs."}
+  reserve:{n:"RESERVE",i:"\u25CB",d:"Stands fast. Stays where it is and repairs."},
+  front  :{n:"FRONT",  i:"\u25AC",d:"A front line, as the real game draws one: the group spreads evenly along the border with its chosen enemy (or every enemy) and holds it, and follows it as it moves. Drawn on the map in the group's colour."}
 };
+/* the colour a group's plan is drawn in, by number */
+/* no red: red is the war front line, and a plan must not read as one */
+const GROUP_COL=["#4a90d9","#e2b23c","#4dbb6a","#b56ad8","#3cc4c4","#e07ad0","#d98a3c","#a8b8c8"];
+const groupCol=g=>GROUP_COL[((+g||1)-1)%GROUP_COL.length];
+let _seaPair=null;
+function isSeaLink(a,b){
+  if(!_seaPair){_seaPair=new Set();for(const L of LINKS)if(L.length>2&&L[2]){_seaPair.add(L[0]+"|"+L[1]);_seaPair.add(L[1]+"|"+L[0]);}}
+  return _seaPair.has(a+"|"+b);
+}
+/* whom a group's front faces: its chosen nation, else everyone at war with
+   us, else (at peace) every foreign land neighbour that is not a friend */
+function frontFoe(nat,target,owner){
+  if(!owner||owner===nat)return false;
+  if(target)return owner===target;
+  const n=G.nations[nat];
+  if(n.atWar&&n.atWar.size)return atWar(nat,owner);
+  const o=G.nations[owner];
+  return !allied(nat,owner)&&n.puppet!==owner&&!(o&&o.puppet===nat)&&owner!=="REB";
+}
+/* the front: our provinces with a LAND link to the faced enemy, and the
+   enemy province across each such link */
+function frontPairs(nat,target){
+  const out=[];
+  for(const a of natProvs(nat))for(const bid of (a.adj||[])){
+    const b=G.prov[bid];
+    if(b&&!isSeaLink(a.id,bid)&&frontFoe(nat,target,b.owner))out.push([a,b]);
+  }
+  return out;
+}
+function frontAssign(nat,roster,target){
+  const pairs=frontPairs(nat,target);
+  if(!pairs.length)return;
+  const F=[...new Set(pairs.map(p=>p[0].id))];
+  const cover={};for(const id of F)cover[id]=0;
+  const dest=u=>(u.path&&u.path.length)?u.path[u.path.length-1]:(u.to||u.at);
+  for(const u of roster)if(cover[dest(u)]!==undefined)cover[dest(u)]++;
+  const share=Math.ceil(roster.length/F.length);
+  let tries=0;
+  for(const u of roster){
+    if(u.to)continue;
+    if(cover[u.at]!==undefined&&cover[u.at]<=share)continue;   // already on the line, not crowded
+    /* the least-covered stretch of the front, nearest first */
+    const here=provOf(u.at);
+    const cand=F.slice().sort((x,y)=>(cover[x]-cover[y])||(((G.prov[x].x-here.x)**2+(G.prov[x].y-here.y)**2)-((G.prov[y].x-here.x)**2+(G.prov[y].y-here.y)**2)));
+    for(const id of cand.slice(0,4)){
+      if(++tries>40)return;
+      const path=findPath(u.at,id,"army",nat);
+      if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;
+        if(cover[u.at]!==undefined)cover[u.at]--;cover[id]++;break;}
+    }
+  }
+}
 function groupOf(u){return u&&u.grp?u.grp:0;}
 function groupUnits(nat,g){return G.units.filter(u=>u.nat===nat&&groupOf(u)===g);}
 function runGroups(nat){
@@ -5387,6 +5440,12 @@ function runGroups(nat){
     const roster=groupUnits(nat,+g).filter(u=>!u.to);
     if(!roster.length)continue;
     if(grp.stance==="reserve")continue;                 // stands fast on purpose
+    if(grp.stance==="front"){
+      /* the whole roster counts for coverage, marching or not */
+      const all=groupUnits(nat,+g);
+      frontAssign(nat,all.filter(u=>!u.to).length?all:roster,grp.target||null);
+      continue;
+    }
     autoCapture(nat,roster,grp.stance==="hold",grp.target||null);
   }
   /* Everything not in a group is still run by the old switch. */
@@ -13757,6 +13816,84 @@ function frontPath(){
 }
 /* An arrow for every push: the player's divisions marching on enemy ground,
    gathered by where they are going, drawn from where they are now. */
+/* BATTLE PLANS ON THE MAP: every army group of the player's on FRONT (or on
+   ADVANCE against a chosen enemy) has its line drawn ON THE FRONTIER it
+   faces, in the group's colour, the way the real game draws a front line it
+   has been given -- traced off the painted ownership grid exactly as the war
+   front is (`_chainPath`), between our cells and the faced enemy's. The
+   first cut ran it through midpoints between province centres, which put it
+   deep inside Poland and down through Austria. When advancing, an arrowhead
+   goes into each enemy province across it, unless the way there crosses a
+   third country (Munich-Krakow is a game link, and its arrow went through
+   Czechoslovakia). */
+const _planCache=new Map();
+function planPath(target){
+  const T=frontEff||window.__terOwner;if(!T||!G)return null;
+  const key=_frontKey()+"|"+(target||"*")+"|"+[...G.nations[G.player].atWar].join(",");
+  const c=_planCache.get(target||"*");
+  if(c&&c.T===T&&c.key===key)return c.path;
+  const owner=T.eff||T.owner,w=T.w,h=T.h,natKeys=T.keys||T.natKeys;
+  const side=new Uint8Array(natKeys.length+1);
+  natKeys.forEach((k,i)=>{if(k===G.player)side[i+1]=1;else if(frontFoe(G.player,target,k))side[i+1]=2;});
+  const adj=new Map(),W1=w+1;
+  const link=(a,b)=>{let A=adj.get(a);if(!A)adj.set(a,A=[]);A.push(b);let B=adj.get(b);if(!B)adj.set(b,B=[]);B.push(a);};
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x,s0=side[owner[i]];if(!s0)continue;
+    if(x<w-1){const s1=side[owner[i+1]];if(s1&&s1!==s0)link(y*W1+x+1,(y+1)*W1+x+1);}
+    if(y<h-1){const s1=side[owner[i+w]];if(s1&&s1!==s0)link((y+1)*W1+x,(y+1)*W1+x+1);}
+  }
+  const path=adj.size?_chainPath(adj,W1,5):null;
+  _planCache.set(target||"*",{T,key,path});
+  return path;
+}
+function _clearRun(a,b,target){
+  const T=window.__terOwner;if(!T)return true;
+  for(let k=1;k<6;k++){const x=a.x+(b.x-a.x)*k/6,y=a.y+(b.y-a.y)*k/6;
+    const o=T.natKeys[T.owner[((y/TS)|0)*T.w+((x/TS)|0)]-1];
+    if(o&&o!==G.player&&!frontFoe(G.player,target,o))return false;}
+  return true;
+}
+function drawPlans(z){
+  if(!G.groups)return;
+  const drawn=new Set();
+  for(const g in G.groups){
+    const grp=G.groups[g];
+    if(!grp||grp.nat!==G.player)continue;
+    const st=grp.stance;
+    if(st!=="front"&&!(st==="advance"&&grp.target))continue;
+    if(!groupUnits(G.player,+g).length)continue;
+    const tg=grp.target||null,path=planPath(tg);
+    if(!path)continue;
+    const col=groupCol(g);
+    ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+    /* two groups on one front: the second is drawn narrower inside the first */
+    const nth=drawn.has(tg||"*")?1:0;drawn.add(tg||"*");
+    ctx.strokeStyle="rgba(8,10,8,0.85)";ctx.lineWidth=(nth?4:7)/z;ctx.stroke(path);
+    ctx.strokeStyle=col;ctx.lineWidth=(nth?2.2:4.4)/z;ctx.stroke(path);
+    if(!nth){ctx.strokeStyle="rgba(255,255,255,0.32)";ctx.lineWidth=1.1/z;ctx.setLineDash([6/z,5/z]);ctx.stroke(path);ctx.setLineDash([]);}
+    const pairs=frontPairs(G.player,tg).filter(([a,b])=>Math.abs(a.x-b.x)<MW/2&&_clearRun(a,b,tg));
+    if(st==="advance"){
+      const seen=new Set();
+      for(const [a,b] of pairs){if(seen.has(b.id))continue;seen.add(b.id);
+        const qx=a.x*0.5+b.x*0.5,qy=a.y*0.5+b.y*0.5;
+        const dx=b.x-qx,dy=b.y-qy,L=Math.hypot(dx,dy);if(L<1)continue;
+        const ux=dx/L,uy=dy/L,len=Math.min(L*0.75,24/z),hw=7/z;
+        const sx=qx-ux*len*0.35,sy=qy-uy*len*0.35,tx=qx+ux*len,ty=qy+uy*len;
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tx-ux*hw,ty-uy*hw);
+        ctx.strokeStyle="rgba(8,10,8,0.85)";ctx.lineWidth=5/z;ctx.stroke();ctx.strokeStyle=col;ctx.lineWidth=3/z;ctx.stroke();
+        ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx-ux*hw*1.5-uy*hw,ty-uy*hw*1.5+ux*hw);
+        ctx.lineTo(tx-ux*hw*1.5+uy*hw,ty-uy*hw*1.5-ux*hw);ctx.closePath();
+        ctx.fillStyle=col;ctx.fill();ctx.strokeStyle="rgba(8,10,8,0.85)";ctx.lineWidth=1.2/z;ctx.stroke();}
+    }
+    /* the group's number, on the line where it faces its first enemy province */
+    if(pairs.length){
+      const [a,b]=pairs[Math.floor(pairs.length/2)],hx=a.x*0.5+b.x*0.5,hy=a.y*0.5+b.y*0.5,r=7/z;
+      ctx.beginPath();ctx.arc(hx,hy,r,0,7);ctx.fillStyle=col;ctx.fill();ctx.strokeStyle="#0a0c0a";ctx.lineWidth=1.4/z;ctx.stroke();
+      ctx.fillStyle="#0a0c0a";ctx.font=`bold ${10/z}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(g),hx,hy+0.5/z);
+    }
+    ctx.restore();
+  }
+}
 function drawOffensiveArrows(z){
   const me=G.player,dest=new Map();
   for(const u of G.units){
@@ -14599,6 +14736,7 @@ function _drawFrame(){
     }
     drawOffensiveArrows(z);
   }
+  if(z>1.4){try{drawPlans(z);}catch(e){}}
   /* Fleets and armies, painted back to front. Standing pieces have to be drawn
      in depth order or a counter to the NORTH of another — that is, behind it —
      paints straight over the one in front of it, which is exactly what the 3D
@@ -18371,6 +18509,8 @@ function renderPanel(){
       h+=`<h3>\u{1F396} HIGH COMMAND</h3>
       <div style="color:var(--dim);font-size:11px">Assign divisions to a group, give the group a stance, and it fights itself. Anything not in a group still answers to AUTO CAPTURE.</div>`;
       const foes=Object.keys(G.nations).filter(k=>G.nations[k].alive&&atWar(G.player,k));
+      /* a FRONT can face a neighbour before the war starts, as in the real game */
+      for(const [,b] of frontPairs(G.player,null))if(foes.indexOf(b.owner)<0&&!atWar(G.player,b.owner))foes.push(b.owner);
       const _gs=myGroups();
       const _me=G.nations[G.player];
       const _at=(G.sel&&G.prov[G.sel]&&G.prov[G.sel].owner===G.player)?G.prov[G.sel]:G.prov[capOf(G.player)];
@@ -18378,13 +18518,13 @@ function renderPanel(){
         const grp=G.groups[g],roster=mine.filter(u=>groupOf(u)===g);
         const raising=(G.queue||[]).filter(o=>o.nat===G.player&&o.grp===g).length;
         const st=STANCES[(grp&&grp.stance)||"hold"];
-        h+=`<div class="row" style="margin-top:6px"><span><b>Army Group ${g}</b> \u00b7 ${roster.length} division${roster.length===1?"":"s"}${raising?` <span style="color:var(--amber)">+${raising} raising</span>`:""}</span>
+        h+=`<div class="row" style="margin-top:6px"><span><i style="display:inline-block;width:10px;height:10px;background:${groupCol(g)};border:1px solid #000;margin-right:5px;vertical-align:-1px"></i><b>Army Group ${g}</b> \u00b7 ${roster.length} division${roster.length===1?"":"s"}${raising?` <span style="color:var(--amber)">+${raising} raising</span>`:""}</span>
           <span style="color:var(--amber)">${st.i} ${st.n}</span></div>
         <div class="row" style="gap:3px">${Object.keys(STANCES).map(k=>
           `<button class="tbtn" style="flex:1;font-size:10px" ${((grp&&grp.stance)||"hold")===k?"disabled":""} onclick="setStance(${g},'${k}')">${STANCES[k].i} ${STANCES[k].n}</button>`).join("")}</div>
         <div style="color:var(--dim);font-size:10px">${st.d}</div>`;
         if(foes.length)h+=`<div class="row" style="gap:3px;flex-wrap:wrap"><button class="tbtn" style="font-size:10px" ${!(grp&&grp.target)?"disabled":""} onclick="setGroupTarget(${g},null)">Any enemy</button>${
-          foes.slice(0,5).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")}</div>`;
+          foes.slice(0,8).map(k=>`<button class="tbtn" style="font-size:10px" ${(grp&&grp.target)===k?"disabled":""} onclick="setGroupTarget(${g},'${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")}</div>`;
         if(roster.length&&epochAtLeast("24.0")){
           const gi=roster.filter(u=>!u.train&&canTrain(u)).length;
           if(gi)h+=`<button class="tbtn" style="font-size:10px" onclick="trainGroup(${g})">\u{1F3AF} Train group ${g} (${gi})</button>`;

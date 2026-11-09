@@ -2013,3 +2013,36 @@ Owner, again: "make it more like hearts of iron 4 and make the graphics better".
 - **Panels** (dark theme CSS): brass frame and shadow, the first h2 as a
   gold title band across the top, h3 section heads in brass capitals with
   a rule, dark buttons that light brass on hover.
+
+## Battle plans: the FRONT stance and plans drawn on the map
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics
+better". Events were already in the real game's style (newspaper mode with a
+painted picture), so this round was the thing its war is played with: a front
+line given to an army group.
+
+- **FRONT stance** (`STANCES.front`): the group spreads along the border it
+  faces and holds it (`frontAssign`, run daily from `runGroups`). Faces the
+  group's chosen nation, else everyone at war with us, else -- at peace --
+  every foreign land neighbour that is not a friend (`frontFoe`). Front
+  provinces are ours with a LAND link to a faced province (`frontPairs`;
+  `isSeaLink`). Idle divisions off the line or on a stretch holding more
+  than its share go to the least-covered stretch, nearest first, at most 40
+  path searches a day. The target buttons now include land neighbours at
+  peace, as the real game lets you draw a front before the war.
+- **Plans drawn** (`drawPlans`, from z1.4): every player group on FRONT, or
+  on ADVANCE with a chosen enemy, has its line traced ON THE FRONTIER off the
+  painted ownership grid between our cells and the faced enemy's
+  (`planPath`, `_chainPath`, cached on `_frontKey` + target + wars), in the
+  group's colour (`GROUP_COL`, no red -- red is the war front), with its
+  number on the line; ADVANCE adds an arrowhead into each enemy province
+  across it. A second group on the same front is drawn narrower inside.
+- First cut drew the line through midpoints between province CENTRES: it
+  ran deep inside Poland and down through Austria. Tracing the frontier
+  cells fixed it. Arrows whose a->b run crosses a third country's cells are
+  dropped (`_clearRun`): Munich-Krakow is a game link and its arrow went
+  through Czechoslovakia.
+- Checked: Germany 1936, 16 divisions on FRONT vs Poland spread to Berlin 8,
+  Munich 5, Konigsberg 2 (East Prussia is not reachable overland at peace,
+  so the split is uneven, not wrong). Group stance/target survive save/load
+  (groups were already saved whole).
