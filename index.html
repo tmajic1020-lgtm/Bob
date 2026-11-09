@@ -72,7 +72,8 @@ body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);
 #sidebtns .tbtn[data-p=trade]::before{content:"\2696"}
 #sidebtns .tbtn[data-p=govt]::before{content:"\1F3DB"}
 #sidebtns .tbtn[data-p=policy]::before{content:"\1F4CB"}
-#sidebtns .tbtn[data-p=diplo]::before{content:"\1F310"}
+#sidebtns .tbtn[data-p=diplo]::before{content:"\2694"}
+#sidebtns .tbtn[data-p=dip]::before{content:"\1F310"}
 #sidebtns .tbtn[data-p=ledger]::before{content:"\1F4CA"}
 #sidebtns .tbtn[data-p=settings]::before{content:"\2699"}
 @media(max-width:700px){body:not(.light) #sidebtns .tbtn{width:auto;flex:0 0 auto}}
@@ -396,6 +397,7 @@ body.light #speedbox{background:#ece7d6d0}
   <button class="tbtn" data-p="trade">TRADE</button>
   <button class="tbtn" data-p="govt">GOVERNMENT</button>
   <button class="tbtn" data-p="policy">POLICY</button>
+  <button class="tbtn" data-p="dip">DIPLOMACY</button>
   <button class="tbtn" data-p="diplo">WARS</button>
   <button class="tbtn" data-p="ledger">LEDGER</button>
   <button class="tbtn" data-p="settings">SETTINGS</button>
@@ -1995,6 +1997,127 @@ function natAtkMul(k){const n=G.nations[k];if(!n)return 1;
   m*=1+(((n.warSup??50)-50)/300); if(n.sabotage>0)m*=0.93; return m*decMod(k,"atk")*techMod(k,"atk");}
 function natDefMul(k){const n=G.nations[k];if(!n)return 1;return (DOCTRINES[n.doctrine]||{def:1}).def*(MODS.trench?1.35:1)*decMod(k,"def")*techMod(k,"def");}
 function warDeclCost(me){return Math.round(40*ideoOf(me).war*(me.cab&&me.cab.dip?0.7:1)*(MODS.coldwar?3:1));}
+/* ============================ DIPLOMACY ============================
+   The real game's diplomacy screen, gathered round one country at a time:
+   what they think of you and why, and everything you can do with them --
+   relations, pacts, guarantees, military access, the faction, war and peace,
+   aid, and the quieter work of agents. Most of the actions already existed
+   scattered across WARS, DECISIONS, TRADE and the province panel; the new
+   state is G.dip (saved): opinion modifiers, guarantees, access grants,
+   subversion in progress and per-target cooldowns. */
+function dipState(){
+  if(!G.dip||typeof G.dip!=="object")G.dip={};
+  for(const k of ["opm","guar","acc","sub","cd"])if(!G.dip[k])G.dip[k]={};
+  return G.dip;
+}
+const IDEO_BLOC={dem:"dem",mon:"dem",fas:"fas",aut:"fas",rev:"fas",com:"com"};
+/* how A regards B, -100..100, with the reasons */
+function opinionWhy(a,b){
+  const A=G.nations[a],B=G.nations[b],D=dipState(),out=[];
+  if(!A||!B)return out;
+  if(A.ideo===B.ideo)out.push(["Same government",20]);
+  else if(IDEO_BLOC[A.ideo]===IDEO_BLOC[B.ideo])out.push(["Kindred government",8]);
+  else out.push(["Rival ideology",-15]);
+  if(atWar(a,b))out.push(["At war",-80]);
+  if(allied(a,b))out.push(["In the same faction",40]);
+  if(A.puppet===b||B.puppet===a)out.push(["Overlord and subject",25]);
+  if(pactWith(a,b))out.push(["Non-aggression pact",15]);
+  if(A.trade&&A.trade.has&&A.trade.has(b))out.push(["Trade agreement",10]);
+  if(B.lend&&B.lend[a])out.push(["Lend-lease from them",20]);
+  if(D.guar[b+"|"+a])out.push(["They guarantee us",15]);
+  if(D.acc[a+"|"+b])out.push(["We gave them access",5]);
+  if(b===G.player&&A.grudge>0)out.push(["Grudge",-Math.round(A.grudge)]);
+  if(B.jw&&B.jw[a])out.push(["War goal against us",-25]);
+  for(const w of A.atWar)if(B.atWar.has(w)){out.push(["Common enemy",15]);break;}
+  const m=Math.round(D.opm[a+"|"+b]||0);if(m)out.push([m>0?"Improved relations":"Soured relations",m]);
+  return out;
+}
+function opinion(a,b){return Math.max(-100,Math.min(100,opinionWhy(a,b).reduce((s,x)=>s+x[1],0)));}
+function dipCd(t,act){const v=dipState().cd[G.player+"|"+t+"|"+act];return v&&v>G.day?v-G.day:0;}
+function dipSetCd(t,act,days){dipState().cd[G.player+"|"+t+"|"+act]=G.day+days;}
+/* may NAT's divisions walk through OWNER's land? */
+function canPass(nat,owner){
+  if(nat===owner)return true;
+  const N=G.nations[nat],O=G.nations[owner];if(!N||!O)return false;
+  if(allied(nat,owner)||N.puppet===owner||O.puppet===nat)return true;
+  return !!(G.dip&&G.dip.acc&&G.dip.acc[owner+"|"+nat]);
+}
+/* guarantees: when a guaranteed country is attacked, its guarantors go to
+   war with the attacker */
+function honourGuarantees(attacker,victim){
+  const D=dipState();
+  for(const key in D.guar){const [g,v]=key.split("|");
+    if(v!==victim||g===attacker)continue;
+    const Gn=G.nations[g];if(!Gn||!Gn.alive||atWar(g,attacker)||allied(g,attacker))continue;
+    warPair(g,attacker);
+    logMsg(`\u{1F6E1} ${FL(g)} ${NATIONS[g].n} honours its guarantee and declares war on ${FL(attacker)} ${NATIONS[attacker].n}!`,"war");
+    if(g===G.player){toast("\u{1F6E1} YOUR GUARANTEE OF "+NATIONS[victim].n.toUpperCase()+" IS CALLED — YOU ARE AT WAR");sfx&&sfx("war");}
+  }
+}
+/* daily: relations drift back, subversion makes progress */
+function dipTick(){
+  const D=dipState();
+  if(G.day%30===0)for(const k in D.opm){D.opm[k]+=D.opm[k]>0?-1:1;if(Math.abs(D.opm[k])<1)delete D.opm[k];}
+  for(const key in D.sub){const [a,b]=key.split("|"),A=G.nations[a],B=G.nations[b],S=D.sub[key];
+    if(!A||!B||!A.alive||!B.alive||atWar(a,b)){delete D.sub[key];continue;}
+    S.prog=(S.prog||0)+1;
+    if(S.prog>=S.need){delete D.sub[key];
+      if(B.ideo!==A.ideo){B.ideo=A.ideo;D.opm[b+"|"+a]=(D.opm[b+"|"+a]||0)+20;
+        logMsg(`\u{1F4E2} ${FL(b)} ${NATIONS[b].n} turns ${IDEO_FX[A.ideo].n.toLowerCase()} — the party you backed has taken power.`,"good");}}}
+  /* an access grant ends if the two go to war, or the guest's armies are
+     still in the host's land when it does -- they are simply at war then */
+  for(const key in D.acc){const [o,n]=key.split("|");if(!G.nations[o]||!G.nations[n]||atWar(o,n))delete D.acc[key];}
+  for(const key in D.guar){const [g,v]=key.split("|");if(!G.nations[v]||!G.nations[v].alive||!G.nations[g]||!G.nations[g].alive)delete D.guar[key];}
+}
+const _dipOk=(c)=>{const me=G.nations[G.player];if(me.pp<c){logMsg(`That needs ${c} PP.`,"war");return false;}me.pp-=c;return true;};
+window.dipImprove=t=>{
+  if(dipCd(t,"rel"))return logMsg(`Envoys are still in ${NATIONS[t].n}.`,"war");
+  if(!_dipOk(25))return;const D=dipState(),k=t+"|"+G.player;
+  D.opm[k]=Math.min(60,(D.opm[k]||0)+15);const T=G.nations[t];T.grudge=Math.max(0,(T.grudge||0)-10);
+  dipSetCd(t,"rel",45);logMsg(`\u{1F91D} Envoys to ${FL(t)} ${NATIONS[t].n}: their opinion of us rises.`,"good");renderPanel();refreshHUD();};
+window.dipGuarantee=t=>{const D=dipState(),k=G.player+"|"+t;
+  if(D.guar[k]){delete D.guar[k];logMsg(`Guarantee of ${NATIONS[t].n} withdrawn.`,"war");renderPanel();return;}
+  if(!_dipOk(20))return;D.guar[k]=1;
+  logMsg(`\u{1F6E1} We guarantee the independence of ${FL(t)} ${NATIONS[t].n}: an attack on them is war with us.`,"good");renderPanel();refreshHUD();};
+window.dipAskAccess=t=>{const D=dipState(),k=t+"|"+G.player;
+  if(D.acc[k]){delete D.acc[k];logMsg(`We give up military access through ${NATIONS[t].n}.`);renderPanel();return;}
+  if(dipCd(t,"acc"))return logMsg(`${NATIONS[t].n} will not hear the request again yet.`,"war");
+  const op=opinion(t,G.player);
+  if(op<10){dipSetCd(t,"acc",60);logMsg(`❌ ${FL(t)} ${NATIONS[t].n} refuses military access (opinion ${op}, needs 10).`,"war");renderPanel();return;}
+  if(!_dipOk(15))return;D.acc[k]=1;
+  logMsg(`✅ ${FL(t)} ${NATIONS[t].n} grants us military access: our divisions may cross their land.`,"good");renderPanel();refreshHUD();};
+window.dipGiveAccess=t=>{const D=dipState(),k=G.player+"|"+t;
+  if(D.acc[k])delete D.acc[k];else D.acc[k]=1;
+  logMsg(D.acc[k]?`${NATIONS[t].n} may now march through our land.`:`Military access for ${NATIONS[t].n} revoked.`);renderPanel();};
+window.dipCallToArms=(ally,enemy)=>{
+  if(!allied(G.player,ally)||!atWar(G.player,enemy)||atWar(ally,enemy))return;
+  if(dipCd(ally,"cta"))return logMsg(`${NATIONS[ally].n} has only just answered.`,"war");
+  dipSetCd(ally,"cta",60);
+  const op=opinion(ally,G.player);
+  if(op>=20||Math.random()<(op+40)/100){warPair(ally,enemy);
+    logMsg(`\u{1F4EF} ${FL(ally)} ${NATIONS[ally].n} answers the call to arms and declares war on ${FL(enemy)} ${NATIONS[enemy].n}!`,"good");}
+  else logMsg(`\u{1F4EF} ${FL(ally)} ${NATIONS[ally].n} declines to join the war on ${NATIONS[enemy].n} (opinion ${op}).`,"war");
+  renderPanel();};
+window.dipGift=(t,amt)=>{if(!_dipOk(amt))return;const T=G.nations[t],D=dipState(),k=t+"|"+G.player;
+  T.pp+=amt;D.opm[k]=Math.min(60,(D.opm[k]||0)+Math.round(amt/6));
+  logMsg(`\u{1F381} ${amt} PP sent to ${FL(t)} ${NATIONS[t].n}.`,"good");renderPanel();refreshHUD();};
+window.dipSubvert=t=>{const D=dipState(),k=G.player+"|"+t,me=G.nations[G.player],T=G.nations[t];
+  if(D.sub[k]){delete D.sub[k];logMsg("Support for the party is withdrawn.");renderPanel();return;}
+  if(T.ideo===me.ideo)return logMsg(`${NATIONS[t].n} already shares our government.`,"war");
+  if(!_dipOk(40))return;
+  /* longer against a rival bloc than a kindred government */
+  D.sub[k]={prog:0,need:IDEO_BLOC[T.ideo]===IDEO_BLOC[me.ideo]?120:240};
+  logMsg(`\u{1F4E2} We back the ${IDEO_FX[me.ideo].n.toLowerCase()} party in ${FL(t)} ${NATIONS[t].n}.`,"good");renderPanel();refreshHUD();};
+window.dipCoup=t=>{const me=G.nations[G.player],T=G.nations[t];
+  if(T.ideo!==me.ideo||opinion(t,G.player)<50||T.atWar.size||[...T.allies].length||T.puppet)return logMsg("A coup needs a kindred government, opinion 50+, and no wars or allies of theirs.","war");
+  if(!_dipOk(100))return;
+  T.puppet=G.player;me.allies.add(t);T.allies.add(G.player);terDirty=true;
+  logMsg(`⛓ ${FL(t)} ${NATIONS[t].n} becomes our puppet in a quiet change of government.`,"good");renderPanel();refreshHUD();};
+let DIP_T=null,DIP_TAB="overview",PEACE_FROM=null;
+window.openDiplo=t=>{if(!G||!G.nations[t]||t===G.player)return;DIP_T=t;openPanel("dip");};
+window.dipTab=x=>{DIP_TAB=x;renderPanel();};
+window.dipPick=t=>{if(G.nations[t])DIP_T=t;renderPanel();};
+window.dipPeace=t=>{PEACE_FROM="dip";openPeaceConf(t);};
 function playerDeclareWar(o){if(!G||!G.nations)return;
   const me=G.nations[G.player];
   /* a justified war goal (DECISIONS) makes the declaration free and popular */
@@ -3635,6 +3758,7 @@ function declareWar(a,b){if(!G||!G.nations)return;
   // alliances drag everyone in
   for(const x of[...G.nations[b].allies])if(G.nations[x]&&G.nations[x].alive){warPair(x,a);for(const y of[...G.nations[a].allies])warPair(x,y);}
   for(const y of[...G.nations[a].allies])if(G.nations[y]&&G.nations[y].alive)warPair(y,b);
+  try{honourGuarantees(a,b);}catch(e){}
 }
 /* War score: how thoroughly A has beaten B so far. Drives what terms B will
    actually accept \u2014 a white peace needs almost nothing, annexing half their
@@ -3752,7 +3876,7 @@ window.togglePeaceProv=togglePeaceProv;
 function sendPeaceDeal(){if(!G||!G.nations)return;
   if(!PEACE_TARGET)return;
   proposePeaceDeal(G.player,PEACE_TARGET,{provinces:[...PEACE_SEL],reparations:PEACE_REP,puppet:PEACE_PUP});
-  PEACE_TARGET=null;curPanel="diplo";renderPanel();
+  PEACE_TARGET=null;curPanel=PEACE_FROM==="dip"?"dip":"diplo";PEACE_FROM=null;renderPanel();
 }
 window.sendPeaceDeal=sendPeaceDeal;
 function offerPeace(a,b){if(!G||!G.nations)return;
@@ -3912,7 +4036,9 @@ function findPath(from,to,kind,nat){
     for(const n of neighbors(c,kind,nat)){
       if(seen[n])continue;
       const o=provOf(n).owner;
-      if(kind!=="fleet"&&o!==nat&&!atWar(nat,o)&&n!==to)continue;
+      /* allies, overlord/subject and anyone who granted military access let
+         an army pass, as in the real game */
+      if(kind!=="fleet"&&o!==nat&&!atWar(nat,o)&&n!==to&&!canPass(nat,o))continue;
       seen[n]=1;prev[n]=c;
       if(n===to){const path=[to];let x=to;while(prev[x]!==undefined&&prev[x]!==from){x=prev[x];path.unshift(x);}return path;}
       q.push(n);
@@ -4191,6 +4317,7 @@ function tick(){
      drilling today; before equipTick, so what exercises wore out is drawn
      back from the stockpile the same day. */
   trainTick();
+  try{dipTick();}catch(e){}
   /* AFTER the supply map has been rebuilt and after the day's fighting, which
      is the only order that makes sense: a division is resupplied, and starves,
      against where the front actually ended the day rather than where it began
@@ -18520,6 +18647,7 @@ function renderPanel(){
     const _same=Object.values(G.prov).filter(q=>q.owner===p.owner).sort((a,b)=>(b.val-a.val)||a.name.localeCompare(b.name));
     let h=`<h2>${p.name.toUpperCase()}</h2>
     <div class="row"><span>Owner</span><span>${FL(p.owner)} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
+    ${p.owner!==G.player&&G.nations[p.owner]&&G.nations[p.owner].alive&&p.owner!=="REB"&&p.owner!=="ZOM"?`<button class="tbtn" style="width:100%;margin:2px 0 4px" onclick="openDiplo('${p.owner}')">\u{1F310} Diplomacy with ${NATIONS[p.owner].n} \u2192</button>`:""}
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
@@ -18864,6 +18992,104 @@ function renderPanel(){
             <button class="tbtn" onclick="cancelOrder(${o.oid})" title="Cancel — half the production comes back">\u2715</button></div>`;
         }).join("");})()}
     <div style="color:var(--dim);font-size:11px;margin-top:8px">🛢 Oil flows from oil provinces (Texas, the Gulf, the Caucasus, Siberia, Libya...). With 0 oil your air wings and fleets give no combat support.</div>`;
+  }
+  if(curPanel==="dip"){
+    el.classList.add("wide");
+    const k=G.player,D=dipState();
+    const alive=Object.keys(G.nations).filter(x=>x!==k&&G.nations[x].alive&&NATIONS[x]).sort((a,b)=>NATIONS[a].n.localeCompare(NATIONS[b].n));
+    if(!DIP_T||!G.nations[DIP_T]||!G.nations[DIP_T].alive||DIP_T===k){
+      const nb=[];for(const a of natProvs(k))for(const bid of a.adj||[]){const b=G.prov[bid];if(b&&b.owner!==k&&nb.indexOf(b.owner)<0)nb.push(b.owner);}
+      DIP_T=nb[0]||alive[0];}
+    const t=DIP_T,T=G.nations[t],N=NATIONS[t],op=opinion(t,k),myOp=opinion(k,t);
+    const opc=v=>v>=30?"var(--green)":v>=0?"var(--amber)":"var(--red)";
+    const chips=[];
+    if(atWar(k,t))chips.push(["AT WAR","#c4452f"]);if(allied(k,t))chips.push(["ALLIED","#4dbb6a"]);
+    if(T.puppet===k)chips.push(["OUR PUPPET","#b56ad8"]);if(G.nations[k].puppet===t)chips.push(["OUR OVERLORD","#b56ad8"]);
+    if(pactWith(k,t))chips.push(["NON-AGGRESSION","#4a90d9"]);if(D.guar[k+"|"+t])chips.push(["WE GUARANTEE","#e2b23c"]);
+    if(D.guar[t+"|"+k])chips.push(["GUARANTEES US","#e2b23c"]);if(D.acc[t+"|"+k])chips.push(["ACCESS FOR US","#3cc4c4"]);
+    if(D.acc[k+"|"+t])chips.push(["ACCESS FOR THEM","#3cc4c4"]);
+    if(me.trade&&me.trade.has&&me.trade.has(t))chips.push(["TRADE","#d98a3c"]);if(me.lend&&me.lend[t])chips.push(["LEND-LEASE","#d98a3c"]);
+    const divs=G.units.filter(u=>u.nat===t).length,myDivs=G.units.filter(u=>u.nat===k).length;
+    let h=`<h2>DIPLOMACY</h2>
+      <div class="row" style="gap:6px"><select onchange="dipPick(this.value)" style="flex:1;background:#0c0f0b;color:var(--ink);border:1px solid #3c3b2b;font-family:var(--font);padding:4px">${alive.map(x=>`<option value="${x}"${x===t?" selected":""}>${NATIONS[x].n}${atWar(k,x)?" \u2694":allied(k,x)?" \u{1F91D}":""}</option>`).join("")}</select></div>
+      <div style="display:flex;gap:10px;align-items:center;margin:8px 0">
+        <span style="font-size:30px">${FL(t)}</span>
+        <div style="flex:1"><b style="font-size:15px;color:#f0d98a">${N.n.toUpperCase()}</b><br>
+          <small style="color:var(--dim)">${IDEO_FX[T.ideo]?IDEO_FX[T.ideo].f+" "+IDEO_FX[T.ideo].n:""} \u00b7 ${natProvs(t).length} provinces \u00b7 ${divs} divisions${T.puppet?` \u00b7 puppet of ${NATIONS[T.puppet].n}`:""}</small></div>
+        <div style="text-align:center"><small style="color:var(--dim)">THEIR OPINION</small><br><b style="font-size:18px;color:${opc(op)}">${op>0?"+":""}${op}</b></div></div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">${chips.map(([c,col])=>`<span style="font-size:9px;letter-spacing:.06em;padding:2px 5px;border:1px solid ${col};color:${col};border-radius:2px">${c}</span>`).join("")}</div>
+      <div class="row" style="gap:2px;flex-wrap:wrap">${[["overview","\u{1F4CB} OVERVIEW"],["relations","\u{1F91D} RELATIONS"],["faction","\u{1F3F3} FACTION"],["war","\u2694 WAR"],["aid","\u{1F4E6} AID"],["intel","\u{1F575} INTEL"]].map(([id,lab])=>
+        `<button class="tbtn${DIP_TAB===id?" on":""}" style="flex:1;font-size:10px;padding:4px 2px" onclick="dipTab('${id}')">${lab}</button>`).join("")}</div>`;
+    const B=(on,lab,sub,fn,cls)=>`<button class="bbtn${cls?" "+cls:""}" ${on?"":"disabled"} onclick="${fn}">${lab}<small>${sub}</small></button>`;
+    const peaceful=!atWar(k,t);
+    if(DIP_TAB==="overview"){
+      const bar=(lab,a,b)=>{const tot=Math.max(1,a+b),pa=Math.round(a/tot*100);return `<div class="row"><span style="width:90px">${lab}</span><span style="flex:1;display:flex;height:9px;border:1px solid #3c3b2b"><i style="width:${pa}%;background:#4a90d9"></i><i style="flex:1;background:${N.c}"></i></span><span style="width:70px;text-align:right;font-size:11px">${Math.round(a)} : ${Math.round(b)}</span></div>`;};
+      h+=`<h3>US AGAINST THEM</h3>${bar("Divisions",myDivs,divs)}${bar("Provinces",natProvs(k).length,natProvs(t).length)}${bar("Industry",me.ppRate||0,T.ppRate||0)}${bar("Manpower",me.mp||0,T.mp||0)}
+        <h3>WHY THEY FEEL THIS WAY</h3>${opinionWhy(t,k).map(([w,v])=>`<div class="row"><span>${w}</span><span style="color:${v>=0?"var(--green)":"var(--red)"}">${v>0?"+":""}${v}</span></div>`).join("")||`<div style="color:var(--dim)">No dealings to speak of.</div>`}
+        <div class="row"><span style="color:var(--dim)">Our opinion of them</span><span style="color:${opc(myOp)}">${myOp>0?"+":""}${myOp}</span></div>
+        <h3>THEIR WORLD</h3>
+        <div class="row"><span>At war with</span><span>${[...T.atWar].filter(x=>G.nations[x]&&G.nations[x].alive).map(x=>FL(x)).join(" ")||"nobody"}</span></div>
+        <div class="row"><span>Allies</span><span>${[...T.allies].filter(x=>G.nations[x]&&G.nations[x].alive).map(x=>FL(x)).join(" ")||"none"}</span></div>
+        <div class="row"><span>Stability \u00b7 war support</span><span>${Math.round(T.stab)}% \u00b7 ${Math.round(T.warSup??50)}%</span></div>`;
+    }else if(DIP_TAB==="relations"){
+      const cd=dipCd(t,"rel"),pct=pactWith(k,t),gu=!!D.guar[k+"|"+t],ga=!!D.acc[k+"|"+t],ha=!!D.acc[t+"|"+k];
+      h+=`<h3>RELATIONS</h3>`+
+        B(peaceful&&!cd&&me.pp>=25,"\u{1F91D} Improve relations \u2014 25 PP",cd?`Envoys are still there: ${cd} days.`:"Their opinion of us +15 (fading over months); their grudge falls by 10.","dipImprove('"+t+"')")+
+        B(peaceful&&!pct&&!allied(k,t)&&me.pp>=40,"\u{1F4DC} Non-aggression pact \u2014 40 PP",pct?"Already signed.":"A quiet border without dragging you into each other's wars. Breaking it later costs stability.","signPactWith('"+t+"')")+
+        B(peaceful&&(gu||me.pp>=20),gu?"\u{1F6E1} Withdraw our guarantee":"\u{1F6E1} Guarantee their independence \u2014 20 PP","If anyone declares war on them, we declare war on the attacker. They will think better of us.","dipGuarantee('"+t+"')")+
+        B(peaceful&&(ha||me.pp>=15),ha?"\u{1F6B6} Give up military access":"\u{1F6B6} Request military access \u2014 15 PP",ha?"Our divisions may march through their land.":`Our divisions could march through their land. They grant it at opinion 10 or more (now ${op}).`,"dipAskAccess('"+t+"')")+
+        B(peaceful,ga?"\u{1F6AB} Revoke their military access":"\u{1F6AA} Offer them military access",ga?"Their divisions may cross our land.":"Let their divisions march through our land.","dipGiveAccess('"+t+"')")+
+        B(peaceful&&!(me.trade&&me.trade.has&&me.trade.has(t)),"\u{1F4B0} Propose a trade agreement","+3% production each while it lasts. Resource contracts are under TRADE.","proposeTrade('"+k+"','"+t+"');renderPanel()");
+    }else if(DIP_TAB==="faction"){
+      const al=allied(k,t);
+      h+=`<h3>FACTION</h3>`;
+      if(al){
+        const wars=[...me.atWar].filter(x=>G.nations[x]&&G.nations[x].alive&&!atWar(t,x));
+        h+=`<div style="color:var(--dim);font-size:11px">${N.n} is in our faction.</div>`;
+        if(wars.length)h+=`<h3>\u{1F4EF} CALL TO ARMS</h3><div style="color:var(--dim);font-size:11px">Ask them to join a war of ours they are not in. They come readily at opinion 20+.</div>`+wars.map(w=>B(!dipCd(t,"cta"),`\u{1F4EF} Call them against ${FL(w)} ${NATIONS[w].n}`,dipCd(t,"cta")?`They answered recently: ${dipCd(t,"cta")} days.`:"","dipCallToArms('"+t+"','"+w+"')")).join("");
+        h+=B(true,"\u2702 Leave the alliance","15 PP and \u22124 stability. They will remember it.","breakAlliance('"+t+"')")+
+           B(true,"\u{1F5E1} Betray them: tear up the pact and attack","40 PP, \u221212 stability, \u221215 war support, and their bloc against us.","betrayAlly('"+t+"')","warn");
+      }else{
+        h+=B(peaceful&&!T.puppet,"\u{1F3F3} Invite them into our faction",`They decide by their own reckoning of the world; their opinion of us is ${op}.`,"proposeAlliance('"+k+"','"+t+"');renderPanel()");
+        const theirs=[...T.allies].filter(x=>G.nations[x]&&G.nations[x].alive);
+        h+=`<div class="row"><span>Their faction</span><span>${theirs.map(x=>FL(x)+" "+NATIONS[x].n).join(", ")||"none"}</span></div>`;
+      }
+      if(T.puppet===k)h+=B(true,"\u{1F54A} Release them from our rule","They become free again. +6 stability.","releasePuppet('"+t+"')");
+    }else if(DIP_TAB==="war"){
+      h+=`<h3>WAR AND PEACE</h3>`;
+      if(atWar(k,t)){
+        const ws=warScore(k,t);
+        h+=`<div class="row"><span>War score</span><span style="color:${ws>=60?"var(--green)":ws>=30?"var(--amber)":"var(--red)"}">${ws}/100</span></div><div class="bar"><i style="width:${ws}%"></i></div>
+          <button class="bbtn" style="border-color:var(--amber)" onclick="dipPeace('${t}')">\u{1F4DC} OFFER A PEACE DEAL<small>Goes straight to the peace conference: choose provinces, reparations or a puppet government, and they answer by the war score. Harsh terms need a winning war.</small></button>`+
+          B(true,"\u{1F54A} Offer a white peace","Everything back as it was before the war.","offerPeace('"+k+"','"+t+"');renderPanel()")+
+          B(G.prov[capOf(t)]&&G.prov[capOf(t)].owner===k,"\u26D3 Install a puppet government","Needs their capital in our hands.","installPuppet('"+k+"','"+t+"');renderPanel()");
+      }else if(allied(k,t)){h+=`<div style="color:var(--dim)">They are our allies. Leave the faction first, or betray them under FACTION.</div>`;}
+      else{
+        const just=!!(me.jw&&me.jw[t]),cost=just?0:warDeclCost(me);
+        h+=B(!just,"\u{1F4DC} Justify a war goal \u2014 50 PP",just?"Justified: declaring war is free and +10 war support.":"Sixty days of grievances in the press; afterwards war on them costs nothing to declare.","takeDecision('justify','"+t+"')")+
+           B(me.pp>=cost,`\u2694 Declare war${cost?` \u2014 ${cost} PP`:""}`,`${pactWith(k,t)?"Breaks our non-aggression pact. ":""}${[...T.allies].length?"Their allies will join them. ":""}${Object.keys(D.guar).some(x=>x.endsWith("|"+t))?"They are guaranteed: their guarantors will declare war on us. ":""}`,"playerDeclareWar('"+t+"')","warn");
+      }
+    }else if(DIP_TAB==="aid"){
+      const lend=!!(me.lend&&me.lend[t]);
+      h+=`<h3>AID</h3>`+
+        B(peaceful&&(lend||allied(k,t)||(me.trade&&me.trade.has&&me.trade.has(t))),lend?"\u{1F4E6} Stop lend-lease":"\u{1F4E6} Lend-lease","2% of our production and a trickle of oil to them, every day. Needs an alliance or a trade agreement.","toggleLend('"+t+"')")+
+        B(peaceful&&T.atWar.size>0&&me.pp>=30,"\u{1F396} Send volunteers \u2014 30 PP",T.atWar.size?"Two divisions fight for them under their flag.":"Only to a country at war.","takeDecision('volun','"+t+"')")+
+        `<div class="row" style="gap:3px">${[25,50,100].map(a=>`<button class="tbtn" style="flex:1;font-size:10px" ${peaceful&&me.pp>=a?"":"disabled"} onclick="dipGift('${t}',${a})">\u{1F381} Send ${a} PP</button>`).join("")}</div>
+        <div style="color:var(--dim);font-size:11px">A gift of production buys goodwill: +1 opinion for every 6 PP.</div>
+        <button class="bbtn" onclick="openPanel('trade')">\u2696 Resource contracts with them \u2192 TRADE</button>`;
+    }else if(DIP_TAB==="intel"){
+      const sub=D.sub[k+"|"+t],sc=(me.spyCd||0)>G.day;
+      h+=`<h3>AGENTS</h3>`+
+        B(!sc&&me.pp>=30,"\u{1F525} Sabotage their industry \u2014 30 PP","60% chance: they lose 35 PP. Caught agents raise world tension.","spyOp('sab','"+t+"')")+
+        B(!sc&&me.pp>=40,"\u{1F4C4} Steal their blueprints \u2014 40 PP","55% chance: +8 research.","spyOp('steal','"+t+"')")+
+        B(!sc&&me.pp>=50,"\u{1F4E3} Stir unrest \u2014 50 PP","65% chance: their stability \u22128.","spyOp('unrest','"+t+"')")+
+        (sc?`<div style="color:var(--dim);font-size:11px">Our agents regroup: ${(me.spyCd||0)-G.day} days.</div>`:"")+
+        `<h3>POLITICS</h3>`+
+        (sub?`<div class="row"><span>Backing the ${IDEO_FX[me.ideo].n.toLowerCase()} party</span><span>${Math.round(sub.prog/sub.need*100)}%</span></div><div class="bar"><i style="width:${Math.round(sub.prog/sub.need*100)}%"></i></div>`:"")+
+        B(peaceful&&(sub||(T.ideo!==me.ideo&&me.pp>=40)),sub?"\u2716 Stop backing the party":`\u{1F4E2} Boost the ${IDEO_FX[me.ideo].n.toLowerCase()} party \u2014 40 PP`,T.ideo===me.ideo&&!sub?"They already share our government.":"Over four to eight months the party takes power and their government becomes ours: +20 opinion.","dipSubvert('"+t+"')")+
+        B(peaceful&&T.ideo===me.ideo&&op>=50&&!T.atWar.size&&![...T.allies].length&&!T.puppet&&me.pp>=100,"\u26D3 Stage a coup \u2014 100 PP","A kindred government that likes us (opinion 50+), with no wars or allies of its own, becomes our puppet.","dipCoup('"+t+"')");
+    }
+    el.innerHTML=h;
   }
   if(curPanel==="sel"){
     const L=_selLive();
@@ -22054,6 +22280,7 @@ function mpSerialize(){
   return{day:G.day,date:+G.date,tension:+G.tension.toFixed(1),collapsed:G.collapsed,prov,nat,mods:modsOut,
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
     groups:G.groups||{},
+    dip:G.dip||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
     queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total,o.grp||0]),
@@ -22074,6 +22301,7 @@ function mpApplyState(S){
   G.queue=(S.queue||[]).map(a=>({oid:a[0],nat:a[1],t:a[2],at:a[3],left:a[4],total:a[5],grp:a[6]||0}));
   G.build=(S.build||[]).filter(a=>BUILDINGS[a[3]]).map(a=>({bid:a[0],nat:a[1],at:a[2],what:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
+  G.dip=S.dip||{};dipState();
   for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb,bj]=S.prov[id];
     /* the newer buildings (v24+); a save without them has none */
     p.b={};if(bj){try{const m=JSON.parse(bj);for(const k in m)if(BUILDINGS[k]&&+m[k]>0)p.b[k]=+m[k];}catch(e){}}

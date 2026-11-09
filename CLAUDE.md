@@ -2132,3 +2132,57 @@ front lines".
   Poland" makes Army Group 1 of 6 on FRONT/POL; SELECT-mode drag over
   Germany selects 7 without moving the camera, clicking Munich sends the 6
   not already there; with SELECT off a drag still pans.
+
+## Diplomacy, the real game's way
+
+Owner: "add diplomacy and add all the tabs in diplomacy like real hearts of
+iron, and add offer peace deal, and immediately send it to a peace
+conference".
+
+A DIPLOMACY side tab (`curPanel "dip"`, `openDiplo(k)`, also a "Diplomacy
+with X" button on any foreign province) built round one country at a time:
+a country picker, flag, government, size, THEIR OPINION of us, status chips
+(at war, allied, puppet, pact, guarantees, access, trade, lend-lease), and
+six tabs (`DIP_TAB`):
+
+- OVERVIEW: us against them (divisions, provinces, industry, manpower), why
+  they feel as they do (every term of the opinion), their wars and allies.
+- RELATIONS: improve relations (25 PP, +15 opinion fading 1 a month, -10
+  grudge, 45-day cooldown), non-aggression pact, GUARANTEE independence,
+  request / offer MILITARY ACCESS, trade agreement.
+- FACTION: invite to our faction, CALL TO ARMS against an enemy of ours
+  (comes at opinion 20+, else (op+40)% chance; 60-day cooldown), leave,
+  betray, release a puppet.
+- WAR: at war -> war score, OFFER A PEACE DEAL (goes straight into the
+  peace conference, `dipPeace` -> `openPeaceConf`; sending it returns to
+  DIPLOMACY via `PEACE_FROM`), white peace, install a puppet. At peace ->
+  justify a war goal, declare war (warns of pacts, allies, guarantors).
+- AID: lend-lease, volunteers, gifts of 25/50/100 PP (+1 opinion per 6),
+  link to TRADE contracts.
+- INTEL: sabotage, steal blueprints, stir unrest (the existing `spyOp`),
+  BOOST THE PARTY (40 PP; 120 days for a kindred government, 240 for a rival
+  bloc; their government becomes ours, +20 opinion), STAGE A COUP (100 PP;
+  kindred government, opinion 50+, no wars or allies -> our puppet).
+
+New state, all in `G.dip` (saved with the state as `dip`): `opm` opinion
+modifiers ("a|b" = how a regards b), `guar` ("g|v" g guarantees v), `acc`
+("o|n" o lets n through), `sub` subversion in progress, `cd` cooldowns.
+`opinion(a,b)` / `opinionWhy` compute it live: government (+20 same, +8
+kindred bloc `IDEO_BLOC`, -15 rival), war -80, faction +40, overlord +25,
+pact +15, trade +10, lend-lease from them +20, their guarantee +15, access
+we gave +5, grudge, a war goal against us -25, common enemy +15, modifiers.
+
+Two engine changes:
+- `findPath` now lets an army cross allied, overlord/subject and
+  access-granting land (`canPass`). Before, it could only cross its own or
+  enemy land -- not even an ally's.
+- `declareWar` ends with `honourGuarantees`: every guarantor of the victim
+  not already at war with or allied to the attacker declares war on it.
+
+Checked: all six tabs render for Poland; improve relations 8 -> 23;
+Italy grants access at opinion 20 and canPass(GER, ITA); guaranteeing
+Czechoslovakia puts Germany at war with Hungary the moment Hungary attacks
+it; OFFER A PEACE DEAL opens the conference with the war score; backing the
+party flips Poland's government; guarantees and access survive save/load.
+Probe note: dipTick's monthly decay keys on G.day%30, so calling it in a
+loop without advancing the day decays the modifiers every call.
