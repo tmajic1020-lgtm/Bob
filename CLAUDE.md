@@ -2066,3 +2066,22 @@ across; here every name was a straight line on the principal axis.
 - 1936: 46 of ~70 big labels get a bend; the strongest are Ecuador, South
   Africa, Yemen, Australia, Bolivia, Finland (all at the cap). Japan follows
   the island arc, Chile stays straight.
+
+## Weather on the ground
+
+Owner, again: "make it more like hearts of iron 4 and make the graphics
+better". The game has always had weather (it slows armies and grounds
+aircraft) but on the political map it was invisible; the real game shows
+snow lying in winter and storms over the provinces they hit.
+
+- `drawWeatherGround` (before the clouds, under the names): one texel per
+  ownership cell, coloured from `weatherAt` of the province the cell belongs
+  to (`provPix` indexes Object.values(G.prov), the order buildGround used),
+  mottled by a two-scale hash so snow lies in drifts. Rebuilt only when the
+  ten-day weather spell turns. Drawn smoothed, clipped to land from z2.2,
+  fading in from z0.9. Off before epoch 19.0, under any overlay lens, on the
+  terrain lens, and at MAPQ 0.
+- `WX_TINT`: snow 0.28, blizzard 0.44 (white); rain 0.18, monsoon 0.30
+  (grey-blue overcast); mud 0.22 (brown); sandstorm 0.30 (dust). First cut
+  had snow at 0.42 / blizzard 0.62 and January 1936 washed Germany, Poland
+  and Czechoslovakia to the same pale grey; cut by a third.

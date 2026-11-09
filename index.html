@@ -10351,6 +10351,48 @@ function _fbm(x,y,seed,oct){
    world-sized texture (one texel per ~4 world units) built once from the
    map's own value noise, made seamless east-west by cross-fading with
    itself, and drawn twice as it drifts. */
+/* WEATHER ON THE GROUND, as the real game shows it: snow lying white over
+   the provinces it has fallen on, brighter in a blizzard; rain and monsoon as
+   a grey-blue overcast; mud brown; a sandstorm a dusty haze. The game always
+   had weather -- it slows armies and grounds aircraft -- but it was only
+   visible in the province panel or under the WEATHER lens. One texel per
+   ownership cell, coloured from the weather of the province that cell
+   belongs to (provPix), mottled by a hash so snow lies in drifts rather than
+   as fog; rebuilt only when the ten-day weather spell turns. Drawn smoothed,
+   clipped to the land, under the names. */
+let _wxCv=null,_wxKey="";
+const WX_TINT={snow:[244,247,250,0.28],blizzard:[252,253,255,0.44],rain:[70,92,112,0.18],
+  monsoon:[52,78,96,0.30],mud:[96,70,40,0.22],sand:[214,178,112,0.30]};
+function drawWeatherGround(z){
+  if(!G||!provPix||!epochAtLeast("19.0")||MAPOVER!=="none"||MAPSTYLE==="terrain"||MAPQ<1)return;
+  const A=Math.min(1,(z-0.9)/0.8);if(A<=0.01)return;
+  const key=Math.floor(G.day/10)+":"+G.date.getMonth()+":"+provPixW;
+  if(key!==_wxKey){
+    _wxKey=key;
+    const w=provPixW,h=provPixH,P=Object.values(G.prov);
+    if(!_wxCv)_wxCv=document.createElement("canvas");
+    if(_wxCv.width!==w||_wxCv.height!==h){_wxCv.width=w;_wxCv.height=h;}
+    const g=_wxCv.getContext("2d"),img=g.createImageData(w,h),d=img.data;
+    const tint=P.map(p=>{const wv=weatherAt(p);for(const k in WEATHER)if(WEATHER[k]===wv)return WX_TINT[k]||null;return null;});
+    let any=false;
+    for(let i=0;i<w*h;i++){const pi=provPix[i];if(pi<0)continue;const t=tint[pi];if(!t)continue;
+      any=true;
+      /* drifts: a cheap two-scale hash so cover is broken, not a flat sheet */
+      const x=i%w,y=(i/w)|0;
+      const n1=((Math.sin(x*12.9898+y*78.233)*43758.5453)%1+1)%1;
+      const n2=((Math.sin(((x>>2)*7.13+(y>>2)*3.71))*24634.6345)%1+1)%1;
+      const m=0.55+0.30*n2+0.15*n1;
+      const o=i*4;d[o]=t[0];d[o+1]=t[1];d[o+2]=t[2];d[o+3]=Math.round(255*t[3]*m);}
+    g.putImageData(img,0,0);
+    _wxCv._any=any;
+  }
+  if(!_wxCv||!_wxCv._any)return;
+  ctx.save();
+  if(z>=2.2)ctx.clip(_visibleLand(),"evenodd");
+  ctx.imageSmoothingEnabled=true;ctx.globalAlpha=A;
+  ctx.drawImage(_wxCv,0,0,MW,MH);
+  ctx.restore();
+}
 let _cloudCv=null,_cloudSh=null;
 function _buildClouds(){
   const w=512,h=256,c=document.createElement("canvas");c.width=w;c.height=h;
@@ -14656,6 +14698,7 @@ function _drawFrame(){
   /* The country's name goes on BEFORE the province markers and the counters,
      because it is printed on the map, not captioned over it: a division must
      never be hidden behind a letter. */
+  drawWeatherGround(z);
   drawClouds(z);
   drawNationNames(z,T);
   /* THE MARKERS COME IN WITH THE ZOOM, the way the counters already do. At
