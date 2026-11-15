@@ -4434,7 +4434,7 @@ function tick(){
       if(p.garrison<=0&&hostile.length===1&&!naths.includes(p.owner)&&hostile[0]===p.pushBy){
         p.push=Math.min(1,(p.push||0)+PUSH_WALK);
         if(p.push>=1)fallTo(p,hostile[0]);
-      } else relaxFront(p);
+      } else relaxFront(p,naths);
     }
   }
   garrisonRegen();
@@ -4826,9 +4826,24 @@ function advanceFront(p,att,atkP,defP){
   if(p.push>=1)fallTo(p,att);
 }
 /* Ground nobody is pressing settles back toward the border. */
-function relaxFront(p){
+/* GROUND TAKEN IS HELD, as the real game holds an occupied province: the small
+   provinces an attacker has overrun inside a state stay his while the war
+   goes on, and only come back if the defender stands in the state with nobody
+   of the attacker's there -- he retakes them at a third of a decisive day's
+   pace -- or the war ends. It used to leak back at 5% a quiet day, so every
+   small province taken in an offensive that paused for three weeks quietly
+   returned to the defender, and nothing on the map stayed taken short of the
+   whole state falling. */
+function relaxFront(p,naths){
   if(!(p.push>0))return;
-  p.push-=PUSH_DECAY;
+  const att=p.pushBy,atWarNow=att&&G.nations[att]&&G.nations[att].alive&&atWar(att,p.owner);
+  let d=PUSH_DECAY;
+  if(atWarNow){
+    const def=naths&&naths.some(n=>n===p.owner||allied(n,p.owner)),own=naths&&naths.some(n=>n===att||allied(n,att));
+    if(!def||own)return;                          // held
+    d=PUSH_RATE/3;                                // retaken by the defender
+  }
+  p.push-=d;
   if(p.push<=0){p.push=0;p.pushBy=null;}
 }
 /* The province finally changes hands. Everything that used to happen the
