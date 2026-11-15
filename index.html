@@ -2077,6 +2077,7 @@ function honourGuarantees(attacker,victim){
 }
 /* daily: relations drift back, subversion makes progress */
 function dipTick(){
+  try{facSync();}catch(e){}
   const D=dipState();
   if(G.day%30===0)for(const k in D.opm){D.opm[k]+=D.opm[k]>0?-1:1;if(Math.abs(D.opm[k])<1)delete D.opm[k];}
   for(const key in D.sub){const [a,b]=key.split("|"),A=G.nations[a],B=G.nations[b],S=D.sub[key];
@@ -2134,6 +2135,109 @@ window.dipCoup=t=>{const me=G.nations[G.player],T=G.nations[t];
   if(!_dipOk(100))return;
   T.puppet=G.player;me.allies.add(t);T.allies.add(G.player);terDirty=true;
   logMsg(`⛓ ${FL(t)} ${NATIONS[t].n} becomes our puppet in a quiet change of government.`,"good");renderPanel();refreshHUD();};
+/* ============================== FACTIONS ==============================
+   The real game's factions: a named alliance with a leader, joined as a whole
+   (every member is allied to every other) and left as a whole. G.factions
+   {id:{name,leader,members[]}} sits over the pairwise alliance sets the rest
+   of the game already reads, so a faction member is simply allied to every
+   other member and nothing that asks "are these two allied?" had to change.
+   At the start of a campaign the alliances already in place are gathered into
+   factions named for their leader's camp. */
+function facState(){if(!G.factions||typeof G.factions!=="object")G.factions={};return G.factions;}
+function factionOf(k){const F=facState();for(const id in F)if(F[id].members.includes(k))return id;return null;}
+function facDefaultName(leader){
+  const n=G.nations[leader],ide=n&&n.ideo;
+  if(ERA==="ww1")return ["GER","AUH","OTT","BUL"].includes(leader)?"Central Powers":"Entente";
+  if(ERA==="coldwar")return ide==="com"?"Warsaw Pact":ide==="dem"?"NATO":NATIONS[leader].n+" Bloc";
+  if(leader==="JAP")return "Co-Prosperity Sphere";
+  if(ide==="dem"||ide==="mon")return "Allies";if(ide==="com")return "Comintern";if(ide==="fas"&&(leader==="GER"||leader==="ITA"))return "Axis";
+  return NATIONS[leader].n+" Pact";
+}
+function facPower(k){return natProvs(k).reduce((a,p)=>a+(p.val||1),0);}
+function seedFactions(){
+  const F=facState();if(Object.keys(F).length)return;
+  const seen=new Set();let n=0;
+  for(const k in G.nations){const N=G.nations[k];if(!N.alive||seen.has(k)||!N.allies.size)continue;
+    /* the connected group of allies */
+    const comp=[],q=[k];seen.add(k);
+    while(q.length){const x=q.shift();comp.push(x);for(const y of G.nations[x].allies)if(G.nations[y]&&G.nations[y].alive&&!seen.has(y)){seen.add(y);q.push(y);}}
+    if(comp.length<2)continue;
+    /* subjects follow their overlord; the leader is the strongest free member */
+    const free=comp.filter(x=>!G.nations[x].puppet);
+    const leader=(free.length?free:comp).sort((a,b)=>facPower(b)-facPower(a))[0];
+    const id="f"+(++n);
+    let name=facDefaultName(leader);
+    if(Object.values(F).some(f=>f.name===name))name=NATIONS[leader].n+" "+name;
+    F[id]={name,leader,members:comp};
+  }
+  /* France stood with Britain in the Allies at both WWII starts the real game
+     uses; this map's tables have them unallied */
+  if(ERA==="ww2"){const al=Object.keys(F).find(i=>F[i].leader==="UK"),fr=G.nations.FRA;
+    if(al&&fr&&fr.alive&&!factionOf("FRA")&&!atWar("UK","FRA"))_facJoin(al,"FRA");}
+}
+function facSync(){
+  const F=facState();
+  if(!G._facSeeded){G._facSeeded=1;if(!Object.keys(F).length)seedFactions();}
+  for(const id in F){const f=F[id];
+    f.members=f.members.filter(k=>G.nations[k]&&G.nations[k].alive&&(k===f.leader||allied(k,f.leader)));
+    if(!f.members.includes(f.leader)||!G.nations[f.leader].alive){
+      const rest=f.members.filter(k=>k!==f.leader);
+      if(rest.length<2&&!(rest.length===1&&f.members.length>=2)){delete F[id];continue;}
+      f.leader=rest.sort((a,b)=>facPower(b)-facPower(a))[0];}
+    if(f.members.length<2)delete F[id];}
+}
+function _facJoin(id,k){const f=facState()[id];if(!f)return;
+  for(const m of f.members)if(m!==k&&!allied(m,k)){G.nations[m].allies.add(k);G.nations[k].allies.add(m);}
+  if(!f.members.includes(k))f.members.push(k);}
+window.createFaction=name=>{
+  const k=G.player;if(factionOf(k))return logMsg("You are already in a faction. Leave it first.","war");
+  const me=G.nations[k];if(me.puppet)return logMsg("A subject cannot lead a faction.","war");
+  name=String(name||"").trim().slice(0,32)||facDefaultName(k);
+  const id="p"+(G.day||0)+"_"+Math.floor(Math.random()*1e4);
+  facState()[id]={name,leader:k,members:[k]};
+  /* our allies and subjects come with us */
+  for(const a of [...me.allies])if(G.nations[a]&&G.nations[a].alive&&!factionOf(a))_facJoin(id,a);
+  logMsg(`\u{1F3F3} The ${name} is founded, led by ${FL(k)} ${NATIONS[k].n}.`,"good");sfx&&sfx("good");renderPanel();};
+window.facInvite=t=>{
+  const k=G.player,id=factionOf(k),f=id&&facState()[id];
+  if(!f)return logMsg("Found a faction first.","war");
+  if(f.leader!==k)return logMsg("Only the faction leader invites new members.","war");
+  if(factionOf(t))return logMsg(`${NATIONS[t].n} already belongs to the ${facState()[factionOf(t)].name}.`,"war");
+  if(atWar(k,t))return;
+  if(dipCd(t,"fac"))return logMsg(`${NATIONS[t].n} will not hear another invitation yet.`,"war");
+  const op=opinion(t,k),sharedFoe=[...G.nations[k].atWar].some(x=>G.nations[t].atWar.has(x));
+  const threat=[...G.nations[t].atWar].length>0;
+  const chance=sharedFoe?0.95:Math.max(0.05,Math.min(0.9,0.25+op/100+(threat?0.25:0)));
+  dipSetCd(t,"fac",60);
+  if(Math.random()<chance){_facJoin(id,t);
+    /* the new member's wars become the faction's, and the faction's its */
+    for(const m of f.members)for(const w of [...G.nations[m].atWar])if(!atWar(t,w)&&!allied(t,w)&&m!==t)warPair(t,w);
+    for(const w of [...G.nations[t].atWar])for(const m of f.members)if(m!==t&&!atWar(m,w)&&!allied(m,w))warPair(m,w);
+    logMsg(`\u{1F3F3} ${FL(t)} ${NATIONS[t].n} joins the ${f.name}!`,"good");}
+  else logMsg(`❌ ${FL(t)} ${NATIONS[t].n} declines to join the ${f.name} (opinion ${op}).`,"war");
+  renderPanel();};
+window.facAsk=t=>{   /* ask to join their faction */
+  const k=G.player,id=factionOf(t),f=id&&facState()[id];if(!f||factionOf(k))return;
+  if(dipCd(f.leader,"fac"))return logMsg(`${NATIONS[f.leader].n} will not hear another request yet.`,"war");
+  dipSetCd(f.leader,"fac",60);
+  const op=opinion(f.leader,k),same=IDEO_BLOC[G.nations[f.leader].ideo]===IDEO_BLOC[G.nations[k].ideo];
+  if(Math.random()<Math.max(0.05,Math.min(0.9,0.2+op/100+(same?0.2:0)))){_facJoin(id,k);
+    for(const m of f.members)for(const w of [...G.nations[m].atWar])if(m!==k&&!atWar(k,w)&&!allied(k,w))warPair(k,w);
+    logMsg(`\u{1F3F3} We join the ${f.name}.`,"good");}
+  else logMsg(`❌ The ${f.name} turns us away (their leader's opinion ${op}).`,"war");
+  renderPanel();};
+window.facLeave=()=>{
+  const k=G.player,id=factionOf(k),f=id&&facState()[id];if(!f)return;
+  for(const m of f.members)if(m!==k&&G.nations[m].puppet!==k&&G.nations[k].puppet!==m){G.nations[m].allies.delete(k);G.nations[k].allies.delete(m);}
+  f.members=f.members.filter(x=>x!==k);G.nations[k].stab=Math.max(0,G.nations[k].stab-2);
+  logMsg(`We leave the ${f.name}.`,"war");facSync();renderPanel();};
+window.facKick=t=>{
+  const k=G.player,id=factionOf(k),f=id&&facState()[id];if(!f||f.leader!==k||t===k)return;
+  for(const m of f.members)if(m!==t){G.nations[m].allies.delete(t);G.nations[t].allies.delete(m);}
+  f.members=f.members.filter(x=>x!==t);G.nations[t].grudge=(G.nations[t].grudge||0)+10;
+  logMsg(`${FL(t)} ${NATIONS[t].n} is expelled from the ${f.name}.`,"war");facSync();renderPanel();};
+window.facRename=()=>{const id=factionOf(G.player),f=id&&facState()[id];if(!f||f.leader!==G.player)return;
+  const el=document.getElementById("facName");const v=el&&el.value.trim();if(v){f.name=v.slice(0,32);renderPanel();}};
 let DIP_T=null,DIP_TAB="overview",PEACE_FROM=null;
 window.openDiplo=t=>{if(!G||!G.nations[t]||t===G.player)return;DIP_T=t;openPanel("dip");};
 window.dipTab=x=>{DIP_TAB=x;renderPanel();};
@@ -19362,6 +19466,7 @@ function renderPanel(){
   }
   if(curPanel==="dip"){
     el.classList.add("wide");
+    try{facSync();}catch(e){}
     const k=G.player,D=dipState();
     const alive=Object.keys(G.nations).filter(x=>x!==k&&G.nations[x].alive&&NATIONS[x]).sort((a,b)=>NATIONS[a].n.localeCompare(NATIONS[b].n));
     if(!DIP_T||!G.nations[DIP_T]||!G.nations[DIP_T].alive||DIP_T===k){
@@ -19408,8 +19513,22 @@ function renderPanel(){
         B(peaceful,ga?"\u{1F6AB} Revoke their military access":"\u{1F6AA} Offer them military access",ga?"Their divisions may cross our land.":"Let their divisions march through our land.","dipGiveAccess('"+t+"')")+
         B(peaceful&&!(me.trade&&me.trade.has&&me.trade.has(t)),"\u{1F4B0} Propose a trade agreement","+3% production each while it lasts. Resource contracts are under TRADE.","proposeTrade('"+k+"','"+t+"');renderPanel()");
     }else if(DIP_TAB==="faction"){
-      const al=allied(k,t);
-      h+=`<h3>FACTION</h3>`;
+      const al=allied(k,t),myF=factionOf(k),thF=factionOf(t),F=facState(),mf=myF&&F[myF],tf=thF&&F[thF];
+      const facCard=(f,id)=>`<div style="border:1px solid #4b4630;padding:6px 8px;margin:4px 0;background:rgba(0,0,0,.25)">
+        <div class="row"><b style="color:#f0d98a">\u{1F3F3} ${f.name.toUpperCase()}</b><span style="font-size:11px">${f.members.length} member${f.members.length>1?"s":""}</span></div>
+        <div style="font-size:11px">Leader: ${FL(f.leader)} ${NATIONS[f.leader].n}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">${f.members.map(m=>`<span style="font-size:10px">${FL(m)} ${NATIONS[m].n}${myF===id&&mf.leader===k&&m!==k?` <a style="color:#e2614a;cursor:pointer" onclick="facKick('${m}')">\u2716</a>`:""}</span>`).join("")}</div></div>`;
+      h+=`<h3>OUR FACTION</h3>`;
+      if(mf){h+=facCard(mf,myF);
+        if(mf.leader===k)h+=`<div class="row" style="gap:4px"><input id="facName" value="${mf.name.replace(/"/g,"&quot;")}" style="flex:1;background:#0c0f0b;color:var(--ink);border:1px solid #3c3b2b;font-family:var(--font);padding:3px"><button class="tbtn" style="font-size:10px" onclick="facRename()">RENAME</button></div>`;
+        if(mf.leader===k&&!tf&&!atWar(k,t))h+=B(!dipCd(t,"fac"),`\u{1F3F3} Invite ${N.n} into the ${mf.name}`,dipCd(t,"fac")?`Asked recently: ${dipCd(t,"fac")} days.`:`They decide by their opinion of us (${op}) and whether they feel threatened; a common enemy all but guarantees it. Our wars become theirs and theirs ours.`,"facInvite('"+t+"')");
+        h+=B(true,`\u{1F6AA} Leave the ${mf.name}`,"We stop being allied to its members. \u22122 stability.","facLeave()");}
+      else{
+        h+=`<div style="color:var(--dim);font-size:11px">We belong to no faction.</div>
+          <div class="row" style="gap:4px"><input id="facNew" placeholder="${facDefaultName(k)}" style="flex:1;background:#0c0f0b;color:var(--ink);border:1px solid #3c3b2b;font-family:var(--font);padding:3px"><button class="tbtn" style="font-size:10px" ${G.nations[k].puppet?"disabled":""} onclick="createFaction(document.getElementById('facNew').value)">\u{1F3F3} FOUND A FACTION</button></div>`;
+        if(tf&&!atWar(k,t))h+=B(!dipCd(tf.leader,"fac"),`\u{1F91D} Ask to join the ${tf.name}`,`Their leader, ${NATIONS[tf.leader].n}, decides (their opinion of us: ${opinion(tf.leader,k)}).`,"facAsk('"+t+"')");}
+      if(tf&&thF!==myF){h+=`<h3>THEIR FACTION</h3>`+facCard(tf,thF);}
+      h+=`<h3>ALLIANCE</h3>`;
       if(al){
         const wars=[...me.atWar].filter(x=>G.nations[x]&&G.nations[x].alive&&!atWar(t,x));
         h+=`<div style="color:var(--dim);font-size:11px">${N.n} is in our faction.</div>`;
@@ -19417,9 +19536,9 @@ function renderPanel(){
         h+=B(true,"\u2702 Leave the alliance","15 PP and \u22124 stability. They will remember it.","breakAlliance('"+t+"')")+
            B(true,"\u{1F5E1} Betray them: tear up the pact and attack","40 PP, \u221212 stability, \u221215 war support, and their bloc against us.","betrayAlly('"+t+"')","warn");
       }else{
-        h+=B(peaceful&&!T.puppet,"\u{1F3F3} Invite them into our faction",`They decide by their own reckoning of the world; their opinion of us is ${op}.`,"proposeAlliance('"+k+"','"+t+"');renderPanel()");
+        h+=B(peaceful&&!T.puppet,"\u{1F91D} Propose a plain alliance",`Just the two of us, outside any faction. They decide by their own reckoning of the world; their opinion of us is ${op}.`,"proposeAlliance('"+k+"','"+t+"');renderPanel()");
         const theirs=[...T.allies].filter(x=>G.nations[x]&&G.nations[x].alive);
-        h+=`<div class="row"><span>Their faction</span><span>${theirs.map(x=>FL(x)+" "+NATIONS[x].n).join(", ")||"none"}</span></div>`;
+        h+=`<div class="row"><span>Their allies</span><span>${theirs.map(x=>FL(x)+" "+NATIONS[x].n).join(", ")||"none"}</span></div>`;
       }
       if(T.puppet===k)h+=B(true,"\u{1F54A} Release them from our rule","They become free again. +6 stability.","releasePuppet('"+t+"')");
     }else if(DIP_TAB==="war"){
@@ -22723,6 +22842,7 @@ function mpSerialize(){
     units:G.units.map(u=>[u.id,u.nat,u.at,u.to||"",+u.prog.toFixed(2),u.type,u.str,+u.hp.toFixed(1),u.gen||0,u.xp||0,u.grp||0,+eqpOf(u).toFixed(3),u.oos||0,u.train?1:0,u.tpl||0]),
     groups:G.groups||{},
     dip:G.dip||{},
+    factions:G.factions||{},
     fleets:G.fleets.map(f=>[f.id,f.nat,f.at,f.to||"",+f.prog.toFixed(2),f.str,+f.hp.toFixed(1),f.cls||"dd"]),
     wings:G.wings.map(w=>[w.id,w.nat,w.str,+w.hp.toFixed(1),w.target||"",w.wt||"cas",+eqpOf(w).toFixed(3)]),
     queue:(G.queue||[]).map(o=>[o.oid,o.nat,o.t,o.at,o.left,o.total,o.grp||0]),
@@ -22744,6 +22864,7 @@ function mpApplyState(S){
   G.build=(S.build||[]).filter(a=>BUILDINGS[a[3]]).map(a=>({bid:a[0],nat:a[1],at:a[2],what:a[3],left:a[4],total:a[5]}));
   G.groups=S.groups||{};
   G.dip=S.dip||{};dipState();
+  G.factions=S.factions||{};
   for(const id in S.prov){const p=G.prov[id];if(!p)continue;const[o,g,v,nk,ft,fc,ol,oc,ob,dp,bm,ph,pb,bj]=S.prov[id];
     /* the newer buildings (v24+); a save without them has none */
     p.b={};if(bj){try{const m=JSON.parse(bj);for(const k in m)if(BUILDINGS[k]&&+m[k]>0)p.b[k]=+m[k];}catch(e){}}
