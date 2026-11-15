@@ -2305,7 +2305,7 @@ function countryCard(t){
     ${chips.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin:4px 0">${chips.map(([c,col])=>`<span style="font-size:9px;padding:1px 4px;border:1px solid ${col};color:${col}">${c}</span>`).join("")}</div>`:""}
     <div class="row" style="font-size:11px"><span>Faction</span><span>${f?"\u{1F3F3} "+f.name+(f.leader===t?" (leader)":""):"none"}</span></div>
     <div class="row" style="font-size:11px"><span>Provinces · divisions</span><span>${natProvs(t).length} · ${divs}</span></div>
-    <div class="row" style="font-size:11px"><span>Industry · manpower</span><span>${(T.ppRate||0).toFixed(1)}/d · ${Math.round(T.mp||0)}K</span></div>
+    <div class="row" style="font-size:11px"><span>Industry · manpower</span><span>${T.ppRate?T.ppRate.toFixed(1)+" PP/d":natProvs(t).reduce((a,p)=>a+(p.val||0),0)+" VP"} · ${Math.round(T.mp||0)}K</span></div>
     <div class="row" style="font-size:11px"><span>Stability · war support</span><span>${Math.round(T.stab)}% · ${Math.round(T.warSup??50)}%</span></div>
     <div class="row" style="font-size:11px"><span>At war with</span><span>${wars.map(x=>FL(x)).join(" ")||"nobody"}</span></div>
     <div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:5px">${[["overview","\u{1F4CB}","Overview"],["relations","\u{1F91D}","Relations"],["faction","\u{1F3F3}","Faction"],["war","⚔","War"],["aid","\u{1F4E6}","Aid"],["intel","\u{1F575}","Intel"]].map(([id,i,l])=>
