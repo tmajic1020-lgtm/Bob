@@ -6057,6 +6057,18 @@ window.setHist=v=>{HISTMODE=v;try{localStorage.setItem("if_hist",v?"on":"off");}
 const HIST={
  ww2:[
   ["1936-01-02","war","ITA","ETH","The Italian invasion of Abyssinia grinds on"],
+  ["1936-03-07","news","GER","FRA","German troops march into the Rhineland"],
+  ["1936-07-18","news","SPA","","Civil war breaks out in Spain"],
+  ["1936-08-01","news","GER","","The Olympic Games open in Berlin"],
+  ["1936-11-25","news","GER","JAP","Germany and Japan sign the Anti-Comintern Pact"],
+  ["1936-12-11","news","UK","","King Edward VIII abdicates"],
+  ["1937-05-06","news","USA","","The Hindenburg burns at Lakehurst"],
+  ["1938-03-12","annex","GER","AUT","Anschluss: Austria is annexed to the German Reich"],
+  ["1938-09-30","news","GER","CZE","The Munich Agreement: the Sudetenland is ceded to Germany"],
+  ["1939-03-15","annex","GER","CZE","German troops enter Prague"],
+  ["1939-04-07","annex","ITA","ALB","Italy invades Albania"],
+  ["1939-08-23","pact","GER","SOV","The Molotov-Ribbentrop Pact: Germany and the Soviet Union sign a treaty of non-aggression"],
+  ["1941-03-11","news","USA","UK","Congress passes Lend-Lease"],
   ["1937-07-07","war","JAP","CHN","The Marco Polo Bridge: Japan invades China"],
   ["1939-09-01","war","GER","POL","Germany invades Poland — the Second World War begins"],
   ["1939-09-02","ally","GER","ITA","The Pact of Steel binds Berlin and Rome"],
@@ -6090,20 +6102,98 @@ const HIST={
   ["1917-04-06","war","USA","GER","The United States enters the Great War"]],
  modern:[]
 };
+/* The story under each headline. Written from the record, one short
+   paragraph, in the voice of the day's press rather than the history book. */
+const HIST_STORY={
+ "1936-01-02":"Italian columns press on toward Addis Ababa. The League of Nations' sanctions have not stopped them, and Emperor Haile Selassie's armies are falling back.",
+ "1936-03-07":"In open breach of Versailles and Locarno, German battalions have crossed the Rhine bridges into the demilitarised zone. Paris and London protest; neither moves.",
+ "1936-07-18":"Army garrisons in Spanish Morocco and across the peninsula have risen against the Republic. The country is splitting in two, and the powers are already choosing sides.",
+ "1936-08-01":"The XIth Olympiad opens before a hundred thousand in the new stadium. The Reich means the world to see a nation restored.",
+ "1936-11-25":"Berlin and Tokyo have agreed to stand together against the Communist International. Rome is expected to follow.",
+ "1936-12-11":"Edward VIII has given up the throne to marry Mrs Wallis Simpson. His brother succeeds him as George VI.",
+ "1937-05-06":"The German airship Hindenburg has burst into flames while mooring at Lakehurst, New Jersey. Thirty-six are dead, and the age of the great airships with them.",
+ "1937-07-07":"Shots in the dark at the Marco Polo Bridge outside Peking have become a full war. Japanese divisions pour into northern China.",
+ "1938-03-12":"German troops crossed the Austrian frontier at dawn to cheering crowds. Austria is now a province of the Reich, and Vienna has a new master.",
+ "1938-09-30":"In Munich, Britain and France have agreed that Czechoslovakia must cede its Sudeten borderlands. Mr Chamberlain speaks of peace for our time.",
+ "1939-03-15":"The rest of Bohemia and Moravia has been occupied without a shot. Slovakia declares itself independent under German protection.",
+ "1939-04-07":"Italian troops have landed at Durazzo. King Zog has fled, and Albania is joined to the Italian crown.",
+ "1939-08-23":"The world's two great enemies have signed a pact of non-aggression in Moscow. Poland stands between them, and the way east lies open.",
+ "1939-09-01":"Without a declaration of war, German armies have crossed the Polish frontier along its whole length. Warsaw is being bombed.",
+ "1939-09-02":"The Pact of Steel binds Germany and Italy to stand together in war.",
+ "1939-09-03":"Britain and France have declared war on Germany. The Second World War has begun.",
+ "1939-11-30":"Soviet armies have crossed the Finnish frontier and bombers are over Helsinki. The Finns are fighting back in the snow.",
+ "1940-04-09":"German forces have landed along the Norwegian coast and occupied Denmark in a single morning.",
+ "1940-06-10":"Mussolini has declared war on France and Britain from the balcony of the Palazzo Venezia.",
+ "1940-09-27":"Germany, Italy and Japan have signed the Tripartite Pact in Berlin: an attack on one by a power not yet at war is an attack on all.",
+ "1941-03-11":"Congress has passed the Lend-Lease Act. America will be the arsenal of democracy, supplying Britain with whatever it needs and deferring the bill.",
+ "1941-06-22":"Three million German soldiers have crossed into the Soviet Union on a front from the Baltic to the Black Sea. It is the largest invasion in history.",
+ "1941-12-07":"Japanese carrier aircraft have struck the US Pacific Fleet at anchor in Pearl Harbor. America is at war.",
+ "1941-12-08":"Britain, the United States and their allies now stand together against the Axis.",
+ "1941-12-11":"Germany and Italy have declared war on the United States. The war is now truly global.",
+ "1914-07-28":"A month after the Archduke's murder in Sarajevo, Austria-Hungary has declared war on Serbia. Russia is mobilising.",
+ "1914-07-29":"Germany stands by Austria-Hungary.",
+ "1914-08-01":"Germany has declared war on Russia. The alliances of Europe are falling into place like dominoes.",
+ "1914-08-03":"Germany has declared war on France, and its armies are marching through Belgium.",
+ "1914-08-04":"Britain has declared war on Germany over the violation of Belgian neutrality. The Great War has begun.",
+ "1914-10-29":"Ottoman warships have shelled Russian ports on the Black Sea. The Sultan's empire has joined the Central Powers.",
+ "1915-05-23":"Italy has declared war on Austria-Hungary, its old ally, for the promise of Trieste and the Tyrol.",
+ "1917-04-06":"After the sinking of American ships and the Zimmermann telegram, the United States has declared war on Germany."};
+let _newsQ=[];
+function showWorldNews(items){
+  if(!items.length||!G)return;
+  const box=$("#eventBox");
+  if(box&&box.style.display==="block"){_newsQ.push(...items);return;}
+  const top=items[0],me=G.nations[G.player]||{};
+  const PAPERS={dem:"THE DAILY CHRONICLE",fas:"THE NATIONAL OBSERVER",com:"THE PEOPLE'S DAILY",mon:"THE COURT GAZETTE",aut:"THE STATE BULLETIN",rev:"THE FREE PRESS"};
+  $("#evPaper").innerHTML=FL(G.player)+" "+(PAPERS[me.ideo]||PAPERS.dem)+" · WORLD NEWS";
+  $("#evDate").textContent=newsDate();
+  const kind=top.type==="war"||top.type==="annex"?"troops":top.type==="news"&&/Olymp|abdicat|Hindenburg/i.test(top.label)?"crowd":"chamber";
+  try{drawNewsPhoto(kind,(top.label.length*131+G.day)|0);}catch(e){}
+  $("#evTitle").textContent=top.label.toUpperCase();
+  const others=items.slice(1);
+  $("#evDesc").innerHTML=(HIST_STORY[top.ds]||"").replace(/[<&]/g,c=>c==="<"?"&lt;":"&amp;")+
+    (others.length?`<div style="margin-top:8px;border-top:1px solid #3a4438;padding-top:6px"><b style="letter-spacing:.1em;font-size:11px;color:#c9b47a">ALSO TODAY</b>${others.map(o=>`<div style="margin-top:3px">▸ ${o.label}</div>`).join("")}</div>`:"");
+  const ch=$("#evChoices");ch.innerHTML="";
+  const mine=items.some(o=>o.a===G.player||o.b===G.player);
+  const btn=document.createElement("button");btn.className="bbtn";
+  btn.textContent=mine?"This concerns us directly.":(top.type==="war"?"The world holds its breath.":"Noted.");
+  btn.onclick=()=>{box.style.display="none";$("#evShade").style.display="none";G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();
+    if(_newsQ.length){const q=_newsQ;_newsQ=[];setTimeout(()=>showWorldNews(q),50);}};
+  ch.appendChild(btn);
+  if(!G._evOpen){G._evPaused=G.paused;G._evOpen=true;}
+  G.paused=true;box.classList.add("news");$("#evShade").style.display="block";box.style.display="block";
+  try{sfx("event");}catch(e){}
+}
 function runHistory(catchup){
   if(!HISTMODE||!G)return;
   const list=HIST[ERA]||[];
   G.histIdx=G.histIdx||0;
+  const fired=[];
   while(G.histIdx<list.length){
     const[ds,type,a,b,label]=list[G.histIdx];
     if(new Date(ds+"T00:00:00")>G.date)break;
     G.histIdx++;
-    const A=G.nations[a],B=G.nations[b];
-    if(!A||!B||!A.alive||!B.alive)continue;
-    if(type==="ally"&&!atWar(a,b)){A.allies.add(b);B.allies.add(a);}
-    if(type==="war"&&!allied(a,b)&&!atWar(a,b))declareWar(a,b);
-    if(!catchup){logMsg("📰 HISTORY: "+label,"war");if(a===G.player||b===G.player)toast("📰 "+label.toUpperCase());}
+    const A=G.nations[a],B=b?G.nations[b]:null;
+    if(type==="news"){
+      /* a headline only: it changes nothing, but only runs while its subject exists */
+      if(!A||!A.alive)continue;
+    }else if(type==="annex"){
+      /* what the record says happened, unless the player is one of the two --
+         then it is their focus tree's to decide */
+      if(!A||!B||!A.alive||!B.alive||a===G.player||b===G.player||atWar(a,b)||A.atWar.size>2)continue;
+      try{FX.annex(a,b);}catch(e){continue;}
+    }else if(type==="pact"){
+      if(!A||!B||!A.alive||!B.alive||atWar(a,b)||a===G.player||b===G.player)continue;
+      signPact(a,b,1460);
+    }else{
+      if(!A||!B||!A.alive||!B.alive)continue;
+      if(type==="ally"&&!atWar(a,b)){A.allies.add(b);B.allies.add(a);}
+      if(type==="war"&&!allied(a,b)&&!atWar(a,b))declareWar(a,b);
+    }
+    if(!catchup){logMsg("\u{1F4F0} HISTORY: "+label,"war");fired.push({ds,type,a,b,label});}
   }
+  if(!catchup&&fired.length){try{showWorldNews(fired);}catch(e){}}
+  else if(!catchup&&_newsQ.length&&!G._evOpen){const q=_newsQ;_newsQ=[];try{showWorldNews(q);}catch(e){}}
 }
 /* ============================== NATIONAL FOCUSES ============================== */
 /* Four branches, four rungs each. col/row place the node on the lattice; req
