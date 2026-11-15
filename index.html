@@ -1757,8 +1757,49 @@ function weatherAt(p){
   const hit=_wCache[p.id];if(hit)return hit;
   return (_wCache[p.id]=_weatherCalc(p,spell));
 }
+/* THE SNOW LINE, AS IT REALLY MOVES. Snow does not fall by season on a dice
+   roll: it arrives in the far north at the end of October, comes south a few
+   degrees a fortnight -- Leningrad in November, Moscow by December, Warsaw and
+   Berlin in January -- lies furthest south in early February and goes back
+   north through March and April. snowLine() is that line in degrees of
+   latitude for a day of the year, from a table, moved north where the sea
+   keeps the winter mild (Atlantic Europe) and south over the continental
+   interiors, and down for high ground. North of it is snow; deep inside it, in
+   midwinter, blizzards; just south of it, in the thaw and the first frosts,
+   mud. The southern hemisphere has the same year half a year later, a few
+   degrees further from the equator. */
+const SNOW_TAB=[[0,47],[32,45],[50,45],[60,47],[74,50],[91,54],[105,58],[121,63],[135,68],[152,90],[288,90],[305,66],[319,61],[335,56],[349,51],[366,47]];
+function _snowTab(d){d=((d%366)+366)%366;for(let i=1;i<SNOW_TAB.length;i++)if(d<=SNOW_TAB[i][0]){const a=SNOW_TAB[i-1],b=SNOW_TAB[i];return a[1]+(b[1]-a[1])*(d-a[0])/(b[0]-a[0]||1);}return 90;}
+function _doy(){const d=G.date,s0=new Date(d.getFullYear(),0,1);return Math.floor((d-s0)/864e5);}
+function snowLine(lat,lon,ter,doy){
+  let L=_snowTab(lat<0?doy+183:doy);
+  if(lat<0)L+=6;                                         // less land, more ocean
+  else{
+    /* the Gulf Stream's Europe: mildest on the Atlantic, fading eastward --
+       London almost never lies under snow, Berlin does most Januaries */
+    if(lon>-25&&lon<20&&lat>36)L+=Math.max(0,Math.min(1,(20-lon)/30))*10;
+    else if(lon>=-130&&lon<-110)L+=4;                      // the Pacific coast of America
+    else if(lon>20&&lon<135)L-=2;                          // Russia, Siberia, Manchuria
+    else if(lon>-110&&lon<-60)L-=2;                        // the American interior
+  }
+  if(ter==="mtn")L-=12;else if(ter==="hills")L-=4;
+  return L;
+}
 function _weatherCalc(p,spell){
   const lat=p.lat||0,al=Math.abs(lat),s=seasonOf(lat),t=p.ter,r=_wHash(p,spell);
+  /* the snow line decides snow; the rest of this decides everything else */
+  if(epochAtLeast("24.0")&&G&&G.date&&t!=="desert"){
+    const lon=p.x/MW*360-180,sl=snowLine(lat,lon,t,_doy());
+    if(al>=sl){const deep=al-sl;return deep>6&&r<0.15+Math.min(0.35,deep*0.03)?WEATHER.blizzard:WEATHER.snow;}
+    const w=_weatherOld(p,s,t,al,r);
+    if(w===WEATHER.snow||w===WEATHER.blizzard){const d=_doy();return al>=sl-5&&((d>=60&&d<=140)||(d>=290&&d<=350))?WEATHER.mud:WEATHER.rain;}
+    {const d=_doy();                                    // the thaw and the first frosts
+     if(al>=sl-4&&sl<70&&r<0.55&&((d>=60&&d<=140)||(d>=290&&d<=350)))return WEATHER.mud;}
+    return w;
+  }
+  return _weatherOld(p,s,t,al,r);
+}
+function _weatherOld(p,s,t,al,r){
   if(t==="desert")
     return s===2?(r<0.30?WEATHER.sand:r<0.75?WEATHER.heat:WEATHER.clear)
                 :(r<0.12?WEATHER.sand:WEATHER.clear);
@@ -10753,7 +10794,7 @@ function _fbm(x,y,seed,oct){
    as fog; rebuilt only when the ten-day weather spell turns. Drawn smoothed,
    clipped to the land, under the names. */
 let _wxCv=null,_wxKey="";
-const WX_TINT={snow:[244,247,250,0.28],blizzard:[252,253,255,0.44],rain:[70,92,112,0.18],
+const WX_TINT={snow:[244,247,250,0.40],blizzard:[252,253,255,0.55],rain:[70,92,112,0.18],
   monsoon:[52,78,96,0.30],mud:[96,70,40,0.22],sand:[214,178,112,0.30]};
 function drawWeatherGround(z){
   if(!G||!provPix||!epochAtLeast("19.0")||MAPOVER!=="none"||MAPSTYLE==="terrain"||MAPQ<1)return;
@@ -10766,8 +10807,18 @@ function drawWeatherGround(z){
     if(_wxCv.width!==w||_wxCv.height!==h){_wxCv.width=w;_wxCv.height=h;}
     const g=_wxCv.getContext("2d"),img=g.createImageData(w,h),d=img.data;
     const tint=P.map(p=>{const wv=weatherAt(p);for(const k in WEATHER)if(WEATHER[k]===wv)return WX_TINT[k]||null;return null;});
+    /* snow by the cell, not the province, so the snow line runs across the
+       land as a line (frayed a little by noise) instead of a staircase of
+       whole provinces */
+    const cellSnow=epochAtLeast("24.0")&&G.date,doy=cellSnow?_doy():0,ters=P.map(p=>p.ter);
+    const isSnow=P.map(p=>{const wv=weatherAt(p);return wv===WEATHER.snow||wv===WEATHER.blizzard;});
     let any=false;
-    for(let i=0;i<w*h;i++){const pi=provPix[i];if(pi<0)continue;const t=tint[pi];if(!t)continue;
+    for(let i=0;i<w*h;i++){const pi=provPix[i];if(pi<0)continue;let t=tint[pi];
+      if(cellSnow&&ters[pi]!=="desert"){const x=i%w,y=(i/w)|0,lat=90-(y+0.5)/h*180,lon=(x+0.5)/w*360-180;
+        const nz=(Math.sin(x*0.37+y*0.23)+Math.sin(x*0.11-y*0.29))*0.9;
+        const inSnow=Math.abs(lat)+nz>=snowLine(lat,lon,ters[pi],doy);
+        if(inSnow&&!isSnow[pi])t=WX_TINT.snow;else if(!inSnow&&isSnow[pi])t=null;}
+      if(!t)continue;
       any=true;
       /* drifts: a cheap two-scale hash so cover is broken, not a flat sheet */
       const x=i%w,y=(i/w)|0;
