@@ -10,8 +10,8 @@
 <style>
 :root{
   --sea:#0d3555; --sea2:#123f63; --ink:#e8e2d0; --dim:#8a9285;
-  --amber:#e8a33d; --red:#c4452f; --green:#5d7a4e; --panel:#141a16;
-  --panel2:#1c241e; --line:#3a4438; --font:'Courier New',monospace;
+  --amber:#e8a33d; --red:#c4452f; --green:#5d7a4e; --panel:#0f1310;
+  --panel2:#161c17; --line:#3a4438; --font:'Courier New',monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--sea);font-family:var(--font);color:var(--ink);user-select:none;-webkit-user-select:none;overscroll-behavior:none;position:fixed;inset:0;touch-action:none}
@@ -10918,6 +10918,7 @@ function _fbm(x,y,seed,oct){
 let _wxCv=null,_wxKey="";
 const WX_TINT={snow:[244,247,250,0.40],blizzard:[252,253,255,0.55],rain:[70,92,112,0.18],
   monsoon:[52,78,96,0.30],mud:[96,70,40,0.22],sand:[214,178,112,0.30]};
+let MAP_VEIL=0.16;
 function drawWeatherGround(z){
   if(!G||!provPix||!epochAtLeast("19.0")||MAPOVER!=="none"||MAPSTYLE==="terrain"||MAPQ<1)return;
   const A=Math.min(1,(z-0.9)/0.8);if(A<=0.01)return;
@@ -15310,6 +15311,11 @@ function _drawFrame(){
   /* The country's name goes on BEFORE the province markers and the counters,
      because it is printed on the map, not captioned over it: a division must
      never be hidden behind a letter. */
+  /* A LITTLE DARKER, as the real game reads: a thin veil over ground, wash
+     and borders, under the weather, names, markers and counters so the
+     type keeps its contrast. Dark theme only. */
+  if(MAP_VEIL>0&&!VIEW3D&&!document.body.classList.contains("light")){
+    ctx.save();ctx.fillStyle=`rgba(4,6,5,${MAP_VEIL})`;ctx.fillRect(G.cam.x-2,G.cam.y-2,W/z+4,H/z+4);ctx.restore();}
   drawWeatherGround(z);
   drawClouds(z);
   drawNationNames(z,T);

@@ -2272,3 +2272,54 @@ darkening) were reverted with `git revert`; the map is exactly as it was
 before them, weather fading in from z0.9 again. If solid colour is wanted
 again it has to be built on the exact-wash path (per-country atlas clip,
 `_drawWashExact`), not on the coarse grid.
+
+## The big HOI4 round: command row, field marshals, factions, snow, news, cities
+
+Owner asked for a long list in one message. What went in, in order:
+
+- **Captured ground stays captured.** `relaxFront` kept letting `p.push`
+  decay, so the small provinces taken inside a state slowly turned back.
+  Push now holds while the attacker is still at war and no defender stands
+  there. The defender retakes ground at PUSH_RATE/3; otherwise push decays.
+- **Command row at the top.** The side buttons are icon tiles across the
+  top (`data-s` short labels, CSS at the END of the stylesheet under
+  `body:not(.zz)` -- an older dark-theme rule won by source order). Army
+  group cards sit just under them (`#armybar`, `updateArmyBar`): field
+  marshal, divisions, stance, plan prep, strength and organisation. Click a
+  card to open the group (`curPanel "grp"`).
+- **Field marshals** (`FM_COST` 60 PP, `grp.fm`, `fmMul` beside genMul):
+  +4% a level, a trait, +20% while executing a prepared plan. **Battle
+  plans** (`PLAN_AGG` careful/balanced/aggressive, `planTick`,
+  `planExecute`): prep builds while holding. Executing drives
+  `autoCapture` with a minimum strength ratio, so a careful plan will not
+  attack at bad odds.
+- **Factions** (`G.factions`, saved): seeded from the connected ally sets
+  (Allies with France, Comintern, Axis; Japan is the Co-Prosperity Sphere,
+  NOT Axis, in 1936). Found, name, invite, ask to join, leave, kick and
+  rename, all on the DIPLOMACY FACTION tab. `facSync` runs daily.
+- **The snow line** (`SNOW_TAB`, `snowLine`): snow arrives in the far north
+  at the end of October and comes south through the winter. It is moved
+  north for Atlantic Europe (graded, not a box -- the first cut snowed on
+  Rome and London) and for mountains. Weather is drawn per cell so the line
+  runs across the land rather than in whole provinces. Mud comes only in the
+  thaw and first-frost windows. Checked: Murmansk November, Moscow December,
+  Warsaw/Berlin/Kiev January-February, never Rome/Paris/London.
+- **World news**: HIST gained `news`/`annex`/`pact` entries (the Rhineland,
+  Spain, Anschluss, Munich, Prague, Albania, Molotov-Ribbentrop,
+  Lend-Lease...). Each shows as a newspaper with a headline and a paragraph
+  (`HIST_STORY`), with "ALSO TODAY" for others on the same date. An annex or
+  pact involving the player is skipped -- that is their focus tree's call.
+- **Cities**: 4,874 Natural Earth places (`CITY_RAW`, ~94KB), shown by rank
+  as you zoom in from z4, collision-boxed, with period names (`CITY_OLD`:
+  Stalingrad, Konigsberg, Leopoldville...). Cities founded after the year
+  being played are hidden (`CITY_FOUNDED`).
+- **Click a country**: the province panel of any foreign province opens
+  with `countryCard(t)` -- flag, government, opinion, status chips,
+  faction, provinces/divisions, industry, stability, wars -- and six
+  buttons straight into each DIPLOMACY tab.
+- **A little darker**: a 0.16 veil (`MAP_VEIL`) over ground, wash and
+  borders, drawn UNDER weather, names, markers and counters so text keeps
+  its contrast; dark theme only, off in 3D. Panels --panel/--panel2 one
+  step darker. Measured mean luminance over central Europe: z1.7
+  100.4 -> 88.8, z6 103.3 -> 95.0. Not the coarse-grid solid layer that was
+  reverted for blur -- the veil adds no texture of its own.
