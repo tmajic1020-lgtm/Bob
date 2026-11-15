@@ -2280,6 +2280,38 @@ window.facKick=t=>{
 window.facRename=()=>{const id=factionOf(G.player),f=id&&facState()[id];if(!f||f.leader!==G.player)return;
   const el=document.getElementById("facName");const v=el&&el.value.trim();if(v){f.name=v.slice(0,32);renderPanel();}};
 let DIP_T=null,DIP_TAB="overview",PEACE_FROM=null;
+/* THE COUNTRY, ON THE PROVINCE PANEL: click anywhere in a foreign country and
+   you see who they are and where you stand with them, with every diplomatic
+   screen one click away, as the real game does when you select a nation. */
+function countryCard(t){
+  const T=G.nations[t],N=NATIONS[t],k=G.player,me=G.nations[k],op=opinion(t,k),D=dipState();
+  const opc=op>=30?"var(--green)":op>=0?"var(--amber)":"var(--red)";
+  try{facSync();}catch(e){}
+  const fid=factionOf(t),f=fid&&facState()[fid];
+  const chips=[];
+  if(atWar(k,t))chips.push(["AT WAR WITH US","#c4452f"]);if(allied(k,t))chips.push(["ALLIED","#4dbb6a"]);
+  if(T.puppet===k)chips.push(["OUR PUPPET","#b56ad8"]);if(me.puppet===t)chips.push(["OUR OVERLORD","#b56ad8"]);
+  if(pactWith(k,t))chips.push(["NON-AGGRESSION","#4a90d9"]);if(D.guar[k+"|"+t])chips.push(["WE GUARANTEE","#e2b23c"]);
+  if(D.guar[t+"|"+k])chips.push(["GUARANTEES US","#e2b23c"]);if(D.acc[t+"|"+k])chips.push(["ACCESS FOR US","#3cc4c4"]);
+  const wars=[...T.atWar].filter(x=>G.nations[x]&&G.nations[x].alive);
+  const divs=G.units.filter(u=>u.nat===t).length;
+  const go=tab=>`DIP_TAB='${tab}';openDiplo('${t}')`;
+  return `<div style="border:1px solid #6b5a34;background:rgba(0,0,0,.28);padding:7px 8px;margin:4px 0 8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-size:24px">${FL(t)}</span>
+      <div style="flex:1;min-width:0"><b style="color:#f0d98a;letter-spacing:.05em">${N.n.toUpperCase()}</b><br>
+        <small style="color:var(--dim)">${IDEO_FX[T.ideo]?IDEO_FX[T.ideo].f+" "+IDEO_FX[T.ideo].n:""}${T.puppet?` · subject of ${NATIONS[T.puppet].n}`:""}</small></div>
+      <div style="text-align:center"><small style="color:var(--dim);font-size:9px">OPINION</small><br><b style="color:${opc}">${op>0?"+":""}${op}</b></div></div>
+    ${chips.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin:4px 0">${chips.map(([c,col])=>`<span style="font-size:9px;padding:1px 4px;border:1px solid ${col};color:${col}">${c}</span>`).join("")}</div>`:""}
+    <div class="row" style="font-size:11px"><span>Faction</span><span>${f?"\u{1F3F3} "+f.name+(f.leader===t?" (leader)":""):"none"}</span></div>
+    <div class="row" style="font-size:11px"><span>Provinces · divisions</span><span>${natProvs(t).length} · ${divs}</span></div>
+    <div class="row" style="font-size:11px"><span>Industry · manpower</span><span>${(T.ppRate||0).toFixed(1)}/d · ${Math.round(T.mp||0)}K</span></div>
+    <div class="row" style="font-size:11px"><span>Stability · war support</span><span>${Math.round(T.stab)}% · ${Math.round(T.warSup??50)}%</span></div>
+    <div class="row" style="font-size:11px"><span>At war with</span><span>${wars.map(x=>FL(x)).join(" ")||"nobody"}</span></div>
+    <div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:5px">${[["overview","\u{1F4CB}","Overview"],["relations","\u{1F91D}","Relations"],["faction","\u{1F3F3}","Faction"],["war","⚔","War"],["aid","\u{1F4E6}","Aid"],["intel","\u{1F575}","Intel"]].map(([id,i,l])=>
+      `<button class="tbtn" style="flex:1;font-size:9px;padding:3px 2px" onclick="${go(id)}" title="${l}">${i} ${l}</button>`).join("")}</div>
+  </div>`;
+}
 window.openDiplo=t=>{if(!G||!G.nations[t]||t===G.player)return;DIP_T=t;openPanel("dip");};
 window.dipTab=x=>{DIP_TAB=x;renderPanel();};
 window.dipPick=t=>{if(G.nations[t])DIP_T=t;renderPanel();};
@@ -19271,7 +19303,7 @@ function renderPanel(){
     <div class="row"><span>Core of</span><span>${_cores.map(k=>FL(k)+" "+NATIONS[k].n).join(", ")||"—"}</span></div>
     <div class="row"><span>Foreign claims</span><span style="${_claims.length?"color:var(--amber)":"color:var(--dim)"}">${_claims.map(c=>c[0].charAt(0)==="~"?(typeof FLR==="function"?FLR(c[2].id,c[2].c)+" ":"")+c[1]:_sub(c[0])+NATIONS[c[0]].n+" <small>("+c[1]+")</small>").join("<br>")||"none"}</span></div>
     <div class="row"><span>Owner</span><span>${FL(p.owner)} ${NATIONS[p.owner].n}${G.nations[p.owner].puppet?" ⛓ (puppet of "+NATIONS[G.nations[p.owner].puppet].n+")":""}</span></div>
-    ${p.owner!==G.player&&G.nations[p.owner]&&G.nations[p.owner].alive&&p.owner!=="REB"&&p.owner!=="ZOM"?`<button class="tbtn" style="width:100%;margin:2px 0 4px" onclick="openDiplo('${p.owner}')">\u{1F310} Diplomacy with ${NATIONS[p.owner].n} \u2192</button>`:""}
+    ${p.owner!==G.player&&G.nations[p.owner]&&G.nations[p.owner].alive&&p.owner!=="REB"&&p.owner!=="ZOM"?countryCard(p.owner):""}
     <div class="row"><span>Value</span><span>${p.val} PP ${p.coastal?"· ⚓ Port":""} ${p.oil?"· 🛢 OIL":""} ${p.dep?"· "+Object.keys(p.dep).map(r=>RESOURCES[r].i+RESOURCES[r].n):""} ${p.nuked?"· ☢ IRRADIATED":""}</span></div>
     ${(()=>{const t=terOf(p),w=weatherAt(p),q=supplyPct(p.owner,p.id);
       const sq=q<=0?["CUT OFF","#c4452f"]:q<0.7?["STRAINED","#e8a33d"]:q<1?["STRETCHED","#c9c05a"]:["SUPPLIED","#5d9a4e"];
