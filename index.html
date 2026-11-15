@@ -45,6 +45,12 @@ body:not(.light) #topbar #hName{font-size:14px;letter-spacing:.06em;text-transfo
 .tbtn.on{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:bold}
 .tbtn.warn{border-color:var(--red);color:#ff8d7a}
 #sidebtns{top:52px;left:8px;display:flex;flex-direction:column;gap:6px}
+#armybar{top:98px;left:6px;max-width:calc(100% - 330px);display:none;gap:4px;flex-wrap:wrap;z-index:10}
+#armybar .agc{display:flex;gap:5px;align-items:center;padding:3px 7px 3px 3px;cursor:pointer;min-width:120px;
+  background:linear-gradient(#1f251b,#11150f);border:1px solid #4b4630;border-radius:2px;box-shadow:0 2px 4px rgba(0,0,0,.6);font-size:10px;color:var(--ink)}
+#armybar .agc:hover,#armybar .agc.on{border-color:#e0b85a}
+#armybar .agn{width:22px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;color:#0a0c0a;border:1px solid #000}
+#armybar .agb{height:3px;background:#0a0c0a;margin-top:2px}#armybar .agb i{display:block;height:100%}
 /* THE MAP RUNS UNDER THE BUTTONS. This column sits directly ON the map —
    eleven opaque blocks stacked over Britain and the North Sea — and with the
    capture as the ground it is the picture they are covering. Translucent,
@@ -78,7 +84,7 @@ body:not(.light) #sidebtns .tbtn.on{background:linear-gradient(#d6a440,#a8792a);
 #sidebtns .tbtn[data-p=ledger]::before{content:"\1F4CA"}
 #sidebtns .tbtn[data-p=settings]::before{content:"\2699"}
 @media(max-width:700px){body:not(.light) #sidebtns .tbtn{width:auto;flex:0 0 auto}}
-#panel{top:52px;right:8px;width:300px;max-width:88vw;max-height:calc(100% - 110px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);border:2px solid var(--line);padding:12px;display:none;font-size:13px;line-height:1.45}
+#panel{top:100px;right:8px;width:300px;max-width:88vw;max-height:calc(100% - 110px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);border:2px solid var(--line);padding:12px;display:none;font-size:13px;line-height:1.45}
 #panel h2{color:var(--amber);font-size:15px;letter-spacing:2px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px}
 #panel h3{color:var(--dim);font-size:12px;margin:10px 0 4px;letter-spacing:1px}
 #selbox{position:fixed;display:none;z-index:9;pointer-events:none;border:1px solid #f0d98a;background:rgba(240,217,138,0.12);box-shadow:0 0 0 1px rgba(0,0,0,.6)}
@@ -159,7 +165,7 @@ body:not(.light) #panel .bbtn:not([disabled]):hover{border-color:#b0924e;backgro
    two of them were simply off the edge of the screen. The panel widens for this
    one view and goes back afterwards. */
 #panel.wide{width:min(600px,94vw)}
-#panel.full{left:164px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
+#panel.full{left:8px;top:100px;right:8px;width:auto;max-width:none;max-height:none;bottom:58px;z-index:12}
 #panel.full .ftwrap{max-height:calc(100vh - 300px);cursor:grab}
 #panel.full .ftwrap.drag{cursor:grabbing;user-select:none}
 #panel .trtab{border:1px solid var(--line);margin-top:6px}
@@ -304,6 +310,16 @@ body.light #speedbox{background:#ece7d6d0}
 .cbadge{position:absolute;top:-5px;right:-4px;font-size:9px;line-height:1;background:var(--panel);
   border:1px solid var(--line);border-radius:3px;padding:0 2px}
 #beginRow{margin:6px 0 2px;text-align:center}
+/* THE REAL GAME'S COMMAND ROW: every screen one tile in a row under the top
+   bar, icon over a short label, the full name on hover */
+#sidebtns{top:50px;left:6px;right:6px;flex-direction:row;flex-wrap:nowrap;gap:3px;overflow-x:auto;scrollbar-width:none}
+body:not(.zz) #sidebtns .tbtn{width:auto;min-width:52px;flex:0 0 auto;font-size:0;padding:3px 4px 2px;text-align:center;border-left-width:1px;
+  display:flex;flex-direction:column;align-items:center;gap:1px;letter-spacing:0}
+body:not(.zz) #sidebtns .tbtn::before{font-size:17px;width:auto;margin:0;line-height:20px}
+body:not(.zz) #sidebtns .tbtn::after{content:attr(data-s);font-size:8.5px;letter-spacing:.06em;line-height:10px}
+body:not(.light):not(.zz) #sidebtns .tbtn{border-top:2px solid #8a7440}
+
+@media(max-width:700px){body:not(.zz) #sidebtns .tbtn{min-width:46px}}
 </style>
 <meta name="theme-color" content="#0a0e0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -386,25 +402,26 @@ body.light #speedbox{background:#ece7d6d0}
 </div>
 
 <div id="sidebtns" class="hud" style="display:none">
-  <button class="tbtn" data-p="prov">PROVINCE</button>
-  <button class="tbtn" data-p="army">ARMY</button>
-  <button class="tbtn" data-p="build">RECRUIT</button>
-  <button class="tbtn" data-p="prod">PRODUCTION</button>
-  <button class="tbtn" data-p="con">CONSTRUCTION</button>
-  <button class="tbtn" data-p="log">LOGISTICS</button>
-  <button class="tbtn" data-p="research">RESEARCH</button>
-  <button class="tbtn" data-p="air">AIR COMMAND</button>
-  <button class="tbtn" data-p="focus">FOCUS</button>
-  <button class="tbtn" data-p="dec">DECISIONS</button>
-  <button class="tbtn" data-p="trade">TRADE</button>
-  <button class="tbtn" data-p="govt">GOVERNMENT</button>
-  <button class="tbtn" data-p="policy">POLICY</button>
-  <button class="tbtn" data-p="dip">DIPLOMACY</button>
-  <button class="tbtn" data-p="diplo">WARS</button>
-  <button class="tbtn" data-p="ledger">LEDGER</button>
-  <button class="tbtn" data-p="settings">SETTINGS</button>
+  <button class="tbtn" data-p="prov" data-s="STATE">PROVINCE</button>
+  <button class="tbtn" data-p="army" data-s="ARMY">ARMY</button>
+  <button class="tbtn" data-p="build" data-s="RECRUIT">RECRUIT</button>
+  <button class="tbtn" data-p="prod" data-s="PRODUCE">PRODUCTION</button>
+  <button class="tbtn" data-p="con" data-s="BUILD">CONSTRUCTION</button>
+  <button class="tbtn" data-p="log" data-s="LOGISTIC">LOGISTICS</button>
+  <button class="tbtn" data-p="research" data-s="RESEARCH">RESEARCH</button>
+  <button class="tbtn" data-p="air" data-s="AIR">AIR COMMAND</button>
+  <button class="tbtn" data-p="focus" data-s="FOCUS">FOCUS</button>
+  <button class="tbtn" data-p="dec" data-s="DECIDE">DECISIONS</button>
+  <button class="tbtn" data-p="trade" data-s="TRADE">TRADE</button>
+  <button class="tbtn" data-p="govt" data-s="POLITICS">GOVERNMENT</button>
+  <button class="tbtn" data-p="policy" data-s="LAWS">POLICY</button>
+  <button class="tbtn" data-p="dip" data-s="DIPLOMACY">DIPLOMACY</button>
+  <button class="tbtn" data-p="diplo" data-s="WARS">WARS</button>
+  <button class="tbtn" data-p="ledger" data-s="LEDGER">LEDGER</button>
+  <button class="tbtn" data-p="settings" data-s="OPTIONS">SETTINGS</button>
 </div>
 
+<div id="armybar" class="hud"></div>
 <div id="panel" class="hud"></div>
 <div id="log" class="hud"></div>
 <div id="chatbox" class="hud open">
@@ -4373,6 +4390,7 @@ function tick(){
      drilling today; before equipTick, so what exercises wore out is drawn
      back from the stockpile the same day. */
   trainTick();
+  try{planTick();}catch(e){}
   try{navalTick();}catch(e){}
   try{dipTick();}catch(e){}
   /* AFTER the supply map has been rebuilt and after the day's fighting, which
@@ -4746,6 +4764,7 @@ function moveUnits(arr,kind){
     if(kind==="army"&&!supplied(u.nat,u.at))spd*=0.65;   // an army off its supply line crawls
     if(kind==="army"&&shortOn(u.nat,"rubber"))spd*=0.80;  // no tyres, no tracks, no pace
     if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
+    {const g=grpOf(u);if(g&&g.fm&&g.fm.trait==="blitz")spd*=1.15;}
     /* AMPHIBIOUS OPERATIONS. Owning a single warship anywhere on Earth used to
        let an army walk across any ocean on the map at full speed. A crossing
        now needs hulls at the crossing: escorted, it is an invasion; unescorted,
@@ -5142,7 +5161,7 @@ function battles(){
       const hardA=sideHardness(lineA.front), armA=sideArmor(lineA.front);
       const hardB=sideHardness(lineB.front), armB=sideArmor(lineB.front);
       const pw=(arr,side,def,eHard,eArm)=>arr.reduce((s,u)=>
-        s+u.str*genMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*qual(u.nat,u.type)*divCombat(u,def,eHard,eArm),0);
+        s+u.str*genMul(u,p)*fmMul(u,p)*vetMul(u)*supMul(u)*eqpMul(u)*qual(u.nat,u.type)*divCombat(u,def,eHard,eArm),0);
       let pa=(pw(lineA.front,A,p.owner===A,hardB,armB)+pw(lineA.rear,A,p.owner===A,hardB,armB)*0.12)*techMul(A,"land")*natAtkMul(A)*steelMul(A);
       let pb=(pw(lineB.front,B,p.owner===B,hardA,armA)+pw(lineB.rear,B,p.owner===B,hardA,armA)*0.12)*techMul(B,"land")*natAtkMul(B)*steelMul(B);
       pa*=1+airSupport(A,pid)*0.3+navalSupport(A,pid)*0.25;
@@ -5648,6 +5667,9 @@ function runGroups(nat){
     if(!roster.length)continue;
     if(grp.stance==="reserve")continue;                 // stands fast on purpose
     if(grp.stance==="front"){
+      /* executing: the line attacks, at the plan's aggression */
+      if(grp.plan&&grp.plan.exec&&G.nations[nat].atWar.size){
+        autoCapture(nat,roster,false,grp.target||null,PLAN_AGG[grp.plan.agg]?PLAN_AGG[grp.plan.agg].r:1);continue;}
       /* the whole roster counts for coverage, marching or not */
       const all=groupUnits(nat,+g);
       frontAssign(nat,all.filter(u=>!u.to).length?all:roster,grp.target||null);
@@ -5661,7 +5683,7 @@ function runGroups(nat){
     if(loose.length)autoCapture(nat,loose,false,null);
   }
 }
-function autoCapture(nat,roster,defensive,onlyNat){
+function autoCapture(nat,roster,defensive,onlyNat,minRatio){
   let enemies=Object.values(G.prov).filter(p=>atWar(nat,p.owner));
   if(onlyNat)enemies=enemies.filter(p=>p.owner===onlyNat);
   if(!enemies.length)return;
@@ -5698,6 +5720,11 @@ function autoCapture(nat,roster,defensive,onlyNat){
     const from=provOf(u.at);
     const ranked=enemies.map(p=>[targetScore(p,from,nat),p]).sort((a,b)=>b[0]-a[0]);
     for(let i=0;i<ranked.length&&i<TRY;i++){
+      /* a careful plan does not throw a division at a province it cannot win */
+      if(minRatio>0){const tp=ranked[i][1];
+        let ours=0;for(const v of mine)if(v.at===tp.id||(G.prov[v.at]&&G.prov[v.at].adj.includes(tp.id)))ours+=v.str||0;
+        let theirs=(tp.garrison||0)*0.5;for(const v of G.units)if(v.at===tp.id&&atWar(nat,v.nat))theirs+=v.str||0;
+        if(theirs>0&&ours<theirs*minRatio)continue;}
       const path=findPath(u.at,ranked[i][1].id,"army",nat);
       if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;break;}
     }
@@ -7338,6 +7365,53 @@ function genMul(u,p){
   }
   return m;
 }
+/* ARMY GROUP COMMANDERS AND BATTLE PLANS, as the real game runs them.
+   A group may have a FIELD MARSHAL (grp.fm): +4% a skill level to every
+   division in it, and his trait where it applies (terrain, weather, holding
+   ground). A group on FRONT has a PLAN (grp.plan): its aggression, how
+   prepared it is, and whether it has been ordered to EXECUTE. Holding the
+   line builds preparation up to 100% over about forty days; executing spends
+   it, and while it lasts the group's attacks are up to 20% stronger. */
+const FM_COST=60,FM_MAXLVL=5;
+const PLAN_AGG={careful:{n:"CAREFUL",i:"\u{1F6E1}",r:1.6,d:"Attacks only where the odds are at least 1.6 to 1. Slow, cheap in men."},
+  balanced:{n:"BALANCED",i:"⚖",r:1.0,d:"Attacks where it is at least as strong as what it attacks."},
+  aggressive:{n:"AGGRESSIVE",i:"⚡",r:0,d:"Attacks everywhere along the line, at any odds. Fast and costly."}};
+function grpOf(u){return u&&u.grp&&G.groups&&G.groups[u.grp]&&G.groups[u.grp].nat===u.nat?G.groups[u.grp]:null;}
+function planOf(grp){if(!grp.plan)grp.plan={agg:"balanced",prep:0,exec:false};return grp.plan;}
+function fmMul(u,p){
+  const g=grpOf(u);if(!g)return 1;
+  let m=1;
+  if(g.fm){m*=1+0.04*g.fm.lvl;
+    const t=genMul({gen:{lvl:0,trait:g.fm.trait},nat:u.nat},p)/1.15;if(t>1)m*=1+(t-1)*0.6;}
+  /* preparation: only on the attack, only while the plan is being executed */
+  if(g.plan&&g.plan.exec&&p&&p.owner!==u.nat)m*=1+0.2*(g.plan.prep||0);
+  return m;
+}
+function planTick(){
+  if(!G.groups)return;
+  for(const id in G.groups){const g=G.groups[id];if(!g||g.stance!=="front")continue;
+    const P=planOf(g);
+    P.prep=P.exec?Math.max(0,(P.prep||0)-0.02):Math.min(1,(P.prep||0)+1/40);
+    if(g.fm&&P.exec){g.fm.xp=(g.fm.xp||0)+0.1;if(g.fm.xp>=30&&g.fm.lvl<FM_MAXLVL){g.fm.xp=0;g.fm.lvl++;
+      if(g.nat===G.player)logMsg(`⭐ Field Marshal ${g.fm.name} of Army Group ${id} rises to skill ${g.fm.lvl}.`,"good");}}}
+}
+window.hireFieldMarshal=g=>{
+  const grp=G.groups&&G.groups[g],me=G.nations[G.player];if(!grp||grp.nat!==G.player||grp.fm)return;
+  if(me.pp<FM_COST){logMsg(`A field marshal costs ${FM_COST} PP.`,"war");return;}
+  me.pp-=FM_COST;
+  const used=new Set(Object.values(G.groups).map(x=>x&&x.fm&&x.fm.name));
+  const pool=GEN_NAMES.filter(n=>!used.has(n));
+  const tr=GEN_TRAITS[Math.floor(Math.random()*GEN_TRAITS.length)];
+  grp.fm={name:(pool.length?pool:GEN_NAMES)[Math.floor(Math.random()*(pool.length||GEN_NAMES.length))],lvl:2,xp:0,trait:tr.id};
+  sfx&&sfx("good");logMsg(`⭐ Field Marshal ${grp.fm.name} takes Army Group ${g} — ${tr.i} ${tr.n}.`,"good");
+  renderPanel();refreshHUD();};
+window.dismissFieldMarshal=g=>{const grp=G.groups&&G.groups[g];if(grp&&grp.nat===G.player){delete grp.fm;renderPanel();refreshHUD();}};
+window.setPlanAgg=(g,a)=>{const grp=G.groups&&G.groups[g];if(!grp||!PLAN_AGG[a])return;planOf(grp).agg=a;renderPanel();refreshHUD();};
+window.planExecute=(g,on)=>{const grp=G.groups&&G.groups[g];if(!grp||grp.nat!==G.player)return;
+  if(grp.stance!=="front"){grp.stance="front";}
+  const P=planOf(grp);P.exec=!!on;
+  logMsg(on?`▶ Army Group ${g} executes its battle plan (${PLAN_AGG[P.agg].n.toLowerCase()}, ${Math.round(P.prep*100)}% prepared).`:`⏸ Army Group ${g} halts and holds its line.`,on?"good":"");
+  renderPanel();refreshHUD();};
 function vetMul(u){return 1+Math.min(0.24,(u.xp||0)*0.002);}
 function vetStars(u){const x=u&&u.xp||0;return x>=90?" 🎖":x>=45?" ★★":x>=15?" ★":"";}
 /* ============================= CONSTRUCTION =============================
@@ -14139,6 +14213,7 @@ function drawPlans(z){
     if(!grp||grp.nat!==G.player)continue;
     const st=grp.stance;
     if(st!=="front"&&!(st==="advance"&&grp.target))continue;
+    const exec=st==="advance"||(grp.plan&&grp.plan.exec);
     if(!groupUnits(G.player,+g).length)continue;
     const tg=grp.target||null,path=planPath(tg);
     if(!path)continue;
@@ -14150,7 +14225,7 @@ function drawPlans(z){
     ctx.strokeStyle=col;ctx.lineWidth=(nth?2.2:4.4)/z;ctx.stroke(path);
     if(!nth){ctx.strokeStyle="rgba(255,255,255,0.32)";ctx.lineWidth=1.1/z;ctx.setLineDash([6/z,5/z]);ctx.stroke(path);ctx.setLineDash([]);}
     const pairs=frontPairs(G.player,tg).filter(([a,b])=>Math.abs(a.x-b.x)<MW/2&&_clearRun(a,b,tg));
-    if(st==="advance"){
+    if(exec&&atWar(G.player,grp.target||[...G.nations[G.player].atWar][0]||"")){
       const seen=new Set();
       for(const [a,b] of pairs){if(seen.has(b.id))continue;seen.add(b.id);
         const qx=a.x*0.5+b.x*0.5,qy=a.y*0.5+b.y*0.5;
@@ -18498,7 +18573,9 @@ function endPtr(e){
     drag=null;
   }
 }
-let SELMODE=false;
+let SELMODE=false,GRP_SEL=0;
+window.openGroup=g=>{if(!G||!G.groups||!G.groups[g])return;GRP_SEL=g;G.selGroup=groupUnits(G.player,+g);G.selUnit=G.selGroup[0]||null;openPanel("grp");};
+window.selectGroupUnits=g=>{G.selGroup=groupUnits(G.player,+g);G.selUnit=G.selGroup[0]||null;logMsg(`Army Group ${g}: ${G.selGroup.length} divisions selected \u2014 click a province to send them.`);};
 function _selBoxEl(){let b=document.getElementById("selbox");
   if(!b){b=document.createElement("div");b.id="selbox";document.body.appendChild(b);}return b;}
 function _selBoxShow(d){const t=document.getElementById("tip");if(t)t.style.display="none";const b=_selBoxEl(),x=Math.min(d.sx,d.x),y=Math.min(d.sy,d.y);
@@ -18788,7 +18865,7 @@ function hover(e){
 window.__ifBoot("ui");
 /* ============================== UI ============================== */
 let curPanel=null;
-document.querySelectorAll("#sidebtns .tbtn").forEach(b=>b.onclick=()=>openPanel(b.dataset.p));
+document.querySelectorAll("#sidebtns .tbtn").forEach(b=>{b.onclick=()=>openPanel(b.dataset.p);b.title=b.textContent.trim();});
 $("#bBattles").onclick=nextBattle;
 $("#bHome").onclick=goHome;
 $("#bMap").onclick=()=>cycleOverlay(1);
@@ -19379,6 +19456,44 @@ function renderPanel(){
         B(peaceful&&(sub||(T.ideo!==me.ideo&&me.pp>=40)),sub?"\u2716 Stop backing the party":`\u{1F4E2} Boost the ${IDEO_FX[me.ideo].n.toLowerCase()} party \u2014 40 PP`,T.ideo===me.ideo&&!sub?"They already share our government.":"Over four to eight months the party takes power and their government becomes ours: +20 opinion.","dipSubvert('"+t+"')")+
         B(peaceful&&T.ideo===me.ideo&&op>=50&&!T.atWar.size&&![...T.allies].length&&!T.puppet&&me.pp>=100,"\u26D3 Stage a coup \u2014 100 PP","A kindred government that likes us (opinion 50+), with no wars or allies of its own, becomes our puppet.","dipCoup('"+t+"')");
     }
+    el.innerHTML=h;
+  }
+  if(curPanel==="grp"){
+    const g=GRP_SEL,grp=G.groups&&G.groups[g];
+    if(!grp||grp.nat!==G.player){el.innerHTML=`<h2>ARMY GROUP</h2><div style="color:var(--dim)">Pick an army group from the cards at the top of the screen.</div>`;return;}
+    const units=groupUnits(G.player,+g),P=planOf(grp),col=groupCol(g);
+    const str=units.reduce((a,u)=>a+Math.max(0,u.hp),0),strMax=units.reduce((a,u)=>a+u.str*10,0)||1;
+    const org=units.length?units.reduce((a,u)=>a+(u.org!==undefined?u.org:1),0)/units.length:0;
+    const by={};for(const u of units)by[u.type]=(by[u.type]||0)+1;
+    const foes=[];for(const k in G.nations)if(G.nations[k].alive&&atWar(G.player,k))foes.push(k);
+    for(const [,b] of frontPairs(G.player,null))if(foes.indexOf(b.owner)<0)foes.push(b.owner);
+    let h=`<h2><i style="display:inline-block;width:12px;height:12px;background:${col};border:1px solid #000;margin-right:6px"></i>${(grp.name||"Army Group "+g).toUpperCase()}</h2>
+      <div class="row"><span>${units.length} division${units.length===1?"":"s"}</span><span>${Object.keys(by).map(t=>uIcon(t)+" "+by[t]).join(" · ")}</span></div>
+      <div class="row"><span style="width:70px">Strength</span><span style="flex:1" class="bar"><i style="width:${Math.round(str/strMax*100)}%;background:#c9a23a"></i></span></div>
+      <div class="row"><span style="width:70px">Organisation</span><span style="flex:1" class="bar"><i style="width:${Math.round(org*100)}%;background:#4dbb6a"></i></span></div>
+      <button class="tbtn" style="width:100%;margin:4px 0" onclick="selectGroupUnits(${g})">▢ Select its divisions on the map</button>
+      <h3>⭐ FIELD MARSHAL</h3>`;
+    if(grp.fm){const tr=GEN_TRAITS.find(t=>t.id===grp.fm.trait);
+      h+=`<div class="row"><span><b style="color:#f0d98a">${grp.fm.name}</b> · skill ${"★".repeat(grp.fm.lvl)}${"☆".repeat(FM_MAXLVL-grp.fm.lvl)}</span><span>+${grp.fm.lvl*4}%</span></div>
+        <div style="color:var(--dim);font-size:11px">${tr?tr.i+" "+tr.n+": "+tr.d+" (60% of it, for the whole group)":""}. Gains skill by executing battle plans.</div>
+        <button class="tbtn" style="font-size:10px" onclick="dismissFieldMarshal(${g})">✖ Relieve of command</button>`;}
+    else h+=`<button class="bbtn" ${me.pp>=FM_COST?"":"disabled"} onclick="hireFieldMarshal(${g})">⭐ Appoint a field marshal — ${FM_COST} PP<small>+4% to every division in the group per skill level (starts at 2), and a trait that applies where the group is fighting.</small></button>`;
+    h+=`<h3>\u{1F5FA} ORDERS</h3><div class="row" style="gap:3px">${Object.keys(STANCES).map(k=>`<button class="tbtn${grp.stance===k?" on":""}" style="flex:1;font-size:10px" onclick="setStance(${g},'${k}')">${STANCES[k].i} ${STANCES[k].n}</button>`).join("")}</div>
+      <div style="color:var(--dim);font-size:11px">${(STANCES[grp.stance]||STANCES.hold).d}</div>`;
+    if(foes.length)h+=`<div style="color:var(--dim);font-size:11px;margin-top:4px">Front against:</div><div class="row" style="gap:3px;flex-wrap:wrap"><button class="tbtn${grp.target?"":" on"}" style="font-size:10px" onclick="setGroupTarget(${g},null)">Every enemy</button>${foes.slice(0,8).map(k=>`<button class="tbtn${grp.target===k?" on":""}" style="font-size:10px" onclick="setGroupTarget(${g},'${k}')">${FL(k)} ${NATIONS[k].n}</button>`).join("")}</div>`;
+    if(grp.stance==="front"){
+      const war=G.nations[G.player].atWar.size>0;
+      h+=`<h3>\u{1F4DC} BATTLE PLAN</h3>
+        <div class="row"><span>Preparation</span><span>${Math.round(P.prep*100)}% <small style="color:var(--dim)">(+${Math.round(P.prep*20)}% to attacks)</small></span></div>
+        <div class="bar"><i style="width:${Math.round(P.prep*100)}%;background:#4a90d9"></i></div>
+        <div style="color:var(--dim);font-size:11px">Builds while the line holds, about forty days to full; spent while the plan is executed.</div>
+        <div style="color:var(--dim);font-size:11px;margin-top:4px">Execution:</div>
+        <div class="row" style="gap:3px">${Object.keys(PLAN_AGG).map(a=>`<button class="tbtn${P.agg===a?" on":""}" style="flex:1;font-size:10px" onclick="setPlanAgg(${g},'${a}')">${PLAN_AGG[a].i} ${PLAN_AGG[a].n}</button>`).join("")}</div>
+        <div style="color:var(--dim);font-size:11px">${PLAN_AGG[P.agg].d}</div>
+        ${P.exec?`<button class="bbtn" onclick="planExecute(${g},0)">⏸ STOP — hold the line<small>The group halts where it stands and starts preparing again.</small></button>`
+                :`<button class="bbtn" style="border-color:var(--amber)" ${war?"":"disabled"} onclick="planExecute(${g},1)">▶ EXECUTE BATTLE PLAN<small>${war?"The line goes over to the attack at the chosen aggression.":"Only at war: until then the group holds its front."}</small></button>`}`;
+    } else h+=`<div style="color:var(--dim);font-size:11px;margin-top:6px">Put the group on ▬ FRONT to draw a battle plan, prepare it and execute it.</div>`;
+    h+=`<button class="tbtn" style="width:100%;margin-top:8px" onclick="openPanel('army')">All army groups → ARMY</button>`;
     el.innerHTML=h;
   }
   if(curPanel==="sel"){
@@ -20756,12 +20871,31 @@ window.breakAlliance=o=>{if(MP.role==="guest"){MP.send({type:"break",nat:G.playe
 window.betrayAlly=o=>{if(MP.role==="guest"){MP.send({type:"betray",nat:G.player,target:o});logMsg("Betrayal order sent...");return undefined;}return _betrayAlly(o);};
 window.G=null;
 
+let _abKey="";
+function updateArmyBar(){
+  const el=document.getElementById("armybar");if(!el||!G||!G.groups)return;
+  const gs=myGroups().filter(g=>G.groups[g]);
+  const parts=gs.map(g=>{const grp=G.groups[g],u=groupUnits(G.player,+g),P=grp.plan||{};
+    const str=u.reduce((a,x)=>a+Math.max(0,x.hp),0)/(u.reduce((a,x)=>a+x.str*10,0)||1);
+    const org=u.length?u.reduce((a,x)=>a+(x.org!==undefined?x.org:1),0)/u.length:0;
+    const st=STANCES[grp.stance]||STANCES.hold;
+    return [g,grp,u.length,st,P,str,org];});
+  const key=parts.map(x=>[x[0],x[2],x[1].stance,x[1].fm&&x[1].fm.name,x[4].exec,Math.round((x[4].prep||0)*20),Math.round(x[5]*20),Math.round(x[6]*20)].join(",")).join("|")+"|"+GRP_SEL+"|"+curPanel;
+  if(key===_abKey)return;_abKey=key;
+  el.innerHTML=parts.map(([g,grp,n,st,P,str,org])=>`<div class="agc${curPanel==="grp"&&GRP_SEL===g?" on":""}" onclick="openGroup(${g})" title="${grp.name||"Army Group "+g}">
+    <div class="agn" style="background:${groupCol(g)}">${g}</div>
+    <div style="flex:1;min-width:0"><div style="white-space:nowrap"><b>${grp.fm?"\u2B50 "+grp.fm.name:"No commander"}</b></div>
+      <div style="color:var(--dim);white-space:nowrap">${n} div \u00b7 ${st.i} ${st.n}${grp.stance==="front"?(P.exec?" \u25B6":" "+Math.round((P.prep||0)*100)+"%"):""}</div>
+      <div class="agb"><i style="width:${Math.round(str*100)}%;background:#c9a23a"></i></div><div class="agb"><i style="width:${Math.round(org*100)}%;background:#4dbb6a"></i></div></div></div>`).join("")+
+    `<div class="agc" style="min-width:0;justify-content:center;color:var(--dim)" onclick="(newArmyGroup()&&(_abKey=''))||updateArmyBar()" title="New army group">\u2795</div>`;
+}
 function refreshHUD(){
   /* Called from the settings panel as well as from play, and the settings panel
      opens on the START SCREEN, where there is no campaign at all. Everything
      below reads out of G, so without this the first tap on a view setting
      before starting a game throws on G.nations. */
   if(!G||!G.nations||!G.nations[G.player])return;
+  try{updateArmyBar();}catch(e){}
   const me=G.nations[G.player];
   $("#hPP").textContent=Math.floor(me.pp);
   $("#hPPr").textContent="(+"+(me.ppRate||0).toFixed(1)+"/d)";
@@ -24228,7 +24362,7 @@ function startGame(k){
     logMsg("\u{1F4A5} THE WORLD SHATTERS: every province has declared independence.","war");
   }
   $("#start").style.display="none";
-  $("#topbar").style.display="flex";$("#sidebtns").style.display="flex";$("#speedbox").style.display="flex";
+  $("#topbar").style.display="flex";$("#sidebtns").style.display="flex";$("#armybar").style.display="flex";$("#speedbox").style.display="flex";
   $("#hFlag").innerHTML=FL(k);$("#hName").textContent=NATIONS[k].n;
   focusNation(k);   // open on your own country, not on the whole globe
   refreshHUD();
