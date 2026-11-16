@@ -2417,3 +2417,37 @@ signature so it costs nothing while unchanged):
   Poland; halt stops all; fall-back to Berlin; split +2 / merge -2;
   paradrop lands two divisions at Poznan; invasion from Hamburg landed at
   London after execute.
+
+### More of the real game's orders, and a fleet bar
+
+Owner: "add more if there's more from hearts of iron four".
+
+- **Dig in / hold position** (`u.hold`): the group AI skips held divisions
+  (runGroups roster, loose autoCapture, frontAssign); any player move order
+  clears it. **Entrenchment** for everyone (`digTick`, after trainTick):
+  standing on own/allied ground +1%/day to +15%, +2%/day to +25% when
+  holding, lost on moving; applied in the battle's `pw` only to defenders
+  standing in the province.
+- **Retreat** (`retreatUnit`): to the adjacent own/allied province with the
+  fewest enemies, nearest the capital; 3% strength lost on the way.
+- **Reinforcement priority** (`u.rp` 0/1/2, `rpMul` 0.5/1/1.6): equipTick
+  sorts high first and scales the draw; manpower regen scales the same.
+- **Template**: a menu row of every stock, design and national template
+  (`_TPL_LIST`, `setTemplate`); refitting halves equipment. Designs set
+  u.type to arm if hardness >= 0.3, else inf, so the counter icon follows.
+- **General**: assigns `hireGeneral` to divisions without one (40 PP, 4 max).
+- **Delete plan**: back to area defence, prep 0.
+- **Fleet bar**: a selected fleet (`_selFleets`: it and every idle friendly
+  fleet in the same water) gets missions (`FLEET_MIS`, `f.mis`): strike
+  (gun/air +25% in navalBattle), raid (blockade raid +60%), escort (asw
+  +40%, coastal guard +60%), patrol, to port (sails to the nearest own
+  harbour, naval-base first; repairs twice as fast, or +0.15/day in a
+  harbour without one). Plus sail to, halt, deselect.
+- Saves: unit a[15] = {d,h,r} only when set; fleet a[8] = mission.
+- **The bar was half the screen wide.** `left:50%` with a translate caps a
+  shrink-to-fit box at half the viewport, so each section wrapped onto its
+  own row (five rows). `width:max-content` fixed it.
+- Checked (`nr/ob2.js`): dig to 0.25 in 15 days holding; rp cycles; Panzer
+  1939 template sets arm and halves equipment; two generals; retreat from
+  Poznan to Berlin; delete plan; fleet raid/port/strike; hold, dig and
+  fleet mission survive save/load.
