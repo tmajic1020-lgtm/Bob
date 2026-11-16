@@ -2323,3 +2323,36 @@ Owner asked for a long list in one message. What went in, in order:
   step darker. Measured mean luminance over central Europe: z1.7
   100.4 -> 88.8, z6 103.3 -> 95.0. Not the coarse-grid solid layer that was
   reverted for blur -- the veil adds no texture of its own.
+
+## Answering the news
+
+Owner: "don't just do Noted ... what would be the response to it, also make
+a bigger explanation and make a real photo".
+
+- **Every headline is answered.** `newsResponses(item,k)`: hand-written
+  answers per date and per country in `HIST_RESP` ("*" for anyone not
+  named; the Rhineland for France/Britain/Germany/Belgium, Spain for the
+  interveners, Munich for Prague/London/Paris/Moscow/Warsaw/Budapest,
+  Guarantee Poland after Prague, Pearl Harbor for America...). Otherwise
+  `_genResp` builds answers from who we are to the two parties
+  (`_newsRel`: actor, target, friend of either, at war with the actor,
+  neutral). Each effect is an `RX` constructor holding its own text, so the
+  line under each button is generated from what it does: stability, war
+  support, PP, manpower, divisions raised, opinion (`D.opm`, "x|us"), and
+  guarantees. Names are getters, so a description says "Czechoslovakia"
+  in 1936 rather than whatever NATIONS held at load.
+- **The bigger story**: `HIST_BG` adds a background paragraph per date, and
+  `newsForUs` a "WHAT IT MEANS FOR <US>" line. The headline shown first is
+  the one that concerns the player most, not the first in the list.
+- **Real photographs: still blocked here.** Wikimedia Commons, LoC and NARA
+  are refused by this session's network. A personal environment
+  "Bob (Wikimedia photos)" now exists with upload.wikimedia.org and
+  commons.wikimedia.org allowed; a session started on it can fill
+  `PD_PHOTOS` with public-domain photographs, each with a `ds` date (the
+  headline it belongs to) and `credit`. `newsPhotoFor(ds)` uses those
+  first, then a photo the player gave for that headline (the "use your own
+  photograph" link, `if_news_photos` in localStorage, 960px JPEG), then the
+  painted picture. Photos are drawn greyscale like newsprint.
+- Probe pitfall: a 1938 or 1939 start has already absorbed Austria and
+  Czechoslovakia, so the Anschluss and Prague events correctly never fire
+  there. Test events from a 1936 start.

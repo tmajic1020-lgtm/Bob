@@ -145,7 +145,7 @@ body:not(.light) #panel .bbtn:not([disabled]):hover{border-color:#b0924e;backgro
   background:linear-gradient(#2b3226,#1d2419);
   font-size:11px;letter-spacing:3px;color:#c9b47a;text-transform:uppercase}
 #eventBox.news .newshdr span:last-child{letter-spacing:1px;color:#8a9285}
-#eventBox.news canvas{display:block;width:100%;height:auto;border-bottom:2px solid #6b5a34;
+#eventBox.news canvas{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;border-bottom:2px solid #6b5a34;
   filter:sepia(0.28) contrast(1.06)}
 #eventBox.news>h2{font-size:clamp(18px,3.4vw,27px);line-height:1.12;letter-spacing:1px;
   color:#f2ead2;text-transform:uppercase;padding:14px 18px 0;text-shadow:0 2px 0 #0008}
@@ -6171,27 +6171,232 @@ const HIST_STORY={
  "1915-05-23":"Italy has declared war on Austria-Hungary, its old ally, for the promise of Trieste and the Tyrol.",
  "1917-04-06":"After the sinking of American ships and the Zimmermann telegram, the United States has declared war on Germany."};
 let _newsQ=[];
+/* THE BACKGROUND under each headline: what lay behind it and why it mattered,
+   the paragraph a good paper ran under the report. Written from the record. */
+const HIST_BG={
+ "1936-01-02":"Italy has wanted Abyssinia since its defeat at Adwa in 1896. The League's sanctions left out oil, the one thing that could have stopped the war, and Britain kept the Suez Canal open to Italian troopships. Every small nation is learning what collective security is worth.",
+ "1936-03-07":"The Rhineland was demilitarised by Versailles and again by Locarno, which Germany signed freely. The battalions that crossed carried orders to withdraw if France resisted. France, with a caretaker government weeks from an election, would not move without Britain, and Britain saw the Germans walking into their own back garden. It was the last moment the Reich could have been stopped cheaply.",
+ "1936-07-18":"Spain has been divided since the Republic was declared in 1931: landowners against labourers, the Church against the anticlericals, Madrid against Catalonia and the Basques. General Franco's Army of Africa is being flown across the Strait in German and Italian aircraft. The Soviet Union will arm the Republic; Britain and France will try to keep everyone out.",
+ "1936-08-01":"The Reich has spent lavishly on the Games, and anti-Jewish signs have been taken down from Berlin's streets for the duration. A boycott campaign in America narrowly failed. The world's athletes, and its journalists, are being shown the face the regime wishes to show.",
+ "1936-11-25":"The Pact is aimed at the Comintern in name and at the Soviet Union in fact; a secret protocol binds each side not to help Moscow if it attacks the other. It joins the two powers most dissatisfied with the world as it stands, at either end of the Eurasian landmass.",
+ "1936-12-11":"The King wished to marry an American who had been divorced twice. The Church, the Dominions and Mr Baldwin's cabinet would not accept her as Queen. The crisis has been settled in a week and the monarchy has survived it, but Britain spent that week looking inward.",
+ "1937-05-06":"The Hindenburg was the largest object ever to fly, filled with hydrogen because America would not sell Germany helium. Newsreel cameras filmed the whole disaster. No airline will now trust a passenger to an airship, and the future of long-distance flight belongs to the aeroplane.",
+ "1937-07-07":"Japan has held Manchuria since 1931 and has crept into northern China ever since. Chiang Kai-shek has been fighting the Communists rather than Japan, but since the Xi'an Incident the two have agreed to stand together. This time China will not give way, and the war will not end quickly.",
+ "1938-03-12":"Austria's chancellor called a plebiscite on independence; Berlin answered with an ultimatum and then with troops. The union forbidden in 1919 is done, and Germany now wraps around Czechoslovakia on three sides. In 1934 Italy sent divisions to the Brenner to stop exactly this. This time Rome said nothing.",
+ "1938-09-30":"Czechoslovakia was not at the table. Its frontier fortresses, its arms works and most of its defensible ground are in the Sudetenland it must now hand over. The Soviet Union, bound by treaty to help if France did, was not invited. In London the crowds cheer; in Prague they weep.",
+ "1939-03-15":"Until today every German demand could be called the righting of a wrong done to Germans. Prague is not German. Six months after Munich, the policy of appeasement has nothing left to stand on, and London is looking for a line to draw.",
+ "1939-04-07":"Albania was already an Italian client in all but name. Mussolini wanted a conquest of his own to set beside Hitler's. Greece and Yugoslavia now face Italian troops across their borders.",
+ "1939-08-23":"For years Moscow and Berlin have each called the other the enemy of mankind. A secret protocol divides Eastern Europe between them: the western half of Poland for Germany; eastern Poland, the Baltic states, Finland and Bessarabia for the Soviet Union. Britain's guarantee to Poland now has to be honoured or abandoned.",
+ "1939-09-01":"The Poles have been mobilising for weeks and expect Britain and France to strike in the west. Germany has massed nearly every division it has, with the armour and aircraft concentrated as no army has concentrated them before.",
+ "1939-09-03":"Twenty-one years after the last war ended, the same powers are at war over the same frontier. Britain and France have no plan to save Poland, only to win a long war. The Dominions are following London one by one.",
+ "1939-11-30":"Stalin demanded the Karelian Isthmus and bases on the Finnish coast; the Finns refused. The Red Army expects to be in Helsinki in a fortnight. It has not reckoned with the forest, the cold and an army on skis.",
+ "1940-04-09":"Germany's iron ore comes from Sweden through the Norwegian port of Narvik, and Britain was preparing to mine those waters. Denmark has been taken almost without a shot. In Norway the fighting will last two months.",
+ "1940-06-10":"France is already beaten; the Germans are at the Seine. Mussolini needs a few thousand dead, he is supposed to have said, to sit at the peace table.",
+ "1940-09-27":"The Pact is aimed at the one great power not yet in the war. It tells Washington that a war with Japan will also be a war with Germany.",
+ "1941-03-11":"Britain has run out of money to pay for American arms. Lend-Lease lets the President lend, lease or transfer war material to any country whose defence he judges vital to America's own. Neutrality is over in all but name.",
+ "1941-06-22":"Stalin had been warned many times, by his own spies and by the British, and refused to believe it. Whole Soviet air divisions have been destroyed on the ground. The Pact of 1939 lasted twenty-two months.",
+ "1941-12-07":"The American embargo of oil left Japan two choices: give up China or take the oil of the Dutch Indies. To take it, Japan first had to cripple the US Pacific Fleet. The battleships are sunk, but the carriers were at sea.",
+ "1941-12-08":"The Atlantic Charter signed in August is now a war alliance, and with the Soviet Union already fighting Germany, the three largest economies on earth are on one side.",
+ "1941-12-11":"Hitler was not obliged by the Tripartite Pact to declare war on America. He did it anyway, and settled the debate in Washington about which enemy to fight first.",
+ "1914-07-28":"Archduke Franz Ferdinand was shot in Sarajevo on 28 June by a Bosnian Serb student. Vienna, with a promise of German support, sent Belgrade an ultimatum designed to be refused. Russia will not abandon Serbia, and the alliances of 1914 are tied tight.",
+ "1914-08-01":"Germany's war plan requires it to defeat France before Russia can mobilise, so Russian mobilisation means war in the west too.",
+ "1914-08-03":"The Schlieffen Plan sends the German right wing through neutral Belgium, whose neutrality Britain, France and Prussia guaranteed in 1839.",
+ "1914-08-04":"London called the 1839 treaty binding; Berlin called it a scrap of paper. The British Empire, its Dominions and India are at war.",
+ "1914-10-29":"The Ottoman government signed a secret alliance with Germany in August, and the German battlecruiser Goeben, now flying the Ottoman flag, has led the raid. The Straits are closed to Russian trade.",
+ "1915-05-23":"In the secret Treaty of London the Entente promised Italy Trieste, Istria, the South Tyrol and Dalmatia. The front will run through the Alps.",
+ "1917-04-06":"Germany resumed unrestricted submarine warfare in February, gambling that it could starve Britain before America arrived. The Zimmermann telegram, offering Mexico Texas, New Mexico and Arizona, made the decision for Congress."};
+
+/* RESPONSES. A headline that concerns us is answered, as the real game asks a
+   government how it answers the world. Each response is a list of effects
+   built by RX, so the text under the button is generated from what it
+   actually does and cannot drift from it. */
+const RX={
+  stab:n=>({d:`${n>0?"+":""}${n} stability`,f:k=>{const m=G.nations[k];m.stab=Math.max(0,Math.min(100,m.stab+n));}}),
+  ws:n=>({d:`${n>0?"+":""}${n} war support`,f:k=>{const m=G.nations[k];m.warSup=Math.max(0,Math.min(100,(m.warSup??50)+n));}}),
+  pp:n=>({d:`${n>0?"+":""}${n} PP`,f:k=>{G.nations[k].pp=Math.max(0,G.nations[k].pp+n);}}),
+  mp:n=>({d:`${n>0?"+":""}${n}K manpower`,f:k=>{G.nations[k].mp=Math.max(0,(G.nations[k].mp||0)+n);}}),
+  op:(x,n)=>({get d(){return `${NATIONS[x]?NATIONS[x].n:x} ${n>0?"warms to us":"turns against us"} (${n>0?"+":""}${n})`;},
+    ok:()=>G.nations[x]&&G.nations[x].alive,
+    f:k=>{if(x===k)return;const D=dipState(),key=x+"|"+k;D.opm[key]=Math.max(-60,Math.min(60,(D.opm[key]||0)+n));}}),
+  guar:v=>({get d(){return `we guarantee ${NATIONS[v]?NATIONS[v].n:v}'s independence`;},ok:()=>G.nations[v]&&G.nations[v].alive,
+    f:k=>{if(v!==k)dipState().guar[k+"|"+v]=1;}}),
+  units:(n,type)=>({d:`${n} ${type==="arm"?"armoured":"infantry"} division${n>1?"s":""} raised`,
+    f:k=>{const c=G.nations[k].cap||natProvs(k)[0]&&natProvs(k)[0].id;for(let i=0;i<n;i++)try{addUnit(k,c,type||"inf");}catch(e){}}})
+};
+const _R=(t,...fx)=>({t,fx});
+/* specific answers by date and by who we are; "*" is anyone not named */
+const HIST_RESP={
+ "1936-01-02":{ETH:[_R("Fight on in the mountains",RX.ws(15),RX.stab(-5)),_R("Appeal to Geneva",RX.op("UK",10),RX.op("FRA",10),RX.stab(3))],
+   UK:[_R("Close the Suez Canal to Italy",RX.op("ITA",-30),RX.op("ETH",20),RX.ws(5),RX.pp(-15)),_R("Sanctions, but not oil",RX.op("ITA",-5),RX.stab(2))],
+   FRA:[_R("Keep Mussolini on side against Germany (Hoare-Laval)",RX.op("ITA",15),RX.op("ETH",-20),RX.stab(-3)),_R("Back the League's sanctions",RX.op("ITA",-15),RX.op("UK",10))]},
+ "1936-03-07":{FRA:[_R("Mobilise and march into the Rhineland",RX.ws(15),RX.stab(-8),RX.pp(-30),RX.op("GER",-40),RX.op("UK",-10)),
+     _R("Protest to the League of Nations",RX.op("GER",-10),RX.stab(2)),_R("Do nothing: Britain will not follow",RX.stab(5),RX.ws(-6))],
+   UK:[_R("They are only going into their own back garden",RX.op("GER",10),RX.op("FRA",-10),RX.stab(3)),_R("Stand by France",RX.op("FRA",15),RX.op("GER",-15),RX.ws(5))],
+   GER:[_R("The gamble has paid: the nation rejoices",RX.stab(6),RX.ws(8)),_R("Begin the Westwall",RX.pp(-25),RX.ws(5),RX.op("FRA",-10))],
+   BEL:[_R("Return to strict neutrality",RX.op("FRA",-10),RX.op("GER",5),RX.stab(3)),_R("Hold to the French alliance",RX.op("FRA",10),RX.op("GER",-10),RX.ws(5))]},
+ "1936-07-18":{GER:[_R("Send the Condor Legion",RX.pp(-30),RX.ws(6),RX.op("SPA",20),RX.op("FRA",-10),RX.op("SOV",-10)),_R("Transport aircraft only",RX.pp(-10),RX.op("SPA",8))],
+   ITA:[_R("Send the Corpo Truppe Volontarie",RX.pp(-35),RX.mp(-20),RX.ws(6),RX.op("SPA",20),RX.op("UK",-10)),_R("Arms, not men",RX.pp(-15),RX.op("SPA",8))],
+   SOV:[_R("Tanks, aircraft and advisers for the Republic",RX.pp(-30),RX.op("SPA",15),RX.op("GER",-15),RX.op("ITA",-15),RX.ws(5)),_R("Raise the International Brigades through the Comintern",RX.pp(-10),RX.ws(4))],
+   FRA:[_R("Join the Non-Intervention Committee",RX.stab(3),RX.op("UK",10)),_R("Open the Pyrenees to arms for the Republic",RX.stab(-5),RX.op("SOV",10),RX.op("GER",-10),RX.op("ITA",-10),RX.op("UK",-10))],
+   UK:[_R("Non-intervention: keep the war in Spain",RX.stab(3),RX.op("FRA",5)),_R("Quietly favour the Nationalists",RX.op("SPA",10),RX.op("SOV",-10))],
+   SPA:[_R("The Republic will fight for every street",RX.ws(20),RX.stab(-10),RX.units(2,"inf")),_R("Seek a negotiated peace",RX.stab(-4),RX.ws(-5))],
+   POR:[_R("Help Franco across the border",RX.op("SPA",15),RX.op("UK",-5)),_R("Neutral, with the old alliance",RX.op("UK",10),RX.stab(2))]},
+ "1936-08-01":{GER:[_R("Show the world a new Germany",RX.stab(5),RX.op("USA",5),RX.op("UK",5),RX.op("FRA",5)),_R("A triumph of the race",RX.ws(5),RX.op("USA",-5))],
+   USA:[_R("Jesse Owens takes four gold medals",RX.stab(4),RX.ws(2)),_R("The boycott was right",RX.op("GER",-10),RX.stab(-1))],
+   "*":[_R("Send our athletes",RX.stab(2),RX.op("GER",5)),_R("Boycott Hitler's Games",RX.op("GER",-10),RX.stab(1))]},
+ "1936-11-25":{ITA:[_R("Join the pact",RX.op("GER",15),RX.op("JAP",10),RX.op("SOV",-20),RX.op("UK",-5)),_R("Keep our hands free",RX.op("UK",5),RX.op("GER",-5))],
+   SOV:[_R("Prepare for war on two fronts",RX.ws(10),RX.stab(-3),RX.pp(-15)),_R("Seek collective security with the West",RX.op("UK",10),RX.op("FRA",10))],
+   GER:[_R("Stand together against Bolshevism",RX.op("JAP",15),RX.ws(4)),_R("A paper alliance only",RX.op("JAP",5),RX.op("CHN",5))],
+   JAP:[_R("Stand together against Bolshevism",RX.op("GER",15),RX.ws(4)),_R("A paper alliance only",RX.op("GER",5),RX.op("USA",5))],
+   CHN:[_R("Look to Moscow for arms",RX.op("SOV",15),RX.op("GER",-10)),_R("Keep the German advisers",RX.op("GER",10),RX.pp(5))]},
+ "1936-12-11":{UK:[_R("Long live King George VI",RX.stab(6)),_R("Let the dust settle and rearm",RX.stab(2),RX.pp(15))],
+   "*":[_R("Congratulate the new King",RX.op("UK",8),RX.pp(-5)),_R("A British affair",RX.stab(1))]},
+ "1937-05-06":{GER:[_R("Ground the airship fleet",RX.stab(-2),RX.pp(20)),_R("Blame the American helium embargo",RX.op("USA",-10),RX.stab(2))],
+   USA:[_R("A full inquiry at Lakehurst",RX.stab(1)),_R("Offer Germany helium after all",RX.op("GER",10),RX.stab(-2))],
+   "*":[_R("The future belongs to the aeroplane",RX.pp(-10),RX.ws(2)),_R("A tragedy, nothing more",RX.stab(1))]},
+ "1937-07-07":{SOV:[_R("Sign a pact with China and send aircraft",RX.op("CHN",20),RX.op("JAP",-15),RX.pp(-20)),_R("Watch the Japanese wear themselves out",RX.stab(2))],
+   USA:[_R("Moral embargo on Japan",RX.op("JAP",-15),RX.op("CHN",15)),_R("Keep trading with both",RX.pp(15),RX.op("CHN",-10))],
+   UK:[_R("Reopen the Burma Road to China",RX.op("CHN",15),RX.op("JAP",-15)),_R("Avoid a war in the Far East",RX.op("JAP",5),RX.stab(2))],
+   GER:[_R("Recall our advisers from China",RX.op("JAP",15),RX.op("CHN",-20)),_R("Keep the Chinese arms trade",RX.pp(10),RX.op("JAP",-10))]},
+ "1938-03-12":{ITA:[_R("Accept it: the Axis matters more than Austria",RX.op("GER",15),RX.stab(-3)),_R("Divisions to the Brenner, as in 1934",RX.op("GER",-25),RX.ws(8),RX.op("FRA",10))],
+   CZE:[_R("Fortify the new southern frontier",RX.pp(-25),RX.ws(10)),_R("Look to Paris and Moscow",RX.op("FRA",10),RX.op("SOV",10))],
+   HUN:[_R("Germany is the coming power",RX.op("GER",15)),_R("Draw closer to Rome",RX.op("ITA",15))]},
+ "1938-09-30":{CZE:[_R("Accept the Diktat",RX.stab(-10),RX.ws(-10),RX.op("UK",-20),RX.op("FRA",-25)),_R("Refuse, and mobilise alone",RX.ws(25),RX.stab(-6),RX.op("GER",-30),RX.units(2,"inf"))],
+   UK:[_R("Peace for our time",RX.stab(6),RX.ws(-6),RX.op("GER",10)),_R("A year bought to rearm",RX.pp(-30),RX.ws(8))],
+   FRA:[_R("Relief in Paris",RX.stab(5),RX.ws(-6),RX.op("CZE",-20)),_R("Rearm, and never again",RX.pp(-30),RX.ws(8),RX.op("GER",-10))],
+   SOV:[_R("We were not invited: look elsewhere",RX.op("UK",-15),RX.op("FRA",-15),RX.op("GER",5)),_R("Offer Prague our help anyway",RX.op("CZE",20),RX.ws(5))],
+   POL:[_R("Take Teschen while it is offered",RX.op("CZE",-25),RX.ws(5),RX.op("UK",-5)),_R("Stand aside",RX.stab(2))],
+   HUN:[_R("Claim southern Slovakia (Vienna Award)",RX.op("CZE",-25),RX.op("GER",10),RX.ws(5)),_R("Wait",RX.stab(1))]},
+ "1939-03-15":{UK:[_R("Guarantee Poland",RX.guar("POL"),RX.op("POL",20),RX.op("GER",-25),RX.ws(10)),_R("Do nothing",RX.stab(-4),RX.ws(-4))],
+   FRA:[_R("Guarantee Poland with Britain",RX.guar("POL"),RX.op("POL",20),RX.op("GER",-20),RX.ws(8)),_R("Wait on London",RX.stab(-2))],
+   POL:[_R("We will fight",RX.ws(12),RX.op("GER",-15)),_R("Seek British guarantees",RX.op("UK",15),RX.op("FRA",10))],
+   SOV:[_R("Propose a grand alliance to London and Paris",RX.op("UK",10),RX.op("FRA",10)),_R("Replace Litvinov with Molotov",RX.op("GER",10),RX.op("UK",-10))]},
+ "1939-04-07":{UK:[_R("Guarantee Greece and Romania",RX.guar("GRE"),RX.guar("ROM"),RX.op("ITA",-15),RX.ws(5)),_R("Note it",RX.stab(1))],
+   GRE:[_R("Fortify the Epirus frontier",RX.pp(-20),RX.ws(10)),_R("Seek British friendship",RX.op("UK",15))],
+   SRB:[_R("Mobilise the southern army",RX.ws(8),RX.pp(-15)),_R("Stay on good terms with Rome",RX.op("ITA",10),RX.stab(-2))]},
+ "1939-08-23":{POL:[_R("Sign the Anglo-Polish alliance",RX.op("UK",20),RX.op("FRA",10),RX.ws(15)),_R("General mobilisation",RX.ws(20),RX.stab(-5),RX.units(2,"inf"))],
+   UK:[_R("Sign the Anglo-Polish alliance",RX.guar("POL"),RX.op("POL",20),RX.ws(10),RX.op("GER",-15)),_R("One last approach to Berlin",RX.op("GER",5),RX.stab(-3))],
+   JAP:[_R("Betrayed by Berlin: the cabinet resigns",RX.op("GER",-20),RX.stab(-4)),_R("Turn south instead of north",RX.op("SOV",10),RX.ws(4))],
+   FIN:[_R("Strengthen the Mannerheim Line",RX.pp(-20),RX.ws(12)),_R("Seek Swedish help",RX.op("SWE",15))],
+   ROM:[_R("Fortify Bessarabia",RX.pp(-15),RX.ws(8)),_R("Draw closer to Berlin",RX.op("GER",15),RX.op("UK",-5))],
+   ITA:[_R("Declare non-belligerence",RX.stab(3),RX.op("GER",-5)),_R("Stand by the Pact of Steel",RX.op("GER",10),RX.ws(5))]},
+ "1939-09-01":{POL:[_R("Defend every foot of the frontier",RX.ws(15),RX.units(2,"inf")),_R("Fall back on the river lines",RX.stab(3),RX.ws(5))]},
+ "1939-09-03":{"*":[_R("Declare our neutrality",RX.stab(3)),_R("Sympathise with the Allies",RX.op("UK",10),RX.op("FRA",10),RX.op("GER",-10))]},
+ "1939-11-30":{FIN:[_R("Mobilise everyone: the Winter War",RX.ws(25),RX.stab(5),RX.units(2,"inf")),_R("Seek terms in Moscow",RX.stab(-8),RX.ws(-10))],
+   SWE:[_R("Volunteers and arms for Finland",RX.op("FIN",20),RX.op("SOV",-15),RX.pp(-15)),_R("Strict neutrality",RX.stab(3))],
+   "*":[_R("Expel the Soviet Union from the League",RX.op("SOV",-15),RX.op("FIN",15)),_R("Not our war",RX.stab(1))]},
+ "1940-06-10":{"*":[_R("A stab in the back",RX.op("ITA",-15),RX.op("FRA",10)),_R("The Axis is winning",RX.op("ITA",10),RX.op("GER",5))]},
+ "1940-09-27":{USA:[_R("Embargo scrap iron and oil to Japan",RX.op("JAP",-25),RX.op("UK",10),RX.ws(8)),_R("Avoid provocation",RX.stab(2))],
+   SOV:[_R("Ask to join on our own terms",RX.op("GER",10),RX.op("UK",-10)),_R("Prepare for the worst",RX.ws(8),RX.pp(-20))]},
+ "1941-03-11":{UK:[_R("Accept American aid",RX.pp(50),RX.op("USA",15)),_R("Pay what we still can",RX.pp(20),RX.stab(3))],
+   USA:[_R("The arsenal of democracy",RX.pp(-20),RX.op("UK",20),RX.ws(6)),_R("Aid, but no convoys",RX.stab(2),RX.op("UK",8))],
+   GER:[_R("Unrestricted submarine warfare in the Atlantic",RX.op("USA",-20),RX.ws(5)),_R("Avoid American ships",RX.stab(2))],
+   CHN:[_R("Ask for aircraft and the Flying Tigers",RX.pp(30),RX.op("USA",15)),_R("Thank Washington",RX.op("USA",5))]},
+ "1941-06-22":{SOV:[_R("Not one step back",RX.ws(25),RX.stab(-5)),_R("Evacuate the factories beyond the Urals",RX.pp(-40),RX.ws(15),RX.stab(5))],
+   UK:[_R("Any man who fights Nazism has our aid",RX.op("SOV",25),RX.pp(-20),RX.ws(5)),_R("Let the dictators destroy each other",RX.stab(2),RX.op("SOV",-10))],
+   JAP:[_R("Strike north into Siberia",RX.op("GER",15),RX.op("SOV",-25),RX.ws(5)),_R("Hold to the Neutrality Pact",RX.op("SOV",10),RX.stab(2))]},
+ "1941-12-07":{USA:[_R("A date which will live in infamy",RX.ws(30),RX.stab(6),RX.units(3,"inf")),_R("Germany first",RX.ws(20),RX.op("UK",20),RX.op("SOV",10))],
+   "*":[_R("The Americans will not forget",RX.op("JAP",-15),RX.op("USA",10)),_R("Japan has its oil now",RX.op("JAP",10))]},
+ "1914-07-28":{SRB:[_R("Defend Belgrade",RX.ws(20),RX.units(2,"inf")),_R("Appeal to the Tsar",RX.op("RUS",20))],
+   RUS:[_R("General mobilisation",RX.ws(15),RX.stab(-4),RX.op("AUH",-20)),_R("Partial mobilisation against Austria only",RX.ws(8),RX.op("GER",5))]},
+ "1914-08-04":{"*":[_R("Declare our neutrality",RX.stab(3)),_R("Our sympathies lie with the Entente",RX.op("UK",10),RX.op("FRA",10),RX.op("GER",-10))]},
+ "1917-04-06":{GER:[_R("Win before the Americans arrive",RX.ws(10),RX.stab(-5)),_R("Seek a compromise peace",RX.stab(4),RX.ws(-10))],
+   "*":[_R("Follow America into the war",RX.op("USA",15),RX.op("GER",-15),RX.ws(5)),_R("Stay out",RX.stab(2))]}
+};
+/* who we are to the headline's two parties */
+function _newsRel(k,a,b){
+  const fr=x=>x&&G.nations[x]&&(allied(k,x)||G.nations[x].puppet===k||G.nations[k].puppet===x||(factionOf(k)&&factionOf(k)===factionOf(x))||dipState().guar[k+"|"+x]);
+  if(k===a)return "actor";if(k===b)return "target";
+  if(fr(b))return "friendB";if(fr(a))return "friendA";
+  if(b&&G.nations[k].atWar.has(a))return "enemyA";
+  return "neutral";
+}
+function _genResp(it,k){
+  const A=NATIONS[it.a]?NATIONS[it.a].n:"",B=it.b&&NATIONS[it.b]?NATIONS[it.b].n:"";
+  const r=_newsRel(k,it.a,it.b);
+  if(r==="actor")return [_R("Press on: the nation stands behind us",RX.ws(6),RX.stab(2)),_R(it.b?`Reassure the world about ${B}`:"Reassure the world",RX.ws(-2),...(it.b?[RX.op(it.b,10)]:[]),RX.stab(3))];
+  if(r==="target")return [_R("Resist with everything we have",RX.ws(15),RX.stab(-4)),_R("Appeal to the great powers",RX.stab(3),RX.op("UK",8),RX.op("USA",8)),_R("Bow to what cannot be stopped",RX.stab(5),RX.ws(-12))];
+  if(!it.b)return [_R("Watch closely",RX.stab(1)),_R(`Send word to ${A}`,RX.op(it.a,8),RX.pp(-5))];
+  if(r==="friendB")return [_R(`Stand by ${B}`,RX.op(it.b,15),RX.op(it.a,-20),RX.ws(6)),_R("A formal protest",RX.op(it.a,-5),RX.op(it.b,5)),_R("Look away",RX.op(it.b,-15),RX.stab(3))];
+  if(r==="friendA")return [_R(`Welcome the news from ${A}`,RX.op(it.a,15),RX.op(it.b,-10)),_R("Say nothing",RX.stab(1))];
+  if(r==="enemyA")return [_R(`Make common cause with ${B}`,RX.op(it.b,20),RX.ws(5)),_R("Every enemy of ours is busier now",RX.stab(2))];
+  return [_R(`Condemn ${A}`,RX.op(it.a,-10),RX.op(it.b,10)),_R("Stay out of it",RX.stab(2)),_R("Trade with whoever wins",RX.pp(10),RX.op(it.b,-8))];
+}
+function newsResponses(it,k){
+  const sp=HIST_RESP[it.ds];
+  let list=sp&&(sp[k]||(k!==it.a&&k!==it.b&&sp["*"]));
+  if(list)list=list.map(o=>({t:o.t,fx:o.fx.filter(e=>!e.ok||e.ok())}));
+  return list&&list.length?list:_genResp(it,k);
+}
+/* the line under the story that says what this means for the country being played */
+function newsForUs(it,k){
+  const A=NATIONS[it.a]?NATIONS[it.a].n:"",B=it.b&&NATIONS[it.b]?NATIONS[it.b].n:"";
+  switch(_newsRel(k,it.a,it.b)){
+    case "actor":return "This is our doing. The world is watching to see what we do next.";
+    case "target":return `This is aimed at us. ${A} has made its move, and our government must answer it.`;
+    case "friendB":return `${B} is our friend. Whatever we say now, ${A} will remember it, and so will ${B}.`;
+    case "friendA":return `${A} is our friend. Its success may be ours, but ${B||"the world"} will judge us by the company we keep.`;
+    case "enemyA":return `${A} is already at war with us. Anything that draws its strength elsewhere is to our advantage.`;
+    default:return `We are not a party to this. But every capital is choosing how to answer, and our answer will be noted in ${A}${B?" and in "+B:""}.`;}
+}
+/* a photograph for a headline: one from PD_PHOTOS dated to that day, or one the
+   player has given for it (kept in this browser only) */
+function newsPhotoFor(ds){
+  const pd=PD_PHOTOS.find(p=>p.ds===ds);if(pd)return {src:pd.src,cap:pd.credit||""};
+  try{const m=JSON.parse(localStorage.getItem("if_news_photos")||"{}");if(m[ds])return {src:m[ds],cap:"Your photograph"};}catch(e){}
+  return null;
+}
+window.addNewsPhoto=function(ds,file){
+  if(!file)return;const rd=new FileReader();
+  rd.onload=()=>{const im=new Image();im.onload=()=>{
+    const k=Math.min(1,960/Math.max(im.width,im.height)),c=document.createElement("canvas");
+    c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+    let m={};try{m=JSON.parse(localStorage.getItem("if_news_photos")||"{}");}catch(e){}
+    m[ds]=c.toDataURL("image/jpeg",0.7);
+    for(;;){try{localStorage.setItem("if_news_photos",JSON.stringify(m));break;}catch(e){const ks=Object.keys(m).filter(x=>x!==ds);if(!ks.length)break;delete m[ks[0]];}}
+    _drawNewsPic(ds);};im.src=rd.result;};
+  rd.readAsDataURL(file);
+};
+function _drawNewsPic(ds){
+  const ph=newsPhotoFor(ds),cv2=document.getElementById("evPhoto");if(!ph||!cv2)return false;
+  const im=new Image();im.onload=()=>{const g=cv2.getContext("2d"),W2=cv2.width,H2=cv2.height;
+    const s=Math.max(W2/im.width,H2/im.height),w=im.width*s,h=im.height*s;
+    g.filter="grayscale(1) contrast(1.15)";g.drawImage(im,(W2-w)/2,(H2-h)/2,w,h);g.filter="none";
+    if(ph.cap){g.fillStyle="rgba(0,0,0,.55)";g.fillRect(0,H2-18,W2,18);g.fillStyle="#d8d2bc";g.font="11px Courier New";g.textAlign="right";g.fillText(ph.cap,W2-8,H2-5);g.textAlign="left";}};
+  im.src=ph.src;return true;
+}
 function showWorldNews(items){
   if(!items.length||!G)return;
   const box=$("#eventBox");
   if(box&&box.style.display==="block"){_newsQ.push(...items);return;}
-  const top=items[0],me=G.nations[G.player]||{};
+  const k=G.player,me=G.nations[k]||{};
+  /* lead with the story that concerns us most */
+  const pri=o=>({actor:5,target:6,friendB:4,friendA:3,enemyA:2,neutral:1})[_newsRel(k,o.a,o.b)]||0;
+  const top=[...items].sort((p,q)=>pri(q)-pri(p))[0];
   const PAPERS={dem:"THE DAILY CHRONICLE",fas:"THE NATIONAL OBSERVER",com:"THE PEOPLE'S DAILY",mon:"THE COURT GAZETTE",aut:"THE STATE BULLETIN",rev:"THE FREE PRESS"};
-  $("#evPaper").innerHTML=FL(G.player)+" "+(PAPERS[me.ideo]||PAPERS.dem)+" · WORLD NEWS";
+  $("#evPaper").innerHTML=FL(k)+" "+(PAPERS[me.ideo]||PAPERS.dem)+" · WORLD NEWS";
   $("#evDate").textContent=newsDate();
   const kind=top.type==="war"||top.type==="annex"?"troops":top.type==="news"&&/Olymp|abdicat|Hindenburg/i.test(top.label)?"crowd":"chamber";
-  try{drawNewsPhoto(kind,(top.label.length*131+G.day)|0);}catch(e){}
+  if(!_drawNewsPic(top.ds))try{drawNewsPhoto(kind,(top.label.length*131+G.day)|0);}catch(e){}
   $("#evTitle").textContent=top.label.toUpperCase();
-  const others=items.slice(1);
-  $("#evDesc").innerHTML=(HIST_STORY[top.ds]||"").replace(/[<&]/g,c=>c==="<"?"&lt;":"&amp;")+
-    (others.length?`<div style="margin-top:8px;border-top:1px solid #3a4438;padding-top:6px"><b style="letter-spacing:.1em;font-size:11px;color:#c9b47a">ALSO TODAY</b>${others.map(o=>`<div style="margin-top:3px">▸ ${o.label}</div>`).join("")}</div>`:"");
+  const esc=s=>String(s).replace(/[<&]/g,c=>c==="<"?"&lt;":"&amp;");
+  const others=items.filter(o=>o!==top);
+  $("#evDesc").innerHTML=
+    `<p style="margin:0 0 8px"><b>${esc(HIST_STORY[top.ds]||top.label+".")}</b></p>`+
+    (HIST_BG[top.ds]?`<p style="margin:0 0 8px">${esc(HIST_BG[top.ds])}</p>`:"")+
+    `<div style="border-left:3px solid #c9b47a;padding:3px 0 3px 9px;margin:8px 0;color:#e2d7b0"><b style="letter-spacing:.1em;font-size:11px">WHAT IT MEANS FOR ${esc((NATIONS[k]||{n:""}).n.toUpperCase())}</b><br>${esc(newsForUs(top,k))}</div>`+
+    (others.length?`<div style="margin-top:8px;border-top:1px solid #3a4438;padding-top:6px"><b style="letter-spacing:.1em;font-size:11px;color:#c9b47a">ALSO TODAY</b>${others.map(o=>`<div style="margin-top:3px">▸ ${esc(o.label)}</div>`).join("")}</div>`:"")+
+    `<label style="display:inline-block;margin-top:8px;font-size:10.5px;color:#8a9285;cursor:pointer;text-decoration:underline">\u{1F4F7} use your own photograph for this headline<input type="file" accept="image/*" style="display:none" onchange="addNewsPhoto('${top.ds}',this.files[0])"></label>`;
   const ch=$("#evChoices");ch.innerHTML="";
-  const mine=items.some(o=>o.a===G.player||o.b===G.player);
-  const btn=document.createElement("button");btn.className="bbtn";
-  btn.textContent=mine?"This concerns us directly.":(top.type==="war"?"The world holds its breath.":"Noted.");
-  btn.onclick=()=>{box.style.display="none";$("#evShade").style.display="none";G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();
+  const close=()=>{box.style.display="none";$("#evShade").style.display="none";G.paused=G._evPaused||false;G._evOpen=false;refreshHUD();
     if(_newsQ.length){const q=_newsQ;_newsQ=[];setTimeout(()=>showWorldNews(q),50);}};
-  ch.appendChild(btn);
+  for(const o of newsResponses(top,k)){
+    const btn=document.createElement("button");btn.className="bbtn";btn.style.textAlign="left";
+    btn.innerHTML=`<b>${esc(o.t)}</b>${o.fx.length?`<div style="font-size:10.5px;color:#a9b09a;margin-top:3px;font-weight:normal">${o.fx.map(e=>esc(e.d)).join(" · ")}</div>`:""}`;
+    btn.onclick=()=>{for(const e of o.fx)try{e.f(k);}catch(err){}
+      logMsg(`\u{1F4F0} ${top.label}: we answered “${o.t}”`,"info");close();};
+    ch.appendChild(btn);
+  }
   if(!G._evOpen){G._evPaused=G.paused;G._evOpen=true;}
   G.paused=true;box.classList.add("news");$("#evShade").style.display="block";box.style.display="block";
   try{sfx("event");}catch(e){}
