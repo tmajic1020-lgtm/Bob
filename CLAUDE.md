@@ -2376,3 +2376,44 @@ news map, then a public-domain photo / the painted scene.
 - #evPhoto is 640x230 (was 260) so the answers are closer to view.
 - To add another: a box [lon0,lat0,lon1,lat1], `hi`, optional zone ring,
   unit positions, arrows and labels, all in lon/lat.
+
+## The order bar
+
+Owner: "add all of the buttons, there's way more in hearts of iron four".
+Select divisions (Shift-drag, SELECT, or an army group) and `#orderbar`
+appears bottom-centre, two rows (`updateOrderBar`, polled every 300ms on a
+signature so it costs nothing while unchanged):
+
+- BATTLE PLAN: front line, offensive line, spearhead, fall-back line,
+  naval invasion, paradrop, area defence. EXECUTE: execute, stop, careful /
+  balanced / aggressive. ORDERS: move, halt, strategic redeployment,
+  reserve, exercise, merge, split, disband. COMMAND: new army group, select
+  whole group, leave group, field marshal, deselect.
+- A tool that needs a place sets `G.pickOrder`; the next map click goes to
+  `ORDER_PICK[k].go(p)` from the top of clickAt (Esc cancels). Each returns
+  an error string or nothing.
+- Plans with a goal keep it as `grp.obj` with new stances offensive / spear /
+  fallback / invade (`STANCES` extended, `PLAN_STANCES` for prep and
+  execute). `ORDER_RUN[stance]` runs from runGroups daily. Until executed,
+  offensive and spearhead hold the front facing the goal's owner and build
+  preparation; executed, offensive takes the enemy edge province scored by
+  distance to the goal (spread with a +28 penalty per division already
+  sent, and the careful/balanced odds check), spearhead paths everyone
+  straight to it. Fall-back spreads over the province and its own
+  neighbours. Invasion gathers in our ports with a sea link to the beach
+  and crosses on execute (escort and interception are the existing
+  moveUnits rules). A goal reached or lost drops the group to HOLD.
+- A new plan clears the group's old paths (else divisions finish walking
+  the previous plan first -- the first test showed exactly that).
+- Paradrop: up to 3 infantry, enemy province within 60 world units of an
+  Air Base or the capital, 15 PP each, land at 85% strength, `tryCapture`.
+- Redeployment: `u.strat` triples speed in moveUnits, cleared on arrival.
+  Split halves str and hp into a new unit (same group, xp, equipment);
+  merge folds same-type divisions in one province into the first.
+- `drawObjPlans` draws the goal plans in the group's colour: arrow
+  (offensive), thin double-headed arrow (spearhead), dashed arrow with an
+  anchor (invasion), dashed ring (fall-back); faint until executed.
+- Checked (`nr/ob.js`, `nr/inv.js`): offensive on Warsaw marches into
+  Poland; halt stops all; fall-back to Berlin; split +2 / merge -2;
+  paradrop lands two divisions at Poznan; invasion from Hamburg landed at
+  London after execute.

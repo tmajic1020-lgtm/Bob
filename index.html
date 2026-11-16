@@ -320,6 +320,26 @@ body:not(.zz) #sidebtns .tbtn::after{content:attr(data-s);font-size:8.5px;letter
 body:not(.light):not(.zz) #sidebtns .tbtn{border-top:2px solid #8a7440}
 
 @media(max-width:700px){body:not(.zz) #sidebtns .tbtn{min-width:46px}}
+
+/* ===== THE ORDER BAR: every order for the selected divisions, along the bottom ===== */
+#orderbar{position:absolute;left:50%;bottom:54px;transform:translateX(-50%);z-index:14;display:none;gap:4px 6px;
+  grid-template-columns:auto auto auto;max-width:calc(100vw - 16px);padding:5px 7px;
+  background:linear-gradient(#1f251d,#12160f);border:1px solid #6b5a34;outline:2px solid #0b0d0a;box-shadow:0 6px 26px #000c}
+#orderbar .obinfo{grid-row:span 2;min-width:96px;max-width:110px;font-size:11px;color:#d8d0b0;padding:2px 6px;border-right:1px solid #3a4438;line-height:1.35}
+#orderbar .obinfo b{font-size:17px;color:#f0d98a}
+#orderbar .obprep{height:4px;background:#000;margin-top:3px;border:1px solid #3a4438}
+#orderbar .obprep i{display:block;height:100%;background:#6fae4a}
+#orderbar .obsec{display:flex;flex-direction:column}
+#orderbar .obh{font-size:9px;letter-spacing:.18em;color:#c9b47a;margin-bottom:3px}
+#orderbar .obrow{display:flex;gap:2px}
+#orderbar .ob{width:54px;height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;
+  background:linear-gradient(#2c3428,#1b2018);border:1px solid #4b4a34;color:#e8e0c4;cursor:pointer;font-family:inherit}
+#orderbar .ob b{font-size:16px;line-height:1}
+#orderbar .ob span{font-size:8.5px;letter-spacing:0;white-space:nowrap;overflow:hidden;max-width:52px}
+#orderbar .ob:hover{border-color:var(--amber);background:linear-gradient(#3a4432,#252c20)}
+#orderbar .ob.on{border-color:#e8c060;background:linear-gradient(#5a4c22,#33290f);color:#fff2c4}
+#orderbar .ob.pick{border-color:#f06040;box-shadow:0 0 8px #f06040 inset}
+@media(max-width:900px){#orderbar{grid-template-columns:auto auto}#orderbar .obinfo{grid-row:auto;grid-column:span 2;max-width:none}#orderbar .ob{width:44px;height:40px}#orderbar .ob span{font-size:7.5px}#orderbar{bottom:100px}}
 </style>
 <meta name="theme-color" content="#0a0e0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4942,6 +4962,7 @@ function moveUnits(arr,kind){
     if(kind==="army"&&shortOn(u.nat,"rubber"))spd*=0.80;  // no tyres, no tracks, no pace
     if(u.gen&&u.gen.trait==="blitz")spd*=1.30;
     {const g=grpOf(u);if(g&&g.fm&&g.fm.trait==="blitz")spd*=1.15;}
+    if(u.strat&&kind==="army")spd*=3;                  // strategic redeployment: by rail
     /* AMPHIBIOUS OPERATIONS. Owning a single warship anywhere on Earth used to
        let an army walk across any ocean on the map at full speed. A crossing
        now needs hulls at the crossing: escorted, it is an invasion; unescorted,
@@ -4977,6 +4998,7 @@ function moveUnits(arr,kind){
       u.to=null;u.warnedSea=0;
       if(u.path&&u.path.length){const nxt=u.path.shift();if(validStep(u,nxt))u.to=nxt;else u.path=null;}
       if(kind==="army")tryCapture(u);
+      if(!u.to)u.strat=0;
     }
   }
 }
@@ -5843,6 +5865,7 @@ function runGroups(nat){
     const roster=groupUnits(nat,+g).filter(u=>!u.to);
     if(!roster.length)continue;
     if(grp.stance==="reserve")continue;                 // stands fast on purpose
+    if(grp.obj&&ORDER_RUN[grp.stance]){ORDER_RUN[grp.stance](nat,grp,roster,+g);continue;}
     if(grp.stance==="front"){
       /* executing: the line attacks, at the plan's aggression */
       if(grp.plan&&grp.plan.exec&&G.nations[nat].atWar.size){
@@ -7947,7 +7970,7 @@ function fmMul(u,p){
 }
 function planTick(){
   if(!G.groups)return;
-  for(const id in G.groups){const g=G.groups[id];if(!g||g.stance!=="front")continue;
+  for(const id in G.groups){const g=G.groups[id];if(!g||PLAN_STANCES.indexOf(g.stance)<0)continue;
     const P=planOf(g);
     P.prep=P.exec?Math.max(0,(P.prep||0)-0.02):Math.min(1,(P.prep||0)+1/40);
     if(g.fm&&P.exec){g.fm.xp=(g.fm.xp||0)+0.1;if(g.fm.xp>=30&&g.fm.lvl<FM_MAXLVL){g.fm.xp=0;g.fm.lvl++;
@@ -7966,7 +7989,7 @@ window.hireFieldMarshal=g=>{
 window.dismissFieldMarshal=g=>{const grp=G.groups&&G.groups[g];if(grp&&grp.nat===G.player){delete grp.fm;renderPanel();refreshHUD();}};
 window.setPlanAgg=(g,a)=>{const grp=G.groups&&G.groups[g];if(!grp||!PLAN_AGG[a])return;planOf(grp).agg=a;renderPanel();refreshHUD();};
 window.planExecute=(g,on)=>{const grp=G.groups&&G.groups[g];if(!grp||grp.nat!==G.player)return;
-  if(grp.stance!=="front"){grp.stance="front";}
+  if(PLAN_STANCES.indexOf(grp.stance)<0){grp.stance="front";}
   const P=planOf(grp);P.exec=!!on;
   logMsg(on?`▶ Army Group ${g} executes its battle plan (${PLAN_AGG[P.agg].n.toLowerCase()}, ${Math.round(P.prep*100)}% prepared).`:`⏸ Army Group ${g} halts and holds its line.`,on?"good":"");
   renderPanel();refreshHUD();};
@@ -15721,6 +15744,7 @@ function _drawFrame(){
     drawOffensiveArrows(z);
   }
   if(z>1.4){try{drawPlans(z);}catch(e){}}
+  if(z>1.0){try{drawObjPlans(z);}catch(e){}}
   if(z>2.1){try{drawMoveRoutes(z);}catch(e){}}
   /* Fleets and armies, painted back to front. Standing pieces have to be drawn
      in depth order or a counter to the NORTH of another — that is, behind it —
@@ -19148,6 +19172,258 @@ function endPtr(e){
     drag=null;
   }
 }
+/* ===================== THE ORDER BAR =====================
+   Select divisions and the real game puts every order along the bottom of the
+   screen: the battle-plan tools (front line, offensive line, spearhead,
+   fall-back line, naval invasion, paradrop, area defence, execute, how
+   aggressive) and the unit orders (halt, strategic redeployment, dig in,
+   reserve, exercise, merge, split, disband, army group, field marshal).
+   A plan tool that needs a place asks for a click on the map. The plans with
+   a goal (offensive, spearhead, fall-back, invasion) keep it as grp.obj and
+   are carried out each day by ORDER_RUN, from runGroups. */
+const PLAN_STANCES=["front","offensive","spear","invade"];
+Object.assign(STANCES,{
+  offensive:{n:"OFFENSIVE",i:"➤",d:"An offensive line to a goal: the group attacks across its whole width toward the province you picked, taking the nearest enemy ground on the way."},
+  spear    :{n:"SPEARHEAD",i:"⇛",d:"A spearhead: every division drives straight down one road to the goal, ignoring the flanks."},
+  fallback :{n:"FALL-BACK",i:"↩",d:"A fall-back line: the group withdraws to the province you picked and the ground around it, and holds there."},
+  invade   :{n:"INVASION", i:"⚓",d:"A naval invasion: the group gathers in the ports facing the beach you picked and crosses when the plan is executed."}
+});
+const PARA_RANGE=60, PARA_COST=15;
+function _distP(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+/* spread a roster evenly over a set of provinces, nearest first */
+function _spreadOver(nat,roster,F){
+  if(!F.length)return;
+  const cover={};for(const id of F)cover[id]=0;
+  const dest=u=>(u.path&&u.path.length)?u.path[u.path.length-1]:(u.to||u.at);
+  for(const u of roster)if(cover[dest(u)]!==undefined)cover[dest(u)]++;
+  const share=Math.ceil(roster.length/F.length);let tries=0;
+  for(const u of roster){
+    if(u.to)continue;
+    if(cover[u.at]!==undefined&&cover[u.at]<=share)continue;
+    const here=provOf(u.at);
+    const cand=F.slice().sort((x,y)=>(cover[x]-cover[y])||(_distP(G.prov[x],here)-_distP(G.prov[y],here)));
+    for(const id of cand.slice(0,4)){
+      if(++tries>40)return;
+      const path=findPath(u.at,id,"army",nat);
+      if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;if(cover[u.at]!==undefined)cover[u.at]--;cover[id]++;break;}
+    }
+  }
+}
+function _goTo(u,id,nat){const path=findPath(u.at,id,"army",nat);if(path&&path.length){u.to=path.shift();u.path=path;u.prog=0;return true;}return false;}
+function _planDone(grp,id,msg){grp.stance="hold";grp.obj=null;if(grp.plan)grp.plan.exec=false;
+  if(grp.nat===G.player)logMsg(`✔ Army Group ${id}: ${msg}`,"good");}
+const ORDER_RUN={
+  offensive(nat,grp,roster,id){
+    const obj=G.prov[grp.obj];if(!obj)return _planDone(grp,id,"its goal is gone.");
+    if(obj.owner===nat)return _planDone(grp,id,`${obj.name} is taken. The group holds.`);
+    const exec=planOf(grp).exec&&atWar(nat,obj.owner);
+    if(!exec){frontAssign(nat,groupUnits(nat,id),obj.owner);return;}
+    /* every enemy province on our edge, scored by how far it lies toward the goal */
+    const edge=[];
+    for(const a of natProvs(nat))for(const bid of a.adj||[]){const b=G.prov[bid];if(b&&atWar(nat,b.owner)&&edge.indexOf(b)<0)edge.push(b);}
+    if(!edge.length)return;
+    const taken={};const r=PLAN_AGG[planOf(grp).agg]?PLAN_AGG[planOf(grp).agg].r:1;
+    for(const u of roster){
+      const here=provOf(u.at);
+      const ranked=edge.map(b=>[_distP(b,obj)+0.35*_distP(b,here)+28*(taken[b.id]||0),b]).sort((x,y)=>x[0]-y[0]);
+      for(const [,b] of ranked.slice(0,3)){
+        if(r>1){const ours=G.units.filter(v=>v.nat===nat&&(v.at===b.id||(provOf(v.at).adj||[]).indexOf(b.id)>=0)).reduce((s,v)=>s+v.hp,0);
+          const theirs=G.units.filter(v=>v.at===b.id&&atWar(nat,v.nat)).reduce((s,v)=>s+v.hp,0);if(theirs>0&&ours<theirs*r)continue;}
+        if(_goTo(u,b.id,nat)){taken[b.id]=(taken[b.id]||0)+1;break;}
+      }
+    }
+  },
+  spear(nat,grp,roster,id){
+    const obj=G.prov[grp.obj];if(!obj)return _planDone(grp,id,"its goal is gone.");
+    if(obj.owner===nat)return _planDone(grp,id,`the spearhead has reached ${obj.name}.`);
+    if(!(planOf(grp).exec&&atWar(nat,obj.owner))){frontAssign(nat,groupUnits(nat,id),obj.owner);return;}
+    for(const u of roster)_goTo(u,obj.id,nat);
+  },
+  fallback(nat,grp,roster,id){
+    const obj=G.prov[grp.obj];if(!obj||obj.owner!==nat)return _planDone(grp,id,"its fall-back line is lost.");
+    const F=[obj.id,...(obj.adj||[]).filter(j=>G.prov[j]&&G.prov[j].owner===nat)];
+    _spreadOver(nat,groupUnits(nat,id),F);
+  },
+  invade(nat,grp,roster,id){
+    const obj=G.prov[grp.obj];if(!obj)return _planDone(grp,id,"its beach is gone.");
+    if(obj.owner===nat)return _planDone(grp,id,`the landing at ${obj.name} has succeeded.`);
+    const ports=natProvs(nat).filter(p=>p.coastal&&(p.seaAdj||[]).indexOf(obj.id)>=0);
+    if(!ports.length){if(grp.nat===G.player&&!grp._noPort){grp._noPort=1;logMsg(`⚓ Army Group ${id}: none of our ports faces ${obj.name}. Pick a beach across one sea crossing from our coast.`,"war");}return;}
+    const go=planOf(grp).exec&&atWar(nat,obj.owner);
+    for(const u of roster){
+      if(ports.some(p=>p.id===u.at)){if(go){u.to=obj.id;u.path=null;u.prog=0;}continue;}
+      const best=ports.slice().sort((a,b)=>_distP(a,provOf(u.at))-_distP(b,provOf(u.at)))[0];
+      _goTo(u,best.id,nat);
+    }
+  }
+};
+/* ---------- giving the orders ---------- */
+function _selGroupKeep(){const L=_selLive();const g=_selGroupId();G.selGroup=L;G.selUnit=L[0]||null;return g;}
+function _setPlan(stance,pid,target){
+  const g=_selGroupKeep();if(!g)return 0;const grp=ensureGroup(g);
+  grp.stance=stance;grp.obj=pid||null;grp.target=target||null;grp._noPort=0;
+  /* a new plan takes over: old marching orders are dropped at the next province */
+  for(const u of groupUnits(G.player,g)){u.path=null;u.strat=0;}
+  const P=planOf(grp);P.exec=false;
+  return g;
+}
+const ORDER_PICK={
+  front:{ask:"Click a province of the country this front should face.",
+    go(p){if(!p||p.owner===G.player||allied(G.player,p.owner))return "Pick a foreign province.";
+      const g=_setPlan("front",null,p.owner);logMsg(`▬ Army Group ${g} draws a front line against ${NATIONS[p.owner].n}.`,"good");}},
+  offensive:{ask:"Click the enemy province the offensive should drive to.",
+    go(p){if(!p||p.owner===G.player||allied(G.player,p.owner))return "Pick an enemy province.";
+      const g=_setPlan("offensive",p.id,p.owner);logMsg(`➤ Army Group ${g}: offensive line to ${p.name} drawn. Execute when ready.`,"good");}},
+  spear:{ask:"Click the enemy province the spearhead should reach.",
+    go(p){if(!p||p.owner===G.player||allied(G.player,p.owner))return "Pick an enemy province.";
+      const g=_setPlan("spear",p.id,p.owner);logMsg(`⇛ Army Group ${g}: spearhead toward ${p.name}. Execute when ready.`,"good");}},
+  fallback:{ask:"Click one of your own provinces to fall back to.",
+    go(p){if(!p||p.owner!==G.player)return "Pick a province of your own.";
+      const g=_setPlan("fallback",p.id,null);logMsg(`↩ Army Group ${g} falls back to ${p.name} and holds.`,"good");}},
+  invade:{ask:"Click the enemy beach to land on (a coastal province across one sea crossing).",
+    go(p){if(!p||!p.coastal||p.owner===G.player)return "Pick a foreign coastal province.";
+      const g=_setPlan("invade",p.id,p.owner);logMsg(`⚓ Army Group ${g}: invasion of ${p.name} planned. The divisions gather in the ports; execute to land.`,"good");}},
+  para:{ask:`Click an enemy province within ${PARA_RANGE*0.18|0}° of one of your air bases to drop on.`,
+    go(p){return paraDrop(p);}},
+  redeploy:{ask:"Click a province of your own to redeploy to by rail.",
+    go(p){if(!p||(p.owner!==G.player&&!allied(G.player,p.owner)))return "Pick a province you or an ally hold.";
+      let n=0;for(const u of _selLive()){if(u.at===p.id)continue;if(_goTo(u,p.id,G.player)){u.strat=1;u.train=false;n++;}}
+      logMsg(n?`\u{1F682} ${n} division${n>1?"s":""} redeploying to ${p.name} by rail, three times the marching pace.`:"No route by rail to there.",n?"good":"war");}},
+  move:{ask:"Click a province to send them to.",go(p){if(!p)return "Pick a province.";let n=0;for(const u of _selLive())if(u.at!==p.id&&_goTo(u,p.id,G.player))n++;
+      logMsg(n?`⚑ ${n} divisions march on ${p.name}.`:"They cannot reach it.",n?"":"war");}}
+};
+function paraDrop(p){
+  const k=G.player,me=G.nations[k];
+  if(!p||!atWar(k,p.owner))return "Paratroopers drop on an enemy province we are at war with.";
+  const bases=natProvs(k).filter(q=>bldLv(q,"airb")>0||q.id===me.cap);
+  const near=bases.filter(q=>_distP(q,p)<=PARA_RANGE);
+  if(!near.length)return `No air base within range of ${p.name}. Build an Air Base nearer the front.`;
+  const inf=_selLive().filter(u=>u.type==="inf").slice(0,3);
+  if(!inf.length)return "Only infantry can be dropped.";
+  if(me.pp<PARA_COST*inf.length)return `A drop costs ${PARA_COST} PP a division.`;
+  me.pp-=PARA_COST*inf.length;
+  for(const u of inf){u.at=p.id;u.to=null;u.path=null;u.prog=0;u.hp*=0.85;u.train=false;if(u.org!==undefined)u.org=Math.min(u.org,0.4);try{tryCapture(u);}catch(e){}}
+  logMsg(`\u{1FA82} ${inf.length} division${inf.length>1?"s":""} dropped on ${p.name}.`,"good");sfx&&sfx("march");
+}
+window.orderPick=k=>{if(!_selLive().length)return;G.pickOrder=k;logMsg("\u{1F5FA} "+ORDER_PICK[k].ask+" (Esc cancels.)");updateOrderBar(true);};
+function _orderPickClick(p){
+  const k=G.pickOrder;G.pickOrder=null;
+  const err=ORDER_PICK[k]&&ORDER_PICK[k].go(p);
+  if(err){logMsg(err,"war");}
+  updateOrderBar(true);refreshHUD();
+}
+window.orderDo=k=>{
+  const L=_selLive();if(!L.length)return;const me=G.nations[G.player];
+  const g0=L[0].grp,oneGroup=g0&&L.every(u=>u.grp===g0)&&G.groups&&G.groups[g0]?g0:0;
+  switch(k){
+    case "halt":for(const u of L){u.to=null;u.path=null;u.prog=0;u.strat=0;}
+      if(oneGroup){const grp=G.groups[oneGroup];grp.stance="hold";grp.obj=null;if(grp.plan)grp.plan.exec=false;}
+      logMsg(`✋ ${L.length} division${L.length>1?"s":""} halt where they stand.`);break;
+    case "area":{const g=_selGroupKeep();if(g){const grp=G.groups[g];grp.stance="hold";grp.obj=null;grp.target=null;}
+      logMsg(`\u{1F6E1} Army Group ${g}: area defence — it guards our ground and moves only to threatened provinces.`,"good");break;}
+    case "reserve":{const g=_selGroupKeep();if(g){const grp=G.groups[g];grp.stance="reserve";grp.obj=null;}
+      for(const u of L){u.to=null;u.path=null;}logMsg(`○ Army Group ${g} goes into reserve to rest and refit.`);break;}
+    case "exec":case "stop":{if(!oneGroup){logMsg("Draw a plan for these divisions first.","war");break;}
+      const grp=G.groups[oneGroup];if(PLAN_STANCES.indexOf(grp.stance)<0){logMsg("This army group has no battle plan to execute.","war");break;}
+      planOf(grp).exec=k==="exec";
+      logMsg(k==="exec"?`▶ Army Group ${oneGroup} executes its ${STANCES[grp.stance].n.toLowerCase()} plan (${Math.round(planOf(grp).prep*100)}% prepared).`:`⏸ Army Group ${oneGroup} stops and holds.`,k==="exec"?"good":"");break;}
+    case "train":{let n=0;for(const u of L)if(canTrain(u)&&!u.train){u.train=true;n++;}
+      logMsg(n?`\u{1F3AF} ${n} division${n>1?"s":""} begin exercises.`:"None of them can train here (they must be idle on our own ground).",n?"good":"war");break;}
+    case "merge":{const by={};for(const u of L){const key=u.at+"|"+u.type;(by[key]=by[key]||[]).push(u);}
+      let m=0;for(const key in by){const a=by[key];if(a.length<2)continue;const host=a[0];
+        for(const v of a.slice(1)){host.str=+(host.str+v.str).toFixed(1);host.hp+=v.hp;host.xp=Math.max(host.xp||0,v.xp||0);
+          const i=G.units.indexOf(v);if(i>=0)G.units.splice(i,1);m++;}}
+      G.selGroup=_selLive();logMsg(m?`\u{1F517} ${m} division${m>1?"s":""} merged into the others standing with them.`:"Merging needs two divisions of the same kind in the same province.",m?"good":"war");break;}
+    case "split":{let s=0;for(const u of L.slice()){if(u.str<2||u.to)continue;const half=+(u.str/2).toFixed(1),hp=u.hp/2;
+        u.str=+(u.str-half).toFixed(1);u.hp=hp;const v=addUnit(u.nat,u.at,u.type,half);v.hp=hp;v.xp=u.xp;v.eq=u.eq;v.grp=u.grp;if(u.tpl)v.tpl=u.tpl;G.selGroup.push(v);s++;}
+      logMsg(s?`✂ ${s} division${s>1?"s":""} split in two.`:"Only a full-strength division standing still can be split.",s?"good":"war");break;}
+    case "disband":{if(!confirm(`Disband ${L.length} division${L.length>1?"s":""}? Their men go home.`))break;
+      for(const u of L){const i=G.units.indexOf(u);if(i>=0)G.units.splice(i,1);me.mp=(me.mp||0)+Math.round(u.hp*0.5);}
+      G.selGroup=null;G.selUnit=null;logMsg(`✖ ${L.length} division${L.length>1?"s":""} disbanded.`);break;}
+    case "newgrp":selFormGroup();break;
+    case "ungroup":for(const u of L)u.grp=0;logMsg(`${L.length} division${L.length>1?"s":""} released from their army group.`);break;
+    case "fm":{const g=_selGroupKeep();if(g)hireFieldMarshal(g);break;}
+    case "careful":case "balanced":case "aggressive":{const g=oneGroup||_selGroupKeep();if(g)setPlanAgg(g,k);break;}
+    case "selgrp":if(oneGroup){G.selGroup=groupUnits(G.player,oneGroup);G.selUnit=G.selGroup[0];}break;
+    case "clear":selClear();break;
+  }
+  updateOrderBar(true);renderPanel&&curPanel&&renderPanel();refreshHUD();
+};
+/* ---------- the bar itself ---------- */
+let _obSig="";
+function updateOrderBar(force){
+  let bar=document.getElementById("orderbar");
+  if(!bar){bar=document.createElement("div");bar.id="orderbar";document.body.appendChild(bar);}
+  const L=G&&!FPV?_selLive():[];
+  if(!L.length){if(bar.style.display!=="none"){bar.style.display="none";G&&(G.pickOrder=null);}_obSig="";return;}
+  const g0=L[0].grp,oneGroup=g0&&L.every(u=>u.grp===g0)&&G.groups&&G.groups[g0]?g0:0,grp=oneGroup?G.groups[oneGroup]:null,P=grp?planOf(grp):null;
+  const sig=[L.length,oneGroup,grp&&grp.stance,grp&&grp.obj,P&&P.exec,P&&P.agg,P&&Math.round(P.prep*20),G.pickOrder,grp&&!!grp.fm].join("|");
+  if(!force&&sig===_obSig&&bar.style.display==="grid")return;_obSig=sig;
+  const B=(k,ico,lbl,tip,on,pick)=>`<button class="ob${on?" on":""}${G.pickOrder===k?" pick":""}" title="${tip}" onclick="${pick?`orderPick('${k}')`:`orderDo('${k}')`}"><b>${ico}</b><span>${lbl}</span></button>`;
+  const st=grp&&grp.stance,hasPlan=grp&&PLAN_STANCES.indexOf(st)>=0;
+  bar.innerHTML=`<div class="obinfo"><b>${L.length}</b> division${L.length>1?"s":""}<br><small>${oneGroup?`<i style="display:inline-block;width:8px;height:8px;background:${groupCol(oneGroup)};border:1px solid #000"></i> Army Group ${oneGroup}${grp.fm?" · "+grp.fm.name:""}`:"no army group"}</small>
+    ${hasPlan?`<div class="obprep"><i style="width:${Math.round(P.prep*100)}%"></i></div><small>${Math.round(P.prep*100)}% planned</small>`:""}</div>
+   <div class="obsec"><div class="obh">BATTLE PLAN</div><div class="obrow">
+    ${B("front","▬","Front line","Draw a front line against a country: the group spreads along the border and holds it",st==="front",1)}
+    ${B("offensive","➤","Offensive","Offensive line: attack toward a province you pick, across the group's whole width",st==="offensive",1)}
+    ${B("spear","⇛","Spearhead","Spearhead: every division drives straight for one goal",st==="spear",1)}
+    ${B("fallback","↩","Fall-back","Fall-back line: withdraw to a province of yours and hold the ground round it",st==="fallback",1)}
+    ${B("invade","⚓","Naval inv.","Naval invasion: gather in the ports facing a beach and land on it",st==="invade",1)}
+    ${B("para","\u{1FA82}","Paradrop",`Drop up to 3 infantry divisions on an enemy province within range of an air base (${PARA_COST} PP each)`,false,1)}
+    ${B("area","\u{1F6E1}","Area def.","Area defence: guard our ground and move only to threatened provinces",st==="hold")}
+    </div></div>
+   <div class="obsec"><div class="obh">EXECUTE</div><div class="obrow">
+    ${B("exec","▶","Execute","Carry out the battle plan",P&&P.exec)}
+    ${B("stop","⏸","Stop","Stop and hold the line",hasPlan&&P&&!P.exec)}
+    ${B("careful","\u{1F422}","Careful","Attack only at good odds (1.6 to 1)",P&&P.agg==="careful")}
+    ${B("balanced","⚖","Balanced","Attack at even odds",P&&P.agg==="balanced")}
+    ${B("aggressive","\u{1F525}","Aggressive","Attack anywhere, whatever it costs",P&&P.agg==="aggressive")}
+    </div></div>
+   <div class="obsec"><div class="obh">ORDERS</div><div class="obrow">
+    ${B("move","⚑","Move","Send them to a province",false,1)}
+    ${B("halt","✋","Halt","Stop moving and stand where they are")}
+    ${B("redeploy","\u{1F682}","Redeploy","Strategic redeployment by rail: three times as fast through our own and allied ground",false,1)}
+    ${B("reserve","○","Reserve","Into reserve: rest and refit",st==="reserve")}
+    ${B("train","\u{1F3AF}","Exercise","Train: gain experience for equipment",L.some(u=>u.train))}
+    ${B("merge","\u{1F517}","Merge","Merge divisions of the same kind standing in the same province")}
+    ${B("split","✂","Split","Split each full-strength division into two")}
+    ${B("disband","✖","Disband","Disband: the men go home")}
+    </div></div>
+   <div class="obsec"><div class="obh">COMMAND</div><div class="obrow">
+    ${B("newgrp","\u{1F396}","New group","Form a new army group from the selection")}
+    ${oneGroup?B("selgrp","▣","Whole grp","Select the whole army group"):""}
+    ${oneGroup?B("ungroup","✕","Leave grp","Release them from the army group"):""}
+    ${!grp||!grp.fm?B("fm","⭐","Marshal",`Hire a field marshal for this army group (${FM_COST} PP)`):""}
+    ${B("clear","✕","Deselect","Clear the selection (Esc)")}
+    </div></div>`;
+  bar.style.display="grid";
+}
+setInterval(()=>{try{if(G)updateOrderBar(false);}catch(e){}},300);
+/* ---------- drawn on the map ---------- */
+function drawObjPlans(z){
+  if(!G||!G.groups)return;
+  for(const id in G.groups){const grp=G.groups[id];if(!grp||grp.nat!==G.player||!grp.obj||["offensive","spear","fallback","invade"].indexOf(grp.stance)<0)continue;
+    const obj=G.prov[grp.obj],us=groupUnits(G.player,+id);if(!obj||!us.length)continue;
+    let sx=0,sy=0;for(const u of us){const p=provOf(u.at);sx+=p.x;sy+=p.y;}sx/=us.length;sy/=us.length;
+    const col=groupCol(+id),exec=planOf(grp).exec;
+    ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+    if(grp.stance==="fallback"){
+      ctx.setLineDash([6/z,4/z]);ctx.lineWidth=3/z;ctx.strokeStyle=col;
+      ctx.beginPath();ctx.arc(obj.x,obj.y,14,0,7);ctx.stroke();ctx.setLineDash([]);
+      ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(obj.x,obj.y);ctx.globalAlpha=0.6;ctx.stroke();ctx.restore();continue;}
+    const w=(grp.stance==="spear"?3.5:7)/z, mx=(sx+obj.x)/2-(obj.y-sy)*0.15, my=(sy+obj.y)/2+(obj.x-sx)*0.15;
+    if(grp.stance==="invade")ctx.setLineDash([8/z,5/z]);
+    ctx.lineWidth=w+3/z;ctx.strokeStyle="rgba(0,0,0,0.55)";ctx.beginPath();ctx.moveTo(sx,sy);ctx.quadraticCurveTo(mx,my,obj.x,obj.y);ctx.stroke();
+    ctx.lineWidth=w;ctx.strokeStyle=col;ctx.globalAlpha=exec?1:0.7;ctx.stroke();ctx.setLineDash([]);
+    const a=Math.atan2(obj.y-my,obj.x-mx),hl=(grp.stance==="spear"?11:15)/z;
+    for(let i=0;i<(grp.stance==="spear"?2:1);i++){const bx=obj.x-Math.cos(a)*i*hl*0.7,by=obj.y-Math.sin(a)*i*hl*0.7;
+      ctx.beginPath();ctx.moveTo(bx+Math.cos(a)*hl*0.4,by+Math.sin(a)*hl*0.4);ctx.lineTo(bx+Math.cos(a+2.5)*hl,by+Math.sin(a+2.5)*hl);ctx.lineTo(bx+Math.cos(a-2.5)*hl,by+Math.sin(a-2.5)*hl);ctx.closePath();
+      ctx.fillStyle=col;ctx.fill();ctx.lineWidth=1/z;ctx.strokeStyle="#000";ctx.stroke();}
+    ctx.globalAlpha=1;ctx.font=`bold ${12/z}px Courier New`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.lineWidth=3/z;ctx.strokeStyle="#000";const lbl=(grp.stance==="invade"?"⚓ ":"")+id;ctx.strokeText(lbl,mx,my);ctx.fillStyle=col;ctx.fillText(lbl,mx,my);
+    ctx.restore();
+  }
+}
 let SELMODE=false,GRP_SEL=0;
 window.openGroup=g=>{if(!G||!G.groups||!G.groups[g])return;GRP_SEL=g;G.selGroup=groupUnits(G.player,+g);G.selUnit=G.selGroup[0]||null;openPanel("grp");};
 window.selectGroupUnits=g=>{G.selGroup=groupUnits(G.player,+g);G.selUnit=G.selGroup[0]||null;logMsg(`Army Group ${g}: ${G.selGroup.length} divisions selected \u2014 click a province to send them.`);};
@@ -19486,6 +19762,7 @@ function clickAt(sx,sy){
     }else logMsg("Pick an enemy province for the strike.","war");
     G.pickAir=false;openPanel("air");return;
   }
+  if(G.pickOrder){_orderPickClick(p);return;}
   const u=unitAt(sx,sy);
   // group orders
   if(G.selGroup&&G.selGroup.length&&p){
@@ -19547,6 +19824,7 @@ addEventListener("keydown",e=>{
   if(e.key==="h"||e.key==="H"){e.preventDefault();goHome();}
   else if(e.key==="b"||e.key==="B"){e.preventDefault();nextBattle();}
   else if(e.key==="m"||e.key==="M"){e.preventDefault();cycleOverlay(1);}
+  else if(e.key==="Escape"&&G.pickOrder){e.preventDefault();G.pickOrder=null;logMsg("Order cancelled.");updateOrderBar(true);}
   else if(e.key==="Escape"&&G.selGroup){e.preventDefault();selClear();}
 });
 $("#bAuto").onclick=()=>{
