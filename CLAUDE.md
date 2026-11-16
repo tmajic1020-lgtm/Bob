@@ -2356,3 +2356,23 @@ a bigger explanation and make a real photo".
 - Probe pitfall: a 1938 or 1939 start has already absorbed Austria and
   Czechoslovakia, so the Anschluss and Prague events correctly never fire
   there. Test events from a 1936 start.
+
+### A map for the Rhineland headline
+
+Owner: "for the Rhineland just make a picture of Europe, Germany the
+brightest one, and make divisions in the Rhineland". `NEWS_MAPS[ds]` +
+`drawNewsMap(ds)` paint the newspaper picture from the game's own data:
+every atlas shape dimmed toward #232823 in its own colour, the subject's
+ground from the ownership grid (so 1936 East Prussia and Silesia are lit)
+in its colour mixed 62% toward cream with a glow, the zone hatched red,
+arrows across the Rhine and NATO infantry counters in it, names on top.
+Order of preference for a headline picture: the player's own photo, then a
+news map, then a public-domain photo / the painted scene.
+- The grid is 40-km cells; magnified it was a staircase. Upscaled 6x with
+  blur and cut at alpha 110 it is a smooth curve.
+- `__terOwner` is built asynchronously after startGame; a probe that fires
+  the event straight away sees no grid. The map falls back to filling the
+  subject's own atlas shapes.
+- #evPhoto is 640x230 (was 260) so the answers are closer to view.
+- To add another: a box [lon0,lat0,lon1,lat1], `hi`, optional zone ring,
+  unit positions, arrows and labels, all in lon/lat.

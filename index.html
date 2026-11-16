@@ -145,7 +145,7 @@ body:not(.light) #panel .bbtn:not([disabled]):hover{border-color:#b0924e;backgro
   background:linear-gradient(#2b3226,#1d2419);
   font-size:11px;letter-spacing:3px;color:#c9b47a;text-transform:uppercase}
 #eventBox.news .newshdr span:last-child{letter-spacing:1px;color:#8a9285}
-#eventBox.news canvas{display:block;width:100%;height:auto;max-height:200px;object-fit:cover;border-bottom:2px solid #6b5a34;
+#eventBox.news canvas{display:block;width:100%;height:auto;border-bottom:2px solid #6b5a34;
   filter:sepia(0.28) contrast(1.06)}
 #eventBox.news>h2{font-size:clamp(18px,3.4vw,27px);line-height:1.12;letter-spacing:1px;
   color:#f2ead2;text-transform:uppercase;padding:14px 18px 0;text-shadow:0 2px 0 #0008}
@@ -436,7 +436,7 @@ body:not(.light):not(.zz) #sidebtns .tbtn{border-top:2px solid #8a7440}
 <div id="evShade" style="display:none;position:absolute;inset:0;z-index:54;background:rgba(4,6,8,0.55)"></div>
 <div id="eventBox" style="display:none">
   <div class="newshdr"><span id="evPaper">THE NATIONAL HERALD</span><span id="evDate"></span></div>
-  <canvas id="evPhoto" width="640" height="260"></canvas>
+  <canvas id="evPhoto" width="640" height="230"></canvas>
   <h2 id="evTitle"></h2>
   <div id="evDesc"></div>
   <div id="evChoices"></div>
@@ -6365,6 +6365,91 @@ function _drawNewsPic(ds){
     if(ph.cap){g.fillStyle="rgba(0,0,0,.55)";g.fillRect(0,H2-18,W2,18);g.fillStyle="#d8d2bc";g.font="11px Courier New";g.textAlign="right";g.fillText(ph.cap,W2-8,H2-5);g.textAlign="left";}};
   im.src=ph.src;return true;
 }
+/* A MAP FOR THE HEADLINE. Some news is about ground, and the paper prints the
+   map: the region dimmed, the power at the centre of it lit, the disputed
+   ground hatched, and the divisions going into it. Drawn from the game's own
+   country outlines and ownership, so it is this game's Europe on this day. */
+const NEWS_MAPS={
+ "1936-03-07":{box:[-1.5,46.6,21.5,55.6],hi:"GER",
+   zone:{name:"RHINELAND",ring:[[6.0,51.85],[6.9,52.1],[7.9,51.75],[8.45,50.9],[8.75,49.9],[8.35,49.05],[7.6,49.05],[6.4,49.2],[6.15,49.55],[6.45,50.3],[5.95,50.75]]},
+   units:{nat:"GER",at:[[6.75,51.35],[7.35,50.45],[6.85,49.55],[8.05,49.35]]},
+   arrows:[[[10.6,51.7],[7.7,51.5]],[[10.7,50.5],[8.0,50.55]],[[10.4,49.3],[7.75,49.85]]],
+   labels:[["FRANCE",2.3,47.2],["BELGIUM",4.6,50.55,0.55],["NETHERLANDS",5.6,52.6,0.55],["POLAND",19.3,52.1],["CZECHOSLOVAKIA",15.6,49.6,0.6],["AUSTRIA",14.3,47.55,0.6],["SWITZERLAND",8.1,46.95,0.5],["DENMARK",9.6,55.3,0.6],["UNITED KINGDOM",0.2,52.4,0.6]]}
+};
+function drawNewsMap(ds){
+  const M=NEWS_MAPS[ds],cv2=document.getElementById("evPhoto");
+  if(!M||!cv2||!_featPath.length||!countryNames)return false;
+  const g=cv2.getContext("2d"),W2=cv2.width,H2=cv2.height;
+  const [l0,b0,l1,b1]=M.box,[x0,y0]=PX(l0,b1),[x1,y1]=PX(l1,b0);
+  const s=Math.max(W2/(x1-x0),H2/(y1-y0)),ox=(x0+x1)/2,oy=(y0+y1)/2;
+  const T=()=>g.setTransform(s,0,0,s,W2/2-ox*s,H2/2-oy*s);
+  const P=(lon,lat)=>{const [x,y]=PX(lon,lat);return [(x-ox)*s+W2/2,(y-oy)*s+H2/2];};
+  g.setTransform(1,0,0,1,0,0);g.filter="none";
+  const sea=g.createLinearGradient(0,0,0,H2);sea.addColorStop(0,"#1d2a31");sea.addColorStop(1,"#141d22");
+  g.fillStyle=sea;g.fillRect(0,0,W2,H2);
+  const hiCol=NATIONS[M.hi].c||"#777",dim="#232823";
+  const inView=()=>true;   /* off-canvas fills cost nothing worth measuring */
+  /* everyone else, dim and dark, each a shade of its own colour */
+  T();
+  for(let i=0;i<_featPath.length;i++){if(!_featPath[i]||!inView(i))continue;
+    let n=null;try{n=natOfCountry(countryNames[i]);}catch(e){}
+    g.fillStyle=n&&NATIONS[n]&&n!==M.hi?_scMix(NATIONS[n].c,dim,0.8):dim;g.fill(_featPath[i],"evenodd");}
+  /* if the ownership grid is not built yet, the subject's own shapes stand in */
+  if(!window.__terOwner)for(let i=0;i<_featPath.length;i++){let n=null;try{n=natOfCountry(countryNames[i]);}catch(e){}
+    if(n===M.hi){g.fillStyle=_scMix(hiCol,"#f2e9c8",0.62);g.fill(_featPath[i],"evenodd");}}
+  /* the subject's own ground, from the ownership grid (so East Prussia and
+     Silesia are lit in 1936), clipped to land and drawn bright */
+  const O=window.__terOwner;
+  if(O){const gi=O.natKeys.indexOf(M.hi)+1,cw=MW/O.w,c=document.createElement("canvas");
+    const gx0=Math.max(0,Math.floor(x0/cw)-2),gy0=Math.max(0,Math.floor(y0/cw)-2),gx1=Math.min(O.w,Math.ceil(x1/cw)+2),gy1=Math.min(O.h,Math.ceil(y1/cw)+2);
+    c.width=gx1-gx0;c.height=gy1-gy0;const cx=c.getContext("2d"),im=cx.createImageData(c.width,c.height),rgb=_scMix(hiCol,"#f2e9c8",0.62).match(/\d+/g).map(Number);
+    for(let y=gy0;y<gy1;y++)for(let x=gx0;x<gx1;x++)if(O.owner[y*O.w+x]===gi){const j=((y-gy0)*c.width+(x-gx0))*4;im.data[j]=rgb[0];im.data[j+1]=rgb[1];im.data[j+2]=rgb[2];im.data[j+3]=255;}
+    cx.putImageData(im,0,0);
+    /* the grid is 40-km cells: upscale it smoothed and cut at half alpha so the
+       edge is a curve through the cells, not a staircase of them */
+    {const U=6,c2=document.createElement("canvas");c2.width=c.width*U;c2.height=c.height*U;const x2=c2.getContext("2d");
+      x2.imageSmoothingEnabled=true;x2.filter="blur(4px)";x2.drawImage(c,0,0,c2.width,c2.height);x2.filter="none";
+      const d2=x2.getImageData(0,0,c2.width,c2.height),dd=d2.data;
+      for(let j=0;j<dd.length;j+=4){const on=dd[j+3]>110;dd[j]=rgb[0];dd[j+1]=rgb[1];dd[j+2]=rgb[2];dd[j+3]=on?255:0;}
+      x2.putImageData(d2,0,0);c.width=c2.width;c.height=c2.height;cx.drawImage(c2,0,0);}
+    g.save();const land=new Path2D();for(let i=0;i<_featPath.length;i++)if(_featPath[i]&&inView(i))land.addPath(_featPath[i]);
+    g.clip(land,"nonzero");g.imageSmoothingEnabled=true;
+    g.shadowColor="rgba(255,236,170,0.75)";g.shadowBlur=18;g.drawImage(c,gx0*cw,gy0*cw,(gx1-gx0)*cw,(gy1-gy0)*cw);
+    g.shadowBlur=0;g.drawImage(c,gx0*cw,gy0*cw,(gx1-gx0)*cw,(gy1-gy0)*cw);g.restore();}
+  /* frontiers, then the subject's outline glowing */
+  g.lineJoin="round";g.lineWidth=0.9/s;g.strokeStyle="rgba(8,10,8,0.85)";
+  for(let i=0;i<_featPath.length;i++)if(_featPath[i]&&inView(i))g.stroke(_featPath[i]);
+  /* the disputed ground, hatched */
+  g.setTransform(1,0,0,1,0,0);
+  if(M.zone){const zp=new Path2D();M.zone.ring.forEach(([lo,la],i)=>{const [x,y]=P(lo,la);i?zp.lineTo(x,y):zp.moveTo(x,y);});zp.closePath();
+    g.save();g.clip(zp);g.fillStyle="rgba(196,69,47,0.30)";g.fillRect(0,0,W2,H2);
+    g.strokeStyle="rgba(150,30,20,0.55)";g.lineWidth=2;for(let d=-H2;d<W2;d+=7){g.beginPath();g.moveTo(d,H2);g.lineTo(d+H2,0);g.stroke();}g.restore();
+    g.setLineDash([5,3]);g.lineWidth=1.6;g.strokeStyle="#e8c060";g.stroke(zp);g.setLineDash([]);}
+  /* arrows across the Rhine */
+  for(const [[a1,a2],[b1_,b2]] of M.arrows||[]){const [ax,ay]=P(a1,a2),[bx,by]=P(b1_,b2),an=Math.atan2(by-ay,bx-ax);
+    const mx=(ax+bx)/2-(by-ay)*0.18,my=(ay+by)/2+(bx-ax)*0.18;
+    g.lineCap="round";g.lineWidth=7;g.strokeStyle="rgba(10,8,6,0.7)";g.beginPath();g.moveTo(ax,ay);g.quadraticCurveTo(mx,my,bx,by);g.stroke();
+    g.lineWidth=4.5;g.strokeStyle="#c4452f";g.stroke();
+    const ea=Math.atan2(by-my,bx-mx);g.fillStyle="#c4452f";g.beginPath();g.moveTo(bx+Math.cos(ea)*9,by+Math.sin(ea)*9);
+    g.lineTo(bx+Math.cos(ea+2.5)*11,by+Math.sin(ea+2.5)*11);g.lineTo(bx+Math.cos(ea-2.5)*11,by+Math.sin(ea-2.5)*11);g.closePath();g.fill();}
+  /* the divisions: infantry counters in the subject's colour */
+  if(M.units){const col=NATIONS[M.units.nat].c||"#666",cw=26,ch=17;
+    for(const [lo,la] of M.units.at){const [x,y]=P(lo,la),rx=x-cw/2,ry=y-ch/2;
+      g.fillStyle="rgba(0,0,0,0.55)";g.fillRect(rx+2,ry+2,cw,ch);
+      const gr=g.createLinearGradient(0,ry,0,ry+ch);gr.addColorStop(0,shade(col,0.25));gr.addColorStop(1,shade(col,-0.2));
+      g.fillStyle=gr;g.fillRect(rx,ry,cw,ch);g.lineWidth=1;g.strokeStyle="#0c0a08";g.strokeRect(rx,ry,cw,ch);
+      g.strokeStyle="#f0ece0";g.lineWidth=1.1;g.strokeRect(rx+5,ry+3,cw-10,ch-6);
+      g.beginPath();g.moveTo(rx+5,ry+3);g.lineTo(rx+cw-5,ry+ch-3);g.moveTo(rx+cw-5,ry+3);g.lineTo(rx+5,ry+ch-3);g.stroke();
+      g.fillStyle="#6fae4a";g.fillRect(rx,ry+ch+1,cw,2);g.fillStyle="#d9a53c";g.fillRect(rx,ry+ch+3,cw,2);}}
+  /* names: the subject big and bright, the zone, everyone else small and dim */
+  g.textAlign="center";g.textBaseline="middle";g.lineJoin="round";
+  const lab=(t,lo,la,sz,fill,halo)=>{const [x,y]=P(lo,la);g.font=`bold ${sz}px Courier New`;g.lineWidth=sz*0.3;g.strokeStyle=halo;g.strokeText(t,x,y);g.fillStyle=fill;g.fillText(t,x,y);};
+  for(const [t,lo,la,k] of M.labels||[])lab(t,lo,la,Math.round(15*(k||1)),"rgba(200,196,178,0.55)","rgba(8,10,8,0.7)");
+  if(M.hi==="GER")lab("GERMANY",12.6,52.2,32,"#2a2416","rgba(255,244,207,0.85)");
+  if(M.zone){const c=M.zone.ring.reduce((a,p)=>[a[0]+p[0],a[1]+p[1]],[0,0]).map(v=>v/M.zone.ring.length);lab(M.zone.name,c[0]-2.6,c[1]+1.9,13,"#f2c86a","rgba(20,8,4,0.9)");}
+  g.font="10px Courier New";g.textAlign="right";g.fillStyle="rgba(216,210,188,0.7)";g.fillText("Map: the remilitarisation of the Rhineland, 7 March 1936",W2-8,H2-7);
+  g.textAlign="left";return true;
+}
 function showWorldNews(items){
   if(!items.length||!G)return;
   const box=$("#eventBox");
@@ -6377,7 +6462,8 @@ function showWorldNews(items){
   $("#evPaper").innerHTML=FL(k)+" "+(PAPERS[me.ideo]||PAPERS.dem)+" · WORLD NEWS";
   $("#evDate").textContent=newsDate();
   const kind=top.type==="war"||top.type==="annex"?"troops":top.type==="news"&&/Olymp|abdicat|Hindenburg/i.test(top.label)?"crowd":"chamber";
-  if(!_drawNewsPic(top.ds))try{drawNewsPhoto(kind,(top.label.length*131+G.day)|0);}catch(e){}
+  let _mapped=false;if(!newsPhotoFor(top.ds))try{_mapped=drawNewsMap(top.ds);}catch(e){}
+  if(!_mapped&&!_drawNewsPic(top.ds))try{drawNewsPhoto(kind,(top.label.length*131+G.day)|0);}catch(e){}
   $("#evTitle").textContent=top.label.toUpperCase();
   const esc=s=>String(s).replace(/[<&]/g,c=>c==="<"?"&lt;":"&amp;");
   const others=items.filter(o=>o!==top);
